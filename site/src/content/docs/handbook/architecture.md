@@ -65,10 +65,10 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 | workspace | Active mode, dock tabs, layout preferences |
 | canvasView | Zoom (1x–32x steps), pan, 8 overlay toggles |
 | tool | Active tool, primary/secondary RGBA colors, palette popup |
-| selection | Selection geometry, mode, saved selections |
+| selection | Selection geometry, mode, transform preview state |
 | layer | Layer graph synced from Rust truth after every command |
 | palette | Palette definitions, contracts, ramps, remap preview |
-| timeline | Frames, tags, playback, onion skin, draft tracks |
+| timeline | Frame list, active frame, playback, onion skin settings |
 | ai | Job queue, candidates, results tray |
 | locomotion | Analysis results, plans, preview mode, overlays |
 | validation | Reports, issues, repair previews |
@@ -88,4 +88,9 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-31 implemented Tauri commands across canvas (13), project (11: new, open, save, info, dirty, recents, export PNG, autosave, check recovery, restore, discard), plus stubs for palette, timeline, validation, AI, locomotion, provenance, and assets.
+53 implemented Tauri commands across:
+- **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
+- **Project** (11): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery
+- **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
+- **Timeline** (6): get timeline, create/duplicate/delete/select/rename frame
+- Plus stubs for palette, validation, AI, locomotion, provenance, and assets

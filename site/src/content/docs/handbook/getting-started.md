@@ -94,3 +94,29 @@ cargo check
 - PNG export from composited frame data
 - Ctrl+S save shortcut, recent projects list
 - Recovery prompt UI on startup
+
+**Stage 2A (Selection System)** — complete:
+- Rectangular marquee tool with drag-to-select
+- Copy/cut/paste/delete selected pixels (Ctrl+C/X/V, Delete)
+- Selection overlay with marching ants animation
+- Selection synced to both frontend store and Rust backend
+- Esc to clear selection
+
+**Stage 2B (Transform)** — complete:
+- Transform session: extract selected pixels into floating payload
+- Move tool: drag inside selection to reposition
+- Arrow key nudge (1px, Shift+Arrow 8px)
+- Flip horizontal/vertical, rotate 90° CW/CCW
+- Live pixel-accurate preview overlay with marching ants
+- Enter to commit, Esc to cancel (restores original pixels)
+- Source region cleared on transform start, restored on cancel
+
+**Stage 2C (Timeline)** — complete:
+- Animation frame model: each frame owns its own layer stack and undo history
+- Create, duplicate (deep copy), delete, switch, rename frames
+- Bottom dock timeline UI with clickable frame cards
+- Frame switching stashes/restores full layer state, clears selection/transform
+- Keyboard: `,` / `.` for prev/next frame
+- ProjectDocument schema v2 with multi-frame persistence
+- V1 migration: old single-frame projects open as one-frame projects
+- Recovery/autosave includes all frames

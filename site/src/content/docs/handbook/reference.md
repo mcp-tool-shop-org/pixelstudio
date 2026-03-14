@@ -65,6 +65,75 @@ PixelStudio's backend exposes Tauri commands organized by domain. Commands marke
 | `restore_recovery` | Restore a project from a recovery file, rehydrate canvas state |
 | `discard_recovery` | Delete a recovery file without restoring |
 
+## Selection commands [live]
+
+| Command | Description |
+|---------|------------|
+| `set_selection_rect` | Set rectangular selection bounds (x, y, width, height) |
+| `clear_selection` | Clear the current selection |
+| `get_selection` | Get current selection bounds (or null) |
+| `copy_selection` | Copy selected pixels from active layer to clipboard |
+| `cut_selection` | Copy selected pixels then clear to transparent, return frame |
+| `paste_selection` | Paste clipboard at selection origin (or top-left), return frame |
+| `delete_selection` | Clear selected pixels to transparent, return frame |
+
+## Transform commands [live]
+
+| Command | Description |
+|---------|------------|
+| `begin_selection_transform` | Extract selected pixels into floating payload, clear source region |
+| `move_selection_preview` | Move payload to absolute offset from source origin |
+| `nudge_selection` | Nudge payload by relative delta (dx, dy) |
+| `commit_selection_transform` | Stamp payload at final position, end session, return frame |
+| `cancel_selection_transform` | Restore original pixels, end session, return frame |
+| `flip_selection_horizontal` | Flip the floating payload horizontally |
+| `flip_selection_vertical` | Flip the floating payload vertically |
+| `rotate_selection_90_cw` | Rotate the floating payload 90° clockwise |
+| `rotate_selection_90_ccw` | Rotate the floating payload 90° counter-clockwise |
+
+Transform commands (except commit/cancel) return a `TransformPreview`:
+
+```typescript
+interface TransformPreview {
+  sourceX: number;
+  sourceY: number;
+  payloadWidth: number;
+  payloadHeight: number;
+  offsetX: number;
+  offsetY: number;
+  payloadData: number[];  // RGBA flat array
+  frame: CanvasFrame;     // Current canvas state (source cleared)
+}
+```
+
+## Timeline commands [live]
+
+| Command | Description |
+|---------|------------|
+| `get_timeline` | Get frame list, active frame, and canvas state |
+| `create_frame` | Create a new blank frame with one layer, switch to it |
+| `duplicate_frame` | Deep copy current frame (all layers), switch to copy |
+| `delete_frame` | Delete frame by id (cannot delete last frame) |
+| `select_frame` | Switch to frame by id, stash/restore layer data |
+| `rename_frame` | Rename a frame by id |
+
+Timeline commands return a `TimelineState`:
+
+```typescript
+interface TimelineState {
+  frames: FrameInfo[];
+  activeFrameIndex: number;
+  activeFrameId: string;
+  frame: CanvasFrame;
+}
+
+interface FrameInfo {
+  id: string;
+  name: string;
+  index: number;
+}
+```
+
 ## Palette commands (planned)
 
 | Command | Description |
