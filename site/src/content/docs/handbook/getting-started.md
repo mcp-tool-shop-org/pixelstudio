@@ -120,3 +120,41 @@ cargo check
 - ProjectDocument schema v2 with multi-frame persistence
 - V1 migration: old single-frame projects open as one-frame projects
 - Recovery/autosave includes all frames
+
+**Stage 3A (Onion Skin)** — complete:
+- Previous/next frame ghost overlays rendered under active frame pixels
+- Blue tint for previous frame, red tint for next frame
+- Configurable opacity (prev 25%, next 15% defaults)
+- Toggle with `O` key, prev/next checkboxes in timeline dock
+- Aligned with zoom/pan coordinate system
+- Onion skin data invalidated on frame switch
+
+**Stage 3B (Playback)** — complete:
+- Frontend-driven playback loop using requestAnimationFrame with elapsed-time stepping
+- Play/pause toggle (Space key), loop mode, FPS control (1-60)
+- Transport controls: prev/next frame step, play/pause, loop toggle
+- Editor coexistence: playback blocked during active transform, paused on edit/undo/redo
+- Playback never mutates pixel data — read-only frame switching
+- Status bar shows playback state
+
+**Stage 3C (Frame Operations + Export)** — complete:
+- Frame reorder: move frames left/right in timeline
+- Insert blank frame before/after current position
+- Duplicate frame to specific position (deep copy with new IDs)
+- Per-frame duration metadata (optional ms override, defaults to global FPS)
+- Duration metadata persisted in project file, migrates cleanly from V2
+- PNG sequence export: numbered files (name_0001.png, name_0002.png, ...)
+- Sprite strip export: horizontal or vertical PNG strip of all frames
+- Export uses composited visible layers, never includes onion skin or overlays
+
+**Stage 4A (Motion Assistance Foothold)** — in progress:
+- Motion session model: begin/generate/accept/reject/cancel lifecycle
+- Bounded intent set: idle bob, walk cycle stub, run cycle stub, hop
+- Direction control (left/right/up/down) and frame count (2 or 4)
+- Target modes: active selection or whole frame (selection preferred when present)
+- Deterministic proposal generation: same inputs always produce same outputs
+- Proposal preview: mini frame strips with checker backgrounds, detail view with frame stepping
+- Session safety: blocked during active stroke/transform, auto-pauses playback
+- Session invalidation: auto-cancels on frame switch
+- Proposals are preview-only — no timeline mutation until accepted
+- 6 motion commands registered (67 total commands)

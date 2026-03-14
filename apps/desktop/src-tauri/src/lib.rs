@@ -6,8 +6,9 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{canvas, project, selection, timeline};
+use commands::{canvas, motion, project, selection, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
+use engine::motion::ManagedMotionState;
 use engine::selection::{ManagedSelectionState, SelectionState};
 
 pub fn run() {
@@ -17,6 +18,7 @@ pub fn run() {
         .manage(ManagedCanvasState(Mutex::new(None)))
         .manage(ManagedProjectMeta(Mutex::new(None)))
         .manage(ManagedSelectionState(Mutex::new(SelectionState::new())))
+        .manage(ManagedMotionState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             project::new_project,
             project::open_project,
@@ -68,6 +70,19 @@ pub fn run() {
             timeline::delete_frame,
             timeline::select_frame,
             timeline::rename_frame,
+            timeline::get_onion_skin_frames,
+            timeline::reorder_frame,
+            timeline::insert_frame_at,
+            timeline::duplicate_frame_at,
+            timeline::set_frame_duration,
+            project::export_frame_sequence,
+            project::export_sprite_strip,
+            motion::begin_motion_session,
+            motion::generate_motion_proposals,
+            motion::get_motion_session,
+            motion::accept_motion_proposal,
+            motion::reject_motion_proposal,
+            motion::cancel_motion_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PixelStudio");

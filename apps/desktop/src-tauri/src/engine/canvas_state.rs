@@ -57,6 +57,9 @@ pub struct AnimationFrame {
     pub undo_stack: Vec<StrokeRecord>,
     pub redo_stack: Vec<StrokeRecord>,
     pub layer_counter: u32,
+    /// Optional per-frame duration override in milliseconds.
+    /// None = use global FPS for timing.
+    pub duration_ms: Option<u32>,
 }
 
 /// Holds all pixel data for the active project. Owned by Rust, authoritative.
@@ -107,6 +110,7 @@ impl CanvasState {
                 undo_stack: Vec::new(),
                 redo_stack: Vec::new(),
                 layer_counter: 0,
+                duration_ms: None,
             }],
             active_frame_index: 0,
             frame_counter: 1,
@@ -140,6 +144,7 @@ impl CanvasState {
                 undo_stack: Vec::new(),
                 redo_stack: Vec::new(),
                 layer_counter: 0,
+                duration_ms: None,
             }],
             active_frame_index: 0,
             frame_counter: 1,
@@ -452,6 +457,7 @@ impl CanvasState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             layer_counter: 0,
+            duration_ms: None,
         };
         self.frames.push(new_frame);
 
@@ -503,6 +509,9 @@ impl CanvasState {
         // Stash current frame
         self.stash_active_frame();
 
+        // Copy duration from source frame
+        let source_duration = self.frames[self.active_frame_index].duration_ms;
+
         let new_frame = AnimationFrame {
             id: frame_id.clone(),
             name: frame_name,
@@ -511,6 +520,7 @@ impl CanvasState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             layer_counter: 0,
+            duration_ms: source_duration,
         };
         self.frames.push(new_frame);
 
@@ -583,6 +593,170 @@ impl CanvasState {
         Ok(())
     }
 
+    /// Move a frame to a new position in the frame list.
+    pub fn reorder_frame(&mut self, frame_id: &str, new_index: usize) -> Result<(), String> {
+        let old_idx = self.frames.iter().position(|f| f.id == frame_id)
+            .ok_or_else(|| "Frame not found".to_string())?;
+
+        if new_index >= self.frames.len() {
+            return Err("Index out of bounds".to_string());
+        }
+        if old_idx == new_index {
+            return Ok(());
+        }
+
+        // Cancel any in-flight stroke
+        self.cancel_stroke();
+
+        // Stash active frame data before moving
+        self.stash_active_frame();
+
+        let frame = self.frames.remove(old_idx);
+        self.frames.insert(new_index, frame);
+
+        // Update active_frame_index to track the same frame
+        let active_id = self.frames[self.active_frame_index].id.clone();
+        self.active_frame_index = self.frames.iter().position(|f| f.id == active_id)
+            .unwrap_or(0);
+
+        // Restore active frame data
+        self.restore_frame(self.active_frame_index);
+
+        Ok(())
+    }
+
+    /// Insert a new blank frame at a specific position.
+    pub fn insert_frame_at(&mut self, position: usize, name: Option<String>) -> Result<String, String> {
+        if position > self.frames.len() {
+            return Err("Position out of bounds".to_string());
+        }
+
+        self.cancel_stroke();
+        self.stash_active_frame();
+
+        self.frame_counter += 1;
+        let frame_name = name.unwrap_or_else(|| format!("Frame {}", self.frame_counter));
+        let frame_id = uuid::Uuid::new_v4().to_string();
+        let layer_id = uuid::Uuid::new_v4().to_string();
+
+        let new_frame = AnimationFrame {
+            id: frame_id.clone(),
+            name: frame_name,
+            layers: Vec::new(),
+            active_layer_id: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            layer_counter: 0,
+            duration_ms: None,
+        };
+        self.frames.insert(position, new_frame);
+
+        // Adjust active_frame_index if insertion was before it
+        if position <= self.active_frame_index {
+            self.active_frame_index += 1;
+        }
+
+        // Restore the previously-stashed frame first so it's valid
+        self.restore_frame(self.active_frame_index);
+
+        // Now stash it again and switch to the new frame
+        self.stash_active_frame();
+
+        // Set top-level state for the new frame
+        self.layers = vec![Layer {
+            id: layer_id.clone(),
+            name: "Layer 1".to_string(),
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            buffer: PixelBuffer::new(self.width, self.height),
+        }];
+        self.active_layer_id = Some(layer_id);
+        self.undo_stack = Vec::new();
+        self.redo_stack = Vec::new();
+        self.layer_counter = 1;
+        self.active_frame_index = position;
+
+        Ok(frame_id)
+    }
+
+    /// Duplicate the current frame and insert the copy at a specific position.
+    pub fn duplicate_frame_at(&mut self, position: usize) -> Result<String, String> {
+        if position > self.frames.len() {
+            return Err("Position out of bounds".to_string());
+        }
+
+        self.frame_counter += 1;
+        let frame_id = uuid::Uuid::new_v4().to_string();
+        let frame_name = format!("Frame {}", self.frame_counter);
+
+        // Deep copy current layers with new IDs
+        let mut id_map = std::collections::HashMap::new();
+        let dup_layers: Vec<Layer> = self.layers.iter().map(|l| {
+            let new_id = uuid::Uuid::new_v4().to_string();
+            id_map.insert(l.id.clone(), new_id.clone());
+            Layer {
+                id: new_id,
+                name: l.name.clone(),
+                visible: l.visible,
+                locked: l.locked,
+                opacity: l.opacity,
+                buffer: PixelBuffer::from_bytes(self.width, self.height, l.buffer.to_bytes()),
+            }
+        }).collect();
+
+        let dup_active_layer = self.active_layer_id.as_ref()
+            .and_then(|id| id_map.get(id))
+            .cloned();
+
+        // Copy duration from source
+        let source_duration = self.frames[self.active_frame_index].duration_ms;
+
+        self.cancel_stroke();
+        self.stash_active_frame();
+
+        let new_frame = AnimationFrame {
+            id: frame_id.clone(),
+            name: frame_name,
+            layers: Vec::new(),
+            active_layer_id: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            layer_counter: 0,
+            duration_ms: source_duration,
+        };
+        self.frames.insert(position, new_frame);
+
+        // Adjust active_frame_index if insertion was before or at it
+        if position <= self.active_frame_index {
+            self.active_frame_index += 1;
+        }
+
+        // Restore the previously-stashed frame first
+        self.restore_frame(self.active_frame_index);
+
+        // Now stash it again and switch to the new frame
+        self.stash_active_frame();
+
+        // Set top-level state for the duplicated frame
+        self.layers = dup_layers;
+        self.active_layer_id = dup_active_layer;
+        self.undo_stack = Vec::new();
+        self.redo_stack = Vec::new();
+        self.layer_counter = self.layers.len() as u32;
+        self.active_frame_index = position;
+
+        Ok(frame_id)
+    }
+
+    /// Set per-frame duration override. None = use global FPS.
+    pub fn set_frame_duration(&mut self, frame_id: &str, duration_ms: Option<u32>) -> Result<(), String> {
+        let frame = self.frames.iter_mut().find(|f| f.id == frame_id)
+            .ok_or_else(|| "Frame not found".to_string())?;
+        frame.duration_ms = duration_ms;
+        Ok(())
+    }
+
     /// Rename a frame.
     pub fn rename_frame(&mut self, frame_id: &str, name: String) -> Result<(), String> {
         let frame = self.frames.iter_mut().find(|f| f.id == frame_id)
@@ -602,6 +776,40 @@ impl CanvasState {
 
     pub fn active_frame_name(&self) -> &str {
         &self.frames[self.active_frame_index].name
+    }
+
+    /// Composite a frame by index. For the active frame, uses top-level layers.
+    /// For stashed frames, uses the frame's stored layers.
+    pub fn composite_frame_at(&self, index: usize) -> Option<Vec<u8>> {
+        if index >= self.frames.len() {
+            return None;
+        }
+        if index == self.active_frame_index {
+            return Some(self.composite_frame());
+        }
+        // Composite from stashed frame layers
+        let frame = &self.frames[index];
+        let size = (self.width as usize) * (self.height as usize) * 4;
+        let mut result = vec![0u8; size];
+
+        for layer in &frame.layers {
+            if !layer.visible { continue; }
+            let src = layer.buffer.as_bytes();
+            let opacity = layer.opacity;
+            for i in (0..size).step_by(4) {
+                let sa = (src[i + 3] as f32 / 255.0) * opacity;
+                if sa == 0.0 { continue; }
+                let da = result[i + 3] as f32 / 255.0;
+                let out_a = sa + da * (1.0 - sa);
+                if out_a > 0.0 {
+                    result[i] = ((src[i] as f32 * sa + result[i] as f32 * da * (1.0 - sa)) / out_a) as u8;
+                    result[i + 1] = ((src[i + 1] as f32 * sa + result[i + 1] as f32 * da * (1.0 - sa)) / out_a) as u8;
+                    result[i + 2] = ((src[i + 2] as f32 * sa + result[i + 2] as f32 * da * (1.0 - sa)) / out_a) as u8;
+                    result[i + 3] = (out_a * 255.0) as u8;
+                }
+            }
+        }
+        Some(result)
     }
 
     // --- Helpers ---

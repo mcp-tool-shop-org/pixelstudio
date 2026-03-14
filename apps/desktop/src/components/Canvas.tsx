@@ -88,6 +88,14 @@ export function Canvas() {
 
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const frameCount = useTimelineStore((s) => s.frames.length);
+  const playing = useTimelineStore((s) => s.playing);
+  const onionSkinEnabled = useTimelineStore((s) => s.onionSkinEnabled);
+  const onionSkinShowPrev = useTimelineStore((s) => s.onionSkinShowPrev);
+  const onionSkinShowNext = useTimelineStore((s) => s.onionSkinShowNext);
+  const onionSkinPrevOpacity = useTimelineStore((s) => s.onionSkinPrevOpacity);
+  const onionSkinNextOpacity = useTimelineStore((s) => s.onionSkinNextOpacity);
+  const onionSkinData = useTimelineStore((s) => s.onionSkinData);
+  const setOnionSkinData = useTimelineStore((s) => s.setOnionSkinData);
 
   // Unclamped screen-to-pixel (allows coords outside canvas for drag)
   const screenToPixelUnclamped = useCallback(
@@ -141,6 +149,17 @@ export function Canvas() {
     init();
   }, [canvasSize.width, canvasSize.height, setFrame]);
 
+  // Fetch onion skin data when enabled and frame changes
+  useEffect(() => {
+    if (!onionSkinEnabled || !canvasReady || frameCount <= 1) {
+      setOnionSkinData(null);
+      return;
+    }
+    invoke<{ width: number; height: number; prevData: number[] | null; nextData: number[] | null }>('get_onion_skin_frames')
+      .then((data) => setOnionSkinData(data))
+      .catch(() => setOnionSkinData(null));
+  }, [onionSkinEnabled, activeFrameIndex, frameVersion, canvasReady, frameCount, setOnionSkinData]);
+
   // Render
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -192,6 +211,63 @@ export function Canvas() {
       ctx.fillRect(originX, originY, spriteW, spriteH);
     }
 
+    // --- Onion skin overlays (before active frame) ---
+    if (onionSkinData && onionSkinEnabled) {
+      const osW = onionSkinData.width;
+      const osH = onionSkinData.height;
+
+      // Previous frame ghost (blue tint)
+      if (onionSkinShowPrev && onionSkinData.prevData) {
+        const prevData = onionSkinData.prevData;
+        ctx.globalAlpha = onionSkinPrevOpacity;
+        for (let py = 0; py < osH; py++) {
+          for (let px = 0; px < osW; px++) {
+            const i = (py * osW + px) * 4;
+            const a = prevData[i + 3];
+            if (a === 0) continue;
+            const sx = originX + px * zoom;
+            const sy = originY + py * zoom;
+            if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
+            // Tint toward blue
+            const r = Math.round(prevData[i] * 0.3);
+            const g = Math.round(prevData[i + 1] * 0.3);
+            const b = Math.min(255, Math.round(prevData[i + 2] * 0.5 + 128));
+            ctx.fillStyle = a === 255
+              ? `rgb(${r},${g},${b})`
+              : `rgba(${r},${g},${b},${a / 255})`;
+            ctx.fillRect(sx, sy, zoom, zoom);
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Next frame ghost (red tint)
+      if (onionSkinShowNext && onionSkinData.nextData) {
+        const nextData = onionSkinData.nextData;
+        ctx.globalAlpha = onionSkinNextOpacity;
+        for (let py = 0; py < osH; py++) {
+          for (let px = 0; px < osW; px++) {
+            const i = (py * osW + px) * 4;
+            const a = nextData[i + 3];
+            if (a === 0) continue;
+            const sx = originX + px * zoom;
+            const sy = originY + py * zoom;
+            if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
+            // Tint toward red
+            const r = Math.min(255, Math.round(nextData[i] * 0.5 + 128));
+            const g = Math.round(nextData[i + 1] * 0.3);
+            const b = Math.round(nextData[i + 2] * 0.3);
+            ctx.fillStyle = a === 255
+              ? `rgb(${r},${g},${b})`
+              : `rgba(${r},${g},${b},${a / 255})`;
+            ctx.fillRect(sx, sy, zoom, zoom);
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // --- Active frame pixels ---
     const frameData = frame.data;
     for (let py = 0; py < frame.height; py++) {
       for (let px = 0; px < frame.width; px++) {
@@ -295,7 +371,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview]);
+  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -416,6 +492,8 @@ export function Canvas() {
       }
 
       if (e.button === 0 && (activeTool === 'pencil' || activeTool === 'eraser')) {
+        // Pause playback on edit
+        if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
         const color = activeTool === 'pencil' ? primaryColor : { r: 0, g: 0, b: 0, a: 0 };
         try {
           await invoke<string>('begin_stroke', {
@@ -568,7 +646,23 @@ export function Canvas() {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
-        isPanningRef.current = true;
+        // If actively drawing, Space = pan; otherwise Space = play/pause
+        if (isDrawingRef.current) {
+          isPanningRef.current = true;
+        } else {
+          const tl = useTimelineStore.getState();
+          if (tl.frames.length > 1) {
+            if (tl.playing) {
+              tl.setPlaying(false);
+            } else {
+              // Block if transform active
+              if (useSelectionStore.getState().isTransforming) return;
+              useSelectionStore.getState().clearSelection();
+              invoke('clear_selection').catch(() => {});
+              tl.setPlaying(true);
+            }
+          }
+        }
         return;
       }
 
@@ -667,6 +761,7 @@ export function Canvas() {
 
         if (e.code === 'KeyZ' && !e.shiftKey) {
           e.preventDefault();
+          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
           try {
             const f = await invoke<CanvasFrameData>('undo');
             setFrame(f);
@@ -678,6 +773,7 @@ export function Canvas() {
         }
         if ((e.code === 'KeyZ' && e.shiftKey) || e.code === 'KeyY') {
           e.preventDefault();
+          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
           try {
             const f = await invoke<CanvasFrameData>('redo');
             setFrame(f);
@@ -689,16 +785,24 @@ export function Canvas() {
         }
       }
 
-      // Prev/next frame with , and .
+      // Toggle onion skin with O
+      if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        useTimelineStore.getState().toggleOnionSkin();
+        return;
+      }
+
+      // Prev/next frame with , and . (pauses playback)
       if (e.code === 'Comma' || e.code === 'Period') {
         e.preventDefault();
         const tl = useTimelineStore.getState();
+        if (tl.playing) tl.setPlaying(false);
         if (tl.frames.length <= 1) return;
         const idx = tl.frames.findIndex((f) => f.id === tl.activeFrameId);
         const targetIdx = e.code === 'Comma' ? idx - 1 : idx + 1;
         if (targetIdx < 0 || targetIdx >= tl.frames.length) return;
         const targetId = tl.frames[targetIdx].id;
-        invoke<{ frames: Array<{ id: string; name: string; index: number }>; activeFrameIndex: number; activeFrameId: string; frame: CanvasFrameData }>('select_frame', { frameId: targetId })
+        invoke<{ frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>; activeFrameIndex: number; activeFrameId: string; frame: CanvasFrameData }>('select_frame', { frameId: targetId })
           .then((result) => {
             tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
             setFrame(result.frame);
@@ -761,6 +865,8 @@ export function Canvas() {
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
         {frameCount > 1 && <span title=", / . to switch">F{activeFrameIndex + 1}/{frameCount}</span>}
+        {playing && <span title="Space to pause">playing</span>}
+        {onionSkinEnabled && frameCount > 1 && <span title="O to toggle">onion</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
       </div>

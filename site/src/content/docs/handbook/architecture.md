@@ -88,9 +88,10 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-53 implemented Tauri commands across:
+67 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
-- **Project** (11): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery
+- **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
-- **Timeline** (6): get timeline, create/duplicate/delete/select/rename frame
-- Plus stubs for palette, validation, AI, locomotion, provenance, and assets
+- **Timeline** (11): get timeline, create/duplicate/delete/select/rename frame, reorder, insert at, duplicate at, set duration, onion skin frames
+- **Motion** (6): begin/generate/get/accept/reject/cancel motion session
+- Plus stubs for palette, validation, AI, locomotion analysis, provenance, and assets

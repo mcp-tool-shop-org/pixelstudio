@@ -26,6 +26,9 @@ pub struct SerializedFrame {
     pub name: String,
     pub layers: Vec<SerializedLayer>,
     pub active_layer_id: Option<String>,
+    /// Optional per-frame duration override in ms. None = use global FPS.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
 }
 
 /// Serialized project document — the on-disk format for .pxs files.
@@ -105,6 +108,7 @@ impl ProjectDocument {
                     name: f.name.clone(),
                     layers: serialize_layers(&canvas.layers),
                     active_layer_id: canvas.active_layer_id.clone(),
+                    duration_ms: f.duration_ms,
                 });
             } else {
                 // Stashed frame: layers are inside the frame struct
@@ -113,6 +117,7 @@ impl ProjectDocument {
                     name: f.name.clone(),
                     layers: serialize_layers(&f.layers),
                     active_layer_id: f.active_layer_id.clone(),
+                    duration_ms: f.duration_ms,
                 });
             }
         }
@@ -148,6 +153,7 @@ impl ProjectDocument {
                     undo_stack: Vec::new(),
                     redo_stack: Vec::new(),
                     layer_counter,
+                    duration_ms: sf.duration_ms,
                 }
             }).collect();
 

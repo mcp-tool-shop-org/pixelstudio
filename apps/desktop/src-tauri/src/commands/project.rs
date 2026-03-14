@@ -305,6 +305,109 @@ pub fn discard_recovery(project_id: String) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Helper: encode RGBA data as PNG bytes.
+fn encode_png(data: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
+    let mut buf = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(std::io::Cursor::new(&mut buf), width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()
+            .map_err(|e| format!("PNG header error: {}", e))?;
+        writer.write_image_data(data)
+            .map_err(|e| format!("PNG write error: {}", e))?;
+    }
+    Ok(buf)
+}
+
+/// Export all frames as numbered PNG files.
+#[command]
+pub fn export_frame_sequence(
+    dir_path: String,
+    base_name: String,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<Vec<String>, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let dir = std::path::Path::new(&dir_path);
+    std::fs::create_dir_all(dir)
+        .map_err(|e| AppError::Io(e))?;
+
+    let mut paths = Vec::new();
+    for i in 0..canvas.frames.len() {
+        let frame_data = canvas.composite_frame_at(i)
+            .ok_or_else(|| AppError::Internal(format!("Failed to composite frame {}", i)))?;
+        let png_data = encode_png(&frame_data, canvas.width, canvas.height)
+            .map_err(|e| AppError::Internal(e))?;
+        let filename = format!("{}_{:04}.png", base_name, i + 1);
+        let file_path = dir.join(&filename);
+        std::fs::write(&file_path, &png_data)
+            .map_err(|e| AppError::Io(e))?;
+        paths.push(file_path.to_string_lossy().to_string());
+    }
+
+    Ok(paths)
+}
+
+/// Export all frames as a sprite strip PNG (horizontal or vertical).
+#[command]
+pub fn export_sprite_strip(
+    file_path: String,
+    horizontal: Option<bool>,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<String, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let frame_count = canvas.frames.len();
+    let fw = canvas.width as usize;
+    let fh = canvas.height as usize;
+    let is_horizontal = horizontal.unwrap_or(true);
+
+    let (strip_w, strip_h) = if is_horizontal {
+        (fw * frame_count, fh)
+    } else {
+        (fw, fh * frame_count)
+    };
+
+    let mut strip = vec![0u8; strip_w * strip_h * 4];
+
+    for i in 0..frame_count {
+        let frame_data = canvas.composite_frame_at(i)
+            .ok_or_else(|| AppError::Internal(format!("Failed to composite frame {}", i)))?;
+
+        let (offset_x, offset_y) = if is_horizontal {
+            (i * fw, 0)
+        } else {
+            (0, i * fh)
+        };
+
+        for y in 0..fh {
+            for x in 0..fw {
+                let src_i = (y * fw + x) * 4;
+                let dst_i = ((offset_y + y) * strip_w + (offset_x + x)) * 4;
+                strip[dst_i..dst_i + 4].copy_from_slice(&frame_data[src_i..src_i + 4]);
+            }
+        }
+    }
+
+    let path = std::path::Path::new(&file_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| AppError::Io(e))?;
+    }
+
+    let png_data = encode_png(&strip, strip_w as u32, strip_h as u32)
+        .map_err(|e| AppError::Internal(e))?;
+    std::fs::write(path, &png_data)
+        .map_err(|e| AppError::Io(e))?;
+
+    Ok(file_path)
+}
+
 // --- Helpers ---
 
 fn get_recents_path() -> PathBuf {

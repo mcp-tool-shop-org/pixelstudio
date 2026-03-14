@@ -475,6 +475,99 @@
   color: var(--accent-primary);
 }
 
+.timeline-info {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.timeline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.timeline-sep {
+  color: var(--border-panel);
+  font-size: 10px;
+  margin: 0 2px;
+}
+
+.timeline-onion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.timeline-btn.active {
+  background: var(--accent-primary);
+  color: var(--bg-base);
+}
+
+.onion-check {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.onion-check input {
+  margin: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.transport-play {
+  font-size: 14px;
+  padding: 4px 8px;
+}
+
+.timeline-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.timeline-fps-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+.timeline-fps-input {
+  width: 36px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-panel);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 10px;
+  padding: 2px 4px;
+  text-align: center;
+}
+
+.timeline-fps-input::-webkit-inner-spin-button,
+.timeline-fps-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timeline-fps-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.playback-indicator {
+  color: var(--accent-primary);
+  font-weight: 500;
+}
+
 .bottom-dock-info {
   display: flex;
   align-items: center;
@@ -719,4 +812,330 @@
 .recovery-discard-btn:hover {
   color: var(--accent-error, #e84545);
   border-color: var(--accent-error, #e84545);
+}
+
+/* Motion Panel */
+.motion-panel {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.motion-config {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.motion-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.motion-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.motion-btn-group {
+  display: flex;
+  gap: 1px;
+}
+
+.motion-option {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.motion-option:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.motion-option:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.motion-option.active {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+}
+
+.motion-option:hover:not(.active) {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+
+.motion-target-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+}
+
+.motion-start-btn {
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.motion-start-btn:hover {
+  background: var(--accent-hover);
+}
+
+.motion-start-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.motion-session {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.motion-session-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.motion-session-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.motion-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+}
+
+.motion-cancel-btn {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.motion-cancel-btn:hover {
+  color: var(--accent-error, #e84545);
+  border-color: var(--accent-error, #e84545);
+}
+
+.motion-generate-btn {
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.motion-generate-btn:hover {
+  background: var(--accent-hover);
+}
+
+.motion-proposals {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.motion-proposal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 120px;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.motion-proposal-card:hover {
+  border-color: var(--text-muted);
+}
+
+.motion-proposal-card.selected {
+  border-color: var(--accent-primary);
+  background: var(--bg-panel-raised);
+}
+
+.proposal-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.proposal-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.proposal-frames {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.motion-proposal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.motion-reject-btn {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.motion-reject-btn:hover {
+  color: var(--text-primary);
+}
+
+.motion-accept-note {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.motion-error {
+  font-size: 10px;
+  color: var(--accent-error, #e84545);
+  padding: 2px 0;
+}
+
+.motion-preview-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 1px 5px;
+  border: 1px solid var(--border-panel);
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.motion-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  font-style: italic;
+}
+
+.motion-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.proposal-strip {
+  display: flex;
+  gap: 2px;
+  padding: 3px 0;
+}
+
+.motion-preview-tile {
+  display: block;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  background: #2a2a2a;
+}
+
+.motion-selected-area {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.motion-detail-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.motion-detail-canvas {
+  display: block;
+  border: 1px solid var(--border-panel);
+  border-radius: 3px;
+  background: #2a2a2a;
+}
+
+.motion-detail-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.motion-step-btn {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.motion-step-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.motion-detail-frame-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: center;
+}
+
+.motion-regen-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.motion-regen-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }

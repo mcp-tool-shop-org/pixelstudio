@@ -12,6 +12,7 @@ export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';
 export { useAIStore } from './aiStore';
 export { useLocomotionStore } from './locomotionStore';
+export { useMotionStore } from './motionStore';
 export { useValidationStore } from './validationStore';
 export { useProvenanceStore } from './provenanceStore';
 export { useExportStore } from './exportStore';

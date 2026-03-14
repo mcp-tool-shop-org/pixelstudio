@@ -55,6 +55,8 @@ PixelStudio's backend exposes Tauri commands organized by domain. Commands marke
 | `mark_dirty` | Mark the project as dirty after mutations |
 | `list_recent_projects` | Get recent project list from local storage |
 | `export_png` | Export composited frame as PNG file |
+| `export_frame_sequence` | Export all frames as numbered PNG files (name_0001.png, ...) |
+| `export_sprite_strip` | Export all frames as a single horizontal or vertical PNG strip |
 
 ## Recovery commands [live]
 
@@ -116,6 +118,11 @@ interface TransformPreview {
 | `delete_frame` | Delete frame by id (cannot delete last frame) |
 | `select_frame` | Switch to frame by id, stash/restore layer data |
 | `rename_frame` | Rename a frame by id |
+| `reorder_frame` | Move frame to a new position in the timeline |
+| `insert_frame_at` | Insert a blank frame at a specific position |
+| `duplicate_frame_at` | Deep copy current frame to a specific position |
+| `set_frame_duration` | Set or clear per-frame duration override (ms) |
+| `get_onion_skin_frames` | Get composited previous/next frame data for onion skin overlay |
 
 Timeline commands return a `TimelineState`:
 
@@ -131,6 +138,18 @@ interface FrameInfo {
   id: string;
   name: string;
   index: number;
+  durationMs: number | null;  // per-frame timing override
+}
+```
+
+`get_onion_skin_frames` returns an `OnionSkinData`:
+
+```typescript
+interface OnionSkinData {
+  width: number;
+  height: number;
+  prevData: number[] | null;  // composited RGBA of previous frame
+  nextData: number[] | null;  // composited RGBA of next frame
 }
 ```
 
@@ -156,7 +175,43 @@ interface FrameInfo {
 
 `region-draft` · `variant-proposal` · `cleanup` · `requantize` · `silhouette-repair` · `inbetween` · `locomotion-draft` · `workflow-run`
 
-## Locomotion commands (planned)
+## Motion assistance commands [live]
+
+| Command | Description |
+|---------|------------|
+| `begin_motion_session` | Start a motion session, capture source pixels from active frame/selection |
+| `generate_motion_proposals` | Generate deterministic motion proposals for the active session |
+| `get_motion_session` | Get current motion session state (or null) |
+| `accept_motion_proposal` | Select a proposal for later commit |
+| `reject_motion_proposal` | Deselect the current proposal |
+| `cancel_motion_session` | Cancel the session entirely, project unchanged |
+
+Motion commands return a `MotionSessionInfo`:
+
+```typescript
+interface MotionSessionInfo {
+  sessionId: string;
+  intent: string;           // idle_bob | walk_cycle_stub | run_cycle_stub | hop
+  direction: string | null; // left | right | up | down
+  targetMode: string;       // active_selection | whole_frame
+  outputFrameCount: number; // 2 or 4
+  sourceFrameId: string;
+  proposals: MotionProposalInfo[];
+  selectedProposalId: string | null;
+  status: string;           // configuring | generating | reviewing | committing | error
+}
+
+interface MotionProposalInfo {
+  id: string;
+  label: string;
+  description: string;
+  previewFrames: number[][]; // RGBA flat arrays, one per generated frame
+  previewWidth: number;
+  previewHeight: number;
+}
+```
+
+## Locomotion analysis commands (planned)
 
 | Command | Description |
 |---------|------------|

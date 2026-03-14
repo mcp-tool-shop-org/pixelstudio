@@ -1,4 +1,4 @@
-import type { ColorMode, ImpactScope, ProvenanceRef, Rect, ValidationCategory } from '@pixelstudio/domain';
+import type { ColorMode, ImpactScope, MotionDirection, MotionFrameCount, MotionIntent, MotionTargetMode, ProvenanceRef, Rect, ValidationCategory } from '@pixelstudio/domain';
 
 // ─── Project ───────────────────────────────────────────────────
 export interface CreateProjectInput {
@@ -88,6 +88,41 @@ export interface AcceptAICandidateOutput {
     frameIds?: string[];
     draftTrackId?: string | null;
   };
+}
+
+// ─── Motion Assistance ────────────────────────────────────────
+export interface BeginMotionSessionInput {
+  intent: MotionIntent;
+  direction: MotionDirection | null;
+  targetMode: MotionTargetMode;
+  outputFrameCount: MotionFrameCount;
+}
+
+export interface MotionProposalResult {
+  id: string;
+  label: string;
+  description: string;
+  previewFrames: number[][];
+  previewWidth: number;
+  previewHeight: number;
+}
+
+export interface MotionSessionResult {
+  sessionId: string;
+  intent: MotionIntent;
+  direction: MotionDirection | null;
+  targetMode: MotionTargetMode;
+  outputFrameCount: MotionFrameCount;
+  sourceFrameId: string;
+  proposals: MotionProposalResult[];
+  selectedProposalId: string | null;
+  status: string;
+}
+
+export interface AcceptMotionProposalResult {
+  insertedFrameIds: string[];
+  activeFrameId: string;
+  activeFrameIndex: number;
 }
 
 // ─── Locomotion ────────────────────────────────────────────────
