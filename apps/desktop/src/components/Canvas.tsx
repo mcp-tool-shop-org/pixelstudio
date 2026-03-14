@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCanvasViewStore } from '@pixelstudio/state';
 import { useToolStore } from '@pixelstudio/state';
 import { useProjectStore } from '@pixelstudio/state';
-import { useLayerStore } from '@pixelstudio/state';
+import { useSelectionStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -12,6 +12,8 @@ const CHECK_DARK = '#222226';
 const CHECK_SIZE = 8;
 const CANVAS_BG = '#111114';
 const GRID_COLOR = 'rgba(255,255,255,0.08)';
+const SELECTION_COLOR = 'rgba(100,160,255,0.5)';
+const SELECTION_DASH = [4, 4];
 
 function bresenhamLine(x0: number, y0: number, x1: number, y1: number): [number, number][] {
   const points: [number, number][] = [];
@@ -42,6 +44,14 @@ export function Canvas() {
   const lastPixelRef = useRef<{ x: number; y: number } | null>(null);
   const renderRequestRef = useRef<number | null>(null);
 
+  // Marquee drag state
+  const isSelectingRef = useRef(false);
+  const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [dragSelection, setDragSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  // Marching ants animation
+  const antOffsetRef = useRef(0);
+  const antAnimRef = useRef<number | null>(null);
+
   const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
 
@@ -63,7 +73,13 @@ export function Canvas() {
   const canvasSize = useProjectStore((s) => s.canvasSize);
   const markDirty = useProjectStore((s) => s.markDirty);
 
-  const screenToPixel = useCallback(
+  const selectionBounds = useSelectionStore((s) => s.selectionBounds);
+  const setSelection = useSelectionStore((s) => s.setSelection);
+  const clearSelection = useSelectionStore((s) => s.clearSelection);
+  const hasSelection = useSelectionStore((s) => s.hasSelection);
+
+  // Unclamped screen-to-pixel (allows coords outside canvas for drag)
+  const screenToPixelUnclamped = useCallback(
     (screenX: number, screenY: number): { x: number; y: number } | null => {
       const canvas = canvasRef.current;
       if (!canvas || !frame) return null;
@@ -81,10 +97,19 @@ export function Canvas() {
       const px = Math.floor((cx - originX) / zoom);
       const py = Math.floor((cy - originY) / zoom);
 
-      if (px < 0 || py < 0 || px >= frame.width || py >= frame.height) return null;
       return { x: px, y: py };
     },
     [zoom, panX, panY, frame],
+  );
+
+  const screenToPixel = useCallback(
+    (screenX: number, screenY: number): { x: number; y: number } | null => {
+      const p = screenToPixelUnclamped(screenX, screenY);
+      if (!p || !frame) return null;
+      if (p.x < 0 || p.y < 0 || p.x >= frame.width || p.y >= frame.height) return null;
+      return p;
+    },
+    [screenToPixelUnclamped, frame],
   );
 
   // Initialize canvas from Rust
@@ -191,12 +216,64 @@ export function Canvas() {
       ctx.stroke();
     }
 
+    // --- Selection overlay ---
+    const sel = dragSelection || selectionBounds;
+    if (sel) {
+      const sx = originX + sel.x * zoom;
+      const sy = originY + sel.y * zoom;
+      const sw = sel.width * zoom;
+      const sh = sel.height * zoom;
+
+      // Semi-transparent fill
+      ctx.fillStyle = 'rgba(100,160,255,0.08)';
+      ctx.fillRect(sx, sy, sw, sh);
+
+      // Marching ants border
+      ctx.save();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.setLineDash(SELECTION_DASH);
+      ctx.lineDashOffset = -antOffsetRef.current;
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+
+      ctx.strokeStyle = '#000';
+      ctx.lineDashOffset = -(antOffsetRef.current + 4);
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+      ctx.restore();
+    }
+
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion]);
+  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection]);
 
   useEffect(() => { render(); }, [render]);
+
+  // Marching ants animation loop
+  useEffect(() => {
+    const sel = dragSelection || selectionBounds;
+    if (!sel) {
+      if (antAnimRef.current) {
+        cancelAnimationFrame(antAnimRef.current);
+        antAnimRef.current = null;
+      }
+      return;
+    }
+
+    let lastTime = 0;
+    const animate = (time: number) => {
+      if (time - lastTime > 80) {
+        antOffsetRef.current = (antOffsetRef.current + 1) % 8;
+        lastTime = time;
+        render();
+      }
+      antAnimRef.current = requestAnimationFrame(animate);
+    };
+    antAnimRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (antAnimRef.current) cancelAnimationFrame(antAnimRef.current);
+    };
+  }, [!!dragSelection, !!selectionBounds, render]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -232,6 +309,18 @@ export function Canvas() {
         return;
       }
 
+      // Marquee tool
+      if (e.button === 0 && activeTool === 'marquee') {
+        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (pixel && frame) {
+          isSelectingRef.current = true;
+          selectionStartRef.current = pixel;
+          canvas.setPointerCapture(e.pointerId);
+          setDragSelection(null);
+        }
+        return;
+      }
+
       if (e.button === 0 && (activeTool === 'pencil' || activeTool === 'eraser')) {
         const color = activeTool === 'pencil' ? primaryColor : { r: 0, g: 0, b: 0, a: 0 };
         try {
@@ -252,7 +341,7 @@ export function Canvas() {
         }
       }
     },
-    [activeTool, primaryColor, screenToPixel, sendStrokePoints],
+    [activeTool, primaryColor, screenToPixel, screenToPixelUnclamped, sendStrokePoints, frame],
   );
 
   const handlePointerMove = useCallback(
@@ -268,6 +357,31 @@ export function Canvas() {
         return;
       }
 
+      // Marquee drag
+      if (isSelectingRef.current && frame) {
+        const current = screenToPixelUnclamped(e.clientX, e.clientY);
+        const start = selectionStartRef.current;
+        if (current && start) {
+          // Clamp to canvas bounds
+          const cx = Math.max(0, Math.min(current.x, frame.width));
+          const cy = Math.max(0, Math.min(current.y, frame.height));
+          const sx = Math.max(0, Math.min(start.x, frame.width));
+          const sy = Math.max(0, Math.min(start.y, frame.height));
+
+          const x = Math.min(sx, cx);
+          const y = Math.min(sy, cy);
+          const w = Math.abs(cx - sx);
+          const h = Math.abs(cy - sy);
+
+          if (w > 0 && h > 0) {
+            setDragSelection({ x, y, width: w, height: h });
+          } else {
+            setDragSelection(null);
+          }
+        }
+        return;
+      }
+
       if (isDrawingRef.current && pixel) {
         const last = lastPixelRef.current;
         if (last && (last.x !== pixel.x || last.y !== pixel.y)) {
@@ -280,10 +394,33 @@ export function Canvas() {
         lastPixelRef.current = pixel;
       }
     },
-    [screenToPixel, panBy, sendStrokePoints],
+    [screenToPixel, screenToPixelUnclamped, panBy, sendStrokePoints, frame],
   );
 
   const handlePointerUp = useCallback(async () => {
+    // Marquee complete
+    if (isSelectingRef.current) {
+      isSelectingRef.current = false;
+      selectionStartRef.current = null;
+      if (dragSelection && dragSelection.width > 0 && dragSelection.height > 0) {
+        setSelection({
+          x: dragSelection.x,
+          y: dragSelection.y,
+          width: dragSelection.width,
+          height: dragSelection.height,
+        });
+        // Sync to backend
+        invoke('set_selection_rect', {
+          input: { x: dragSelection.x, y: dragSelection.y, width: dragSelection.width, height: dragSelection.height },
+        }).catch(() => {});
+      } else {
+        clearSelection();
+        invoke('clear_selection').catch(() => {});
+      }
+      setDragSelection(null);
+      return;
+    }
+
     if (isDrawingRef.current) {
       isDrawingRef.current = false;
       lastPixelRef.current = null;
@@ -298,7 +435,7 @@ export function Canvas() {
       }
     }
     isPanningRef.current = false;
-  }, [setFrame, markDirty]);
+  }, [setFrame, markDirty, dragSelection, setSelection, clearSelection]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -318,7 +455,60 @@ export function Canvas() {
         return;
       }
 
+      // Esc clears selection
+      if (e.code === 'Escape') {
+        clearSelection();
+        invoke('clear_selection').catch(() => {});
+        return;
+      }
+
+      // Delete/Backspace clears selected pixels
+      if ((e.code === 'Delete' || e.code === 'Backspace') && useSelectionStore.getState().hasSelection) {
+        e.preventDefault();
+        try {
+          const f = await invoke<CanvasFrameData>('delete_selection');
+          setFrame(f);
+          syncLayersFromFrame(f);
+          markDirty();
+          invoke('mark_dirty').catch(() => {});
+        } catch (err) { console.error('delete_selection failed:', err); }
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && !e.repeat) {
+        // Copy selection
+        if (e.code === 'KeyC' && useSelectionStore.getState().hasSelection) {
+          e.preventDefault();
+          try {
+            await invoke('copy_selection');
+          } catch (err) { console.error('copy_selection failed:', err); }
+          return;
+        }
+        // Cut selection
+        if (e.code === 'KeyX' && useSelectionStore.getState().hasSelection) {
+          e.preventDefault();
+          try {
+            const f = await invoke<CanvasFrameData>('cut_selection');
+            setFrame(f);
+            syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch (err) { console.error('cut_selection failed:', err); }
+          return;
+        }
+        // Paste
+        if (e.code === 'KeyV') {
+          e.preventDefault();
+          try {
+            const f = await invoke<CanvasFrameData>('paste_selection');
+            setFrame(f);
+            syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch (err) { console.error('paste_selection failed:', err); }
+          return;
+        }
+
         if (e.code === 'KeyZ' && !e.shiftKey) {
           e.preventDefault();
           try {
@@ -354,11 +544,20 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [setFrame, markDirty]);
+  }, [setFrame, markDirty, clearSelection]);
 
   const zoomPercent = `${zoom * 100}%`;
   const pixelCoord = hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '\u2014';
   const colorHex = `#${primaryColor.r.toString(16).padStart(2, '0')}${primaryColor.g.toString(16).padStart(2, '0')}${primaryColor.b.toString(16).padStart(2, '0')}`;
+  const selectionInfo = hasSelection && selectionBounds
+    ? `${selectionBounds.width}\u00d7${selectionBounds.height}`
+    : null;
+
+  const cursor = activeTool === 'pencil' || activeTool === 'eraser'
+    ? 'crosshair'
+    : activeTool === 'marquee'
+      ? 'crosshair'
+      : 'default';
 
   return (
     <main className="canvas-container" ref={containerRef}>
@@ -370,7 +569,7 @@ export function Canvas() {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onWheel={handleWheel}
-        style={{ cursor: activeTool === 'pencil' || activeTool === 'eraser' ? 'crosshair' : 'default' }}
+        style={{ cursor }}
       />
       <div className="canvas-status">
         <span>{canvasSize.width}{'\u00d7'}{canvasSize.height}</span>
@@ -378,6 +577,7 @@ export function Canvas() {
         <span>{pixelCoord}</span>
         <span style={{ color: colorHex }}>{colorHex}</span>
         <span>{activeTool}</span>
+        {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
       </div>

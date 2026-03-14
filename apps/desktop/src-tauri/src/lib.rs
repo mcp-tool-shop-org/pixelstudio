@@ -6,8 +6,9 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{canvas, project};
+use commands::{canvas, project, selection};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
+use engine::selection::{ManagedSelectionState, SelectionState};
 
 pub fn run() {
     tauri::Builder::default()
@@ -15,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ManagedCanvasState(Mutex::new(None)))
         .manage(ManagedProjectMeta(Mutex::new(None)))
+        .manage(ManagedSelectionState(Mutex::new(SelectionState::new())))
         .invoke_handler(tauri::generate_handler![
             project::new_project,
             project::open_project,
@@ -44,6 +46,13 @@ pub fn run() {
             canvas::set_layer_lock,
             canvas::set_layer_opacity,
             canvas::reorder_layer,
+            selection::set_selection_rect,
+            selection::clear_selection,
+            selection::get_selection,
+            selection::copy_selection,
+            selection::cut_selection,
+            selection::paste_selection,
+            selection::delete_selection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PixelStudio");

@@ -1,5 +1,6 @@
 pub mod project;
 pub mod canvas;
+pub mod selection;
 pub mod layer;
 pub mod palette;
 pub mod timeline;
