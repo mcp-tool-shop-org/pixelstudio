@@ -70,4 +70,14 @@ impl PixelBuffer {
     pub fn as_bytes(&self) -> &[u8] {
         &self.data
     }
+
+    /// Create from raw RGBA bytes (for deserialization).
+    pub fn from_bytes(width: u32, height: u32, data: Vec<u8>) -> Self {
+        Self { width, height, data }
+    }
+
+    /// Clone the raw data for serialization.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.data.clone()
+    }
 }

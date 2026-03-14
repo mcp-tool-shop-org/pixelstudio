@@ -342,7 +342,7 @@ pub fn reorder_layer(
 
 // --- Helpers ---
 
-fn build_frame(canvas: &CanvasState) -> CanvasFrame {
+pub fn build_frame(canvas: &CanvasState) -> CanvasFrame {
     CanvasFrame {
         width: canvas.width,
         height: canvas.height,

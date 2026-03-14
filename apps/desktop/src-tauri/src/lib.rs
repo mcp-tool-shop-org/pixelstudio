@@ -7,18 +7,26 @@ pub mod types;
 use std::sync::Mutex;
 
 use commands::{canvas, project};
-use engine::canvas_state::ManagedCanvasState;
+use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(ManagedCanvasState(Mutex::new(None)))
+        .manage(ManagedProjectMeta(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
-            project::create_project,
+            project::new_project,
             project::open_project,
             project::save_project,
+            project::get_project_info,
+            project::mark_dirty,
             project::list_recent_projects,
+            project::export_png,
+            project::autosave_recovery,
+            project::check_recovery,
+            project::restore_recovery,
+            project::discard_recovery,
             canvas::init_canvas,
             canvas::get_canvas_state,
             canvas::write_pixel,

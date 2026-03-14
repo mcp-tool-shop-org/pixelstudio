@@ -61,6 +61,7 @@ export function Canvas() {
   const activeTool = useToolStore((s) => s.activeTool);
   const primaryColor = useToolStore((s) => s.primaryColor);
   const canvasSize = useProjectStore((s) => s.canvasSize);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
   const screenToPixel = useCallback(
     (screenX: number, screenY: number): { x: number; y: number } | null => {
@@ -290,12 +291,14 @@ export function Canvas() {
         const f = await invoke<CanvasFrameData>('end_stroke');
         setFrame(f);
         syncLayersFromFrame(f);
+        markDirty();
+        invoke('mark_dirty').catch(() => {});
       } catch (err) {
         console.error('end_stroke failed:', err);
       }
     }
     isPanningRef.current = false;
-  }, [setFrame]);
+  }, [setFrame, markDirty]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -322,6 +325,8 @@ export function Canvas() {
             const f = await invoke<CanvasFrameData>('undo');
             setFrame(f);
             syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
           } catch (err) { console.error('undo failed:', err); }
           return;
         }
@@ -331,6 +336,8 @@ export function Canvas() {
             const f = await invoke<CanvasFrameData>('redo');
             setFrame(f);
             syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
           } catch (err) { console.error('redo failed:', err); }
           return;
         }
@@ -347,7 +354,7 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [setFrame]);
+  }, [setFrame, markDirty]);
 
   const zoomPercent = `${zoom * 100}%`;
   const pixelCoord = hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '\u2014';

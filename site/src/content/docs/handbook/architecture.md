@@ -88,4 +88,4 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-21 implemented Tauri commands across canvas (13), project (4), plus stubs for palette, timeline, validation, AI, locomotion, export, provenance, and assets.
+31 implemented Tauri commands across canvas (13), project (11: new, open, save, info, dirty, recents, export PNG, autosave, check recovery, restore, discard), plus stubs for palette, timeline, validation, AI, locomotion, provenance, and assets.

@@ -11,9 +11,11 @@ interface ProjectState {
   canvasSize: { width: number; height: number };
   activePaletteContractId: string | null;
 
-  setProject: (id: string, name: string, filePath: string, colorMode: ColorMode, width: number, height: number) => void;
+  setProject: (id: string, name: string, filePath: string | null, colorMode: ColorMode, width: number, height: number) => void;
   markDirty: () => void;
-  markSaved: () => void;
+  markSaved: (filePath?: string) => void;
+  setSaveStatus: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
+  setFilePath: (filePath: string) => void;
   setColorMode: (mode: ColorMode) => void;
   setPaletteContract: (contractId: string | null) => void;
 }
@@ -30,8 +32,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setProject: (id, name, filePath, colorMode, width, height) =>
     set({ projectId: id, name, filePath, colorMode, canvasSize: { width, height }, isDirty: false, saveStatus: 'idle' }),
-  markDirty: () => set({ isDirty: true }),
-  markSaved: () => set({ isDirty: false, saveStatus: 'saved' }),
+  markDirty: () => set({ isDirty: true, saveStatus: 'idle' }),
+  markSaved: (filePath) => set((s) => ({
+    isDirty: false,
+    saveStatus: 'saved' as const,
+    filePath: filePath ?? s.filePath,
+  })),
+  setSaveStatus: (status) => set({ saveStatus: status }),
+  setFilePath: (filePath) => set({ filePath }),
   setColorMode: (mode) => set({ colorMode: mode, isDirty: true }),
   setPaletteContract: (contractId) => set({ activePaletteContractId: contractId }),
 }));

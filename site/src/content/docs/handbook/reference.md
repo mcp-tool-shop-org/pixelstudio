@@ -48,10 +48,22 @@ PixelStudio's backend exposes Tauri commands organized by domain. Commands marke
 
 | Command | Description |
 |---------|------------|
-| `create_project` | Create a new project with name, canvas size, color mode |
-| `open_project` | Load project from disk (stub) |
-| `save_project` | Persist project state (stub) |
-| `list_recent_projects` | Get recent project list (stub) |
+| `new_project` | Create a new blank project with name, canvas size, color mode; initializes canvas state |
+| `open_project` | Load project from .pxs file, rehydrate canvas state |
+| `save_project` | Serialize and persist project to .pxs file |
+| `get_project_info` | Get current project metadata (id, name, path, dirty state) with frame |
+| `mark_dirty` | Mark the project as dirty after mutations |
+| `list_recent_projects` | Get recent project list from local storage |
+| `export_png` | Export composited frame as PNG file |
+
+## Recovery commands [live]
+
+| Command | Description |
+|---------|------------|
+| `autosave_recovery` | Write a recovery snapshot to the recovery directory |
+| `check_recovery` | Detect recoverable projects from a previous unclean shutdown |
+| `restore_recovery` | Restore a project from a recovery file, rehydrate canvas state |
+| `discard_recovery` | Delete a recovery file without restoring |
 
 ## Palette commands (planned)
 

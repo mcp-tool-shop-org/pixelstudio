@@ -36,7 +36,7 @@ pixelstudio/
       src/
         commands/         # Tauri command handlers (canvas, project, ...)
         engine/           # Pixel buffer, canvas state, compositing
-        persistence/      # Project I/O, autosave, recovery (stubs)
+        persistence/      # Project I/O, autosave, recovery
         types/            # Rust domain + API types
   packages/
     domain/               # Pure TypeScript types (layers, tools, palettes)
@@ -84,3 +84,13 @@ cargo check
 - Layer management: create, delete, rename, select, visibility, lock, opacity, reorder
 - Layer panel UI: active highlight, visibility/lock toggles, inline rename, add/delete
 - Pencil and eraser tools with continuous drag strokes (no gaps)
+
+**Milestone 1C (Editor Legitimacy)** — complete:
+- Serialized project document (.pxs format, JSON with per-layer RGBA data)
+- Save/open project with full canvas state rehydration
+- Dirty-state tracking (frontend + backend) with window title indicator
+- Autosave to recovery channel (30s interval, separate from manual saves)
+- Crash recovery: detect unclean shutdown, prompt restore or discard
+- PNG export from composited frame data
+- Ctrl+S save shortcut, recent projects list
+- Recovery prompt UI on startup

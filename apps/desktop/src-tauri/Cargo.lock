@@ -2320,6 +2320,8 @@ name = "pixelstudio"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dirs",
+ "png",
  "serde",
  "serde_json",
  "tauri",

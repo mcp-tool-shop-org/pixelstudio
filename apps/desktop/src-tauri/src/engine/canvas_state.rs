@@ -83,6 +83,26 @@ impl CanvasState {
         }
     }
 
+    /// Reconstruct canvas state from deserialized layers (used by project_io).
+    pub fn from_layers(
+        width: u32,
+        height: u32,
+        layers: Vec<Layer>,
+        active_layer_id: Option<String>,
+    ) -> Self {
+        let layer_counter = layers.len() as u32;
+        Self {
+            width,
+            height,
+            layers,
+            active_layer_id,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            active_stroke: None,
+            layer_counter,
+        }
+    }
+
     // --- Layer management ---
 
     pub fn create_layer(&mut self, name: Option<String>) -> String {
@@ -366,3 +386,16 @@ impl CanvasState {
 
 /// App-wide managed canvas state (one active project at a time for now).
 pub struct ManagedCanvasState(pub Mutex<Option<CanvasState>>);
+
+/// Tracks project metadata alongside the canvas (file path, dirty state, etc.).
+pub struct ProjectMeta {
+    pub project_id: String,
+    pub name: String,
+    pub file_path: Option<String>,
+    pub color_mode: crate::types::domain::ColorMode,
+    pub created_at: String,
+    pub is_dirty: bool,
+}
+
+/// App-wide managed project metadata.
+pub struct ManagedProjectMeta(pub Mutex<Option<ProjectMeta>>);

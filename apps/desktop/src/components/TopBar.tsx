@@ -1,4 +1,5 @@
 import type { WorkspaceMode } from '@pixelstudio/domain';
+import { useProjectStore } from '@pixelstudio/state';
 
 const MODES: { id: WorkspaceMode; label: string }[] = [
   { id: 'edit', label: 'Edit' },
@@ -16,12 +17,26 @@ interface TopBarProps {
 }
 
 export function TopBar({ activeMode, onModeChange }: TopBarProps) {
+  const name = useProjectStore((s) => s.name);
+  const isDirty = useProjectStore((s) => s.isDirty);
+  const saveStatus = useProjectStore((s) => s.saveStatus);
+  const filePath = useProjectStore((s) => s.filePath);
+
+  const displayName = filePath
+    ? filePath.split(/[\\/]/).pop()?.replace(/\.pxs$/, '') ?? name
+    : name;
+
   return (
     <header className="topbar">
       <div className="topbar-project">
         <span className="topbar-title">PixelStudio</span>
-        <span className="topbar-separator">—</span>
-        <span className="topbar-filename">Untitled</span>
+        <span className="topbar-separator">{'\u2014'}</span>
+        <span className="topbar-filename">
+          {displayName}{isDirty ? ' \u2022' : ''}
+        </span>
+        {saveStatus === 'saving' && <span className="topbar-badge">Saving...</span>}
+        {saveStatus === 'saved' && <span className="topbar-badge badge-ok">Saved</span>}
+        {saveStatus === 'error' && <span className="topbar-badge badge-error">Save Error</span>}
       </div>
       <nav className="topbar-modes">
         {MODES.map((m) => (
