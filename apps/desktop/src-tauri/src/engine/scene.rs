@@ -655,6 +655,115 @@ pub struct SceneExportResult {
     pub warnings: Vec<String>,
 }
 
+// --- Camera keyframe interpolation ---
+
+/// Linear interpolation between two f64 values.
+fn lerp_f64(a: f64, b: f64, t: f64) -> f64 {
+    a + (b - a) * t
+}
+
+/// Resolve the effective camera at a given tick from keyframes.
+///
+/// Rules:
+/// - No keyframes → use document's base camera
+/// - One keyframe → use that keyframe everywhere
+/// - Multiple keyframes (sorted by tick):
+///   - Before first → first keyframe
+///   - After last → last keyframe
+///   - Exactly on a keyframe → that keyframe's values
+///   - Between keyframes A and B:
+///     - A.interpolation == Hold → use A until B's tick
+///     - A.interpolation == Linear → lerp from A to B
+///
+/// Interpolation mode belongs to the *starting* keyframe of each segment.
+pub fn resolve_scene_camera_at_tick(doc: &SceneDocument, tick: u32) -> SceneCamera {
+    if doc.camera_keyframes.is_empty() {
+        return doc.camera.clone();
+    }
+
+    // Sort keyframes (should already be sorted, but be defensive)
+    let mut kfs = doc.camera_keyframes.clone();
+    kfs.sort_by_key(|k| k.tick);
+
+    // Single keyframe — always use it
+    if kfs.len() == 1 {
+        let kf = &kfs[0];
+        return SceneCamera {
+            x: kf.x,
+            y: kf.y,
+            zoom: kf.zoom.clamp(0.1, 10.0),
+            name: None,
+        };
+    }
+
+    // Before first keyframe
+    if tick <= kfs[0].tick {
+        let kf = &kfs[0];
+        return SceneCamera {
+            x: kf.x,
+            y: kf.y,
+            zoom: kf.zoom.clamp(0.1, 10.0),
+            name: None,
+        };
+    }
+
+    // After last keyframe
+    let last = &kfs[kfs.len() - 1];
+    if tick >= last.tick {
+        return SceneCamera {
+            x: last.x,
+            y: last.y,
+            zoom: last.zoom.clamp(0.1, 10.0),
+            name: None,
+        };
+    }
+
+    // Between keyframes — find the segment
+    for i in 0..kfs.len() - 1 {
+        let a = &kfs[i];
+        let b = &kfs[i + 1];
+
+        if tick < a.tick || tick >= b.tick {
+            continue;
+        }
+
+        // Exactly on A
+        if tick == a.tick {
+            return SceneCamera {
+                x: a.x,
+                y: a.y,
+                zoom: a.zoom.clamp(0.1, 10.0),
+                name: None,
+            };
+        }
+
+        // Between A and B
+        match a.interpolation {
+            CameraInterpolationMode::Hold => {
+                return SceneCamera {
+                    x: a.x,
+                    y: a.y,
+                    zoom: a.zoom.clamp(0.1, 10.0),
+                    name: None,
+                };
+            }
+            CameraInterpolationMode::Linear => {
+                let span = (b.tick - a.tick) as f64;
+                let t = (tick - a.tick) as f64 / span;
+                return SceneCamera {
+                    x: lerp_f64(a.x, b.x, t),
+                    y: lerp_f64(a.y, b.y, t),
+                    zoom: lerp_f64(a.zoom, b.zoom, t).clamp(0.1, 10.0),
+                    name: None,
+                };
+            }
+        }
+    }
+
+    // Fallback (should not reach here)
+    doc.camera.clone()
+}
+
 /// Composite all visible instances at a given scene tick into one RGBA buffer.
 /// Camera-aware: applies camera pan, zoom, and per-instance parallax.
 /// Output dimensions are always scene canvas size — zoom changes framing, not resolution.
@@ -676,9 +785,10 @@ pub fn composite_scene_frame(
     let mut canvas = vec![0u8; pixel_count];
     let mut warnings = Vec::new();
 
-    let cam_x = doc.camera.x;
-    let cam_y = doc.camera.y;
-    let zoom = doc.camera.zoom.max(0.01);
+    let resolved_cam = resolve_scene_camera_at_tick(doc, tick);
+    let cam_x = resolved_cam.x;
+    let cam_y = resolved_cam.y;
+    let zoom = resolved_cam.zoom.max(0.01);
 
     // Sort instances by z-order (lowest first = painted first)
     let mut sorted: Vec<&SceneAssetInstance> = doc.instances.iter().collect();

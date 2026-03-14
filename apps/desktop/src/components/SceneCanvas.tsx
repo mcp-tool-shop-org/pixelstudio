@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneAssetInstance, SceneCamera, SceneInfo, SourceAssetFrames } from '@pixelstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@pixelstudio/domain';
 import { useScenePlaybackStore } from '@pixelstudio/state';
 
 /** Cached frame images for a source asset + clip combination. */
@@ -69,8 +69,11 @@ export function SceneCanvas() {
         useScenePlaybackStore.getState().setPlaying(false);
       }
       setSceneInfo(info);
-      // Sync camera from backend → store
+      // Sync base camera from backend → store
       useScenePlaybackStore.getState().setCamera(info.cameraX, info.cameraY, info.cameraZoom);
+      // Load keyframes so tick-based camera resolution works
+      const kfs = await invoke<SceneCameraKeyframe[]>('list_scene_camera_keyframes');
+      useScenePlaybackStore.getState().setCameraKeyframes(kfs);
       const insts = await invoke<SceneAssetInstance[]>('get_scene_instances');
       setInstances(insts);
     } catch {

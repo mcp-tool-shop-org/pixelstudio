@@ -497,6 +497,23 @@ pub fn reset_scene_camera(
     Ok(scene.document.camera.clone())
 }
 
+/// Get the effective (resolved) scene camera at a specific tick.
+/// Evaluates keyframe interpolation — returns the same camera that export would use.
+#[command]
+pub fn get_scene_camera_at_tick(
+    tick: u32,
+    state: State<'_, ManagedSceneState>,
+) -> Result<SceneCamera, AppError> {
+    let guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+    Ok(crate::engine::scene::resolve_scene_camera_at_tick(
+        &scene.document,
+        tick,
+    ))
+}
+
 // --- Camera keyframe commands ---
 
 /// List all camera keyframes, sorted by tick.

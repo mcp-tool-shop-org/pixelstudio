@@ -1,5 +1,64 @@
 import { create } from 'zustand';
-import type { ScenePlaybackState, InstanceClipState } from '@pixelstudio/domain';
+import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe } from '@pixelstudio/domain';
+
+/** Pure camera resolver — identical algorithm to Rust resolve_scene_camera_at_tick. */
+function resolveCameraAtTick(
+  keyframes: SceneCameraKeyframe[],
+  tick: number,
+  baseX: number,
+  baseY: number,
+  baseZoom: number,
+): { x: number; y: number; zoom: number } {
+  if (keyframes.length === 0) {
+    return { x: baseX, y: baseY, zoom: baseZoom };
+  }
+
+  // Already sorted by tick (maintained at mutation time)
+  const kfs = keyframes;
+
+  if (kfs.length === 1) {
+    const kf = kfs[0];
+    return { x: kf.x, y: kf.y, zoom: Math.max(0.1, Math.min(10.0, kf.zoom)) };
+  }
+
+  // Before first
+  if (tick <= kfs[0].tick) {
+    const kf = kfs[0];
+    return { x: kf.x, y: kf.y, zoom: Math.max(0.1, Math.min(10.0, kf.zoom)) };
+  }
+
+  // After last
+  const last = kfs[kfs.length - 1];
+  if (tick >= last.tick) {
+    return { x: last.x, y: last.y, zoom: Math.max(0.1, Math.min(10.0, last.zoom)) };
+  }
+
+  // Between keyframes
+  for (let i = 0; i < kfs.length - 1; i++) {
+    const a = kfs[i];
+    const b = kfs[i + 1];
+    if (tick < a.tick || tick >= b.tick) continue;
+
+    if (tick === a.tick) {
+      return { x: a.x, y: a.y, zoom: Math.max(0.1, Math.min(10.0, a.zoom)) };
+    }
+
+    if (a.interpolation === 'hold') {
+      return { x: a.x, y: a.y, zoom: Math.max(0.1, Math.min(10.0, a.zoom)) };
+    }
+
+    // Linear
+    const span = b.tick - a.tick;
+    const t = (tick - a.tick) / span;
+    return {
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t,
+      zoom: Math.max(0.1, Math.min(10.0, a.zoom + (b.zoom - a.zoom) * t)),
+    };
+  }
+
+  return { x: baseX, y: baseY, zoom: baseZoom };
+}
 
 interface ScenePlaybackStoreState {
   /** Whether the scene clock is running. */
@@ -27,6 +86,14 @@ interface ScenePlaybackStoreState {
   /** Camera zoom factor (1.0 = 100%). */
   cameraZoom: number;
 
+  /** Base/manual camera (authoring state, persisted in document). */
+  baseCameraX: number;
+  baseCameraY: number;
+  baseCameraZoom: number;
+
+  /** Camera keyframes from document (sorted by tick). */
+  cameraKeyframes: SceneCameraKeyframe[];
+
   // Actions
   setPlaying: (playing: boolean) => void;
   setFps: (fps: number) => void;
@@ -43,6 +110,10 @@ interface ScenePlaybackStoreState {
   setCameraPosition: (x: number, y: number) => void;
   setCameraZoom: (zoom: number) => void;
   resetCamera: () => void;
+  /** Set camera keyframes (sorted by tick). Triggers camera resolution at current tick. */
+  setCameraKeyframes: (keyframes: SceneCameraKeyframe[]) => void;
+  /** Set the base/manual camera values (persisted state). */
+  setBaseCamera: (x: number, y: number, zoom: number) => void;
   clearAll: () => void;
 }
 
@@ -60,6 +131,12 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
   cameraX: 0,
   cameraY: 0,
   cameraZoom: 1.0,
+
+  baseCameraX: 0,
+  baseCameraY: 0,
+  baseCameraZoom: 1.0,
+
+  cameraKeyframes: [],
 
   setPlaying: (playing) =>
     set((s) => ({
@@ -87,19 +164,29 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
 
     // If not looping, clamp at totalTicks
     if (!s.looping && s.totalTicks > 0 && newTick >= s.totalTicks) {
+      const clampedTick = s.totalTicks - 1;
+      const cam = resolveCameraAtTick(s.cameraKeyframes, clampedTick, s.baseCameraX, s.baseCameraY, s.baseCameraZoom);
       set({
         elapsedMs: (s.totalTicks - 1) * frameDuration,
-        currentTick: s.totalTicks - 1,
+        currentTick: clampedTick,
         lastTickTime: now,
         isPlaying: false,
+        cameraX: cam.x,
+        cameraY: cam.y,
+        cameraZoom: cam.zoom,
       });
       return;
     }
 
+    // Resolve camera at new tick
+    const cam = resolveCameraAtTick(s.cameraKeyframes, newTick, s.baseCameraX, s.baseCameraY, s.baseCameraZoom);
     set({
       elapsedMs: newElapsed,
       currentTick: newTick,
       lastTickTime: now,
+      cameraX: cam.x,
+      cameraY: cam.y,
+      cameraZoom: cam.zoom,
     });
   },
 
@@ -124,11 +211,15 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
     const maxTick = Math.max(0, s.totalTicks - 1);
     const clamped = Math.max(0, Math.min(tick, maxTick));
     const frameDuration = 1000 / s.fps;
+    const cam = resolveCameraAtTick(s.cameraKeyframes, clamped, s.baseCameraX, s.baseCameraY, s.baseCameraZoom);
     set({
       isPlaying: false,
       currentTick: clamped,
       elapsedMs: clamped * frameDuration,
       lastTickTime: 0,
+      cameraX: cam.x,
+      cameraY: cam.y,
+      cameraZoom: cam.zoom,
     });
   },
 
@@ -142,21 +233,39 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
       next = Math.max(0, Math.min(next, maxTick));
     }
     const frameDuration = 1000 / s.fps;
+    const cam = resolveCameraAtTick(s.cameraKeyframes, next, s.baseCameraX, s.baseCameraY, s.baseCameraZoom);
     set({
       currentTick: next,
       elapsedMs: next * frameDuration,
       lastTickTime: 0,
+      cameraX: cam.x,
+      cameraY: cam.y,
+      cameraZoom: cam.zoom,
     });
   },
 
-  setCamera: (x, y, zoom) =>
-    set({ cameraX: x, cameraY: y, cameraZoom: Math.max(0.1, Math.min(10.0, zoom)) }),
+  setCamera: (x, y, zoom) => {
+    const clampedZoom = Math.max(0.1, Math.min(10.0, zoom));
+    set({ cameraX: x, cameraY: y, cameraZoom: clampedZoom, baseCameraX: x, baseCameraY: y, baseCameraZoom: clampedZoom });
+  },
 
   setCameraPosition: (x, y) => set({ cameraX: x, cameraY: y }),
 
   setCameraZoom: (zoom) => set({ cameraZoom: Math.max(0.1, Math.min(10.0, zoom)) }),
 
-  resetCamera: () => set({ cameraX: 0, cameraY: 0, cameraZoom: 1.0 }),
+  resetCamera: () => set({ cameraX: 0, cameraY: 0, cameraZoom: 1.0, baseCameraX: 0, baseCameraY: 0, baseCameraZoom: 1.0 }),
+
+  setCameraKeyframes: (keyframes) => {
+    const s = get();
+    const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+    const cam = resolveCameraAtTick(sorted, s.currentTick, s.baseCameraX, s.baseCameraY, s.baseCameraZoom);
+    set({ cameraKeyframes: sorted, cameraX: cam.x, cameraY: cam.y, cameraZoom: cam.zoom });
+  },
+
+  setBaseCamera: (x, y, zoom) => {
+    const clampedZoom = Math.max(0.1, Math.min(10.0, zoom));
+    set({ baseCameraX: x, baseCameraY: y, baseCameraZoom: clampedZoom });
+  },
 
   clearAll: () =>
     set({
@@ -171,5 +280,9 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
       cameraX: 0,
       cameraY: 0,
       cameraZoom: 1.0,
+      baseCameraX: 0,
+      baseCameraY: 0,
+      baseCameraZoom: 1.0,
+      cameraKeyframes: [],
     }),
 }));

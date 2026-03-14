@@ -183,6 +183,7 @@ pub fn run() {
             scene::reset_scene_camera,
             scene::get_scene_timeline_summary,
             scene::seek_scene_tick,
+            scene::get_scene_camera_at_tick,
             scene::list_scene_camera_keyframes,
             scene::add_scene_camera_keyframe,
             scene::update_scene_camera_keyframe,
