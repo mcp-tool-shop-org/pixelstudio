@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
+import { CameraKeyframePanel } from './CameraKeyframePanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -17,7 +18,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
-  scene: ['Instances', 'Assets'],
+  scene: ['Instances', 'Camera', 'Assets'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -29,6 +30,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Instances') {
     return <SceneInstancesPanel />;
+  }
+  if (tabName === 'Camera') {
+    return <CameraKeyframePanel />;
   }
 
   return (
