@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
@@ -29,8 +29,11 @@ export function RecoveryPrompt({ items, onDone }: RecoveryPromptProps) {
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const setProject = useProjectStore((s) => s.setProject);
 
-  const handleRestore = async (item: RecoverableProject) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRestore = useCallback(async (item: RecoverableProject) => {
     setLoading(true);
+    setError(null);
     try {
       const info = await invoke<ProjectInfo>('restore_recovery', {
         projectId: item.projectId,
@@ -54,9 +57,11 @@ export function RecoveryPrompt({ items, onDone }: RecoveryPromptProps) {
       onDone();
     } catch (err) {
       console.error('Recovery restore failed:', err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
       setLoading(false);
     }
-  };
+  }, [items, onDone, setFrame, setProject]);
 
   const handleDiscardAll = async () => {
     for (const item of items) {
@@ -70,6 +75,7 @@ export function RecoveryPrompt({ items, onDone }: RecoveryPromptProps) {
       <div className="recovery-dialog">
         <h2>Recover Unsaved Work</h2>
         <p>Found unsaved work from a previous session:</p>
+        {error && <p className="recovery-error">Restore failed: {error}</p>}
         <ul className="recovery-list">
           {items.map((item) => (
             <li key={item.projectId} className="recovery-item">

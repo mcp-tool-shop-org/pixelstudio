@@ -1,5 +1,5 @@
 import type { WorkspaceMode } from '@pixelstudio/domain';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
@@ -45,6 +45,11 @@ function PanelContent({ tabName }: { tabName: string }) {
 export function RightDock({ activeMode }: RightDockProps) {
   const tabs = MODE_TABS[activeMode] ?? [];
   const [activeTab, setActiveTab] = useState(0);
+
+  // Reset tab index when mode changes or when current index exceeds available tabs
+  useEffect(() => {
+    setActiveTab((prev) => (prev >= tabs.length ? 0 : prev));
+  }, [activeMode, tabs.length]);
 
   return (
     <aside className="right-dock">

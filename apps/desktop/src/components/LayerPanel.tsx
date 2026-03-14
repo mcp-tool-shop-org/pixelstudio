@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useLayerStore } from '@pixelstudio/state';
+import { useLayerStore, useProjectStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -8,6 +8,7 @@ export function LayerPanel() {
   const layers = useLayerStore((s) => s.rootLayerIds.map((id) => s.layerById[id]).filter(Boolean));
   const activeLayerId = useLayerStore((s) => s.activeLayerId);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
+  const markDirty = useProjectStore((s) => s.markDirty);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -18,6 +19,12 @@ export function LayerPanel() {
     },
     [setFrame],
   );
+
+  /** Mark project dirty on both frontend store and backend. */
+  const notifyDirty = useCallback(() => {
+    markDirty();
+    invoke('mark_dirty').catch(() => {});
+  }, [markDirty]);
 
   const handleSelectLayer = useCallback(
     async (layerId: string) => {
@@ -39,11 +46,12 @@ export function LayerPanel() {
           visible: !currentVisible,
         });
         applyFrame(frame);
+        notifyDirty();
       } catch (err) {
         console.error('set_layer_visibility failed:', err);
       }
     },
-    [applyFrame],
+    [applyFrame, notifyDirty],
   );
 
   const handleToggleLock = useCallback(
@@ -54,32 +62,35 @@ export function LayerPanel() {
           locked: !currentLocked,
         });
         applyFrame(frame);
+        notifyDirty();
       } catch (err) {
         console.error('set_layer_lock failed:', err);
       }
     },
-    [applyFrame],
+    [applyFrame, notifyDirty],
   );
 
   const handleAddLayer = useCallback(async () => {
     try {
       const frame = await invoke<CanvasFrameData>('create_layer', { name: null });
       applyFrame(frame);
+      notifyDirty();
     } catch (err) {
       console.error('create_layer failed:', err);
     }
-  }, [applyFrame]);
+  }, [applyFrame, notifyDirty]);
 
   const handleDeleteLayer = useCallback(
     async (layerId: string) => {
       try {
         const frame = await invoke<CanvasFrameData>('delete_layer', { layerId });
         applyFrame(frame);
+        notifyDirty();
       } catch (err) {
         console.error('delete_layer failed:', err);
       }
     },
-    [applyFrame],
+    [applyFrame, notifyDirty],
   );
 
   const handleStartRename = useCallback((layerId: string, currentName: string) => {
@@ -98,11 +109,12 @@ export function LayerPanel() {
         name: renameValue.trim(),
       });
       applyFrame(frame);
+      notifyDirty();
     } catch (err) {
       console.error('rename_layer failed:', err);
     }
     setRenamingId(null);
-  }, [renamingId, renameValue, applyFrame]);
+  }, [renamingId, renameValue, applyFrame, notifyDirty]);
 
   // Display top-to-bottom (reverse since bottom layer = index 0 in Rust)
   const displayLayers = [...layers].reverse();
