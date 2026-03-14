@@ -166,3 +166,64 @@ describe('findCameraKeyframeAtTick', () => {
     expect(result!.index).toBe(1); // index in sorted order
   });
 });
+
+// --- Visual state derivation edge cases ---
+
+describe('interpolation mode in markers and shots', () => {
+  it('markers preserve hold interpolation', () => {
+    const markers = deriveCameraTimelineMarkers([kf(0, { interpolation: 'hold' }), kf(10)]);
+    expect(markers[0].interpolation).toBe('hold');
+    expect(markers[1].interpolation).toBe('linear');
+  });
+
+  it('shots inherit interpolation from starting keyframe', () => {
+    const shots = deriveShotsFromCameraKeyframes(
+      [kf(0, { interpolation: 'hold' }), kf(10, { interpolation: 'linear' })],
+      20,
+    );
+    expect(shots[0].interpolation).toBe('hold');
+    expect(shots[1].interpolation).toBe('linear');
+  });
+});
+
+describe('last shot boundary behavior', () => {
+  it('single keyframe at tick 0 extends to totalTicks', () => {
+    const shots = deriveShotsFromCameraKeyframes([kf(0)], 100);
+    expect(shots[0].endTick).toBe(100);
+    expect(shots[0].durationTicks).toBe(100);
+  });
+
+  it('last shot extends to at least kf.tick + 1 when totalTicks is small', () => {
+    const shots = deriveShotsFromCameraKeyframes([kf(0), kf(50)], 30);
+    // last shot at tick 50 with totalTicks 30: endTick = max(30, 51) = 51
+    expect(shots[1].endTick).toBe(51);
+  });
+});
+
+describe('current shot at shot boundaries', () => {
+  const shots: SceneCameraShot[] = [
+    { name: 'A', startTick: 0, endTick: 10, durationTicks: 10, interpolation: 'linear', keyframeIndex: 0 },
+    { name: 'B', startTick: 10, endTick: 20, durationTicks: 10, interpolation: 'linear', keyframeIndex: 1 },
+  ];
+
+  it('tick exactly at shot boundary belongs to next shot', () => {
+    expect(findCurrentCameraShotAtTick(shots, 10)?.name).toBe('B');
+  });
+
+  it('tick one before boundary belongs to current shot', () => {
+    expect(findCurrentCameraShotAtTick(shots, 9)?.name).toBe('A');
+  });
+});
+
+describe('markers with mixed names', () => {
+  it('named and unnamed markers coexist', () => {
+    const markers = deriveCameraTimelineMarkers([
+      kf(0, { name: 'Intro' }),
+      kf(10),
+      kf(20, { name: 'Outro' }),
+    ]);
+    expect(markers[0].name).toBe('Intro');
+    expect(markers[1].name).toBeUndefined();
+    expect(markers[2].name).toBe('Outro');
+  });
+});
