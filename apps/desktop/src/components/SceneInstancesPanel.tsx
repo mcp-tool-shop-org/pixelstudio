@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@pixelstudio/domain';
-import { useScenePlaybackStore } from '@pixelstudio/state';
+import { useScenePlaybackStore, useProjectStore } from '@pixelstudio/state';
 
 export function SceneInstancesPanel() {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
@@ -30,23 +30,30 @@ export function SceneInstancesPanel() {
     return () => clearInterval(interval);
   }, [refresh]);
 
+  const notifyDirty = useCallback(() => {
+    useProjectStore.getState().markDirty();
+    invoke('mark_dirty').catch(() => {});
+  }, []);
+
   const handleVisibility = useCallback(async (instanceId: string, visible: boolean) => {
     try {
       await invoke('set_scene_instance_visibility', { instanceId, visible });
+      notifyDirty();
       refresh();
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh]);
+  }, [refresh, notifyDirty]);
 
   const handleOpacity = useCallback(async (instanceId: string, opacity: number) => {
     try {
       await invoke('set_scene_instance_opacity', { instanceId, opacity });
+      notifyDirty();
       refresh();
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh]);
+  }, [refresh, notifyDirty]);
 
   const handleBringForward = useCallback(async (instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
@@ -55,11 +62,12 @@ export function SceneInstancesPanel() {
     if (inst.zOrder >= maxZ) return;
     try {
       await invoke('set_scene_instance_layer', { instanceId, zOrder: inst.zOrder + 1 });
+      notifyDirty();
       refresh();
     } catch (err) {
       setError(String(err));
     }
-  }, [instances, refresh]);
+  }, [instances, refresh, notifyDirty]);
 
   const handleSendBackward = useCallback(async (instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
@@ -68,21 +76,23 @@ export function SceneInstancesPanel() {
     if (inst.zOrder <= minZ) return;
     try {
       await invoke('set_scene_instance_layer', { instanceId, zOrder: inst.zOrder - 1 });
+      notifyDirty();
       refresh();
     } catch (err) {
       setError(String(err));
     }
-  }, [instances, refresh]);
+  }, [instances, refresh, notifyDirty]);
 
   const handleRemove = useCallback(async (instanceId: string) => {
     try {
       await invoke('remove_scene_instance', { instanceId });
       if (selectedId === instanceId) setSelectedId(null);
+      notifyDirty();
       refresh();
     } catch (err) {
       setError(String(err));
     }
-  }, [selectedId, refresh]);
+  }, [selectedId, refresh, notifyDirty]);
 
   // Sort by z-order descending (top items first in list)
   const sorted = [...instances].sort((a, b) => b.zOrder - a.zOrder);
@@ -168,6 +178,7 @@ export function SceneInstancesPanel() {
             onParallaxChange={async (instanceId, parallax) => {
               try {
                 await invoke('set_scene_instance_parallax', { instanceId, parallax });
+                notifyDirty();
                 refresh();
               } catch (err) {
                 setError(String(err));
@@ -176,6 +187,7 @@ export function SceneInstancesPanel() {
             onClipChange={async (instanceId, clipId) => {
               try {
                 await invoke('set_scene_instance_clip', { instanceId, clipId });
+                notifyDirty();
                 refresh();
               } catch (err) {
                 setError(String(err));

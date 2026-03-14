@@ -15,7 +15,7 @@ import type {
 } from '@pixelstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
-import { useSelectionStore } from '@pixelstudio/state';
+import { useSelectionStore, useProjectStore } from '@pixelstudio/state';
 
 interface TimelineResult {
   frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>;
@@ -100,6 +100,7 @@ export function SandboxPanel() {
   const setFrames = useTimelineStore((s) => s.setFrames);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const clearSelection = useSelectionStore((s) => s.clearSelection);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -320,11 +321,13 @@ export function SandboxPanel() {
       setApplying(false);
       const label = durationMs != null ? `${durationMs}ms` : 'default';
       setActionSuccess(`Timing applied (${label}) to ${result.framesAffected} frames.`);
+      markDirty();
+      invoke('mark_dirty').catch(() => {});
       await refreshTimeline();
     } catch (e: any) {
       setActionError(e?.message ?? String(e));
     }
-  }, [session, clearActionFeedback, setApplying, setActionSuccess, setActionError, refreshTimeline]);
+  }, [session, clearActionFeedback, setApplying, setActionSuccess, setActionError, refreshTimeline, markDirty]);
 
   // --- Duplicate span ---
   const handleDuplicate = useCallback(async () => {
@@ -335,11 +338,13 @@ export function SandboxPanel() {
       const result = await invoke<SandboxDuplicateSpanResult>('duplicate_sandbox_span');
       setDuplicating(false);
       setActionSuccess(`Duplicated ${result.newFrameIds.length} frames at position ${result.insertPosition}.`);
+      markDirty();
+      invoke('mark_dirty').catch(() => {});
       await refreshTimeline(result.firstNewFrameId);
     } catch (e: any) {
       setActionError(e?.message ?? String(e));
     }
-  }, [session, clearActionFeedback, setDuplicating, setActionSuccess, setActionError, refreshTimeline]);
+  }, [session, clearActionFeedback, setDuplicating, setActionSuccess, setActionError, refreshTimeline, markDirty]);
 
   // FPS preset → duration_ms
   const fpsPresets = [4, 8, 12, 16] as const;

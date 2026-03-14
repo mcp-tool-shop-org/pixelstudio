@@ -62,6 +62,7 @@ export function ExportPreviewPanel() {
   const frames = useTimelineStore((s) => s.frames);
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const projectName = useProjectStore((s) => s.name);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
   // Persist settings on change
   useEffect(() => {
@@ -332,8 +333,11 @@ export function ExportPreviewPanel() {
       author: updated.author,
       description: updated.description,
       tags: updated.tags,
+    }).then(() => {
+      markDirty();
+      invoke('mark_dirty').catch(() => {});
     }).catch(() => {});
-  }, []);
+  }, [markDirty]);
 
   // --- Bundle packaging ---
   const [savedPkg] = useState(() => loadPackagingSettings());

@@ -37,6 +37,7 @@ export function AssetBrowserPanel() {
 
   const currentFilePath = useProjectStore((s) => s.filePath);
   const projectSaveStatus = useProjectStore((s) => s.saveStatus);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -77,10 +78,12 @@ export function AssetBrowserPanel() {
     try {
       await invoke<boolean>('remove_asset_catalog_entry', { assetId });
       setAssets((prev) => prev.filter((a) => a.id !== assetId));
+      markDirty();
+      invoke('mark_dirty').catch(() => {});
     } catch (err) {
       console.error('remove_asset_catalog_entry failed:', err);
     }
-  }, []);
+  }, [markDirty]);
 
   const handleOpen = useCallback(async (filePath: string) => {
     try {

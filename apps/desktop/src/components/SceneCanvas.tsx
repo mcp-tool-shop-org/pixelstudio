@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@pixelstudio/domain';
-import { useScenePlaybackStore } from '@pixelstudio/state';
+import { useScenePlaybackStore, useProjectStore } from '@pixelstudio/state';
 
 /** Cached frame images for a source asset + clip combination. */
 interface CachedFrames {
@@ -225,6 +225,8 @@ export function SceneCanvas() {
           x: inst.x,
           y: inst.y,
         });
+        useProjectStore.getState().markDirty();
+        invoke('mark_dirty').catch(() => {});
       } catch (err) {
         setError(String(err));
       }
@@ -285,6 +287,8 @@ export function SceneCanvas() {
               await invoke('new_scene', { name: 'Untitled Scene', width: 320, height: 240 });
               clearFrameCache();
               useScenePlaybackStore.getState().clearAll();
+              useProjectStore.getState().markDirty();
+              invoke('mark_dirty').catch(() => {});
               refresh();
             } catch (err) {
               setError(String(err));

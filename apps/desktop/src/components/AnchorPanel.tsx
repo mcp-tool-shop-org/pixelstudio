@@ -85,50 +85,55 @@ export function AnchorPanel() {
         y: 16,
       });
       addAnchor(toAnchor(result));
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, [newKind, addAnchor]);
+  }, [newKind, addAnchor, notifyDirty]);
 
   const handleDelete = useCallback(async (id: string) => {
     setError(null);
     try {
       await invoke('delete_anchor', { anchorId: id });
       removeAnchor(id);
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, [removeAnchor]);
+  }, [removeAnchor, notifyDirty]);
 
   const handleRename = useCallback(async (id: string, name: string) => {
     setError(null);
     try {
       await invoke<AnchorResult>('update_anchor', { anchorId: id, name });
       useAnchorStore.getState().updateAnchor(id, { name });
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [notifyDirty]);
 
   const handleBindSelection = useCallback(async (id: string) => {
     setError(null);
     try {
       const result = await invoke<AnchorResult>('bind_anchor_to_selection', { anchorId: id });
       useAnchorStore.getState().updateAnchor(id, { bounds: result.bounds });
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [notifyDirty]);
 
   const handleClearBinding = useCallback(async (id: string) => {
     setError(null);
     try {
       await invoke<AnchorResult>('clear_anchor_binding', { anchorId: id });
       useAnchorStore.getState().updateAnchor(id, { bounds: null });
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [notifyDirty]);
 
   // Keyboard nudge for selected anchor (arrow keys) and delete (Delete/Backspace)
   useEffect(() => {
@@ -158,13 +163,14 @@ export function AnchorPanel() {
       invoke<AnchorResult>('move_anchor', { anchorId: selectedAnchorId, x: newX, y: newY })
         .then((result) => {
           useAnchorStore.getState().updateAnchor(selectedAnchorId, { x: result.x, y: result.y });
+          notifyDirty();
         })
         .catch((err) => setError(String(err)));
     };
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [selectedAnchorId, anchors, handleDelete]);
+  }, [selectedAnchorId, anchors, handleDelete, notifyDirty]);
 
   const handleCopyToAll = useCallback(async () => {
     setError(null);
@@ -179,10 +185,11 @@ export function AnchorPanel() {
       if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
       setPropagateMsg(`${parts.join(', ')} across ${result.targetFrameCount} frame${result.targetFrameCount !== 1 ? 's' : ''}`);
       setTimeout(() => setPropagateMsg(null), 4000);
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, [conflictPolicy]);
+  }, [conflictPolicy, notifyDirty]);
 
   const handlePropagateSelected = useCallback(async () => {
     if (!selectedAnchorId) return;
@@ -196,10 +203,11 @@ export function AnchorPanel() {
         ? `Updated ${result.replaced} matching anchor${result.replaced !== 1 ? 's' : ''} across frames`
         : 'No matching anchors found on other frames');
       setTimeout(() => setPropagateMsg(null), 4000);
+      if (result.replaced > 0) notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, [selectedAnchorId]);
+  }, [selectedAnchorId, notifyDirty]);
 
   const handleSetParent = useCallback(async (id: string, parentName: string | null) => {
     setError(null);
@@ -211,22 +219,32 @@ export function AnchorPanel() {
         const result = await invoke<AnchorResult>('clear_anchor_parent', { anchorId: id });
         useAnchorStore.getState().updateAnchor(id, { parentName: result.parentName });
       }
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [notifyDirty]);
 
   const handleSetFalloff = useCallback(async (id: string, falloffWeight: number) => {
     setError(null);
     try {
       const result = await invoke<AnchorResult>('set_anchor_falloff', { anchorId: id, falloffWeight });
       useAnchorStore.getState().updateAnchor(id, { falloffWeight: result.falloffWeight });
+      notifyDirty();
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [notifyDirty]);
 
   const canvasSize = useProjectStore((s) => s.canvasSize);
+  const markDirty = useProjectStore((s) => s.markDirty);
+
+  /** Mark project dirty on both frontend store and backend. */
+  const notifyDirty = useCallback(() => {
+    markDirty();
+    invoke('mark_dirty').catch(() => {});
+  }, [markDirty]);
+
   const [savePresetMsg, setSavePresetMsg] = useState<string | null>(null);
 
   const handleSaveAsPreset = useCallback(async () => {
