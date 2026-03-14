@@ -3,6 +3,7 @@ import { useTimelineStore } from './timelineStore';
 import { useScenePlaybackStore } from './scenePlaybackStore';
 import { useProjectStore } from './projectStore';
 import { useLayerStore } from './layerStore';
+import { useSelectionStore } from './selectionStore';
 import type { LayerNode } from '@pixelstudio/domain';
 
 // ── Inline replica of syncLayersFromFrame (from apps/desktop) ──
@@ -353,5 +354,95 @@ describe('RightDock tab clamping logic', () => {
       expect(MODE_TABS[mode], `mode=${mode}`).toBeDefined();
       expect(Array.isArray(MODE_TABS[mode]), `mode=${mode} is array`).toBe(true);
     }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────
+// 6. Keyboard input law — AnchorPanel defers to Canvas
+// ───────────────────────────────────────────────────────────────
+describe('keyboard input law', () => {
+  // These tests pin the priority rules that AnchorPanel.tsx implements:
+  //   - Arrow keys: Canvas owns them when isTransforming is true
+  //   - Delete/Backspace: Canvas owns them when hasSelection is true
+  // The tests verify the guard states, not DOM events (no harness yet).
+
+  beforeEach(() => {
+    useSelectionStore.setState({
+      hasSelection: false,
+      isTransforming: false,
+      selectionBounds: null,
+      isFloating: false,
+      transformPreview: null,
+    });
+  });
+
+  // Pure guard function mirroring AnchorPanel's keyboard handler logic
+  function anchorOwnsArrows(hasAnchor: boolean): boolean {
+    if (!hasAnchor) return false;
+    return !useSelectionStore.getState().isTransforming;
+  }
+
+  function anchorOwnsDelete(hasAnchor: boolean): boolean {
+    if (!hasAnchor) return false;
+    return !useSelectionStore.getState().hasSelection;
+  }
+
+  describe('arrow key ownership', () => {
+    it('AnchorPanel owns arrows when anchor selected, no transform', () => {
+      expect(anchorOwnsArrows(true)).toBe(true);
+    });
+
+    it('Canvas owns arrows during transform even with anchor selected', () => {
+      useSelectionStore.setState({ isTransforming: true });
+      expect(anchorOwnsArrows(true)).toBe(false);
+    });
+
+    it('neither owns arrows when no anchor selected and no transform', () => {
+      expect(anchorOwnsArrows(false)).toBe(false);
+    });
+
+    it('Canvas owns arrows during transform, no anchor', () => {
+      useSelectionStore.setState({ isTransforming: true });
+      expect(anchorOwnsArrows(false)).toBe(false);
+    });
+  });
+
+  describe('Delete/Backspace ownership', () => {
+    it('AnchorPanel owns Delete when anchor selected, no pixel selection', () => {
+      expect(anchorOwnsDelete(true)).toBe(true);
+    });
+
+    it('Canvas owns Delete when pixel selection exists, even with anchor', () => {
+      useSelectionStore.setState({ hasSelection: true });
+      expect(anchorOwnsDelete(true)).toBe(false);
+    });
+
+    it('neither owns Delete when no anchor and no selection', () => {
+      expect(anchorOwnsDelete(false)).toBe(false);
+    });
+
+    it('Canvas owns Delete with selection, no anchor', () => {
+      useSelectionStore.setState({ hasSelection: true });
+      expect(anchorOwnsDelete(false)).toBe(false);
+    });
+  });
+
+  describe('combined states', () => {
+    it('Canvas owns both arrow and delete during transform with selection', () => {
+      useSelectionStore.setState({ isTransforming: true, hasSelection: true });
+      expect(anchorOwnsArrows(true)).toBe(false);
+      expect(anchorOwnsDelete(true)).toBe(false);
+    });
+
+    it('AnchorPanel owns both when Canvas is fully idle', () => {
+      expect(anchorOwnsArrows(true)).toBe(true);
+      expect(anchorOwnsDelete(true)).toBe(true);
+    });
+
+    it('AnchorPanel owns arrows but not Delete when selection exists without transform', () => {
+      useSelectionStore.setState({ hasSelection: true });
+      expect(anchorOwnsArrows(true)).toBe(true);
+      expect(anchorOwnsDelete(true)).toBe(false);
+    });
   });
 });

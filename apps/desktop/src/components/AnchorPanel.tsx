@@ -136,6 +136,8 @@ export function AnchorPanel() {
   }, [notifyDirty]);
 
   // Keyboard nudge for selected anchor (arrow keys) and delete (Delete/Backspace)
+  // Input law: Canvas owns these keys when it has an active editing state.
+  // AnchorPanel defers to Canvas for arrows during transform, Delete during selection.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (!selectedAnchorId) return;
@@ -144,6 +146,13 @@ export function AnchorPanel() {
 
       // Don't intercept if user is typing in an input
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+
+      // Defer arrow keys to Canvas when a selection transform is active
+      const selState = useSelectionStore.getState();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selState.isTransforming) return;
+
+      // Defer Delete/Backspace to Canvas when a pixel selection exists
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selState.hasSelection) return;
 
       let dx = 0, dy = 0;
       if (e.key === 'ArrowUp') { dy = -1; e.preventDefault(); }
