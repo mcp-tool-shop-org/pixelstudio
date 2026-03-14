@@ -48,16 +48,34 @@ pub struct ActiveStroke {
     pub touched: std::collections::HashSet<(u32, u32)>,
 }
 
+/// A single animation frame — snapshot of all layers + undo history.
+pub struct AnimationFrame {
+    pub id: String,
+    pub name: String,
+    pub layers: Vec<Layer>,
+    pub active_layer_id: Option<String>,
+    pub undo_stack: Vec<StrokeRecord>,
+    pub redo_stack: Vec<StrokeRecord>,
+    pub layer_counter: u32,
+}
+
 /// Holds all pixel data for the active project. Owned by Rust, authoritative.
 pub struct CanvasState {
     pub width: u32,
     pub height: u32,
+    /// The layers/undo for the currently active frame are stored inline
+    /// for zero-cost access by all existing code paths.
     pub layers: Vec<Layer>,
     pub active_layer_id: Option<String>,
     pub undo_stack: Vec<StrokeRecord>,
     pub redo_stack: Vec<StrokeRecord>,
     pub active_stroke: Option<ActiveStroke>,
     layer_counter: u32,
+    /// All frames in the animation. The active frame's data lives in the
+    /// top-level fields above; inactive frames are stored here.
+    pub frames: Vec<AnimationFrame>,
+    pub active_frame_index: usize,
+    frame_counter: u32,
 }
 
 impl CanvasState {
@@ -71,6 +89,7 @@ impl CanvasState {
             buffer: PixelBuffer::new(width, height),
         };
         let active_id = default_layer.id.clone();
+        let frame_id = uuid::Uuid::new_v4().to_string();
         Self {
             width,
             height,
@@ -80,10 +99,22 @@ impl CanvasState {
             redo_stack: Vec::new(),
             active_stroke: None,
             layer_counter: 1,
+            frames: vec![AnimationFrame {
+                id: frame_id,
+                name: "Frame 1".to_string(),
+                layers: Vec::new(), // active frame data lives in top-level fields
+                active_layer_id: None,
+                undo_stack: Vec::new(),
+                redo_stack: Vec::new(),
+                layer_counter: 0,
+            }],
+            active_frame_index: 0,
+            frame_counter: 1,
         }
     }
 
     /// Reconstruct canvas state from deserialized layers (used by project_io).
+    /// Legacy single-frame constructor — wraps layers in one frame.
     pub fn from_layers(
         width: u32,
         height: u32,
@@ -91,6 +122,7 @@ impl CanvasState {
         active_layer_id: Option<String>,
     ) -> Self {
         let layer_counter = layers.len() as u32;
+        let frame_id = uuid::Uuid::new_v4().to_string();
         Self {
             width,
             height,
@@ -100,6 +132,51 @@ impl CanvasState {
             redo_stack: Vec::new(),
             active_stroke: None,
             layer_counter,
+            frames: vec![AnimationFrame {
+                id: frame_id,
+                name: "Frame 1".to_string(),
+                layers: Vec::new(),
+                active_layer_id: None,
+                undo_stack: Vec::new(),
+                redo_stack: Vec::new(),
+                layer_counter: 0,
+            }],
+            active_frame_index: 0,
+            frame_counter: 1,
+        }
+    }
+
+    /// Reconstruct from serialized frames (multi-frame project_io).
+    pub fn from_frames(
+        width: u32,
+        height: u32,
+        frames: Vec<AnimationFrame>,
+        active_frame_index: usize,
+    ) -> Self {
+        let idx = active_frame_index.min(frames.len().saturating_sub(1));
+        let frame_counter = frames.len() as u32;
+
+        // Extract active frame's data into top-level fields
+        let mut frames = frames;
+        let active = &mut frames[idx];
+        let layers = std::mem::take(&mut active.layers);
+        let active_layer_id = active.active_layer_id.take();
+        let undo_stack = std::mem::take(&mut active.undo_stack);
+        let redo_stack = std::mem::take(&mut active.redo_stack);
+        let layer_counter = active.layer_counter;
+
+        Self {
+            width,
+            height,
+            layers,
+            active_layer_id,
+            undo_stack,
+            redo_stack,
+            active_stroke: None,
+            layer_counter,
+            frames,
+            active_frame_index: idx,
+            frame_counter,
         }
     }
 
@@ -332,6 +409,199 @@ impl CanvasState {
 
         self.undo_stack.push(record);
         Ok(true)
+    }
+
+    // --- Frame management ---
+
+    /// Save current top-level state back into the active frame slot.
+    fn stash_active_frame(&mut self) {
+        let frame = &mut self.frames[self.active_frame_index];
+        frame.layers = std::mem::take(&mut self.layers);
+        frame.active_layer_id = self.active_layer_id.take();
+        frame.undo_stack = std::mem::take(&mut self.undo_stack);
+        frame.redo_stack = std::mem::take(&mut self.redo_stack);
+        frame.layer_counter = self.layer_counter;
+    }
+
+    /// Load a frame slot into the top-level state.
+    fn restore_frame(&mut self, index: usize) {
+        let frame = &mut self.frames[index];
+        self.layers = std::mem::take(&mut frame.layers);
+        self.active_layer_id = frame.active_layer_id.take();
+        self.undo_stack = std::mem::take(&mut frame.undo_stack);
+        self.redo_stack = std::mem::take(&mut frame.redo_stack);
+        self.layer_counter = frame.layer_counter;
+        self.active_frame_index = index;
+    }
+
+    /// Create a new blank frame with one transparent layer.
+    pub fn create_frame(&mut self, name: Option<String>) -> String {
+        // Stash current frame first
+        self.stash_active_frame();
+
+        self.frame_counter += 1;
+        let frame_name = name.unwrap_or_else(|| format!("Frame {}", self.frame_counter));
+        let frame_id = uuid::Uuid::new_v4().to_string();
+        let layer_id = uuid::Uuid::new_v4().to_string();
+
+        let new_frame = AnimationFrame {
+            id: frame_id.clone(),
+            name: frame_name,
+            layers: Vec::new(),
+            active_layer_id: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            layer_counter: 0,
+        };
+        self.frames.push(new_frame);
+
+        let new_index = self.frames.len() - 1;
+
+        // Set top-level state for the new frame
+        self.layers = vec![Layer {
+            id: layer_id.clone(),
+            name: "Layer 1".to_string(),
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            buffer: PixelBuffer::new(self.width, self.height),
+        }];
+        self.active_layer_id = Some(layer_id);
+        self.undo_stack = Vec::new();
+        self.redo_stack = Vec::new();
+        self.layer_counter = 1;
+        self.active_frame_index = new_index;
+
+        frame_id
+    }
+
+    /// Duplicate the current frame (deep copy of all layers).
+    pub fn duplicate_frame(&mut self) -> String {
+        self.frame_counter += 1;
+        let frame_id = uuid::Uuid::new_v4().to_string();
+        let frame_name = format!("Frame {}", self.frame_counter);
+
+        // Deep copy current layers with new IDs mapped
+        let mut id_map = std::collections::HashMap::new();
+        let dup_layers: Vec<Layer> = self.layers.iter().map(|l| {
+            let new_id = uuid::Uuid::new_v4().to_string();
+            id_map.insert(l.id.clone(), new_id.clone());
+            Layer {
+                id: new_id,
+                name: l.name.clone(),
+                visible: l.visible,
+                locked: l.locked,
+                opacity: l.opacity,
+                buffer: PixelBuffer::from_bytes(self.width, self.height, l.buffer.to_bytes()),
+            }
+        }).collect();
+
+        let dup_active_layer = self.active_layer_id.as_ref()
+            .and_then(|id| id_map.get(id))
+            .cloned();
+
+        // Stash current frame
+        self.stash_active_frame();
+
+        let new_frame = AnimationFrame {
+            id: frame_id.clone(),
+            name: frame_name,
+            layers: Vec::new(),
+            active_layer_id: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            layer_counter: 0,
+        };
+        self.frames.push(new_frame);
+
+        let new_index = self.frames.len() - 1;
+
+        // Set top-level state for the duplicated frame
+        self.layers = dup_layers;
+        self.active_layer_id = dup_active_layer;
+        self.undo_stack = Vec::new(); // Fresh undo for new frame
+        self.redo_stack = Vec::new();
+        self.layer_counter = self.layers.len() as u32;
+        self.active_frame_index = new_index;
+
+        frame_id
+    }
+
+    /// Delete a frame by index. Cannot delete the last frame.
+    pub fn delete_frame(&mut self, frame_id: &str) -> Result<(), String> {
+        if self.frames.len() <= 1 {
+            return Err("Cannot delete the last frame".to_string());
+        }
+
+        let del_idx = self.frames.iter().position(|f| f.id == frame_id)
+            .ok_or_else(|| "Frame not found".to_string())?;
+
+        let is_active = del_idx == self.active_frame_index;
+
+        if is_active {
+            // Switch to adjacent frame first
+            let new_idx = if del_idx > 0 { del_idx - 1 } else { 1 };
+            // Don't stash — we're about to delete the active frame
+            // Instead, load the target frame
+            self.layers = Vec::new();
+            self.active_layer_id = None;
+            self.undo_stack = Vec::new();
+            self.redo_stack = Vec::new();
+            self.restore_frame(new_idx);
+        }
+
+        // Remove the frame
+        self.frames.remove(del_idx);
+
+        // Adjust active_frame_index if needed
+        if !is_active && del_idx < self.active_frame_index {
+            self.active_frame_index -= 1;
+        }
+        // If we deleted before the restored index, adjust
+        if is_active && del_idx <= self.active_frame_index && self.active_frame_index > 0 {
+            self.active_frame_index = self.active_frame_index.min(self.frames.len() - 1);
+        }
+
+        Ok(())
+    }
+
+    /// Switch to a different frame by id.
+    pub fn select_frame(&mut self, frame_id: &str) -> Result<(), String> {
+        let target_idx = self.frames.iter().position(|f| f.id == frame_id)
+            .ok_or_else(|| "Frame not found".to_string())?;
+
+        if target_idx == self.active_frame_index {
+            return Ok(()); // Already active
+        }
+
+        // Cancel any in-flight stroke
+        self.cancel_stroke();
+
+        self.stash_active_frame();
+        self.restore_frame(target_idx);
+
+        Ok(())
+    }
+
+    /// Rename a frame.
+    pub fn rename_frame(&mut self, frame_id: &str, name: String) -> Result<(), String> {
+        let frame = self.frames.iter_mut().find(|f| f.id == frame_id)
+            .ok_or_else(|| "Frame not found".to_string())?;
+        frame.name = name;
+        Ok(())
+    }
+
+    /// Get info about all frames.
+    pub fn frame_count(&self) -> usize {
+        self.frames.len()
+    }
+
+    pub fn active_frame_id(&self) -> &str {
+        &self.frames[self.active_frame_index].id
+    }
+
+    pub fn active_frame_name(&self) -> &str {
+        &self.frames[self.active_frame_index].name
     }
 
     // --- Helpers ---

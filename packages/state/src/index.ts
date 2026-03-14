@@ -9,6 +9,7 @@ export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
 export { usePaletteStore } from './paletteStore';
 export { useTimelineStore } from './timelineStore';
+export type { FrameInfo } from './timelineStore';
 export { useAIStore } from './aiStore';
 export { useLocomotionStore } from './locomotionStore';
 export { useValidationStore } from './validationStore';

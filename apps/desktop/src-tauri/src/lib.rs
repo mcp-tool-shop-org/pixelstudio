@@ -6,7 +6,7 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{canvas, project, selection};
+use commands::{canvas, project, selection, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 use engine::selection::{ManagedSelectionState, SelectionState};
 
@@ -62,6 +62,12 @@ pub fn run() {
             selection::flip_selection_vertical,
             selection::rotate_selection_90_cw,
             selection::rotate_selection_90_ccw,
+            timeline::get_timeline,
+            timeline::create_frame,
+            timeline::duplicate_frame,
+            timeline::delete_frame,
+            timeline::select_frame,
+            timeline::rename_frame,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PixelStudio");

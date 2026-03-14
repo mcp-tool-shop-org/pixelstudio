@@ -4,6 +4,7 @@ import { useCanvasViewStore } from '@pixelstudio/state';
 import { useToolStore } from '@pixelstudio/state';
 import { useProjectStore } from '@pixelstudio/state';
 import { useSelectionStore } from '@pixelstudio/state';
+import { useTimelineStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -84,6 +85,9 @@ export function Canvas() {
   const transformPreview = useSelectionStore((s) => s.transformPreview);
   const setTransform = useSelectionStore((s) => s.setTransform);
   const clearTransform = useSelectionStore((s) => s.clearTransform);
+
+  const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
+  const frameCount = useTimelineStore((s) => s.frames.length);
 
   // Unclamped screen-to-pixel (allows coords outside canvas for drag)
   const screenToPixelUnclamped = useCallback(
@@ -684,6 +688,27 @@ export function Canvas() {
           return;
         }
       }
+
+      // Prev/next frame with , and .
+      if (e.code === 'Comma' || e.code === 'Period') {
+        e.preventDefault();
+        const tl = useTimelineStore.getState();
+        if (tl.frames.length <= 1) return;
+        const idx = tl.frames.findIndex((f) => f.id === tl.activeFrameId);
+        const targetIdx = e.code === 'Comma' ? idx - 1 : idx + 1;
+        if (targetIdx < 0 || targetIdx >= tl.frames.length) return;
+        const targetId = tl.frames[targetIdx].id;
+        invoke<{ frames: Array<{ id: string; name: string; index: number }>; activeFrameIndex: number; activeFrameId: string; frame: CanvasFrameData }>('select_frame', { frameId: targetId })
+          .then((result) => {
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            clearSelection();
+            clearTransform();
+          })
+          .catch(() => {});
+        return;
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -735,6 +760,7 @@ export function Canvas() {
         <span>{activeTool}</span>
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
+        {frameCount > 1 && <span title=", / . to switch">F{activeFrameIndex + 1}/{frameCount}</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
       </div>
