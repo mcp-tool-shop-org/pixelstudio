@@ -6,9 +6,11 @@ import type {
   MotionFrameCount,
   MotionSessionStatus,
   MotionProposal,
+  MotionPanelMode,
 } from '@pixelstudio/domain';
 
 interface MotionState {
+  panelMode: MotionPanelMode;
   sessionId: string | null;
   intent: MotionIntent;
   direction: MotionDirection | null;
@@ -20,6 +22,7 @@ interface MotionState {
   status: MotionSessionStatus;
   lastError: string | null;
 
+  setPanelMode: (mode: MotionPanelMode) => void;
   setSession: (session: {
     sessionId: string;
     intent: MotionIntent;
@@ -43,6 +46,7 @@ interface MotionState {
 }
 
 const initialState = {
+  panelMode: 'locomotion' as MotionPanelMode,
   sessionId: null as string | null,
   intent: 'idle_bob' as MotionIntent,
   direction: null as MotionDirection | null,
@@ -58,6 +62,7 @@ const initialState = {
 export const useMotionStore = create<MotionState>((set) => ({
   ...initialState,
 
+  setPanelMode: (mode) => set({ panelMode: mode }),
   setSession: (session) =>
     set({
       sessionId: session.sessionId,

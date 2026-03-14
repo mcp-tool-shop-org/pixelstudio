@@ -5,6 +5,7 @@ import { useProjectStore } from '@pixelstudio/state';
 import { TopBar } from '../components/TopBar';
 import { ToolRail } from '../components/ToolRail';
 import { Canvas } from '../components/Canvas';
+import { SceneCanvas } from '../components/SceneCanvas';
 import { RightDock } from '../components/RightDock';
 import { BottomDock } from '../components/BottomDock';
 import { ProjectHome } from '../components/ProjectHome';
@@ -113,7 +114,7 @@ export function AppShell() {
       <TopBar activeMode={mode} onModeChange={setMode} />
       <div className="workspace-body">
         <ToolRail />
-        <Canvas />
+        {mode === 'scene' ? <SceneCanvas /> : <Canvas />}
         <RightDock activeMode={mode} />
       </div>
       <BottomDock activeMode={mode} />

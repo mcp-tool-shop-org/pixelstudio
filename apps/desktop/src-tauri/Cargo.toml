@@ -27,3 +27,5 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 png = "0.17"
 dirs = "6"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+base64 = "0.22"

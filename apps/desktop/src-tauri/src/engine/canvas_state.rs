@@ -60,9 +60,42 @@ pub struct AnimationFrame {
     /// Optional per-frame duration override in milliseconds.
     /// None = use global FPS for timing.
     pub duration_ms: Option<u32>,
+    /// Frame-local anchors for part-aware motion.
+    pub anchors: Vec<super::anchor::Anchor>,
 }
 
 /// Holds all pixel data for the active project. Owned by Rust, authoritative.
+/// Package identity metadata for asset bundles and manifests.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageMetadata {
+    #[serde(default = "default_package_name")]
+    pub package_name: String,
+    #[serde(default = "default_version")]
+    pub version: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+fn default_package_name() -> String { String::new() }
+fn default_version() -> String { "0.1.0".to_string() }
+
+impl Default for PackageMetadata {
+    fn default() -> Self {
+        Self {
+            package_name: String::new(),
+            version: "0.1.0".to_string(),
+            author: String::new(),
+            description: String::new(),
+            tags: Vec::new(),
+        }
+    }
+}
+
 pub struct CanvasState {
     pub width: u32,
     pub height: u32,
@@ -79,6 +112,10 @@ pub struct CanvasState {
     pub frames: Vec<AnimationFrame>,
     pub active_frame_index: usize,
     frame_counter: u32,
+    /// Project-level clip definitions (named frame spans for export).
+    pub clips: Vec<super::clip::Clip>,
+    /// Package identity metadata (persisted with project).
+    pub package_metadata: PackageMetadata,
 }
 
 impl CanvasState {
@@ -111,9 +148,12 @@ impl CanvasState {
                 redo_stack: Vec::new(),
                 layer_counter: 0,
                 duration_ms: None,
+                anchors: Vec::new(),
             }],
             active_frame_index: 0,
             frame_counter: 1,
+            clips: Vec::new(),
+            package_metadata: PackageMetadata::default(),
         }
     }
 
@@ -145,9 +185,12 @@ impl CanvasState {
                 redo_stack: Vec::new(),
                 layer_counter: 0,
                 duration_ms: None,
+                anchors: Vec::new(),
             }],
             active_frame_index: 0,
             frame_counter: 1,
+            clips: Vec::new(),
+            package_metadata: PackageMetadata::default(),
         }
     }
 
@@ -182,6 +225,8 @@ impl CanvasState {
             frames,
             active_frame_index: idx,
             frame_counter,
+            clips: Vec::new(),
+            package_metadata: PackageMetadata::default(),
         }
     }
 
@@ -458,6 +503,7 @@ impl CanvasState {
             redo_stack: Vec::new(),
             layer_counter: 0,
             duration_ms: None,
+            anchors: Vec::new(),
         };
         self.frames.push(new_frame);
 
@@ -521,6 +567,7 @@ impl CanvasState {
             redo_stack: Vec::new(),
             layer_counter: 0,
             duration_ms: source_duration,
+            anchors: Vec::new(),
         };
         self.frames.push(new_frame);
 
@@ -648,6 +695,7 @@ impl CanvasState {
             redo_stack: Vec::new(),
             layer_counter: 0,
             duration_ms: None,
+            anchors: Vec::new(),
         };
         self.frames.insert(position, new_frame);
 
@@ -724,6 +772,7 @@ impl CanvasState {
             redo_stack: Vec::new(),
             layer_counter: 0,
             duration_ms: source_duration,
+            anchors: Vec::new(),
         };
         self.frames.insert(position, new_frame);
 
@@ -810,6 +859,161 @@ impl CanvasState {
             }
         }
         Some(result)
+    }
+
+    /// Apply uniform timing to a span of frames. Returns prior durations for undo.
+    pub fn apply_span_timing(
+        &mut self,
+        start_index: usize,
+        end_index: usize,
+        duration_ms: Option<u32>,
+    ) -> Result<Vec<(String, Option<u32>)>, String> {
+        if start_index >= self.frames.len() || end_index >= self.frames.len() {
+            return Err("Frame index out of range".to_string());
+        }
+        if start_index > end_index {
+            return Err("Start must be <= end".to_string());
+        }
+        let mut prior: Vec<(String, Option<u32>)> = Vec::new();
+        for idx in start_index..=end_index {
+            let frame = &mut self.frames[idx];
+            prior.push((frame.id.clone(), frame.duration_ms));
+            frame.duration_ms = duration_ms;
+        }
+        Ok(prior)
+    }
+
+    /// Restore prior durations (for undo of apply_span_timing).
+    pub fn restore_span_timing(&mut self, prior: &[(String, Option<u32>)]) {
+        for (frame_id, dur) in prior {
+            if let Some(frame) = self.frames.iter_mut().find(|f| f.id == *frame_id) {
+                frame.duration_ms = *dur;
+            }
+        }
+    }
+
+    /// Duplicate a contiguous span of frames and insert copies after the span.
+    /// Returns (first_new_frame_id, new_frame_ids, insert_position).
+    /// Copies layers, anchors, and duration metadata. New IDs throughout.
+    pub fn duplicate_span(
+        &mut self,
+        start_index: usize,
+        end_index: usize,
+    ) -> Result<(String, Vec<String>, usize), String> {
+        if start_index >= self.frames.len() || end_index >= self.frames.len() {
+            return Err("Frame index out of range".to_string());
+        }
+        if start_index > end_index {
+            return Err("Start must be <= end".to_string());
+        }
+
+        self.cancel_stroke();
+        self.stash_active_frame();
+
+        let insert_pos = end_index + 1;
+        let mut new_ids: Vec<String> = Vec::new();
+
+        // Collect frame data first to avoid borrow issues
+        let span_data: Vec<(String, Vec<(String, String, bool, bool, f32, Vec<u8>)>, Option<String>, Option<u32>, Vec<super::anchor::Anchor>)> = (start_index..=end_index)
+            .map(|idx| {
+                let frame = &self.frames[idx];
+                let layers: Vec<_> = frame.layers.iter().map(|l| {
+                    (l.id.clone(), l.name.clone(), l.visible, l.locked, l.opacity, l.buffer.to_bytes())
+                }).collect();
+                let active_lid = frame.active_layer_id.clone();
+                let dur = frame.duration_ms;
+                let anchors = frame.anchors.clone();
+                (frame.name.clone(), layers, active_lid, dur, anchors)
+            })
+            .collect();
+
+        for (i, (name, layers, active_lid, dur, anchors)) in span_data.into_iter().enumerate() {
+            self.frame_counter += 1;
+            let frame_id = uuid::Uuid::new_v4().to_string();
+            let frame_name = format!("{} (copy)", name);
+
+            // Deep copy layers with new IDs
+            let mut lid_map = std::collections::HashMap::new();
+            let new_layers: Vec<Layer> = layers.iter().map(|(old_id, lname, vis, locked, opacity, bytes)| {
+                let new_lid = uuid::Uuid::new_v4().to_string();
+                lid_map.insert(old_id.clone(), new_lid.clone());
+                Layer {
+                    id: new_lid,
+                    name: lname.clone(),
+                    visible: *vis,
+                    locked: *locked,
+                    opacity: *opacity,
+                    buffer: PixelBuffer::from_bytes(self.width, self.height, bytes.clone()),
+                }
+            }).collect();
+
+            let new_active_lid = active_lid.as_ref().and_then(|id| lid_map.get(id)).cloned();
+
+            // Copy anchors with new IDs
+            let new_anchors: Vec<super::anchor::Anchor> = anchors.iter().map(|a| {
+                let mut dup = a.clone();
+                dup.id = uuid::Uuid::new_v4().to_string();
+                dup
+            }).collect();
+
+            let new_frame = AnimationFrame {
+                id: frame_id.clone(),
+                name: frame_name,
+                layers: new_layers,
+                active_layer_id: new_active_lid,
+                undo_stack: Vec::new(),
+                redo_stack: Vec::new(),
+                layer_counter: layers.len() as u32,
+                duration_ms: dur,
+                anchors: new_anchors,
+            };
+
+            let actual_pos = insert_pos + i;
+            self.frames.insert(actual_pos, new_frame);
+            new_ids.push(frame_id);
+
+            // Adjust active_frame_index if insertion was before or at it
+            if actual_pos <= self.active_frame_index {
+                self.active_frame_index += 1;
+            }
+        }
+
+        // Restore the active frame
+        self.restore_frame(self.active_frame_index);
+
+        let first_id = new_ids[0].clone();
+        Ok((first_id, new_ids, insert_pos))
+    }
+
+    /// Remove frames by their IDs (for undo of duplicate_span).
+    pub fn remove_frames_by_ids(&mut self, ids: &[String]) -> Result<(), String> {
+        if self.frames.len() <= ids.len() {
+            return Err("Cannot remove all frames".to_string());
+        }
+        self.cancel_stroke();
+        self.stash_active_frame();
+
+        let active_id = self.frames[self.active_frame_index].id.clone();
+
+        self.frames.retain(|f| !ids.contains(&f.id));
+
+        // Restore active frame index
+        self.active_frame_index = self.frames.iter()
+            .position(|f| f.id == active_id)
+            .unwrap_or(0);
+
+        self.restore_frame(self.active_frame_index);
+        Ok(())
+    }
+
+    /// Public wrapper for stash_active_frame (used by motion commit).
+    pub fn stash_active_frame_pub(&mut self) {
+        self.stash_active_frame();
+    }
+
+    /// Public wrapper for restore_frame (used by motion commit).
+    pub fn restore_frame_pub(&mut self, index: usize) {
+        self.restore_frame(index);
     }
 
     // --- Helpers ---

@@ -5,9 +5,16 @@ import type { WorkspaceMode } from '@pixelstudio/domain';
 import { useTimelineStore } from '@pixelstudio/state';
 import { useProjectStore } from '@pixelstudio/state';
 import { useSelectionStore } from '@pixelstudio/state';
+import { useScenePlaybackStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { MotionPanel } from './MotionPanel';
+import { AnchorPanel } from './AnchorPanel';
+import { SandboxPanel } from './SandboxPanel';
+import { PresetPanel } from './PresetPanel';
+import { ClipPanel } from './ClipPanel';
+import { ExportPreviewPanel } from './ExportPreviewPanel';
+import { ScenePlaybackControls } from './ScenePlaybackControls';
 
 interface TimelineResult {
   frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>;
@@ -280,6 +287,32 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     if (!isNaN(val)) setFps(val);
   }, [setFps]);
 
+  // Pause sprite timeline playback when entering scene mode
+  useEffect(() => {
+    if (activeMode === 'scene') {
+      if (useTimelineStore.getState().playing) {
+        setPlaying(false);
+      }
+    }
+  }, [activeMode, setPlaying]);
+
+  // Pause scene playback when leaving scene mode
+  useEffect(() => {
+    if (activeMode !== 'scene') {
+      if (useScenePlaybackStore.getState().isPlaying) {
+        useScenePlaybackStore.getState().setPlaying(false);
+      }
+    }
+  }, [activeMode]);
+
+  if (activeMode === 'scene') {
+    return (
+      <footer className="bottom-dock">
+        <ScenePlaybackControls />
+      </footer>
+    );
+  }
+
   if (!showTimeline) {
     return (
       <footer className="bottom-dock">
@@ -297,6 +330,11 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   return (
     <footer className="bottom-dock">
       {showMotion && <MotionPanel />}
+      {showMotion && <AnchorPanel />}
+      {showMotion && <SandboxPanel />}
+      {showMotion && <PresetPanel />}
+      {showTimeline && frames.length > 1 && <ClipPanel />}
+      {showTimeline && frames.length > 1 && <ExportPreviewPanel />}
       <div className="timeline-panel">
         <div className="timeline-controls">
           <button className="timeline-btn" title="Previous frame (,)" onClick={handlePrevFrame} disabled={playing}>{'\u23EE'}</button>

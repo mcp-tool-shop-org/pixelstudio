@@ -7,4 +7,5 @@ export type WorkspaceMode =
   | 'ai'
   | 'locomotion'
   | 'validate'
-  | 'export';
+  | 'export'
+  | 'scene';

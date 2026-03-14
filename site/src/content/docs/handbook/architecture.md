@@ -88,10 +88,20 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-67 implemented Tauri commands across:
+123 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
 - **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
 - **Timeline** (11): get timeline, create/duplicate/delete/select/rename frame, reorder, insert at, duplicate at, set duration, onion skin frames
-- **Motion** (6): begin/generate/get/accept/reject/cancel motion session
-- Plus stubs for palette, validation, AI, locomotion analysis, provenance, and assets
+- **Motion** (11): begin/generate/get/accept/reject/cancel session, commit/undo/redo commit, list/apply templates
+- **Anchor** (15): create/update/delete/list/move/validate anchors, bind/clear/resize bounds, copy to frame/all, propagate updates, set/clear parent, set falloff
+- **Sandbox** (7): begin/get/close sandbox session, analyze motion, get anchor paths, apply timing, duplicate span
+- **Secondary Motion** (3): list/apply secondary motion templates, check readiness (wind, sway, swing, rustle)
+- **Presets** (10): save/list/delete/rename/get/apply motion presets, batch apply (span/all), check compatibility, preview apply
+- **Clips** (10): create/list/update/delete/validate clip definitions, set/clear pivot, set/add/remove tags (named frame spans for sprite-sheet export)
+- **Export** (5): preview sprite-sheet layout, export clip sequence, export clip sheet, export all clips sheet, export clip sequence with manifest
+- **Asset Catalog** (6): list assets, get/upsert/remove catalog entry, refresh catalog, generate thumbnail (file-backed index separate from projects)
+- **Bundle Packaging** (4): preview/export asset bundle, preview/export catalog bundle (multi-asset with per-asset subfolders)
+- **Package Metadata** (2): get/set asset package metadata (name, version, author, description, tags — persisted with project)
+- **Scene** (26): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick
+- Plus stubs for palette, validation, AI, locomotion analysis, and provenance

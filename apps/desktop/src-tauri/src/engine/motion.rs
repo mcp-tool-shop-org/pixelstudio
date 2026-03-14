@@ -27,6 +27,7 @@ pub enum MotionDirection {
 #[serde(rename_all = "snake_case")]
 pub enum MotionTargetMode {
     ActiveSelection,
+    AnchorBinding,
     WholeFrame,
 }
 
@@ -69,21 +70,66 @@ pub struct MotionSession {
     pub source_pixels: Vec<u8>,
     pub source_width: u32,
     pub source_height: u32,
+    /// Anchor context for anchor-aware generation.
+    pub anchor_kind: Option<super::anchor::AnchorKind>,
+    /// Anchor point position (relative to source region origin).
+    pub anchor_offset: Option<(u32, u32)>,
     pub proposals: Vec<MotionProposal>,
     pub selected_proposal_id: Option<String>,
     pub status: MotionSessionStatus,
 }
 
+/// A record of a committed motion proposal — used for timeline-level undo/redo.
+pub struct MotionCommitRecord {
+    pub session_id: String,
+    pub intent: MotionIntent,
+    pub direction: Option<MotionDirection>,
+    pub output_frame_count: u32,
+    /// IDs of the frames that were inserted.
+    pub inserted_frame_ids: Vec<String>,
+    /// The frame index that was active before the commit (for undo restore).
+    pub original_active_frame_index: usize,
+    /// Stashed copies of the inserted frames (for redo).
+    pub stashed_frames: Vec<super::canvas_state::AnimationFrame>,
+}
+
 /// Managed motion session state — one session at a time.
-pub struct ManagedMotionState(pub std::sync::Mutex<Option<MotionSession>>);
+/// Also holds the last commit record for undo/redo.
+pub struct ManagedMotionState(pub std::sync::Mutex<MotionState>);
+
+pub struct MotionState {
+    pub session: Option<MotionSession>,
+    pub last_commit: Option<MotionCommitRecord>,
+}
 
 // ─── Generation (deterministic heuristics) ────────────────────
 
 impl MotionSession {
+    /// Extract composited pixels from a rectangular region of the canvas.
+    fn extract_region(canvas: &CanvasState, rx: u32, ry: u32, rw: u32, rh: u32) -> Vec<u8> {
+        let composited = canvas.composite_frame();
+        let canvas_w = canvas.width as usize;
+        let mut pixels = vec![0u8; (rw as usize) * (rh as usize) * 4];
+        for row in 0..rh as usize {
+            let sy = ry as usize + row;
+            if sy >= canvas.height as usize { continue; }
+            for col in 0..rw as usize {
+                let sx = rx as usize + col;
+                if sx >= canvas.width as usize { continue; }
+                let src_idx = (sy * canvas_w + sx) * 4;
+                let dst_idx = (row * rw as usize + col) * 4;
+                pixels[dst_idx..dst_idx + 4].copy_from_slice(&composited[src_idx..src_idx + 4]);
+            }
+        }
+        pixels
+    }
+
     /// Create a new session, capturing source pixels from the canvas.
+    /// Priority: selection > anchor binding > whole frame.
     pub fn begin(
         canvas: &CanvasState,
         selection: Option<&SelectionRect>,
+        anchor: Option<&super::anchor::Anchor>,
         intent: MotionIntent,
         direction: Option<MotionDirection>,
         output_frame_count: u32,
@@ -92,33 +138,40 @@ impl MotionSession {
             .map(|f| f.id.clone())
             .ok_or_else(|| "No active frame".to_string())?;
 
-        // Determine source region
-        let (source_pixels, src_w, src_h, target_mode) = if let Some(sel) = selection {
-            // Extract composited pixels from selection rect
-            let composited = canvas.composite_frame();
-            let w = sel.width;
-            let h = sel.height;
-            let mut pixels = vec![0u8; (w as usize) * (h as usize) * 4];
-            let canvas_w = canvas.width as usize;
-            for row in 0..h as usize {
-                let sy = sel.y as usize + row;
-                if sy >= canvas.height as usize { continue; }
-                for col in 0..w as usize {
-                    let sx = sel.x as usize + col;
-                    if sx >= canvas.width as usize { continue; }
-                    let src_idx = (sy * canvas_w + sx) * 4;
-                    let dst_idx = (row * w as usize + col) * 4;
-                    pixels[dst_idx..dst_idx + 4].copy_from_slice(&composited[src_idx..src_idx + 4]);
+        // Determine source region — selection takes precedence, then anchor, then whole frame
+        let (source_pixels, src_w, src_h, target_mode, anchor_kind, anchor_offset) =
+            if let Some(sel) = selection {
+                let pixels = Self::extract_region(canvas, sel.x, sel.y, sel.width, sel.height);
+                (pixels, sel.width, sel.height, MotionTargetMode::ActiveSelection, None, None)
+            } else if let Some(anc) = anchor {
+                if let Some(bounds) = &anc.bounds {
+                    let pixels = Self::extract_region(canvas, bounds.x, bounds.y, bounds.width, bounds.height);
+                    // Anchor offset relative to the region origin
+                    let ox = anc.x.saturating_sub(bounds.x);
+                    let oy = anc.y.saturating_sub(bounds.y);
+                    (pixels, bounds.width, bounds.height,
+                     MotionTargetMode::AnchorBinding, Some(anc.kind), Some((ox, oy)))
+                } else {
+                    // Anchor without bounds — fall through to whole frame
+                    let composited = canvas.composite_frame();
+                    (composited, canvas.width, canvas.height,
+                     MotionTargetMode::WholeFrame, Some(anc.kind), Some((anc.x, anc.y)))
                 }
-            }
-            (pixels, w, h, MotionTargetMode::ActiveSelection)
-        } else {
-            // Whole frame composited
-            let composited = canvas.composite_frame();
-            let w = canvas.width;
-            let h = canvas.height;
-            (composited, w, h, MotionTargetMode::WholeFrame)
-        };
+            } else {
+                let composited = canvas.composite_frame();
+                (composited, canvas.width, canvas.height, MotionTargetMode::WholeFrame, None, None)
+            };
+
+        // Reject tiny targets (< 2x2)
+        if src_w < 2 || src_h < 2 {
+            return Err("Target region is too small for motion generation".to_string());
+        }
+
+        // Reject fully-transparent targets
+        let has_opaque = source_pixels.chunks(4).any(|px| px[3] > 0);
+        if !has_opaque {
+            return Err("Target region is fully transparent — nothing to animate".to_string());
+        }
 
         Ok(Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -130,6 +183,8 @@ impl MotionSession {
             source_pixels,
             source_width: src_w,
             source_height: src_h,
+            anchor_kind,
+            anchor_offset,
             proposals: Vec::new(),
             selected_proposal_id: None,
             status: MotionSessionStatus::Configuring,
@@ -147,70 +202,153 @@ impl MotionSession {
         let h = self.source_height;
         let n = self.output_frame_count as usize;
 
+        // Scale amplitudes proportional to sprite size for meaningful motion
+        let bob_small = 1i32.max((h as i32) / 16);
+        let bob_large = (bob_small * 2).min(h as i32 / 4).max(bob_small + 1);
+        let stride_small = 1i32.max((w as i32) / 16);
+        let stride_large = (stride_small * 2).min(w as i32 / 4).max(stride_small + 1);
+        let hop_small = 2i32.max((h as i32) / 8);
+        let hop_large = (hop_small * 2).min(h as i32 / 3).max(hop_small + 1);
+
         match self.intent {
             MotionIntent::IdleBob => {
-                // Proposal 1: vertical bob (1px up, center, 1px down, center)
-                self.proposals.push(self.gen_vertical_bob(w, h, n, 1, "Gentle bob", "1px vertical oscillation"));
-                // Proposal 2: stronger bob (2px)
-                if h > 4 {
-                    self.proposals.push(self.gen_vertical_bob(w, h, n, 2, "Deep bob", "2px vertical oscillation"));
+                self.proposals.push(self.gen_vertical_bob(w, h, n, bob_small,
+                    "Gentle bob", &format!("{}px vertical oscillation", bob_small)));
+                if bob_large > bob_small {
+                    self.proposals.push(self.gen_vertical_bob(w, h, n, bob_large,
+                        "Deep bob", &format!("{}px vertical oscillation", bob_large)));
                 }
-                // Proposal 3: horizontal sway
                 if w > 4 {
-                    self.proposals.push(self.gen_horizontal_shift(w, h, n, 1, "Idle sway", "1px horizontal sway"));
+                    self.proposals.push(self.gen_horizontal_shift(w, h, n, stride_small,
+                        "Idle sway", &format!("{}px horizontal sway", stride_small)));
                 }
             }
             MotionIntent::WalkCycleStub => {
                 let dir = self.direction.unwrap_or(MotionDirection::Right);
-                let dx = match dir {
+                let sign = match dir {
                     MotionDirection::Left => -1i32,
-                    MotionDirection::Right => 1,
                     _ => 1,
                 };
-                // Proposal 1: walk with horizontal displacement + bob
-                self.proposals.push(self.gen_walk_stub(w, h, n, dx, 1, "Walk cycle", "Horizontal stride + vertical bob"));
-                // Proposal 2: wider stride
-                if w > 8 {
-                    self.proposals.push(self.gen_walk_stub(w, h, n, dx * 2, 1, "Wide stride", "Wider horizontal movement + bob"));
+                self.proposals.push(self.gen_walk_stub(w, h, n,
+                    sign * stride_small, bob_small,
+                    "Walk cycle", "Horizontal stride + vertical bob"));
+                if stride_large > stride_small {
+                    self.proposals.push(self.gen_walk_stub(w, h, n,
+                        sign * stride_large, bob_small,
+                        "Wide stride", "Wider horizontal movement + bob"));
                 }
             }
             MotionIntent::RunCycleStub => {
                 let dir = self.direction.unwrap_or(MotionDirection::Right);
-                let dx = match dir {
-                    MotionDirection::Left => -2i32,
-                    MotionDirection::Right => 2,
-                    _ => 2,
+                let sign = match dir {
+                    MotionDirection::Left => -1i32,
+                    _ => 1,
                 };
-                // Proposal 1: run with larger displacement + bounce
-                self.proposals.push(self.gen_walk_stub(w, h, n, dx, 2, "Run cycle", "Fast horizontal movement + bounce"));
-                // Proposal 2: sprint
-                if w > 8 {
-                    self.proposals.push(self.gen_walk_stub(w, h, n, dx * 2, 2, "Sprint", "Large displacement + high bounce"));
+                let run_stride = stride_large;
+                let run_bounce = bob_large;
+                self.proposals.push(self.gen_walk_stub(w, h, n,
+                    sign * run_stride, run_bounce,
+                    "Run cycle", "Fast horizontal movement + bounce"));
+                let sprint_stride = (run_stride * 2).min(w as i32 / 3);
+                if sprint_stride > run_stride {
+                    self.proposals.push(self.gen_walk_stub(w, h, n,
+                        sign * sprint_stride, run_bounce,
+                        "Sprint", "Large displacement + high bounce"));
                 }
             }
             MotionIntent::Hop => {
-                // Proposal 1: vertical hop
-                self.proposals.push(self.gen_hop(w, h, n, 2, "Small hop", "2px vertical hop arc"));
-                // Proposal 2: bigger hop
-                if h > 8 {
-                    self.proposals.push(self.gen_hop(w, h, n, 4, "Big hop", "4px vertical hop arc"));
+                self.proposals.push(self.gen_hop(w, h, n, hop_small,
+                    "Small hop", &format!("{}px vertical hop arc", hop_small)));
+                if hop_large > hop_small {
+                    self.proposals.push(self.gen_hop(w, h, n, hop_large,
+                        "Big hop", &format!("{}px vertical hop arc", hop_large)));
                 }
-                // Proposal 3: directional hop
                 if let Some(dir) = self.direction {
                     let dx = match dir {
-                        MotionDirection::Left => -1i32,
-                        MotionDirection::Right => 1,
+                        MotionDirection::Left => -stride_small,
+                        MotionDirection::Right => stride_small,
                         _ => 0,
                     };
                     if dx != 0 {
-                        self.proposals.push(self.gen_directional_hop(w, h, n, dx, 3, "Directional hop", "Hop with lateral movement"));
+                        self.proposals.push(self.gen_directional_hop(w, h, n, dx, hop_small,
+                            "Directional hop", "Hop with lateral movement"));
                     }
                 }
             }
         }
 
+        // Add anchor-aware proposals when anchor context is present
+        if let Some(kind) = self.anchor_kind {
+            self.generate_anchor_aware_proposals(w, h, n, kind);
+        }
+
         self.status = MotionSessionStatus::Reviewing;
         Ok(())
+    }
+
+    /// Generate anchor-kind-aware proposals that augment the base set.
+    fn generate_anchor_aware_proposals(&mut self, w: u32, h: u32, n: usize, kind: super::anchor::AnchorKind) {
+        use super::anchor::AnchorKind;
+
+        let bob_amp = 1i32.max((h as i32) / 12);
+        let sway_amp = 1i32.max((w as i32) / 14);
+
+        match kind {
+            AnchorKind::Head => {
+                // Head nod — small vertical bob centered on anchor
+                self.proposals.push(self.gen_vertical_bob(w, h, n, bob_amp,
+                    "Head nod", &format!("{}px nod oscillation", bob_amp)));
+                // Head tilt — small horizontal sway
+                if w > 4 {
+                    self.proposals.push(self.gen_horizontal_shift(w, h, n, sway_amp,
+                        "Head tilt", &format!("{}px lateral tilt", sway_amp)));
+                }
+            }
+            AnchorKind::Torso => {
+                // Breathing — gentle vertical oscillation
+                let breath = 1i32.max((h as i32) / 20);
+                self.proposals.push(self.gen_vertical_bob(w, h, n, breath,
+                    "Breathe", &format!("{}px breathing oscillation", breath)));
+                // Torso sway
+                if w > 4 {
+                    self.proposals.push(self.gen_horizontal_shift(w, h, n, sway_amp,
+                        "Torso sway", &format!("{}px lateral sway", sway_amp)));
+                }
+            }
+            AnchorKind::ArmLeft | AnchorKind::ArmRight => {
+                // Arm swing — pendulum motion using horizontal shift
+                let swing = 1i32.max((w as i32) / 10);
+                let label = if kind == AnchorKind::ArmLeft { "Left arm swing" } else { "Right arm swing" };
+                self.proposals.push(self.gen_horizontal_shift(w, h, n, swing,
+                    label, &format!("{}px pendulum swing", swing)));
+                // Arm bob — small vertical movement
+                let arm_bob = 1i32.max((h as i32) / 16);
+                let bob_label = if kind == AnchorKind::ArmLeft { "Left arm bob" } else { "Right arm bob" };
+                self.proposals.push(self.gen_vertical_bob(w, h, n, arm_bob,
+                    bob_label, &format!("{}px vertical bob", arm_bob)));
+            }
+            AnchorKind::LegLeft | AnchorKind::LegRight => {
+                // Leg stride — horizontal shift simulating step
+                let stride = 1i32.max((w as i32) / 8);
+                let label = if kind == AnchorKind::LegLeft { "Left leg stride" } else { "Right leg stride" };
+                self.proposals.push(self.gen_horizontal_shift(w, h, n, stride,
+                    label, &format!("{}px stride motion", stride)));
+                // Leg lift — vertical hop motion
+                let lift = 1i32.max((h as i32) / 10);
+                let lift_label = if kind == AnchorKind::LegLeft { "Left leg lift" } else { "Right leg lift" };
+                self.proposals.push(self.gen_hop(w, h, n, lift,
+                    lift_label, &format!("{}px leg lift arc", lift)));
+            }
+            AnchorKind::Custom => {
+                // Generic: offer both bob and sway
+                self.proposals.push(self.gen_vertical_bob(w, h, n, bob_amp,
+                    "Anchor bob", &format!("{}px vertical oscillation", bob_amp)));
+                if w > 4 {
+                    self.proposals.push(self.gen_horizontal_shift(w, h, n, sway_amp,
+                        "Anchor sway", &format!("{}px horizontal sway", sway_amp)));
+                }
+            }
+        }
     }
 
     /// Select a proposal by ID.
@@ -321,7 +459,7 @@ impl MotionSession {
     }
 
     /// Shift source pixels by (dx, dy), wrapping transparent for out-of-bounds.
-    fn shift_pixels(&self, w: u32, h: u32, dx: i32, dy: i32) -> Vec<u8> {
+    pub(crate) fn shift_pixels(&self, w: u32, h: u32, dx: i32, dy: i32) -> Vec<u8> {
         let w_usize = w as usize;
         let h_usize = h as usize;
         let mut result = vec![0u8; w_usize * h_usize * 4];
@@ -338,5 +476,87 @@ impl MotionSession {
             }
         }
         result
+    }
+}
+
+// ─── Motion Templates ────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MotionTemplateId {
+    IdleBreathing,
+    WalkBasic,
+    RunBasic,
+    HopBasic,
+}
+
+/// Which anchor kinds a template expects.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MotionTemplateAnchorReq {
+    pub kind: super::anchor::AnchorKind,
+    pub required: bool,
+    pub role: String,
+}
+
+/// A motion template definition.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MotionTemplate {
+    pub id: MotionTemplateId,
+    pub name: String,
+    pub description: String,
+    /// Anchor requirements: which parts this template can use.
+    pub anchor_requirements: Vec<MotionTemplateAnchorReq>,
+}
+
+impl MotionTemplate {
+    pub fn all() -> Vec<Self> {
+        use super::anchor::AnchorKind;
+        vec![
+            Self {
+                id: MotionTemplateId::IdleBreathing,
+                name: "Idle Breathing".to_string(),
+                description: "Gentle vertical breathing with optional head nod and arm sway".to_string(),
+                anchor_requirements: vec![
+                    MotionTemplateAnchorReq { kind: AnchorKind::Torso, required: true, role: "Breathing center".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::Head, required: false, role: "Head nod".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmLeft, required: false, role: "Left arm sway".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmRight, required: false, role: "Right arm sway".to_string() },
+                ],
+            },
+            Self {
+                id: MotionTemplateId::WalkBasic,
+                name: "Walk Basic".to_string(),
+                description: "Walk cycle with leg stride, torso bob, and arm swing".to_string(),
+                anchor_requirements: vec![
+                    MotionTemplateAnchorReq { kind: AnchorKind::Torso, required: true, role: "Stride center + bob".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::LegLeft, required: true, role: "Left leg stride".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::LegRight, required: true, role: "Right leg stride".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmLeft, required: false, role: "Counter-swing".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmRight, required: false, role: "Counter-swing".to_string() },
+                ],
+            },
+            Self {
+                id: MotionTemplateId::RunBasic,
+                name: "Run Basic".to_string(),
+                description: "Run cycle with exaggerated stride and bounce".to_string(),
+                anchor_requirements: vec![
+                    MotionTemplateAnchorReq { kind: AnchorKind::Torso, required: true, role: "Bounce center".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::LegLeft, required: true, role: "Left leg stride".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::LegRight, required: true, role: "Right leg stride".to_string() },
+                ],
+            },
+            Self {
+                id: MotionTemplateId::HopBasic,
+                name: "Hop Basic".to_string(),
+                description: "Hop with parabolic arc, optional arm raise".to_string(),
+                anchor_requirements: vec![
+                    MotionTemplateAnchorReq { kind: AnchorKind::Torso, required: true, role: "Hop center".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmLeft, required: false, role: "Arm raise".to_string() },
+                    MotionTemplateAnchorReq { kind: AnchorKind::ArmRight, required: false, role: "Arm raise".to_string() },
+                ],
+            },
+        ]
     }
 }

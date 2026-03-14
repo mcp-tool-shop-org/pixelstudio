@@ -9,6 +9,7 @@ const MODES: { id: WorkspaceMode; label: string }[] = [
   { id: 'locomotion', label: 'Locomotion' },
   { id: 'validate', label: 'Validate' },
   { id: 'export', label: 'Export' },
+  { id: 'scene', label: 'Scene' },
 ];
 
 interface TopBarProps {

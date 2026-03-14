@@ -5,12 +5,56 @@ use tauri::{command, State};
 use uuid::Uuid;
 
 use crate::engine::canvas_state::{CanvasState, ManagedCanvasState, ManagedProjectMeta, ProjectMeta};
+use crate::engine::asset_catalog::{AssetCatalog, AssetCatalogEntry, AssetKind};
+use crate::engine::motion::ManagedMotionState;
 use crate::errors::AppError;
 use crate::persistence::project_io::{self, ProjectDocument};
 use crate::types::api::RecentProjectItem;
 use crate::types::domain::ColorMode;
 
 use super::canvas::{build_frame, CanvasFrame};
+
+/// Sync the current project state into the asset catalog.
+/// Called after successful save or open. Silently ignores failures.
+fn sync_to_catalog(canvas: &CanvasState, meta: &ProjectMeta) {
+    let file_path = match &meta.file_path {
+        Some(p) => p.clone(),
+        None => return, // Not saved yet — nothing to catalog
+    };
+
+    let mut catalog = AssetCatalog::load();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Preserve existing entry's user-managed fields (kind, tags, created_at)
+    let existing = catalog.find_by_path(&file_path);
+    let (id, kind, tags, created_at, old_thumbnail) = if let Some(e) = existing {
+        (e.id.clone(), e.kind.clone(), e.tags.clone(), e.created_at.clone(), e.thumbnail_path.clone())
+    } else {
+        (uuid::Uuid::new_v4().to_string(), AssetKind::Custom, Vec::new(), now.clone(), None)
+    };
+
+    // Generate/refresh thumbnail (best-effort)
+    let thumbnail = super::asset::generate_thumbnail_for_project(canvas)
+        .or(old_thumbnail);
+
+    let entry = AssetCatalogEntry {
+        id,
+        name: meta.name.clone(),
+        file_path,
+        kind,
+        tags,
+        created_at,
+        updated_at: now,
+        canvas_width: canvas.width,
+        canvas_height: canvas.height,
+        frame_count: canvas.frames.len(),
+        clip_count: canvas.clips.len(),
+        thumbnail_path: thumbnail,
+    };
+
+    catalog.upsert(entry);
+    let _ = catalog.save(); // Best-effort — don't break the actual operation
+}
 
 // --- Input/Response types ---
 
@@ -41,7 +85,15 @@ pub fn new_project(
     input: NewProjectInput,
     canvas_state: State<'_, ManagedCanvasState>,
     project_meta: State<'_, ManagedProjectMeta>,
+    motion_state: State<'_, ManagedMotionState>,
 ) -> Result<ProjectInfo, AppError> {
+    // Clear any active motion session — project topology is changing
+    {
+        let mut mg = motion_state.0.lock().unwrap();
+        mg.session = None;
+        mg.last_commit = None;
+    }
+
     let project_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -102,6 +154,9 @@ pub fn save_project(
     meta.file_path = Some(save_path.clone());
     meta.is_dirty = false;
 
+    // Sync to asset catalog
+    sync_to_catalog(canvas, meta);
+
     Ok(save_path)
 }
 
@@ -111,7 +166,15 @@ pub fn open_project(
     file_path: String,
     canvas_state: State<'_, ManagedCanvasState>,
     project_meta: State<'_, ManagedProjectMeta>,
+    motion_state: State<'_, ManagedMotionState>,
 ) -> Result<ProjectInfo, AppError> {
+    // Clear any active motion session — project topology is changing
+    {
+        let mut mg = motion_state.0.lock().unwrap();
+        mg.session = None;
+        mg.last_commit = None;
+    }
+
     let path = PathBuf::from(&file_path);
     let doc = project_io::load_from_file(&path)
         .map_err(|e| AppError::InvalidProjectFormat(e))?;
@@ -122,15 +185,19 @@ pub fn open_project(
     let project_id = doc.project_id.clone();
     let name = doc.name.clone();
 
-    *canvas_state.0.lock().unwrap() = Some(canvas);
-    *project_meta.0.lock().unwrap() = Some(ProjectMeta {
+    // Sync to asset catalog before moving canvas into state
+    let open_meta = ProjectMeta {
         project_id: project_id.clone(),
         name: name.clone(),
         file_path: Some(file_path.clone()),
         color_mode: doc.color_mode,
-        created_at: doc.created_at,
+        created_at: doc.created_at.clone(),
         is_dirty: false,
-    });
+    };
+    sync_to_catalog(&canvas, &open_meta);
+
+    *canvas_state.0.lock().unwrap() = Some(canvas);
+    *project_meta.0.lock().unwrap() = Some(open_meta);
 
     Ok(ProjectInfo {
         project_id,
@@ -265,7 +332,15 @@ pub fn restore_recovery(
     project_id: String,
     canvas_state: State<'_, ManagedCanvasState>,
     project_meta: State<'_, ManagedProjectMeta>,
+    motion_state: State<'_, ManagedMotionState>,
 ) -> Result<ProjectInfo, AppError> {
+    // Clear any active motion session — project topology is changing
+    {
+        let mut mg = motion_state.0.lock().unwrap();
+        mg.session = None;
+        mg.last_commit = None;
+    }
+
     let recovery_path = crate::persistence::autosave::recovery_path(&project_id);
     let doc = crate::persistence::project_io::load_from_file(&recovery_path)
         .map_err(|e| AppError::InvalidProjectFormat(e))?;
@@ -446,4 +521,65 @@ pub fn update_recents(file_path: &str, name: &str) {
         let _ = std::fs::create_dir_all(parent);
     }
     let _ = std::fs::write(&recents_path, serde_json::to_string_pretty(&items).unwrap_or_default());
+}
+
+// ---------------------------------------------------------------------------
+// Package metadata
+// ---------------------------------------------------------------------------
+
+use crate::engine::canvas_state::PackageMetadata;
+
+/// Get the current project's package metadata.
+#[command]
+pub fn get_asset_package_metadata(
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<PackageMetadata, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+    Ok(canvas.package_metadata.clone())
+}
+
+/// Update the current project's package metadata.
+#[command]
+pub fn set_asset_package_metadata(
+    package_name: Option<String>,
+    version: Option<String>,
+    author: Option<String>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+    canvas_state: State<'_, ManagedCanvasState>,
+    project_meta: State<'_, ManagedProjectMeta>,
+) -> Result<PackageMetadata, AppError> {
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let meta = &mut canvas.package_metadata;
+
+    if let Some(n) = package_name {
+        meta.package_name = n;
+    }
+    if let Some(v) = version {
+        meta.version = v;
+    }
+    if let Some(a) = author {
+        meta.author = a;
+    }
+    if let Some(d) = description {
+        // Clamp description to 500 chars
+        meta.description = d.chars().take(500).collect();
+    }
+    if let Some(t) = tags {
+        meta.tags = t.into_iter().take(20).collect();
+    }
+
+    // Mark project dirty since metadata changed
+    if let Some(pm) = project_meta.0.lock().unwrap().as_mut() {
+        pm.is_dirty = true;
+    }
+
+    Ok(meta.clone())
 }

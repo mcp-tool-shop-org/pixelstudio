@@ -29,6 +29,9 @@ pub struct SerializedFrame {
     /// Optional per-frame duration override in ms. None = use global FPS.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u32>,
+    /// Frame-local anchors for part-aware motion.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<crate::engine::anchor::Anchor>,
 }
 
 /// Serialized project document — the on-disk format for .pxs files.
@@ -53,8 +56,22 @@ pub struct ProjectDocument {
     /// V2+: which frame is active.
     #[serde(default)]
     pub active_frame_index: usize,
+    /// Project-level clip definitions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clips: Vec<crate::engine::clip::Clip>,
+    /// Package identity metadata for bundles/manifests.
+    #[serde(default, skip_serializing_if = "is_default_package_metadata")]
+    pub package_metadata: crate::engine::canvas_state::PackageMetadata,
     pub created_at: String,
     pub updated_at: String,
+}
+
+fn is_default_package_metadata(m: &crate::engine::canvas_state::PackageMetadata) -> bool {
+    m.package_name.is_empty()
+        && m.version == "0.1.0"
+        && m.author.is_empty()
+        && m.description.is_empty()
+        && m.tags.is_empty()
 }
 
 fn serialize_layers(layers: &[crate::engine::canvas_state::Layer]) -> Vec<SerializedLayer> {
@@ -109,6 +126,7 @@ impl ProjectDocument {
                     layers: serialize_layers(&canvas.layers),
                     active_layer_id: canvas.active_layer_id.clone(),
                     duration_ms: f.duration_ms,
+                    anchors: f.anchors.clone(),
                 });
             } else {
                 // Stashed frame: layers are inside the frame struct
@@ -118,6 +136,7 @@ impl ProjectDocument {
                     layers: serialize_layers(&f.layers),
                     active_layer_id: f.active_layer_id.clone(),
                     duration_ms: f.duration_ms,
+                    anchors: f.anchors.clone(),
                 });
             }
         }
@@ -133,6 +152,8 @@ impl ProjectDocument {
             active_layer_id: None,
             frames,
             active_frame_index: canvas.active_frame_index,
+            clips: canvas.clips.clone(),
+            package_metadata: canvas.package_metadata.clone(),
             created_at: created_at.to_string(),
             updated_at: now,
         }
@@ -154,15 +175,19 @@ impl ProjectDocument {
                     redo_stack: Vec::new(),
                     layer_counter,
                     duration_ms: sf.duration_ms,
+                    anchors: sf.anchors.clone(),
                 }
             }).collect();
 
-            CanvasState::from_frames(
+            let mut cs = CanvasState::from_frames(
                 self.canvas_width,
                 self.canvas_height,
                 anim_frames,
                 self.active_frame_index,
-            )
+            );
+            cs.clips = self.clips.clone();
+            cs.package_metadata = self.package_metadata.clone();
+            cs
         } else {
             // V1 migration: single-frame project, layers at top level
             let layers = deserialize_layers(&self.layers, self.canvas_width, self.canvas_height);

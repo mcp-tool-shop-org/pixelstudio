@@ -6,9 +6,11 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{canvas, motion, project, selection, timeline};
+use commands::{anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 use engine::motion::ManagedMotionState;
+use engine::sandbox::ManagedSandboxState;
+use engine::scene::ManagedSceneState;
 use engine::selection::{ManagedSelectionState, SelectionState};
 
 pub fn run() {
@@ -18,7 +20,12 @@ pub fn run() {
         .manage(ManagedCanvasState(Mutex::new(None)))
         .manage(ManagedProjectMeta(Mutex::new(None)))
         .manage(ManagedSelectionState(Mutex::new(SelectionState::new())))
-        .manage(ManagedMotionState(Mutex::new(None)))
+        .manage(ManagedMotionState(Mutex::new(crate::engine::motion::MotionState {
+            session: None,
+            last_commit: None,
+        })))
+        .manage(ManagedSandboxState(Mutex::new(None)))
+        .manage(ManagedSceneState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             project::new_project,
             project::open_project,
@@ -31,6 +38,8 @@ pub fn run() {
             project::check_recovery,
             project::restore_recovery,
             project::discard_recovery,
+            project::get_asset_package_metadata,
+            project::set_asset_package_metadata,
             canvas::init_canvas,
             canvas::get_canvas_state,
             canvas::write_pixel,
@@ -83,6 +92,101 @@ pub fn run() {
             motion::accept_motion_proposal,
             motion::reject_motion_proposal,
             motion::cancel_motion_session,
+            motion::commit_motion_proposal,
+            motion::undo_motion_commit,
+            motion::redo_motion_commit,
+            motion::list_motion_templates,
+            motion::apply_motion_template,
+            anchor::create_anchor,
+            anchor::update_anchor,
+            anchor::delete_anchor,
+            anchor::list_anchors,
+            anchor::bind_anchor_to_selection,
+            anchor::clear_anchor_binding,
+            anchor::validate_anchors,
+            anchor::move_anchor,
+            anchor::resize_anchor_bounds,
+            anchor::copy_anchors_to_frame,
+            anchor::copy_anchors_to_all_frames,
+            anchor::propagate_anchor_updates,
+            anchor::set_anchor_parent,
+            anchor::clear_anchor_parent,
+            anchor::set_anchor_falloff,
+            sandbox::begin_sandbox_session,
+            sandbox::get_sandbox_session,
+            sandbox::close_sandbox_session,
+            sandbox::analyze_sandbox_motion,
+            sandbox::get_sandbox_anchor_paths,
+            sandbox::apply_sandbox_timing,
+            sandbox::duplicate_sandbox_span,
+            secondary_motion::list_secondary_motion_templates,
+            secondary_motion::apply_secondary_motion_template,
+            secondary_motion::check_secondary_readiness,
+            preset::save_motion_preset,
+            preset::list_motion_presets,
+            preset::delete_motion_preset,
+            preset::rename_motion_preset,
+            preset::get_motion_preset,
+            preset::apply_motion_preset,
+            preset::apply_motion_preset_to_span,
+            preset::apply_motion_preset_to_all_frames,
+            preset::check_motion_preset_compatibility,
+            preset::preview_motion_preset_apply,
+            export::preview_sprite_sheet_layout,
+            export::export_clip_sequence,
+            export::export_clip_sheet,
+            export::export_all_clips_sheet,
+            export::export_clip_sequence_with_manifest,
+            clip::create_clip,
+            clip::list_clips,
+            clip::update_clip,
+            clip::delete_clip,
+            clip::validate_clips,
+            clip::set_clip_pivot,
+            clip::clear_clip_pivot,
+            clip::set_clip_tags,
+            clip::add_clip_tag,
+            clip::remove_clip_tag,
+            asset::list_assets,
+            asset::get_asset_catalog_entry,
+            asset::upsert_asset_catalog_entry,
+            asset::remove_asset_catalog_entry,
+            asset::refresh_asset_catalog,
+            asset::generate_asset_thumbnail,
+            bundle::preview_asset_bundle,
+            bundle::export_asset_bundle,
+            bundle::preview_catalog_bundle,
+            bundle::export_catalog_bundle,
+            scene::new_scene,
+            scene::open_scene,
+            scene::save_scene,
+            scene::save_scene_as,
+            scene::get_scene_info,
+            scene::get_scene_instances,
+            scene::add_scene_instance,
+            scene::remove_scene_instance,
+            scene::move_scene_instance,
+            scene::set_scene_instance_layer,
+            scene::set_scene_instance_visibility,
+            scene::set_scene_instance_opacity,
+            scene::set_scene_instance_clip,
+            scene::set_scene_instance_parallax,
+            scene::set_scene_playback_fps,
+            scene::set_scene_loop,
+            scene::get_scene_playback_state,
+            scene::list_source_clips,
+            scene::get_source_asset_frames,
+            scene::export_scene_frame,
+            scene::get_scene_camera,
+            scene::set_scene_camera_position,
+            scene::set_scene_camera_zoom,
+            scene::reset_scene_camera,
+            scene::get_scene_timeline_summary,
+            scene::seek_scene_tick,
+            scene::list_scene_camera_keyframes,
+            scene::add_scene_camera_keyframe,
+            scene::update_scene_camera_keyframe,
+            scene::delete_scene_camera_keyframe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PixelStudio");

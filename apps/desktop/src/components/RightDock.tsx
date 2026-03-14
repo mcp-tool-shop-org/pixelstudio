@@ -1,6 +1,8 @@
 import type { WorkspaceMode } from '@pixelstudio/domain';
 import { useState } from 'react';
 import { LayerPanel } from './LayerPanel';
+import { AssetBrowserPanel } from './AssetBrowserPanel';
+import { SceneInstancesPanel } from './SceneInstancesPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -15,11 +17,18 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
+  scene: ['Instances', 'Assets'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
   if (tabName === 'Layers') {
     return <LayerPanel />;
+  }
+  if (tabName === 'Assets') {
+    return <AssetBrowserPanel />;
+  }
+  if (tabName === 'Instances') {
+    return <SceneInstancesPanel />;
   }
 
   return (

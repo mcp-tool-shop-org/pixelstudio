@@ -9,7 +9,7 @@ export type MotionIntent =
 export type MotionDirection = 'left' | 'right' | 'up' | 'down';
 
 /** What the motion acts on */
-export type MotionTargetMode = 'active_selection' | 'whole_frame';
+export type MotionTargetMode = 'active_selection' | 'anchor_binding' | 'whole_frame';
 
 /** Output frame count */
 export type MotionFrameCount = 2 | 4;
@@ -32,6 +32,28 @@ export interface MotionProposal {
   previewFrames: number[][];
   previewWidth: number;
   previewHeight: number;
+}
+
+/** Motion template identifiers */
+export type MotionTemplateId =
+  | 'idle_breathing'
+  | 'walk_basic'
+  | 'run_basic'
+  | 'hop_basic';
+
+/** Template anchor requirement */
+export interface MotionTemplateAnchorReq {
+  kind: string;
+  required: boolean;
+  role: string;
+}
+
+/** Motion template definition */
+export interface MotionTemplateInfo {
+  id: MotionTemplateId;
+  name: string;
+  description: string;
+  anchorRequirements: MotionTemplateAnchorReq[];
 }
 
 /** A motion session tracks one generation cycle */
