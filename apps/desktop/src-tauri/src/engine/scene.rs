@@ -921,3 +921,222 @@ fn resolve_instance_frame_data(
         Ok((rgba, w, h))
     }
 }
+
+// ==========================================================================
+// Tests
+// ==========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_doc(keyframes: Vec<SceneCameraKeyframe>) -> SceneDocument {
+        SceneDocument {
+            scene_id: "test".into(),
+            name: "Test Scene".into(),
+            canvas_width: 320,
+            canvas_height: 240,
+            instances: Vec::new(),
+            playback: ScenePlaybackConfig::default(),
+            camera: SceneCamera { x: 99.0, y: 99.0, zoom: 1.0, name: None },
+            camera_keyframes: keyframes,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        }
+    }
+
+    fn kf(tick: u32, x: f64, y: f64, zoom: f64, interp: CameraInterpolationMode) -> SceneCameraKeyframe {
+        SceneCameraKeyframe { tick, x, y, zoom, interpolation: interp, name: None }
+    }
+
+    // --- No keyframes: base camera ---
+
+    #[test]
+    fn camera_no_keyframes_returns_base() {
+        let doc = make_doc(vec![]);
+        let cam = resolve_scene_camera_at_tick(&doc, 0);
+        assert_eq!(cam.x, 99.0);
+        assert_eq!(cam.y, 99.0);
+        assert_eq!(cam.zoom, 1.0);
+    }
+
+    #[test]
+    fn camera_no_keyframes_any_tick() {
+        let doc = make_doc(vec![]);
+        let cam = resolve_scene_camera_at_tick(&doc, 999);
+        assert_eq!(cam.x, 99.0);
+    }
+
+    // --- Single keyframe ---
+
+    #[test]
+    fn camera_single_keyframe_at_any_tick() {
+        let doc = make_doc(vec![
+            kf(10, 50.0, 25.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 0);
+        assert_eq!(cam.x, 50.0);
+        assert_eq!(cam.y, 25.0);
+        assert_eq!(cam.zoom, 2.0);
+    }
+
+    #[test]
+    fn camera_single_keyframe_zoom_clamped() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 0.01, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 0);
+        assert!((cam.zoom - 0.1).abs() < 1e-10);
+
+        let doc2 = make_doc(vec![
+            kf(0, 0.0, 0.0, 99.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam2 = resolve_scene_camera_at_tick(&doc2, 0);
+        assert!((cam2.zoom - 10.0).abs() < 1e-10);
+    }
+
+    // --- Before first keyframe ---
+
+    #[test]
+    fn camera_before_first_keyframe() {
+        let doc = make_doc(vec![
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+            kf(20, 200.0, 100.0, 3.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 0);
+        assert_eq!(cam.x, 100.0);
+        assert_eq!(cam.y, 50.0);
+    }
+
+    // --- After last keyframe ---
+
+    #[test]
+    fn camera_after_last_keyframe() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Linear),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 999);
+        assert_eq!(cam.x, 100.0);
+        assert_eq!(cam.y, 50.0);
+        assert_eq!(cam.zoom, 2.0);
+    }
+
+    // --- Linear interpolation ---
+
+    #[test]
+    fn camera_linear_midpoint() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Linear),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 5);
+        assert!((cam.x - 50.0).abs() < 1e-10);
+        assert!((cam.y - 25.0).abs() < 1e-10);
+        assert!((cam.zoom - 1.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn camera_linear_quarter() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Linear),
+            kf(20, 200.0, 100.0, 3.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 5);
+        assert!((cam.x - 50.0).abs() < 1e-10);
+        assert!((cam.y - 25.0).abs() < 1e-10);
+        assert!((cam.zoom - 1.5).abs() < 1e-10);
+    }
+
+    // --- Hold interpolation ---
+
+    #[test]
+    fn camera_hold_between_keyframes() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Hold),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 5);
+        assert_eq!(cam.x, 0.0);
+        assert_eq!(cam.y, 0.0);
+        assert_eq!(cam.zoom, 1.0);
+    }
+
+    #[test]
+    fn camera_hold_snaps_at_next_keyframe() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Hold),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 10);
+        assert_eq!(cam.x, 100.0);
+        assert_eq!(cam.y, 50.0);
+        assert_eq!(cam.zoom, 2.0);
+    }
+
+    // --- Multi-segment mixed ---
+
+    #[test]
+    fn camera_multi_segment_linear_then_hold() {
+        let doc = make_doc(vec![
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Linear),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Hold),
+            kf(20, 200.0, 100.0, 1.0, CameraInterpolationMode::Linear),
+        ]);
+        // Tick 5: linear segment
+        let cam5 = resolve_scene_camera_at_tick(&doc, 5);
+        assert!((cam5.x - 50.0).abs() < 1e-10);
+        // Tick 15: hold segment
+        let cam15 = resolve_scene_camera_at_tick(&doc, 15);
+        assert_eq!(cam15.x, 100.0);
+        assert_eq!(cam15.zoom, 2.0);
+    }
+
+    // --- Unsorted keyframes are handled ---
+
+    #[test]
+    fn camera_unsorted_keyframes() {
+        let doc = make_doc(vec![
+            kf(20, 200.0, 100.0, 3.0, CameraInterpolationMode::Linear),
+            kf(0, 0.0, 0.0, 1.0, CameraInterpolationMode::Linear),
+            kf(10, 100.0, 50.0, 2.0, CameraInterpolationMode::Linear),
+        ]);
+        let cam = resolve_scene_camera_at_tick(&doc, 5);
+        assert!((cam.x - 50.0).abs() < 1e-10);
+    }
+
+    // --- SceneDocument helpers ---
+
+    #[test]
+    fn next_z_order_empty() {
+        let doc = make_doc(vec![]);
+        assert_eq!(doc.next_z_order(), 0);
+    }
+
+    #[test]
+    fn next_z_order_with_instances() {
+        let mut doc = make_doc(vec![]);
+        doc.instances.push(SceneAssetInstance::new("a.pxs".into(), "A".into(), 0));
+        doc.instances.push(SceneAssetInstance::new("b.pxs".into(), "B".into(), 3));
+        assert_eq!(doc.next_z_order(), 4);
+    }
+
+    #[test]
+    fn find_instance_by_id() {
+        let mut doc = make_doc(vec![]);
+        let inst = SceneAssetInstance::new("a.pxs".into(), "A".into(), 0);
+        let id = inst.instance_id.clone();
+        doc.instances.push(inst);
+        assert!(doc.find_instance(&id).is_some());
+        assert!(doc.find_instance("nonexistent").is_none());
+    }
+
+    // --- lerp ---
+
+    #[test]
+    fn lerp_basic() {
+        assert!((lerp_f64(0.0, 100.0, 0.5) - 50.0).abs() < 1e-10);
+        assert!((lerp_f64(0.0, 100.0, 0.0) - 0.0).abs() < 1e-10);
+        assert!((lerp_f64(0.0, 100.0, 1.0) - 100.0).abs() < 1e-10);
+    }
+}

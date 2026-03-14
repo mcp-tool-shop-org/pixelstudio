@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe, SceneCameraShot } from '@pixelstudio/domain';
 
 /** Pure camera resolver — identical algorithm to Rust resolve_scene_camera_at_tick. */
-function resolveCameraAtTick(
+export function resolveCameraAtTick(
   keyframes: SceneCameraKeyframe[],
   tick: number,
   baseX: number,

@@ -152,3 +152,127 @@ impl Clip {
         warnings
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_clip(start: usize, end: usize) -> Clip {
+        Clip::new("Test".into(), start, end)
+    }
+
+    // --- frame_count ---
+
+    #[test]
+    fn frame_count_normal() {
+        assert_eq!(make_clip(0, 0).frame_count(), 1);
+        assert_eq!(make_clip(0, 9).frame_count(), 10);
+        assert_eq!(make_clip(5, 5).frame_count(), 1);
+    }
+
+    #[test]
+    fn frame_count_inverted_returns_zero() {
+        assert_eq!(make_clip(10, 5).frame_count(), 0);
+    }
+
+    // --- validate ---
+
+    #[test]
+    fn validate_valid_clip() {
+        assert!(make_clip(0, 9).validate(10).is_empty());
+    }
+
+    #[test]
+    fn validate_start_exceeds_total() {
+        let w = make_clip(10, 15).validate(5);
+        assert_eq!(w.len(), 2); // both start and end exceed
+    }
+
+    #[test]
+    fn validate_end_exceeds_total() {
+        let w = make_clip(0, 10).validate(5);
+        assert_eq!(w.len(), 1); // only end exceeds
+    }
+
+    #[test]
+    fn validate_inverted_range() {
+        let w = make_clip(5, 2).validate(10);
+        assert_eq!(w.len(), 1); // start > end
+    }
+
+    // --- normalize_tag ---
+
+    #[test]
+    fn normalize_tag_trims_and_lowercases() {
+        assert_eq!(Clip::normalize_tag("  Hello World  "), Some("hello world".into()));
+    }
+
+    #[test]
+    fn normalize_tag_empty_returns_none() {
+        assert_eq!(Clip::normalize_tag(""), None);
+        assert_eq!(Clip::normalize_tag("   "), None);
+    }
+
+    #[test]
+    fn normalize_tag_truncates_at_max() {
+        let long = "a".repeat(100);
+        let result = Clip::normalize_tag(&long).unwrap();
+        assert_eq!(result.len(), Clip::MAX_TAG_LEN);
+    }
+
+    // --- normalize_tags ---
+
+    #[test]
+    fn normalize_tags_deduplicates() {
+        let mut clip = make_clip(0, 0);
+        clip.tags = vec!["Walk".into(), "walk".into(), "WALK".into(), "run".into()];
+        clip.normalize_tags();
+        assert_eq!(clip.tags, vec!["walk", "run"]);
+    }
+
+    #[test]
+    fn normalize_tags_truncates_at_max_tags() {
+        let mut clip = make_clip(0, 0);
+        clip.tags = (0..32).map(|i| format!("tag{}", i)).collect();
+        clip.normalize_tags();
+        assert_eq!(clip.tags.len(), Clip::MAX_TAGS);
+    }
+
+    // --- Pivot resolution ---
+
+    #[test]
+    fn pivot_center() {
+        let pivot = ClipPivot { mode: PivotMode::Center, custom_point: None };
+        let p = pivot.resolve(32, 32);
+        assert!((p.x - 16.0).abs() < 1e-10);
+        assert!((p.y - 16.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn pivot_bottom_center() {
+        let pivot = ClipPivot { mode: PivotMode::BottomCenter, custom_point: None };
+        let p = pivot.resolve(64, 32);
+        assert!((p.x - 32.0).abs() < 1e-10);
+        assert!((p.y - 32.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn pivot_custom() {
+        let pivot = ClipPivot {
+            mode: PivotMode::Custom,
+            custom_point: Some(PivotPoint { x: 10.0, y: 20.0 }),
+        };
+        let p = pivot.resolve(64, 64);
+        assert!((p.x - 10.0).abs() < 1e-10);
+        assert!((p.y - 20.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn pivot_custom_fallback_when_no_point() {
+        let pivot = ClipPivot { mode: PivotMode::Custom, custom_point: None };
+        let p = pivot.resolve(64, 32);
+        // Falls back to center
+        assert!((p.x - 32.0).abs() < 1e-10);
+        assert!((p.y - 16.0).abs() < 1e-10);
+    }
+}

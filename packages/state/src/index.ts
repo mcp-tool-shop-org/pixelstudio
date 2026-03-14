@@ -20,6 +20,7 @@ export { useExportStore } from './exportStore';
 export { useSandboxStore } from './sandboxStore';
 export {
   useScenePlaybackStore,
+  resolveCameraAtTick,
   deriveShotsFromCameraKeyframes,
   deriveCameraTimelineMarkers,
   findCurrentCameraShotAtTick,

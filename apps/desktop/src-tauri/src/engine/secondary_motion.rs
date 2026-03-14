@@ -411,3 +411,340 @@ impl MotionSession {
         }
     }
 }
+
+// ── Tests ─────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::motion::{MotionIntent, MotionTargetMode, MotionSessionStatus};
+
+    fn make_session(w: u32, h: u32) -> MotionSession {
+        let mut pixels = vec![0u8; (w as usize) * (h as usize) * 4];
+        // Paint a red pixel at the center so shifts produce visible differences
+        let cx = w / 2;
+        let cy = h / 2;
+        let idx = ((cy as usize) * (w as usize) + (cx as usize)) * 4;
+        if idx + 3 < pixels.len() {
+            pixels[idx] = 255;
+            pixels[idx + 3] = 255;
+        }
+        MotionSession {
+            id: "sec-test".into(),
+            intent: MotionIntent::IdleBob,
+            direction: None,
+            target_mode: MotionTargetMode::WholeFrame,
+            output_frame_count: 4,
+            source_frame_id: "f1".into(),
+            source_pixels: pixels,
+            source_width: w,
+            source_height: h,
+            anchor_kind: None,
+            anchor_offset: None,
+            proposals: Vec::new(),
+            selected_proposal_id: None,
+            status: MotionSessionStatus::Configuring,
+        }
+    }
+
+    // ── SecondaryMotionParams::clamped ────────────────────────
+
+    #[test]
+    fn clamped_defaults_are_unchanged() {
+        let p = SecondaryMotionParams::default().clamped();
+        assert_eq!(p.strength, 1.0);
+        assert_eq!(p.frame_count, 4);
+        assert_eq!(p.phase_offset, 0.0);
+        assert_eq!(p.hierarchy_scale, 1.0);
+        assert!(p.direction.is_none());
+    }
+
+    #[test]
+    fn clamped_strength_bounds() {
+        let low = SecondaryMotionParams { strength: 0.0, ..Default::default() }.clamped();
+        assert_eq!(low.strength, 0.1);
+        let high = SecondaryMotionParams { strength: 100.0, ..Default::default() }.clamped();
+        assert_eq!(high.strength, 2.0);
+    }
+
+    #[test]
+    fn clamped_frame_count_snaps() {
+        assert_eq!(SecondaryMotionParams { frame_count: 0, ..Default::default() }.clamped().frame_count, 2);
+        assert_eq!(SecondaryMotionParams { frame_count: 1, ..Default::default() }.clamped().frame_count, 2);
+        assert_eq!(SecondaryMotionParams { frame_count: 3, ..Default::default() }.clamped().frame_count, 2);
+        assert_eq!(SecondaryMotionParams { frame_count: 4, ..Default::default() }.clamped().frame_count, 4);
+        assert_eq!(SecondaryMotionParams { frame_count: 5, ..Default::default() }.clamped().frame_count, 4);
+        assert_eq!(SecondaryMotionParams { frame_count: 6, ..Default::default() }.clamped().frame_count, 6);
+        assert_eq!(SecondaryMotionParams { frame_count: 100, ..Default::default() }.clamped().frame_count, 6);
+    }
+
+    #[test]
+    fn clamped_phase_wraps_to_0_tau() {
+        let tau = std::f64::consts::TAU;
+        let p = SecondaryMotionParams { phase_offset: tau + 1.0, ..Default::default() }.clamped();
+        assert!((p.phase_offset - 1.0).abs() < 1e-10);
+        let neg = SecondaryMotionParams { phase_offset: -1.0, ..Default::default() }.clamped();
+        assert!((neg.phase_offset - (tau - 1.0)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn clamped_hierarchy_scale_bounds() {
+        let low = SecondaryMotionParams { hierarchy_scale: 0.0, ..Default::default() }.clamped();
+        assert_eq!(low.hierarchy_scale, 0.1);
+        let high = SecondaryMotionParams { hierarchy_scale: 50.0, ..Default::default() }.clamped();
+        assert_eq!(high.hierarchy_scale, 10.0);
+    }
+
+    // ── SecondaryMotionTemplate::all ──────────────────────────
+
+    #[test]
+    fn all_templates_have_six_entries() {
+        let templates = SecondaryMotionTemplate::all();
+        assert_eq!(templates.len(), 6);
+    }
+
+    #[test]
+    fn all_template_ids_are_unique() {
+        let templates = SecondaryMotionTemplate::all();
+        let ids: Vec<_> = templates.iter().map(|t| format!("{:?}", t.id)).collect();
+        let deduped: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(ids.len(), deduped.len());
+    }
+
+    #[test]
+    fn all_templates_have_at_least_one_anchor_req() {
+        for t in SecondaryMotionTemplate::all() {
+            assert!(!t.anchor_requirements.is_empty(), "{:?} should have anchor reqs", t.id);
+        }
+    }
+
+    #[test]
+    fn all_templates_have_nonempty_fields() {
+        for t in SecondaryMotionTemplate::all() {
+            assert!(!t.name.is_empty(), "{:?} name", t.id);
+            assert!(!t.description.is_empty(), "{:?} description", t.id);
+            assert!(!t.hint.is_empty(), "{:?} hint", t.id);
+        }
+    }
+
+    // ── direction_amplitudes ──────────────────────────────────
+
+    #[test]
+    fn direction_none_defaults_to_right() {
+        let s = make_session(32, 32);
+        let (dx, dy) = s.direction_amplitudes(None, 10, 5);
+        assert_eq!((dx, dy), (10, 0));
+    }
+
+    #[test]
+    fn direction_left_negates_horizontal() {
+        let s = make_session(32, 32);
+        let (dx, dy) = s.direction_amplitudes(Some(MotionDirection::Left), 10, 5);
+        assert_eq!((dx, dy), (-10, 0));
+    }
+
+    #[test]
+    fn direction_up_negates_vertical() {
+        let s = make_session(32, 32);
+        let (dx, dy) = s.direction_amplitudes(Some(MotionDirection::Up), 10, 5);
+        assert_eq!((dx, dy), (0, -5));
+    }
+
+    #[test]
+    fn direction_down_positive_vertical() {
+        let s = make_session(32, 32);
+        let (dx, dy) = s.direction_amplitudes(Some(MotionDirection::Down), 10, 5);
+        assert_eq!((dx, dy), (0, 5));
+    }
+
+    // ── Proposal generation — determinism ─────────────────────
+
+    fn generate_and_collect(template: SecondaryMotionTemplateId, params: SecondaryMotionParams) -> Vec<Vec<Vec<u8>>> {
+        let mut s = make_session(32, 32);
+        s.generate_secondary_proposals(template, params).unwrap();
+        s.proposals.iter().map(|p| p.preview_frames.clone()).collect()
+    }
+
+    #[test]
+    fn wind_soft_is_deterministic() {
+        let p = SecondaryMotionParams::default();
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::WindSoft, p);
+        let run2 = generate_and_collect(SecondaryMotionTemplateId::WindSoft, p);
+        assert_eq!(run1, run2);
+    }
+
+    #[test]
+    fn wind_gust_is_deterministic() {
+        let p = SecondaryMotionParams { direction: Some(MotionDirection::Left), strength: 1.5, ..Default::default() };
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::WindGust, p);
+        let run2 = generate_and_collect(SecondaryMotionTemplateId::WindGust, p);
+        assert_eq!(run1, run2);
+    }
+
+    #[test]
+    fn idle_sway_is_deterministic() {
+        let p = SecondaryMotionParams { phase_offset: 1.0, ..Default::default() };
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::IdleSway, p);
+        let run2 = generate_and_collect(SecondaryMotionTemplateId::IdleSway, p);
+        assert_eq!(run1, run2);
+    }
+
+    #[test]
+    fn hanging_swing_is_deterministic() {
+        let p = SecondaryMotionParams::default();
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::HangingSwing, p);
+        let run2 = generate_and_collect(SecondaryMotionTemplateId::HangingSwing, p);
+        assert_eq!(run1, run2);
+    }
+
+    #[test]
+    fn foliage_rustle_is_deterministic() {
+        let p = SecondaryMotionParams { hierarchy_scale: 2.0, ..Default::default() };
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::FoliageRustle, p);
+        let run2 = generate_and_collect(SecondaryMotionTemplateId::FoliageRustle, p);
+        assert_eq!(run1, run2);
+    }
+
+    // ── Proposal generation — structural properties ───────────
+
+    #[test]
+    fn each_template_produces_at_least_one_proposal() {
+        let all_ids = [
+            SecondaryMotionTemplateId::WindSoft,
+            SecondaryMotionTemplateId::WindMedium,
+            SecondaryMotionTemplateId::WindGust,
+            SecondaryMotionTemplateId::IdleSway,
+            SecondaryMotionTemplateId::HangingSwing,
+            SecondaryMotionTemplateId::FoliageRustle,
+        ];
+        for id in all_ids {
+            let mut s = make_session(32, 32);
+            s.generate_secondary_proposals(id, SecondaryMotionParams::default()).unwrap();
+            assert!(!s.proposals.is_empty(), "{:?} should produce proposals", id);
+        }
+    }
+
+    #[test]
+    fn each_template_produces_two_variants() {
+        let all_ids = [
+            SecondaryMotionTemplateId::WindSoft,
+            SecondaryMotionTemplateId::WindMedium,
+            SecondaryMotionTemplateId::WindGust,
+            SecondaryMotionTemplateId::IdleSway,
+            SecondaryMotionTemplateId::HangingSwing,
+            SecondaryMotionTemplateId::FoliageRustle,
+        ];
+        for id in all_ids {
+            let mut s = make_session(32, 32);
+            s.generate_secondary_proposals(id, SecondaryMotionParams::default()).unwrap();
+            assert_eq!(s.proposals.len(), 2, "{:?} should produce 2 variants", id);
+        }
+    }
+
+    #[test]
+    fn proposals_have_correct_frame_count() {
+        for fc in [2u32, 4, 6] {
+            let p = SecondaryMotionParams { frame_count: fc, ..Default::default() };
+            let mut s = make_session(16, 16);
+            s.generate_secondary_proposals(SecondaryMotionTemplateId::WindSoft, p).unwrap();
+            for prop in &s.proposals {
+                assert_eq!(prop.preview_frames.len(), fc as usize);
+            }
+        }
+    }
+
+    #[test]
+    fn proposal_frames_have_correct_byte_length() {
+        let mut s = make_session(16, 16);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::IdleSway, SecondaryMotionParams::default()).unwrap();
+        let expected_bytes = 16 * 16 * 4;
+        for prop in &s.proposals {
+            for frame in &prop.preview_frames {
+                assert_eq!(frame.len(), expected_bytes);
+            }
+        }
+    }
+
+    #[test]
+    fn proposals_preserve_source_dimensions() {
+        let mut s = make_session(24, 48);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::HangingSwing, SecondaryMotionParams::default()).unwrap();
+        for prop in &s.proposals {
+            assert_eq!(prop.preview_width, 24);
+            assert_eq!(prop.preview_height, 48);
+        }
+    }
+
+    #[test]
+    fn generation_sets_status_to_reviewing() {
+        let mut s = make_session(16, 16);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::FoliageRustle, SecondaryMotionParams::default()).unwrap();
+        assert_eq!(s.status, MotionSessionStatus::Reviewing);
+    }
+
+    #[test]
+    fn generation_clears_prior_proposals() {
+        let mut s = make_session(16, 16);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::WindSoft, SecondaryMotionParams::default()).unwrap();
+        let first_count = s.proposals.len();
+        // Generate again with a different template — should replace, not append
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::WindGust, SecondaryMotionParams::default()).unwrap();
+        assert_eq!(s.proposals.len(), 2); // still 2, not first_count + 2
+        let _ = first_count; // suppress unused warning
+    }
+
+    #[test]
+    fn generation_clears_selected_proposal() {
+        let mut s = make_session(16, 16);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::WindSoft, SecondaryMotionParams::default()).unwrap();
+        s.selected_proposal_id = Some(s.proposals[0].id.clone());
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::WindMedium, SecondaryMotionParams::default()).unwrap();
+        assert!(s.selected_proposal_id.is_none());
+    }
+
+    // ── Phase offset affects output ───────────────────────────
+
+    #[test]
+    fn different_phase_produces_different_frames() {
+        let p0 = SecondaryMotionParams::default();
+        let p1 = SecondaryMotionParams { phase_offset: std::f64::consts::PI, ..Default::default() };
+        let run0 = generate_and_collect(SecondaryMotionTemplateId::WindSoft, p0);
+        let run1 = generate_and_collect(SecondaryMotionTemplateId::WindSoft, p1);
+        // At least one frame should differ between phase 0 and phase PI
+        assert_ne!(run0, run1);
+    }
+
+    // ── Strength affects amplitude ────────────────────────────
+
+    #[test]
+    fn higher_strength_produces_different_output() {
+        let weak = SecondaryMotionParams { strength: 0.1, ..Default::default() };
+        let strong = SecondaryMotionParams { strength: 2.0, ..Default::default() };
+        let r_weak = generate_and_collect(SecondaryMotionTemplateId::IdleSway, weak);
+        let r_strong = generate_and_collect(SecondaryMotionTemplateId::IdleSway, strong);
+        assert_ne!(r_weak, r_strong);
+    }
+
+    // ── Hierarchy scale affects output ────────────────────────
+
+    #[test]
+    fn hierarchy_scale_changes_output() {
+        let base = SecondaryMotionParams::default();
+        let scaled = SecondaryMotionParams { hierarchy_scale: 3.0, ..Default::default() };
+        let r_base = generate_and_collect(SecondaryMotionTemplateId::HangingSwing, base);
+        let r_scaled = generate_and_collect(SecondaryMotionTemplateId::HangingSwing, scaled);
+        assert_ne!(r_base, r_scaled);
+    }
+
+    // ── 1x1 sprite edge case ─────────────────────────────────
+
+    #[test]
+    fn tiny_sprite_does_not_panic() {
+        let mut s = make_session(1, 1);
+        s.generate_secondary_proposals(SecondaryMotionTemplateId::WindGust, SecondaryMotionParams::default()).unwrap();
+        assert_eq!(s.proposals.len(), 2);
+        for prop in &s.proposals {
+            assert_eq!(prop.preview_frames.len(), 4); // default frame_count
+        }
+    }
+}

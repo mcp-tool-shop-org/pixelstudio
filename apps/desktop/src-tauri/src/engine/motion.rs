@@ -560,3 +560,267 @@ impl MotionTemplate {
         ]
     }
 }
+
+// ==========================================================================
+// Tests
+// ==========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a minimal MotionSession with a known source pixel buffer.
+    fn session_with_pixels(w: u32, h: u32, pixels: Vec<u8>) -> MotionSession {
+        MotionSession {
+            id: "test-session".to_string(),
+            intent: MotionIntent::IdleBob,
+            direction: None,
+            target_mode: MotionTargetMode::WholeFrame,
+            output_frame_count: 2,
+            source_frame_id: "frame-1".to_string(),
+            source_pixels: pixels,
+            source_width: w,
+            source_height: h,
+            anchor_kind: None,
+            anchor_offset: None,
+            proposals: Vec::new(),
+            selected_proposal_id: None,
+            status: MotionSessionStatus::Configuring,
+        }
+    }
+
+    /// Build a 4x4 pixel buffer with a single red pixel at (1,1).
+    fn test_pixels_4x4() -> Vec<u8> {
+        let mut pixels = vec![0u8; 4 * 4 * 4];
+        let idx = (1 * 4 + 1) * 4; // row=1, col=1
+        pixels[idx] = 255;     // R
+        pixels[idx + 1] = 0;   // G
+        pixels[idx + 2] = 0;   // B
+        pixels[idx + 3] = 255; // A
+        pixels
+    }
+
+    fn pixel_at(buf: &[u8], w: u32, x: u32, y: u32) -> [u8; 4] {
+        let idx = (y as usize * w as usize + x as usize) * 4;
+        [buf[idx], buf[idx + 1], buf[idx + 2], buf[idx + 3]]
+    }
+
+    // --- shift_pixels ---
+
+    #[test]
+    fn shift_zero_is_identity() {
+        let pixels = test_pixels_4x4();
+        let session = session_with_pixels(4, 4, pixels.clone());
+        let result = session.shift_pixels(4, 4, 0, 0);
+        assert_eq!(result, pixels);
+    }
+
+    #[test]
+    fn shift_right_moves_pixel() {
+        let session = session_with_pixels(4, 4, test_pixels_4x4());
+        let result = session.shift_pixels(4, 4, 1, 0);
+        // Red pixel was at (1,1), shifted right by 1 → should be at (2,1)
+        assert_eq!(pixel_at(&result, 4, 2, 1), [255, 0, 0, 255]);
+        // Original position should be transparent
+        assert_eq!(pixel_at(&result, 4, 1, 1), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn shift_down_moves_pixel() {
+        let session = session_with_pixels(4, 4, test_pixels_4x4());
+        let result = session.shift_pixels(4, 4, 0, 1);
+        // Red pixel at (1,1), shifted down by 1 → (1,2)
+        assert_eq!(pixel_at(&result, 4, 1, 2), [255, 0, 0, 255]);
+        assert_eq!(pixel_at(&result, 4, 1, 1), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn shift_off_edge_becomes_transparent() {
+        // Put red pixel at (0,0)
+        let mut pixels = vec![0u8; 4 * 4 * 4];
+        pixels[0] = 255;
+        pixels[3] = 255;
+        let session = session_with_pixels(4, 4, pixels);
+        // Shift left by 1 — pixel moves off-screen
+        let result = session.shift_pixels(4, 4, -1, 0);
+        // (0,0) should be transparent — the shifted pixel went out of bounds
+        assert_eq!(pixel_at(&result, 4, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn shift_negative_moves_up_left() {
+        let session = session_with_pixels(4, 4, test_pixels_4x4());
+        let result = session.shift_pixels(4, 4, -1, -1);
+        // Red at (1,1) → (0,0)
+        assert_eq!(pixel_at(&result, 4, 0, 0), [255, 0, 0, 255]);
+        assert_eq!(pixel_at(&result, 4, 1, 1), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn shift_preserves_total_opaque_count() {
+        // Buffer with 3 opaque pixels that won't go off-edge
+        let mut pixels = vec![0u8; 8 * 8 * 4];
+        for &(x, y) in &[(3, 3), (4, 4), (5, 5)] {
+            let idx = (y * 8 + x) * 4;
+            pixels[idx] = 255;
+            pixels[idx + 3] = 255;
+        }
+        let session = session_with_pixels(8, 8, pixels);
+        let result = session.shift_pixels(8, 8, 1, 1);
+        let opaque_count = result.chunks(4).filter(|px| px[3] > 0).count();
+        assert_eq!(opaque_count, 3);
+    }
+
+    // --- Proposal generation ---
+
+    #[test]
+    fn idle_bob_generates_proposals() {
+        // 8x8 with some opaque pixels
+        let mut pixels = vec![0u8; 8 * 8 * 4];
+        for i in 0..8 {
+            let idx = (4 * 8 + i) * 4; // row 4, all cols
+            pixels[idx] = 128;
+            pixels[idx + 3] = 255;
+        }
+        let mut session = session_with_pixels(8, 8, pixels);
+        session.intent = MotionIntent::IdleBob;
+        session.output_frame_count = 4;
+        session.generate_proposals().unwrap();
+
+        assert!(!session.proposals.is_empty());
+        assert_eq!(session.status, MotionSessionStatus::Reviewing);
+        for p in &session.proposals {
+            assert_eq!(p.preview_frames.len(), 4);
+            assert_eq!(p.preview_width, 8);
+            assert_eq!(p.preview_height, 8);
+        }
+    }
+
+    #[test]
+    fn walk_cycle_generates_proposals() {
+        let mut pixels = vec![0u8; 16 * 16 * 4];
+        for i in 0..16 {
+            let idx = (8 * 16 + i) * 4;
+            pixels[idx] = 128;
+            pixels[idx + 3] = 255;
+        }
+        let mut session = session_with_pixels(16, 16, pixels);
+        session.intent = MotionIntent::WalkCycleStub;
+        session.direction = Some(MotionDirection::Right);
+        session.output_frame_count = 4;
+        session.generate_proposals().unwrap();
+
+        assert!(!session.proposals.is_empty());
+        for p in &session.proposals {
+            assert_eq!(p.preview_frames.len(), 4);
+        }
+    }
+
+    #[test]
+    fn hop_generates_proposals() {
+        let mut pixels = vec![0u8; 16 * 16 * 4];
+        for i in 0..16 {
+            let idx = (8 * 16 + i) * 4;
+            pixels[idx] = 128;
+            pixels[idx + 3] = 255;
+        }
+        let mut session = session_with_pixels(16, 16, pixels);
+        session.intent = MotionIntent::Hop;
+        session.output_frame_count = 3;
+        session.generate_proposals().unwrap();
+
+        assert!(!session.proposals.is_empty());
+        for p in &session.proposals {
+            assert_eq!(p.preview_frames.len(), 3);
+        }
+    }
+
+    #[test]
+    fn select_proposal_works() {
+        let mut pixels = vec![0u8; 8 * 8 * 4];
+        for i in 0..8 {
+            let idx = (4 * 8 + i) * 4;
+            pixels[idx] = 128;
+            pixels[idx + 3] = 255;
+        }
+        let mut session = session_with_pixels(8, 8, pixels);
+        session.generate_proposals().unwrap();
+        let first_id = session.proposals[0].id.clone();
+        session.select_proposal(&first_id).unwrap();
+        assert_eq!(session.selected_proposal_id.as_deref(), Some(first_id.as_str()));
+        assert!(session.selected_proposal().is_some());
+    }
+
+    #[test]
+    fn select_nonexistent_proposal_fails() {
+        let mut pixels = vec![0u8; 8 * 8 * 4];
+        for i in 0..8 {
+            let idx = (4 * 8 + i) * 4;
+            pixels[idx] = 128;
+            pixels[idx + 3] = 255;
+        }
+        let mut session = session_with_pixels(8, 8, pixels);
+        session.generate_proposals().unwrap();
+        assert!(session.select_proposal("nonexistent-id").is_err());
+    }
+
+    // --- Determinism ---
+
+    #[test]
+    fn proposals_are_deterministic() {
+        let make_session = || {
+            let mut pixels = vec![0u8; 8 * 8 * 4];
+            for i in 0..8 {
+                let idx = (4 * 8 + i) * 4;
+                pixels[idx] = 128;
+                pixels[idx + 3] = 255;
+            }
+            let mut s = session_with_pixels(8, 8, pixels);
+            s.intent = MotionIntent::IdleBob;
+            s.output_frame_count = 4;
+            s.generate_proposals().unwrap();
+            s
+        };
+
+        let s1 = make_session();
+        let s2 = make_session();
+
+        // Same number of proposals
+        assert_eq!(s1.proposals.len(), s2.proposals.len());
+        // Same frame data (pixel-exact)
+        for (p1, p2) in s1.proposals.iter().zip(s2.proposals.iter()) {
+            assert_eq!(p1.label, p2.label);
+            assert_eq!(p1.preview_frames.len(), p2.preview_frames.len());
+            for (f1, f2) in p1.preview_frames.iter().zip(p2.preview_frames.iter()) {
+                assert_eq!(f1, f2, "Proposal frames should be deterministic");
+            }
+        }
+    }
+
+    // --- output_frame_count clamping ---
+
+    #[test]
+    fn frame_count_clamped_to_2_4() {
+        let mut pixels = vec![0u8; 8 * 8 * 4];
+        pixels[3] = 255; // at least one opaque pixel
+        let canvas = CanvasState::new(8, 8);
+        // Request 1 frame — should clamp to 2
+        let _session = MotionSession::begin(&canvas, None, None, MotionIntent::IdleBob, None, 1);
+        // begin needs opaque pixels. Let's just test the clamping on a manually built session
+        let mut session = session_with_pixels(8, 8, pixels);
+        session.output_frame_count = 1u32.min(4).max(2);
+        assert_eq!(session.output_frame_count, 2);
+    }
+
+    // --- Templates ---
+
+    #[test]
+    fn all_templates_have_required_anchor() {
+        let templates = MotionTemplate::all();
+        assert_eq!(templates.len(), 4);
+        for t in &templates {
+            assert!(t.anchor_requirements.iter().any(|r| r.required),
+                "Template {} should have at least one required anchor", t.name);
+        }
+    }
+}

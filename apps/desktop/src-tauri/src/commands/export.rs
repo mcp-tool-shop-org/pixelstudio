@@ -1124,3 +1124,142 @@ pub fn export_clip_sequence_with_manifest(
         warnings,
     })
 }
+
+// ==========================================================================
+// Tests
+// ==========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- auto_grid ---
+
+    #[test]
+    fn auto_grid_zero() {
+        assert_eq!(auto_grid(0), (0, 0));
+    }
+
+    #[test]
+    fn auto_grid_single() {
+        assert_eq!(auto_grid(1), (1, 1));
+    }
+
+    #[test]
+    fn auto_grid_perfect_square() {
+        let (c, r) = auto_grid(9);
+        assert_eq!(c, 3);
+        assert_eq!(r, 3);
+    }
+
+    #[test]
+    fn auto_grid_non_square() {
+        let (c, r) = auto_grid(10);
+        // sqrt(10) = 3.16.. → ceil = 4 cols, rows = ceil(10/4) = 3
+        assert_eq!(c, 4);
+        assert_eq!(r, 3);
+    }
+
+    #[test]
+    fn auto_grid_two() {
+        let (c, r) = auto_grid(2);
+        // sqrt(2) = 1.41.. → ceil = 2 cols, rows = 1
+        assert_eq!(c, 2);
+        assert_eq!(r, 1);
+    }
+
+    // --- build_placements ---
+
+    fn frame(idx: usize) -> (usize, String) {
+        (idx, format!("f{}", idx))
+    }
+
+    #[test]
+    fn build_placements_empty() {
+        let (placements, w, h, cols, rows) =
+            build_placements(&[], &ExportLayout::HorizontalStrip, 32, 32);
+        assert!(placements.is_empty());
+        assert_eq!(w, 0);
+        assert_eq!(h, 0);
+        assert_eq!(cols, 0);
+        assert_eq!(rows, 0);
+    }
+
+    #[test]
+    fn build_placements_horizontal_strip() {
+        let frames = vec![frame(0), frame(1), frame(2)];
+        let (placements, w, h, cols, rows) =
+            build_placements(&frames, &ExportLayout::HorizontalStrip, 32, 32);
+        assert_eq!(placements.len(), 3);
+        assert_eq!(cols, 3);
+        assert_eq!(rows, 1);
+        assert_eq!(w, 96);
+        assert_eq!(h, 32);
+        assert_eq!(placements[0].x, 0);
+        assert_eq!(placements[1].x, 32);
+        assert_eq!(placements[2].x, 64);
+    }
+
+    #[test]
+    fn build_placements_vertical_strip() {
+        let frames = vec![frame(0), frame(1), frame(2)];
+        let (placements, w, h, cols, rows) =
+            build_placements(&frames, &ExportLayout::VerticalStrip, 16, 16);
+        assert_eq!(cols, 1);
+        assert_eq!(rows, 3);
+        assert_eq!(w, 16);
+        assert_eq!(h, 48);
+        assert_eq!(placements[0].y, 0);
+        assert_eq!(placements[1].y, 16);
+        assert_eq!(placements[2].y, 32);
+    }
+
+    #[test]
+    fn build_placements_grid_auto() {
+        let frames: Vec<_> = (0..9).map(frame).collect();
+        let (placements, w, h, cols, rows) =
+            build_placements(&frames, &ExportLayout::Grid { columns: None }, 32, 32);
+        assert_eq!(cols, 3);
+        assert_eq!(rows, 3);
+        assert_eq!(w, 96);
+        assert_eq!(h, 96);
+        // Last frame in grid
+        assert_eq!(placements[8].x, 64);
+        assert_eq!(placements[8].y, 64);
+    }
+
+    #[test]
+    fn build_placements_grid_custom_columns() {
+        let frames: Vec<_> = (0..6).map(frame).collect();
+        let (placements, w, h, cols, rows) =
+            build_placements(&frames, &ExportLayout::Grid { columns: Some(2) }, 32, 32);
+        assert_eq!(cols, 2);
+        assert_eq!(rows, 3);
+        assert_eq!(w, 64);
+        assert_eq!(h, 96);
+        // Frame at index 3 → col 1, row 1
+        assert_eq!(placements[3].x, 32);
+        assert_eq!(placements[3].y, 32);
+    }
+
+    #[test]
+    fn build_placements_grid_columns_clamped() {
+        let frames: Vec<_> = (0..4).map(frame).collect();
+        // Columns > count → clamped to count
+        let (_, _, _, cols, rows) =
+            build_placements(&frames, &ExportLayout::Grid { columns: Some(100) }, 32, 32);
+        assert_eq!(cols, 4);
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
+    fn build_placements_correct_frame_ids() {
+        let frames = vec![(5, "frame-five".to_string()), (10, "frame-ten".to_string())];
+        let (placements, _, _, _, _) =
+            build_placements(&frames, &ExportLayout::HorizontalStrip, 32, 32);
+        assert_eq!(placements[0].frame_index, 5);
+        assert_eq!(placements[0].frame_id, "frame-five");
+        assert_eq!(placements[1].frame_index, 10);
+        assert_eq!(placements[1].frame_id, "frame-ten");
+    }
+}

@@ -1081,3 +1081,661 @@ pub struct ProjectMeta {
 
 /// App-wide managed project metadata.
 pub struct ManagedProjectMeta(pub Mutex<Option<ProjectMeta>>);
+
+// ==========================================================================
+// Tests
+// ==========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn red() -> Color { Color::rgba(255, 0, 0, 255) }
+    fn green() -> Color { Color::rgba(0, 255, 0, 255) }
+
+    fn pixel_at(canvas: &CanvasState, layer_id: &str, x: u32, y: u32) -> [u8; 4] {
+        let layer = canvas.layers.iter().find(|l| l.id == layer_id).unwrap();
+        let c = layer.buffer.get_pixel(x, y);
+        [c.r, c.g, c.b, c.a]
+    }
+
+    // --- PixelBuffer ---
+
+    #[test]
+    fn pixel_buffer_new_is_transparent() {
+        let buf = PixelBuffer::new(4, 4);
+        let c = buf.get_pixel(0, 0);
+        assert_eq!([c.r, c.g, c.b, c.a], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn pixel_buffer_set_get_roundtrip() {
+        let mut buf = PixelBuffer::new(8, 8);
+        buf.set_pixel(3, 5, &Color::rgba(10, 20, 30, 255));
+        let c = buf.get_pixel(3, 5);
+        assert_eq!([c.r, c.g, c.b, c.a], [10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn pixel_buffer_out_of_bounds_returns_transparent() {
+        let buf = PixelBuffer::new(4, 4);
+        let c = buf.get_pixel(100, 100);
+        assert_eq!([c.r, c.g, c.b, c.a], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn pixel_buffer_set_out_of_bounds_is_noop() {
+        let mut buf = PixelBuffer::new(4, 4);
+        buf.set_pixel(100, 100, &red()); // should not panic
+        assert!(buf.in_bounds(0, 0));
+        assert!(!buf.in_bounds(4, 4));
+    }
+
+    #[test]
+    fn pixel_buffer_bytes_roundtrip() {
+        let mut buf = PixelBuffer::new(2, 2);
+        buf.set_pixel(0, 0, &red());
+        buf.set_pixel(1, 1, &green());
+        let bytes = buf.to_bytes();
+        let buf2 = PixelBuffer::from_bytes(2, 2, bytes);
+        let c00 = buf2.get_pixel(0, 0);
+        assert_eq!([c00.r, c00.g, c00.b, c00.a], [255, 0, 0, 255]);
+        let c11 = buf2.get_pixel(1, 1);
+        assert_eq!([c11.r, c11.g, c11.b, c11.a], [0, 255, 0, 255]);
+        let c10 = buf2.get_pixel(1, 0);
+        assert_eq!([c10.r, c10.g, c10.b, c10.a], [0, 0, 0, 0]);
+    }
+
+    // --- Undo/Redo laws ---
+
+    #[test]
+    fn undo_reverts_stroke() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0), (1, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Pixel is now red
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+
+        // Undo
+        assert!(cs.undo().unwrap());
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn redo_restores_stroke() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        cs.undo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [0, 0, 0, 0]);
+
+        cs.redo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn undo_redo_multiple_strokes() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+
+        // Stroke 1: red at (0,0)
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Stroke 2: green at (1,0)
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(1, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Undo stroke 2
+        cs.undo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 1, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+
+        // Undo stroke 1
+        cs.undo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [0, 0, 0, 0]);
+
+        // Redo both
+        cs.redo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+        cs.redo().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 1, 0), [0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn new_stroke_clears_redo_stack() {
+        let mut cs = CanvasState::new(4, 4);
+
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        cs.undo().unwrap();
+        assert_eq!(cs.redo_stack.len(), 1);
+
+        // New stroke should clear redo
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(1, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        assert!(cs.redo_stack.is_empty());
+        assert!(!cs.redo().unwrap()); // nothing to redo
+    }
+
+    #[test]
+    fn undo_empty_returns_false() {
+        let mut cs = CanvasState::new(4, 4);
+        assert!(!cs.undo().unwrap());
+    }
+
+    #[test]
+    fn redo_empty_returns_false() {
+        let mut cs = CanvasState::new(4, 4);
+        assert!(!cs.redo().unwrap());
+    }
+
+    #[test]
+    fn stroke_same_pixel_twice_only_patches_once() {
+        let mut cs = CanvasState::new(4, 4);
+
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0), (0, 0), (0, 0)]).unwrap();
+        let record = cs.end_stroke().unwrap().unwrap();
+
+        // Only one patch despite drawing same pixel 3 times
+        assert_eq!(record.patches.len(), 1);
+    }
+
+    #[test]
+    fn stroke_same_color_as_existing_creates_no_patch() {
+        let mut cs = CanvasState::new(4, 4);
+
+        // Draw transparent on transparent = no change
+        cs.begin_stroke("brush".into(), [0, 0, 0, 0]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        let record = cs.end_stroke().unwrap();
+
+        assert!(record.is_none()); // empty stroke
+    }
+
+    #[test]
+    fn cancel_stroke_reverts_pixels() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0), (1, 0)]).unwrap();
+        // Verify pixels are red during stroke
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+        // Cancel
+        cs.cancel_stroke();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [0, 0, 0, 0]);
+        assert!(cs.active_stroke.is_none());
+    }
+
+    #[test]
+    fn stroke_on_locked_layer_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+        cs.set_layer_lock(&layer_id, true).unwrap();
+        let result = cs.begin_stroke("brush".into(), [255, 0, 0, 255]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn stroke_on_hidden_layer_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+        cs.set_layer_visibility(&layer_id, false).unwrap();
+        let result = cs.begin_stroke("brush".into(), [255, 0, 0, 255]);
+        assert!(result.is_err());
+    }
+
+    // --- Frame stashing ---
+
+    #[test]
+    fn frame_switch_preserves_pixel_data() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.active_layer_id.clone().unwrap();
+
+        // Draw red on frame 1
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+
+        // Create frame 2
+        let _frame2_id = cs.create_frame(None);
+
+        // Draw green on frame 2
+        let _layer2_id = cs.active_layer_id.clone().unwrap();
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(1, 1)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Switch back to frame 1
+        let frame1_id = cs.frames[0].id.clone();
+        cs.select_frame(&frame1_id).unwrap();
+
+        // Frame 1 pixel data should be intact
+        let layer1_id = cs.active_layer_id.clone().unwrap();
+        assert_eq!(pixel_at(&cs, &layer1_id, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn frame_switch_preserves_undo_stacks() {
+        let mut cs = CanvasState::new(4, 4);
+
+        // Do a stroke on frame 1
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+        assert_eq!(cs.undo_stack.len(), 1);
+
+        // Create frame 2
+        let _frame2 = cs.create_frame(None);
+        assert_eq!(cs.undo_stack.len(), 0); // new frame has clean undo
+
+        // Switch back to frame 1
+        let frame1_id = cs.frames[0].id.clone();
+        cs.select_frame(&frame1_id).unwrap();
+        assert_eq!(cs.undo_stack.len(), 1); // undo stack restored
+    }
+
+    #[test]
+    fn duplicate_frame_deep_copies_pixels() {
+        let mut cs = CanvasState::new(4, 4);
+
+        // Draw on frame 1
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Duplicate
+        let _dup_id = cs.duplicate_frame();
+
+        // Verify duplicate has the pixel
+        let dup_layer = cs.active_layer_id.clone().unwrap();
+        assert_eq!(pixel_at(&cs, &dup_layer, 0, 0), [255, 0, 0, 255]);
+
+        // Modify duplicate — original should be unaffected
+        cs.begin_stroke("brush".into(), [0, 0, 255, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        let frame1_id = cs.frames[0].id.clone();
+        cs.select_frame(&frame1_id).unwrap();
+        let layer1 = cs.active_layer_id.clone().unwrap();
+        // Original is still red, not blue
+        assert_eq!(pixel_at(&cs, &layer1, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn delete_last_frame_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let frame_id = cs.frames[0].id.clone();
+        assert!(cs.delete_frame(&frame_id).is_err());
+    }
+
+    #[test]
+    fn delete_last_layer_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let layer_id = cs.layers[0].id.clone();
+        assert!(cs.delete_layer(&layer_id).is_err());
+    }
+
+    // --- Layer management ---
+
+    #[test]
+    fn create_layer_activates_it() {
+        let mut cs = CanvasState::new(4, 4);
+        let new_id = cs.create_layer(Some("Test".into()));
+        assert_eq!(cs.active_layer_id.as_deref(), Some(new_id.as_str()));
+        assert_eq!(cs.layers.len(), 2);
+    }
+
+    #[test]
+    fn delete_active_layer_selects_another() {
+        let mut cs = CanvasState::new(4, 4);
+        let id1 = cs.layers[0].id.clone();
+        let id2 = cs.create_layer(None);
+        cs.delete_layer(&id2).unwrap();
+        assert_eq!(cs.active_layer_id.as_deref(), Some(id1.as_str()));
+    }
+
+    #[test]
+    fn layer_opacity_clamped() {
+        let mut cs = CanvasState::new(4, 4);
+        let id = cs.active_layer_id.clone().unwrap();
+        cs.set_layer_opacity(&id, 2.0).unwrap();
+        assert_eq!(cs.layers[0].opacity, 1.0);
+        cs.set_layer_opacity(&id, -1.0).unwrap();
+        assert_eq!(cs.layers[0].opacity, 0.0);
+    }
+
+    // --- Composite ---
+
+    #[test]
+    fn composite_transparent_canvas_is_all_zero() {
+        let cs = CanvasState::new(2, 2);
+        let result = cs.composite_frame();
+        assert!(result.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn composite_single_opaque_pixel() {
+        let mut cs = CanvasState::new(2, 2);
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+        let comp = cs.composite_frame();
+        assert_eq!(&comp[0..4], &[255, 0, 0, 255]);
+        assert_eq!(&comp[4..8], &[0, 0, 0, 0]); // other pixel still transparent
+    }
+
+    #[test]
+    fn composite_hidden_layer_is_ignored() {
+        let mut cs = CanvasState::new(2, 2);
+        let id = cs.active_layer_id.clone().unwrap();
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+        cs.set_layer_visibility(&id, false).unwrap();
+        let comp = cs.composite_frame();
+        assert!(comp.iter().all(|&b| b == 0));
+    }
+
+    // --- Span timing ---
+
+    #[test]
+    fn apply_and_restore_span_timing() {
+        let mut cs = CanvasState::new(4, 4);
+        cs.create_frame(None);
+        cs.create_frame(None);
+        // Now we have 3 frames
+        assert_eq!(cs.frames.len(), 3);
+
+        let prior = cs.apply_span_timing(0, 2, Some(100)).unwrap();
+        assert_eq!(prior.len(), 3);
+        // All should have been None before
+        for (_, dur) in &prior {
+            assert_eq!(*dur, None);
+        }
+        // All frames should now be 100ms
+        for f in &cs.frames {
+            assert_eq!(f.duration_ms, Some(100));
+        }
+
+        // Restore
+        cs.restore_span_timing(&prior);
+        for f in &cs.frames {
+            assert_eq!(f.duration_ms, None);
+        }
+    }
+
+    // --- Layer reordering ---
+
+    #[test]
+    fn reorder_layer_moves_to_new_position() {
+        let mut cs = CanvasState::new(4, 4);
+        let id1 = cs.layers[0].id.clone();
+        let id2 = cs.create_layer(None);
+        let id3 = cs.create_layer(None);
+
+        // Order: [id1, id2, id3]. Move id3 to front.
+        cs.reorder_layer(&id3, 0).unwrap();
+        assert_eq!(cs.layers[0].id, id3);
+        assert_eq!(cs.layers[1].id, id1);
+        assert_eq!(cs.layers[2].id, id2);
+    }
+
+    #[test]
+    fn reorder_layer_out_of_bounds_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let id = cs.layers[0].id.clone();
+        assert!(cs.reorder_layer(&id, 5).is_err());
+    }
+
+    #[test]
+    fn reorder_layer_unknown_id_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        assert!(cs.reorder_layer("nonexistent", 0).is_err());
+    }
+
+    // --- Frame reordering ---
+
+    #[test]
+    fn reorder_frame_moves_to_new_position() {
+        let mut cs = CanvasState::new(4, 4);
+        let f1_id = cs.frames[0].id.clone();
+        cs.create_frame(None);
+        let f2_id = cs.frames[1].id.clone();
+        cs.create_frame(None);
+        let f3_id = cs.frames[2].id.clone();
+
+        // Move frame 1 to end: [f1,f2,f3] → [f2,f3,f1]
+        cs.reorder_frame(&f1_id, 2).unwrap();
+        assert_eq!(cs.frames[0].id, f2_id);
+        assert_eq!(cs.frames[1].id, f3_id);
+        assert_eq!(cs.frames[2].id, f1_id);
+        // active_frame_index should still be in bounds
+        assert!(cs.active_frame_index < cs.frames.len());
+    }
+
+    #[test]
+    fn reorder_frame_out_of_bounds_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let id = cs.frames[0].id.clone();
+        assert!(cs.reorder_frame(&id, 10).is_err());
+    }
+
+    // --- duplicate_span ---
+
+    #[test]
+    fn duplicate_span_copies_frames() {
+        let mut cs = CanvasState::new(4, 4);
+        cs.create_frame(None);
+        cs.create_frame(None);
+        // 3 frames. Duplicate [0..1] (first two)
+        let (first_new, new_ids, insert_pos) = cs.duplicate_span(0, 1).unwrap();
+        assert_eq!(new_ids.len(), 2);
+        assert_eq!(insert_pos, 2);
+        assert_eq!(cs.frames.len(), 5); // 3 original + 2 copies
+        assert_eq!(first_new, new_ids[0]);
+    }
+
+    #[test]
+    fn duplicate_span_deep_copies_pixels() {
+        let mut cs = CanvasState::new(4, 4);
+        // Draw on frame 1
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Duplicate single frame
+        let (_, new_ids, _) = cs.duplicate_span(0, 0).unwrap();
+        assert_eq!(cs.frames.len(), 2);
+
+        // Select the copy
+        cs.select_frame(&new_ids[0]).unwrap();
+        let layer_id = cs.active_layer_id.clone().unwrap();
+        // Copy should have the red pixel
+        assert_eq!(pixel_at(&cs, &layer_id, 0, 0), [255, 0, 0, 255]);
+
+        // Modify the copy
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Switch back to original — should still be red
+        let orig_id = cs.frames[0].id.clone();
+        cs.select_frame(&orig_id).unwrap();
+        let orig_layer = cs.active_layer_id.clone().unwrap();
+        assert_eq!(pixel_at(&cs, &orig_layer, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn duplicate_span_assigns_fresh_ids() {
+        let mut cs = CanvasState::new(4, 4);
+        cs.create_frame(None);
+        let orig_ids: Vec<String> = cs.frames.iter().map(|f| f.id.clone()).collect();
+        let (_, new_ids, _) = cs.duplicate_span(0, 1).unwrap();
+        for new_id in &new_ids {
+            assert!(!orig_ids.contains(new_id));
+        }
+    }
+
+    #[test]
+    fn duplicate_span_invalid_range_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        assert!(cs.duplicate_span(5, 10).is_err());
+        cs.create_frame(None);
+        assert!(cs.duplicate_span(1, 0).is_err()); // inverted
+    }
+
+    // --- remove_frames_by_ids ---
+
+    #[test]
+    fn remove_frames_deletes_specified() {
+        let mut cs = CanvasState::new(4, 4);
+        cs.create_frame(None);
+        cs.create_frame(None);
+        let to_remove = vec![cs.frames[1].id.clone()];
+        cs.remove_frames_by_ids(&to_remove).unwrap();
+        assert_eq!(cs.frames.len(), 2);
+    }
+
+    #[test]
+    fn remove_all_frames_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        let all_ids = vec![cs.frames[0].id.clone()];
+        assert!(cs.remove_frames_by_ids(&all_ids).is_err());
+    }
+
+    // --- Multi-step editing sequences ---
+
+    #[test]
+    fn draw_undo_switch_frame_switch_back_draw() {
+        // This tests a realistic multi-step editing sequence:
+        // 1. Draw on frame 1
+        // 2. Undo the draw
+        // 3. Switch to frame 2
+        // 4. Draw on frame 2
+        // 5. Switch back to frame 1
+        // 6. Redo the original draw
+        let mut cs = CanvasState::new(4, 4);
+
+        // Step 1: Draw red on frame 1
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+        let f1_layer = cs.active_layer_id.clone().unwrap();
+        assert_eq!(pixel_at(&cs, &f1_layer, 0, 0), [255, 0, 0, 255]);
+
+        // Step 2: Undo
+        cs.undo().unwrap();
+        assert_eq!(pixel_at(&cs, &f1_layer, 0, 0), [0, 0, 0, 0]);
+
+        // Step 3: Create and switch to frame 2
+        let _f2 = cs.create_frame(None);
+        let f2_layer = cs.active_layer_id.clone().unwrap();
+
+        // Step 4: Draw green on frame 2
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(1, 1)]).unwrap();
+        cs.end_stroke().unwrap();
+        assert_eq!(pixel_at(&cs, &f2_layer, 1, 1), [0, 255, 0, 255]);
+
+        // Step 5: Switch back to frame 1
+        let f1_id = cs.frames[0].id.clone();
+        cs.select_frame(&f1_id).unwrap();
+        let f1_layer = cs.active_layer_id.clone().unwrap();
+
+        // Frame 1 should still be blank (undo was applied)
+        assert_eq!(pixel_at(&cs, &f1_layer, 0, 0), [0, 0, 0, 0]);
+
+        // Step 6: Redo should bring back the red pixel
+        cs.redo().unwrap();
+        assert_eq!(pixel_at(&cs, &f1_layer, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn layer_create_draw_delete_undo_sequence() {
+        let mut cs = CanvasState::new(4, 4);
+        let base_layer = cs.layers[0].id.clone();
+
+        // Draw on base layer
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Create new layer, draw on it
+        let new_layer = cs.create_layer(Some("Overlay".into()));
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(1, 1)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Delete the overlay layer
+        cs.delete_layer(&new_layer).unwrap();
+        assert_eq!(cs.layers.len(), 1);
+
+        // Base layer should still have its pixel
+        assert_eq!(pixel_at(&cs, &base_layer, 0, 0), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn begin_stroke_reentrant_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        // Second begin while first is active should fail
+        let result = cs.begin_stroke("brush".into(), [0, 255, 0, 255]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn select_unknown_layer_fails() {
+        let mut cs = CanvasState::new(4, 4);
+        assert!(cs.select_layer("nonexistent").is_err());
+    }
+
+    #[test]
+    fn select_layer_changes_active() {
+        let mut cs = CanvasState::new(4, 4);
+        let id1 = cs.layers[0].id.clone();
+        let id2 = cs.create_layer(None);
+        assert_eq!(cs.active_layer_id.as_deref(), Some(id2.as_str()));
+        cs.select_layer(&id1).unwrap();
+        assert_eq!(cs.active_layer_id.as_deref(), Some(id1.as_str()));
+    }
+
+    // --- Composite with multiple layers ---
+
+    #[test]
+    fn composite_respects_layer_order() {
+        let mut cs = CanvasState::new(2, 2);
+        // Draw red on bottom layer
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Create top layer, draw green at same pixel
+        let _top = cs.create_layer(None);
+        cs.begin_stroke("brush".into(), [0, 255, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        let comp = cs.composite_frame();
+        // Top layer (green) should win
+        assert_eq!(&comp[0..4], &[0, 255, 0, 255]);
+    }
+}

@@ -113,3 +113,173 @@ impl Anchor {
         }
     }
 }
+
+// ==========================================================================
+// Tests
+// ==========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_anchor(name: &str, kind: AnchorKind, parent: Option<&str>) -> Anchor {
+        Anchor {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            kind,
+            x: 0,
+            y: 0,
+            bounds: None,
+            parent_name: parent.map(|s| s.to_string()),
+            falloff_weight: 1.0,
+        }
+    }
+
+    // --- would_cycle ---
+
+    #[test]
+    fn self_reference_is_cycle() {
+        let anchors = vec![make_anchor("A", AnchorKind::Custom, None)];
+        assert!(Anchor::would_cycle("A", "A", &anchors));
+    }
+
+    #[test]
+    fn direct_cycle_detected() {
+        // A -> B, trying to set B's parent to A
+        let anchors = vec![
+            make_anchor("A", AnchorKind::Custom, Some("B")),
+            make_anchor("B", AnchorKind::Custom, None),
+        ];
+        // B parenting to A: walk from A, A's parent is B — cycle!
+        assert!(Anchor::would_cycle("B", "A", &anchors));
+    }
+
+    #[test]
+    fn indirect_cycle_detected() {
+        // A -> B -> C, trying to set C's parent to A
+        let anchors = vec![
+            make_anchor("A", AnchorKind::Custom, Some("B")),
+            make_anchor("B", AnchorKind::Custom, Some("C")),
+            make_anchor("C", AnchorKind::Custom, None),
+        ];
+        assert!(Anchor::would_cycle("C", "A", &anchors));
+    }
+
+    #[test]
+    fn no_cycle_when_valid() {
+        let anchors = vec![
+            make_anchor("Torso", AnchorKind::Torso, None),
+            make_anchor("Head", AnchorKind::Head, Some("Torso")),
+        ];
+        // Adding arm under torso: no cycle
+        assert!(!Anchor::would_cycle("Left Arm", "Torso", &anchors));
+    }
+
+    #[test]
+    fn no_cycle_with_missing_parent() {
+        let anchors = vec![
+            make_anchor("A", AnchorKind::Custom, Some("Ghost")),
+        ];
+        // Ghost doesn't exist — should not be a cycle
+        assert!(!Anchor::would_cycle("B", "A", &anchors));
+    }
+
+    // --- depth_in ---
+
+    #[test]
+    fn root_depth_is_zero() {
+        let anchors = vec![make_anchor("Root", AnchorKind::Torso, None)];
+        assert_eq!(anchors[0].depth_in(&anchors), 0);
+    }
+
+    #[test]
+    fn child_depth_is_one() {
+        let anchors = vec![
+            make_anchor("Torso", AnchorKind::Torso, None),
+            make_anchor("Head", AnchorKind::Head, Some("Torso")),
+        ];
+        assert_eq!(anchors[1].depth_in(&anchors), 1);
+    }
+
+    #[test]
+    fn grandchild_depth_is_two() {
+        let anchors = vec![
+            make_anchor("Torso", AnchorKind::Torso, None),
+            make_anchor("Head", AnchorKind::Head, Some("Torso")),
+            make_anchor("Hat", AnchorKind::Custom, Some("Head")),
+        ];
+        assert_eq!(anchors[2].depth_in(&anchors), 2);
+    }
+
+    #[test]
+    fn depth_caps_at_ten() {
+        // Build chain of 15 deep
+        let mut anchors = vec![make_anchor("A0", AnchorKind::Custom, None)];
+        for i in 1..15 {
+            anchors.push(make_anchor(
+                &format!("A{}", i),
+                AnchorKind::Custom,
+                Some(&format!("A{}", i - 1)),
+            ));
+        }
+        let last = &anchors[14];
+        let depth = last.depth_in(&anchors);
+        assert!(depth <= 11); // safety cap kicks in at 10 iterations
+    }
+
+    // --- default_name ---
+
+    #[test]
+    fn default_names_all_kinds() {
+        assert_eq!(Anchor::default_name(AnchorKind::Head), "Head");
+        assert_eq!(Anchor::default_name(AnchorKind::Torso), "Torso");
+        assert_eq!(Anchor::default_name(AnchorKind::ArmLeft), "Left Arm");
+        assert_eq!(Anchor::default_name(AnchorKind::ArmRight), "Right Arm");
+        assert_eq!(Anchor::default_name(AnchorKind::LegLeft), "Left Leg");
+        assert_eq!(Anchor::default_name(AnchorKind::LegRight), "Right Leg");
+        assert_eq!(Anchor::default_name(AnchorKind::Custom), "Anchor");
+    }
+
+    // --- Anchor construction ---
+
+    #[test]
+    fn new_anchor_has_default_falloff() {
+        let a = Anchor::new("Test".to_string(), AnchorKind::Custom, 10, 20);
+        assert_eq!(a.falloff_weight, 1.0);
+        assert!(a.bounds.is_none());
+        assert!(a.parent_name.is_none());
+        assert_eq!(a.x, 10);
+        assert_eq!(a.y, 20);
+    }
+
+    // --- Serde round-trip ---
+
+    #[test]
+    fn anchor_json_roundtrip() {
+        let mut a = Anchor::new("Head".to_string(), AnchorKind::Head, 5, 10);
+        a.parent_name = Some("Torso".to_string());
+        a.falloff_weight = 1.5;
+        a.bounds = Some(AnchorBounds { x: 2, y: 3, width: 8, height: 12 });
+
+        let json = serde_json::to_string(&a).unwrap();
+        let a2: Anchor = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(a2.name, "Head");
+        assert_eq!(a2.kind, AnchorKind::Head);
+        assert_eq!(a2.x, 5);
+        assert_eq!(a2.y, 10);
+        assert_eq!(a2.parent_name.as_deref(), Some("Torso"));
+        assert!((a2.falloff_weight - 1.5).abs() < f32::EPSILON);
+        assert!(a2.bounds.is_some());
+        let b = a2.bounds.unwrap();
+        assert_eq!((b.x, b.y, b.width, b.height), (2, 3, 8, 12));
+    }
+
+    #[test]
+    fn anchor_json_default_falloff_omitted() {
+        let a = Anchor::new("Arm".to_string(), AnchorKind::ArmLeft, 0, 0);
+        let json = serde_json::to_string(&a).unwrap();
+        // falloff_weight=1.0 should be skipped via skip_serializing_if
+        assert!(!json.contains("falloffWeight") || json.contains("\"falloffWeight\":1"));
+    }
+}

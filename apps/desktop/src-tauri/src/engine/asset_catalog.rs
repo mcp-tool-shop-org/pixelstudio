@@ -175,3 +175,244 @@ impl AssetCatalog {
         self.entries.len() < len_before
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_entry(id: &str, name: &str, path: &str) -> AssetCatalogEntry {
+        AssetCatalogEntry {
+            id: id.into(),
+            name: name.into(),
+            file_path: path.into(),
+            kind: AssetKind::Character,
+            tags: Vec::new(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+            canvas_width: 32,
+            canvas_height: 32,
+            frame_count: 1,
+            clip_count: 0,
+            thumbnail_path: None,
+        }
+    }
+
+    // ── AssetCatalog — CRUD operations ────────────────────────
+
+    #[test]
+    fn empty_catalog() {
+        let cat = AssetCatalog::default();
+        assert!(cat.entries.is_empty());
+    }
+
+    #[test]
+    fn upsert_inserts_new_entry() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "Char A", "/a.pxs"));
+        assert_eq!(cat.entries.len(), 1);
+        assert_eq!(cat.entries[0].name, "Char A");
+    }
+
+    #[test]
+    fn upsert_replaces_by_id() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "Original", "/a.pxs"));
+        cat.upsert(make_entry("a", "Updated", "/a.pxs"));
+        assert_eq!(cat.entries.len(), 1);
+        assert_eq!(cat.entries[0].name, "Updated");
+    }
+
+    #[test]
+    fn upsert_replaces_by_file_path() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "First", "/shared.pxs"));
+        // Different ID, same path → should replace
+        cat.upsert(make_entry("b", "Second", "/shared.pxs"));
+        assert_eq!(cat.entries.len(), 1);
+        assert_eq!(cat.entries[0].name, "Second");
+        assert_eq!(cat.entries[0].id, "b");
+    }
+
+    #[test]
+    fn upsert_id_match_takes_priority_over_path_match() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "Entry A", "/a.pxs"));
+        cat.upsert(make_entry("b", "Entry B", "/b.pxs"));
+        // Update by ID "a", change path to /b.pxs:
+        // ID match on "a" should win — replaces entry "a" at its position
+        cat.upsert(make_entry("a", "A moved", "/b.pxs"));
+        // Entry "a" replaced, entry "b" untouched
+        assert_eq!(cat.entries.len(), 2);
+        let a = cat.find_by_id("a").unwrap();
+        assert_eq!(a.name, "A moved");
+        assert_eq!(a.file_path, "/b.pxs");
+    }
+
+    #[test]
+    fn find_by_id_returns_match() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("x", "Character X", "/x.pxs"));
+        cat.upsert(make_entry("y", "Character Y", "/y.pxs"));
+        let found = cat.find_by_id("y").unwrap();
+        assert_eq!(found.name, "Character Y");
+    }
+
+    #[test]
+    fn find_by_id_returns_none_for_missing() {
+        let cat = AssetCatalog::default();
+        assert!(cat.find_by_id("nope").is_none());
+    }
+
+    #[test]
+    fn find_by_path_returns_match() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "Char A", "/sprites/a.pxs"));
+        let found = cat.find_by_path("/sprites/a.pxs").unwrap();
+        assert_eq!(found.id, "a");
+    }
+
+    #[test]
+    fn find_by_path_returns_none_for_missing() {
+        let cat = AssetCatalog::default();
+        assert!(cat.find_by_path("/no/such/file.pxs").is_none());
+    }
+
+    #[test]
+    fn remove_existing_entry() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "A", "/a.pxs"));
+        cat.upsert(make_entry("b", "B", "/b.pxs"));
+        assert!(cat.remove("a"));
+        assert_eq!(cat.entries.len(), 1);
+        assert!(cat.find_by_id("a").is_none());
+        assert!(cat.find_by_id("b").is_some());
+    }
+
+    #[test]
+    fn remove_nonexistent_returns_false() {
+        let mut cat = AssetCatalog::default();
+        assert!(!cat.remove("nope"));
+    }
+
+    #[test]
+    fn remove_all_entries() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("a", "A", "/a.pxs"));
+        cat.upsert(make_entry("b", "B", "/b.pxs"));
+        cat.remove("a");
+        cat.remove("b");
+        assert!(cat.entries.is_empty());
+    }
+
+    // ── Serialization round-trip ──────────────────────────────
+
+    #[test]
+    fn json_roundtrip() {
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("rt-1", "Roundtrip", "/rt.pxs"));
+        cat.entries[0].tags = vec!["hero".into(), "npc".into()];
+        cat.entries[0].kind = AssetKind::Prop;
+        cat.entries[0].thumbnail_path = Some("/thumbs/rt.png".into());
+
+        let json = serde_json::to_string(&cat).unwrap();
+        let restored: AssetCatalog = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(restored.entries.len(), 1);
+        let e = &restored.entries[0];
+        assert_eq!(e.id, "rt-1");
+        assert_eq!(e.name, "Roundtrip");
+        assert_eq!(e.kind, AssetKind::Prop);
+        assert_eq!(e.tags, vec!["hero", "npc"]);
+        assert_eq!(e.thumbnail_path, Some("/thumbs/rt.png".into()));
+    }
+
+    #[test]
+    fn json_empty_tags_omitted() {
+        let cat_json = serde_json::to_string(&make_entry("a", "A", "/a.pxs")).unwrap();
+        // skip_serializing_if = "Vec::is_empty" should omit tags
+        assert!(!cat_json.contains("\"tags\""));
+    }
+
+    #[test]
+    fn json_empty_thumbnail_omitted() {
+        let cat_json = serde_json::to_string(&make_entry("a", "A", "/a.pxs")).unwrap();
+        assert!(!cat_json.contains("\"thumbnailPath\""));
+    }
+
+    // ── to_summary ────────────────────────────────────────────
+
+    #[test]
+    fn to_summary_missing_file_reports_missing_status() {
+        let entry = make_entry("m", "Missing", "/surely/nonexistent/file.pxs");
+        let summary = entry.to_summary();
+        assert_eq!(summary.status, AssetStatus::Missing);
+        assert_eq!(summary.id, "m");
+        assert_eq!(summary.name, "Missing");
+    }
+
+    #[test]
+    fn to_summary_preserves_all_fields() {
+        let mut entry = make_entry("s", "Summary", "/s.pxs");
+        entry.canvas_width = 64;
+        entry.canvas_height = 128;
+        entry.frame_count = 8;
+        entry.clip_count = 3;
+        entry.tags = vec!["boss".into()];
+        let summary = entry.to_summary();
+        assert_eq!(summary.canvas_width, 64);
+        assert_eq!(summary.canvas_height, 128);
+        assert_eq!(summary.frame_count, 8);
+        assert_eq!(summary.clip_count, 3);
+        assert_eq!(summary.tags, vec!["boss"]);
+    }
+
+    // ── Disk I/O round-trip ───────────────────────────────────
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        // Use the real catalog path but with a unique test entry we can clean up
+        let mut cat = AssetCatalog::default();
+        cat.upsert(make_entry("disk-rt-1", "DiskTest", "/disk-test.pxs"));
+        cat.upsert(make_entry("disk-rt-2", "DiskTest2", "/disk-test2.pxs"));
+
+        // Save to a temp file to avoid corrupting real catalog
+        let tmp = std::env::temp_dir().join("pixelstudio-test-catalog.json");
+        let json = serde_json::to_string_pretty(&cat).unwrap();
+        std::fs::write(&tmp, &json).unwrap();
+
+        let loaded_json = std::fs::read_to_string(&tmp).unwrap();
+        let loaded: AssetCatalog = serde_json::from_str(&loaded_json).unwrap();
+        assert_eq!(loaded.entries.len(), 2);
+        assert_eq!(loaded.find_by_id("disk-rt-1").unwrap().name, "DiskTest");
+        assert_eq!(loaded.find_by_id("disk-rt-2").unwrap().name, "DiskTest2");
+
+        let _ = std::fs::remove_file(tmp);
+    }
+
+    // ── AssetKind coverage ────────────────────────────────────
+
+    #[test]
+    fn all_asset_kinds_serialize_roundtrip() {
+        let kinds = [
+            AssetKind::Character,
+            AssetKind::Prop,
+            AssetKind::Environment,
+            AssetKind::Effect,
+            AssetKind::Ui,
+            AssetKind::Custom,
+        ];
+        for kind in kinds {
+            let json = serde_json::to_string(&kind).unwrap();
+            let restored: AssetKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(restored, kind);
+        }
+    }
+
+    // ── catalog_path ──────────────────────────────────────────
+
+    #[test]
+    fn catalog_path_ends_with_expected_filename() {
+        let path = AssetCatalog::catalog_path();
+        assert_eq!(path.file_name().unwrap().to_str().unwrap(), "asset-catalog.json");
+    }
+}

@@ -349,3 +349,565 @@ fn compute_contact_hints(samples: &[AnchorPointSample], kind: AnchorKind) -> Vec
 
     hints
 }
+
+// ── Tests ─────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::anchor::Anchor;
+    use super::super::canvas_state::AnimationFrame;
+
+    /// Build a minimal RGBA frame buffer (w × h, all transparent).
+    fn transparent_frame(w: u32, h: u32) -> Vec<u8> {
+        vec![0u8; (w as usize) * (h as usize) * 4]
+    }
+
+    /// Set one pixel to opaque white in a frame buffer.
+    fn paint_pixel(buf: &mut Vec<u8>, w: u32, x: u32, y: u32) {
+        let idx = ((y * w + x) as usize) * 4;
+        buf[idx] = 255;
+        buf[idx + 1] = 255;
+        buf[idx + 2] = 255;
+        buf[idx + 3] = 255;
+    }
+
+    /// Set one pixel to a specific RGBA value.
+    fn paint_rgba(buf: &mut Vec<u8>, w: u32, x: u32, y: u32, r: u8, g: u8, b: u8, a: u8) {
+        let idx = ((y * w + x) as usize) * 4;
+        buf[idx] = r;
+        buf[idx + 1] = g;
+        buf[idx + 2] = b;
+        buf[idx + 3] = a;
+    }
+
+    fn make_session(frames: Vec<Vec<u8>>, w: u32, h: u32) -> SandboxSession {
+        SandboxSession {
+            id: "test".into(),
+            source: SandboxSource::TimelineSpan,
+            start_frame_index: 0,
+            end_frame_index: frames.len().saturating_sub(1),
+            preview_frames: frames,
+            preview_width: w,
+            preview_height: h,
+        }
+    }
+
+    fn make_anchor(name: &str, kind: AnchorKind, x: u32, y: u32) -> Anchor {
+        Anchor {
+            id: format!("a-{name}"),
+            name: name.to_string(),
+            kind,
+            x,
+            y,
+            bounds: None,
+            parent_name: None,
+            falloff_weight: 1.0,
+        }
+    }
+
+    fn make_animation_frame(anchors: Vec<Anchor>) -> AnimationFrame {
+        AnimationFrame {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "frame".into(),
+            layers: Vec::new(),
+            active_layer_id: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            layer_counter: 0,
+            duration_ms: None,
+            anchors,
+        }
+    }
+
+    // ── BBox ──────────────────────────────────────────────────────
+
+    #[test]
+    fn bbox_center_on_symmetric_box() {
+        let b = BBox { min_x: 2, min_y: 4, max_x: 8, max_y: 10 };
+        assert_eq!(b.center_x(), 5.0);
+        assert_eq!(b.center_y(), 7.0);
+    }
+
+    #[test]
+    fn bbox_center_on_single_pixel() {
+        let b = BBox { min_x: 3, min_y: 7, max_x: 3, max_y: 7 };
+        assert_eq!(b.center_x(), 3.0);
+        assert_eq!(b.center_y(), 7.0);
+    }
+
+    #[test]
+    fn bbox_width_height() {
+        let b = BBox { min_x: 0, min_y: 0, max_x: 9, max_y: 4 };
+        assert_eq!(b.width(), 10);
+        assert_eq!(b.height(), 5);
+    }
+
+    #[test]
+    fn bbox_single_pixel_width_height_is_one() {
+        let b = BBox { min_x: 5, min_y: 5, max_x: 5, max_y: 5 };
+        assert_eq!(b.width(), 1);
+        assert_eq!(b.height(), 1);
+    }
+
+    // ── compute_bbox ──────────────────────────────────────────────
+
+    #[test]
+    fn compute_bbox_fully_transparent_returns_none() {
+        let buf = transparent_frame(4, 4);
+        assert!(compute_bbox(&buf, 4, 4).is_none());
+    }
+
+    #[test]
+    fn compute_bbox_single_opaque_pixel() {
+        let mut buf = transparent_frame(8, 8);
+        paint_pixel(&mut buf, 8, 3, 5);
+        let bb = compute_bbox(&buf, 8, 8).unwrap();
+        assert_eq!((bb.min_x, bb.min_y, bb.max_x, bb.max_y), (3, 5, 3, 5));
+    }
+
+    #[test]
+    fn compute_bbox_respects_all_four_corners() {
+        let mut buf = transparent_frame(10, 10);
+        paint_pixel(&mut buf, 10, 1, 2); // top-left of content
+        paint_pixel(&mut buf, 10, 8, 9); // bottom-right of content
+        let bb = compute_bbox(&buf, 10, 10).unwrap();
+        assert_eq!((bb.min_x, bb.min_y, bb.max_x, bb.max_y), (1, 2, 8, 9));
+    }
+
+    #[test]
+    fn compute_bbox_frame_edge_pixels() {
+        let mut buf = transparent_frame(4, 4);
+        paint_pixel(&mut buf, 4, 0, 0);
+        paint_pixel(&mut buf, 4, 3, 3);
+        let bb = compute_bbox(&buf, 4, 4).unwrap();
+        assert_eq!((bb.min_x, bb.min_y, bb.max_x, bb.max_y), (0, 0, 3, 3));
+    }
+
+    #[test]
+    fn compute_bbox_semitransparent_pixel_is_opaque() {
+        let mut buf = transparent_frame(4, 4);
+        paint_rgba(&mut buf, 4, 2, 2, 100, 100, 100, 1); // alpha=1 is still non-transparent
+        let bb = compute_bbox(&buf, 4, 4).unwrap();
+        assert_eq!((bb.min_x, bb.min_y), (2, 2));
+    }
+
+    #[test]
+    fn compute_bbox_1x1_frame() {
+        let mut buf = transparent_frame(1, 1);
+        paint_pixel(&mut buf, 1, 0, 0);
+        let bb = compute_bbox(&buf, 1, 1).unwrap();
+        assert_eq!((bb.min_x, bb.min_y, bb.max_x, bb.max_y), (0, 0, 0, 0));
+        assert_eq!(bb.width(), 1);
+    }
+
+    // ── frame_delta ───────────────────────────────────────────────
+
+    #[test]
+    fn frame_delta_identical_is_zero() {
+        let a = vec![128u8; 16];
+        assert_eq!(frame_delta(&a, &a), 0);
+    }
+
+    #[test]
+    fn frame_delta_counts_absolute_differences() {
+        let a = vec![0u8; 4];
+        let b = vec![10u8; 4]; // diff = 10 per channel × 4 channels
+        assert_eq!(frame_delta(&a, &b), 40);
+    }
+
+    #[test]
+    fn frame_delta_is_symmetric() {
+        let a = vec![100u8, 50, 200, 0];
+        let b = vec![10u8, 60, 150, 255];
+        assert_eq!(frame_delta(&a, &b), frame_delta(&b, &a));
+    }
+
+    #[test]
+    fn frame_delta_max_range_single_pixel() {
+        let a = vec![0u8; 4];
+        let b = vec![255u8; 4]; // 255 × 4 = 1020
+        assert_eq!(frame_delta(&a, &b), 1020);
+    }
+
+    // ── frame_delta_normalized ────────────────────────────────────
+
+    #[test]
+    fn frame_delta_normalized_zero_pixels_returns_zero() {
+        assert_eq!(frame_delta_normalized(&[], &[], 0), 0.0);
+    }
+
+    #[test]
+    fn frame_delta_normalized_identical_returns_zero() {
+        let a = vec![128u8; 16]; // 4 pixels
+        assert_eq!(frame_delta_normalized(&a, &a, 4), 0.0);
+    }
+
+    #[test]
+    fn frame_delta_normalized_max_diff() {
+        // 1 pixel: [0,0,0,0] vs [255,255,255,255]
+        // raw delta = 1020, normalized = 1020 / (1 * 4) = 255.0
+        let a = vec![0u8; 4];
+        let b = vec![255u8; 4];
+        assert!((frame_delta_normalized(&a, &b, 1) - 255.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn frame_delta_normalized_scales_with_pixel_count() {
+        // 2 pixels identical + diff: net raw delta is same but spread over more pixels
+        let a = vec![0u8; 8]; // 2 pixels
+        let mut b = vec![0u8; 8];
+        // Only second pixel differs: channels = 10 each → raw delta = 40
+        b[4] = 10; b[5] = 10; b[6] = 10; b[7] = 10;
+        // normalized = 40 / (2 * 4) = 5.0
+        assert!((frame_delta_normalized(&a, &b, 2) - 5.0).abs() < f64::EPSILON);
+    }
+
+    // ── count_identical_adjacent ──────────────────────────────────
+
+    #[test]
+    fn count_identical_adjacent_empty() {
+        assert_eq!(count_identical_adjacent(&[]), 0);
+    }
+
+    #[test]
+    fn count_identical_adjacent_single_frame() {
+        assert_eq!(count_identical_adjacent(&[vec![1, 2, 3, 4]]), 0);
+    }
+
+    #[test]
+    fn count_identical_adjacent_all_same() {
+        let f = vec![1u8, 2, 3, 4];
+        assert_eq!(count_identical_adjacent(&[f.clone(), f.clone(), f.clone()]), 2);
+    }
+
+    #[test]
+    fn count_identical_adjacent_all_different() {
+        assert_eq!(count_identical_adjacent(&[vec![1], vec![2], vec![3]]), 0);
+    }
+
+    #[test]
+    fn count_identical_adjacent_mixed() {
+        let a = vec![0u8; 4];
+        let b = vec![1u8; 4];
+        // a, a, b, b, a → identical pairs: (a,a), (b,b) = 2
+        assert_eq!(count_identical_adjacent(&[a.clone(), a.clone(), b.clone(), b.clone(), a]), 2);
+    }
+
+    // ── SandboxAnalysis ───────────────────────────────────────────
+
+    #[test]
+    fn analysis_single_frame_has_no_deltas() {
+        let mut f = transparent_frame(4, 4);
+        paint_pixel(&mut f, 4, 2, 2);
+        let session = make_session(vec![f], 4, 4);
+        let analysis = SandboxAnalysis::from_session(&session);
+        assert_eq!(analysis.frame_count, 1);
+        assert!(analysis.adjacent_deltas.is_empty());
+        assert_eq!(analysis.first_last_delta, 0.0);
+        assert_eq!(analysis.identical_adjacent_count, 0);
+    }
+
+    #[test]
+    fn analysis_identical_frames_zero_deltas() {
+        let mut f = transparent_frame(4, 4);
+        paint_pixel(&mut f, 4, 1, 1);
+        let session = make_session(vec![f.clone(), f.clone(), f], 4, 4);
+        let analysis = SandboxAnalysis::from_session(&session);
+        assert_eq!(analysis.adjacent_deltas.len(), 2);
+        assert!(analysis.adjacent_deltas.iter().all(|&d| d == 0.0));
+        assert_eq!(analysis.first_last_delta, 0.0);
+        assert_eq!(analysis.identical_adjacent_count, 2);
+        assert_eq!(analysis.largest_adjacent_delta, 0.0);
+    }
+
+    #[test]
+    fn analysis_detects_center_drift() {
+        // Frame 1: pixel at (1, 1)
+        let mut f1 = transparent_frame(8, 8);
+        paint_pixel(&mut f1, 8, 1, 1);
+        // Frame 2: pixel at (5, 5) — center has drifted
+        let mut f2 = transparent_frame(8, 8);
+        paint_pixel(&mut f2, 8, 5, 5);
+        let session = make_session(vec![f1, f2], 8, 8);
+        let analysis = SandboxAnalysis::from_session(&session);
+        let (dx, dy) = analysis.center_drift.unwrap();
+        assert_eq!(dx, 4.0);
+        assert_eq!(dy, 4.0);
+    }
+
+    #[test]
+    fn analysis_center_drift_none_when_all_transparent() {
+        let f = transparent_frame(4, 4);
+        let session = make_session(vec![f.clone(), f], 4, 4);
+        let analysis = SandboxAnalysis::from_session(&session);
+        assert!(analysis.center_drift.is_none());
+    }
+
+    #[test]
+    fn analysis_max_displacement_tracks_peak() {
+        // Three frames: pixel at x=0, x=10, x=5. Max displacement is from x=0 to x=10.
+        let w = 16u32;
+        let h = 4u32;
+        let mut f0 = transparent_frame(w, h);
+        paint_pixel(&mut f0, w, 0, 2);
+        let mut f1 = transparent_frame(w, h);
+        paint_pixel(&mut f1, w, 10, 2);
+        let mut f2 = transparent_frame(w, h);
+        paint_pixel(&mut f2, w, 5, 2);
+        let session = make_session(vec![f0, f1, f2], w, h);
+        let analysis = SandboxAnalysis::from_session(&session);
+        // All single-pixel bboxes → center equals pixel coord
+        // Max displacement from (0,2) to (10,2) = 10.0
+        assert!((analysis.max_center_displacement - 10.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn analysis_loop_closure_detects_nonzero_diff() {
+        let mut f0 = transparent_frame(4, 4);
+        paint_pixel(&mut f0, 4, 0, 0);
+        let mut f1 = transparent_frame(4, 4);
+        paint_pixel(&mut f1, 4, 3, 3);
+        // f0 and f1 differ → first_last_delta > 0
+        let session = make_session(vec![f0.clone(), f1, f0], 4, 4);
+        let analysis = SandboxAnalysis::from_session(&session);
+        // first == last, so loop closure delta should be 0
+        assert_eq!(analysis.first_last_delta, 0.0);
+        // but adjacent deltas are nonzero
+        assert!(analysis.adjacent_deltas[0] > 0.0);
+    }
+
+    #[test]
+    fn analysis_largest_adjacent_delta_picks_max() {
+        let w = 4u32;
+        let h = 1u32;
+        let mut f0 = transparent_frame(w, h);
+        paint_rgba(&mut f0, w, 0, 0, 10, 0, 0, 255);
+        let mut f1 = transparent_frame(w, h);
+        paint_rgba(&mut f1, w, 0, 0, 20, 0, 0, 255); // small diff from f0
+        let mut f2 = transparent_frame(w, h);
+        paint_rgba(&mut f2, w, 0, 0, 255, 0, 0, 255); // big diff from f1
+        let session = make_session(vec![f0, f1, f2], w, h);
+        let analysis = SandboxAnalysis::from_session(&session);
+        assert!(analysis.largest_adjacent_delta > analysis.adjacent_deltas[0]);
+        assert_eq!(analysis.largest_adjacent_delta, analysis.adjacent_deltas[1]);
+    }
+
+    // ── extract_anchor_paths ──────────────────────────────────────
+
+    #[test]
+    fn extract_paths_no_anchors_returns_empty() {
+        let frames = vec![make_animation_frame(vec![]), make_animation_frame(vec![])];
+        let paths = extract_anchor_paths(&frames, 0, 1);
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn extract_paths_single_anchor_all_frames() {
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 5, 10)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 8, 10)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 11, 10)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].anchor_name, "foot_l");
+        assert_eq!(paths[0].samples.len(), 3);
+        assert!(paths[0].samples.iter().all(|s| s.present));
+        // Total distance: 3+3 = 6 pixels horizontal
+        assert!((paths[0].total_distance - 6.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn extract_paths_anchor_appears_mid_span() {
+        let frames = vec![
+            make_animation_frame(vec![]), // no anchor
+            make_animation_frame(vec![make_anchor("head", AnchorKind::Head, 10, 5)]),
+            make_animation_frame(vec![make_anchor("head", AnchorKind::Head, 12, 5)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        assert_eq!(paths.len(), 1);
+        assert!(!paths[0].samples[0].present);
+        assert!(paths[0].samples[1].present);
+        assert!(paths[0].samples[2].present);
+        // Distance only between present samples: 2.0
+        assert!((paths[0].total_distance - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn extract_paths_anchor_disappears() {
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("hip", AnchorKind::Torso, 10, 10)]),
+            make_animation_frame(vec![]), // anchor gone
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 1);
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].samples[0].present);
+        assert!(!paths[0].samples[1].present);
+        // Only one present → total distance = 0
+        assert_eq!(paths[0].total_distance, 0.0);
+    }
+
+    #[test]
+    fn extract_paths_multiple_anchors() {
+        let frames = vec![
+            make_animation_frame(vec![
+                make_anchor("foot_l", AnchorKind::LegLeft, 5, 20),
+                make_anchor("foot_r", AnchorKind::LegRight, 15, 20),
+            ]),
+            make_animation_frame(vec![
+                make_anchor("foot_l", AnchorKind::LegLeft, 6, 20),
+                make_anchor("foot_r", AnchorKind::LegRight, 14, 20),
+            ]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 1);
+        assert_eq!(paths.len(), 2);
+        let names: Vec<&str> = paths.iter().map(|p| p.anchor_name.as_str()).collect();
+        assert!(names.contains(&"foot_l"));
+        assert!(names.contains(&"foot_r"));
+    }
+
+    #[test]
+    fn extract_paths_subspan() {
+        // 4 frames, only extract span [1..2]
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 0, 0)]),
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 10, 0)]),
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 20, 0)]),
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 30, 0)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 1, 2);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].samples.len(), 2);
+        assert_eq!(paths[0].samples[0].x, 10);
+        assert_eq!(paths[0].samples[1].x, 20);
+        assert!((paths[0].total_distance - 10.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn extract_paths_end_index_beyond_len_is_safe() {
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 5, 5)]),
+        ];
+        // end_index = 5, but only 1 frame exists
+        let paths = extract_anchor_paths(&frames, 0, 5);
+        assert_eq!(paths.len(), 1);
+        // Frame 0 present, frames 1-5 not present (out of bounds)
+        assert!(paths[0].samples[0].present);
+        assert!(paths[0].samples.iter().skip(1).all(|s| !s.present));
+    }
+
+    #[test]
+    fn extract_paths_max_displacement() {
+        // Anchor at (0,0), (10,0), (3,0) → max displacement = 10
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 0, 0)]),
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 10, 0)]),
+            make_animation_frame(vec![make_anchor("a", AnchorKind::Custom, 3, 0)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        assert!((paths[0].max_displacement - 10.0).abs() < f64::EPSILON);
+    }
+
+    // ── contact heuristics ────────────────────────────────────────
+
+    #[test]
+    fn contact_hints_skipped_for_non_leg_anchors() {
+        // Head and Torso anchors should produce no contact hints
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("head", AnchorKind::Head, 10, 100)]),
+            make_animation_frame(vec![make_anchor("head", AnchorKind::Head, 10, 100)]),
+            make_animation_frame(vec![make_anchor("head", AnchorKind::Head, 10, 100)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        assert!(paths[0].contact_hints.is_empty());
+
+        let frames2 = vec![
+            make_animation_frame(vec![make_anchor("torso", AnchorKind::Torso, 10, 100)]),
+            make_animation_frame(vec![make_anchor("torso", AnchorKind::Torso, 10, 100)]),
+            make_animation_frame(vec![make_anchor("torso", AnchorKind::Torso, 10, 100)]),
+        ];
+        let paths2 = extract_anchor_paths(&frames2, 0, 2);
+        assert!(paths2[0].contact_hints.is_empty());
+    }
+
+    #[test]
+    fn contact_hints_stable_contact_for_stationary_leg() {
+        // Leg at same position near max Y → stable_contact
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 50)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 50)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 50)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        let hints = &paths[0].contact_hints;
+        assert!(!hints.is_empty());
+        assert!(hints.iter().all(|h| h.label == "stable_contact"));
+        assert!(hints.iter().all(|h| h.confidence == 0.8));
+    }
+
+    #[test]
+    fn contact_hints_sliding_leg() {
+        // Leg at max Y, X moves significantly between frames, Y stays constant
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_r", AnchorKind::LegRight, 10, 50)]),
+            make_animation_frame(vec![make_anchor("foot_r", AnchorKind::LegRight, 15, 50)]),
+            make_animation_frame(vec![make_anchor("foot_r", AnchorKind::LegRight, 20, 50)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        let hints = &paths[0].contact_hints;
+        // Middle sample at max Y, X moving by 5 per frame → likely_sliding
+        assert!(hints.iter().any(|h| h.label == "likely_sliding"));
+    }
+
+    #[test]
+    fn contact_hints_possible_contact_when_y_is_near_max() {
+        // Leg near max Y, but with noticeable Y movement → possible_contact
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 48)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 15, 50)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 20, 48)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        let hints = &paths[0].contact_hints;
+        assert!(hints.iter().any(|h| h.label == "possible_contact" || h.label == "likely_sliding"));
+    }
+
+    #[test]
+    fn contact_hints_custom_anchor_gets_hints() {
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("custom_pt", AnchorKind::Custom, 10, 50)]),
+            make_animation_frame(vec![make_anchor("custom_pt", AnchorKind::Custom, 10, 50)]),
+            make_animation_frame(vec![make_anchor("custom_pt", AnchorKind::Custom, 10, 50)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        assert!(!paths[0].contact_hints.is_empty());
+    }
+
+    #[test]
+    fn contact_hints_not_near_bottom_skipped() {
+        // Leg well above max Y → no contact hints for those frames
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 5)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 50)]),
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 5)]),
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 2);
+        let hints = &paths[0].contact_hints;
+        // Only frame at y=50 (max_y) should get a hint, frames at y=5 are far from bottom
+        let hinted_indices: Vec<usize> = hints.iter().map(|h| h.frame_index).collect();
+        assert!(hinted_indices.contains(&1)); // frame at y=50
+        assert!(!hinted_indices.contains(&0)); // frame at y=5 is far from max
+    }
+
+    #[test]
+    fn contact_hints_single_present_sample_returns_empty() {
+        // Less than 2 present samples → no hints
+        let frames = vec![
+            make_animation_frame(vec![make_anchor("foot_l", AnchorKind::LegLeft, 10, 50)]),
+            make_animation_frame(vec![]), // anchor gone
+        ];
+        let paths = extract_anchor_paths(&frames, 0, 1);
+        assert!(paths[0].contact_hints.is_empty());
+    }
+}
