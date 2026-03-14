@@ -232,6 +232,143 @@
   padding: 8px;
 }
 
+/* Layer Panel */
+.layer-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.layer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+
+.layer-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.layer-panel-add {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-panel-add:hover {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.layer-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.layer-item:hover {
+  background: var(--bg-surface);
+}
+
+.layer-item.active {
+  background: var(--bg-panel-raised);
+  outline: 1px solid var(--accent-primary);
+}
+
+.layer-vis,
+.layer-lock {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.layer-vis.on {
+  color: var(--text-secondary);
+}
+
+.layer-vis.off {
+  opacity: 0.4;
+}
+
+.layer-lock.on {
+  color: var(--accent-warning, #e8a445);
+}
+
+.layer-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.layer-rename-input {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-primary);
+  border-radius: 2px;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 0;
+}
+
+.layer-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
+}
+
+.layer-item:hover .layer-delete {
+  opacity: 1;
+}
+
+.layer-delete:hover {
+  color: var(--accent-error, #e84545);
+}
+
 .dock-panel-placeholder {
   display: flex;
   align-items: center;

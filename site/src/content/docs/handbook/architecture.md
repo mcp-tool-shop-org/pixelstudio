@@ -13,15 +13,19 @@ PixelStudio separates concerns cleanly between the React frontend and the Tauri/
 
 - Workspace UI, layout, and dock system
 - Canvas view state (zoom, pan, overlays)
-- Tool state and interaction handling
+- Tool state and interaction handling (stroke lifecycle, Bresenham interpolation)
 - Optimistic intent dispatch
 - AI candidate acceptance/rejection UI
 - Provenance and history display
 
 ### Backend owns
 
+- **Pixel buffer** — authoritative RGBA storage per layer, row-major
+- **Layer management** — create, delete, rename, reorder, visibility, lock, opacity
+- **Stroke transactions** — begin/append/end with before/after pixel patches
+- **Undo/redo** — stroke-level (one drag gesture = one undo step)
+- **Compositing** — alpha-correct layer blending, bottom to top
 - Project file I/O and authoritative serialization
-- Pixel buffer persistence
 - Deterministic image transforms (quantize, remap, transform)
 - Validation engines
 - Export pipelines
@@ -36,19 +40,33 @@ PixelStudio separates concerns cleanly between the React frontend and the Tauri/
 - **Tauri commands** for request/response (typed, versionable)
 - **Tauri events** for progress updates, job completion, autosave notifications
 
+## Command loop
+
+The core editing loop flows through Rust at every step:
+
+```
+pointer event → tool resolves color + active layer
+  → begin_stroke (Rust validates layer is editable)
+  → stroke_points with Bresenham interpolation (Rust records before/after patches)
+  → end_stroke (Rust commits to undo stack, returns composited frame)
+  → canvas re-renders from authoritative frame data
+```
+
+The frontend never holds pixel truth. Every pixel mutation goes through Rust and returns the full composited frame.
+
 ## State model
 
-The frontend uses 14 Zustand stores organized by domain:
+The frontend uses 14 Zustand stores organized by domain, plus a canvas frame store for rendering:
 
 | Store | Responsibility |
 |-------|---------------|
 | appShell | Global UI: modals, command palette, notifications |
 | project | Identity, save status, color mode, canvas size |
 | workspace | Active mode, dock tabs, layout preferences |
-| canvasView | Zoom, pan, overlay toggles |
-| tool | Active tool, color slots, palette popup |
+| canvasView | Zoom (1x–32x steps), pan, 8 overlay toggles |
+| tool | Active tool, primary/secondary RGBA colors, palette popup |
 | selection | Selection geometry, mode, saved selections |
-| layer | Layer graph (raster, group, mask, draft, generated) |
+| layer | Layer graph synced from Rust truth after every command |
 | palette | Palette definitions, contracts, ramps, remap preview |
 | timeline | Frames, tags, playback, onion skin, draft tracks |
 | ai | Job queue, candidates, results tray |
@@ -56,10 +74,11 @@ The frontend uses 14 Zustand stores organized by domain:
 | validation | Reports, issues, repair previews |
 | provenance | Operation log with deterministic/probabilistic badges |
 | export | Preset selection, readiness, preview state |
+| canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
 
-**Deterministic edit** — tool intent, reducer mutation, provenance entry, dirty flag, validation invalidation.
+**Deterministic edit** — tool intent, stroke transaction via Rust, composited frame returned, layer store synced, canvas re-renders.
 
 **Probabilistic AI** — form, queue job, candidates stored outside layer graph, user accepts, insert editable artifact, provenance, validation invalidated.
 
@@ -69,4 +88,4 @@ The frontend uses 14 Zustand stores organized by domain:
 
 ## Backend command surface
 
-34 Tauri commands across 10 modules: project (5), layer/pixel (3), palette (3), timeline (2), validation (3), provenance (3), AI (5), locomotion (3), export (3), assets (2).
+21 implemented Tauri commands across canvas (13), project (4), plus stubs for palette, timeline, validation, AI, locomotion, export, provenance, and assets.

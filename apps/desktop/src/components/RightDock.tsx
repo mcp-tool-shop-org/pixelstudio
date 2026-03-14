@@ -1,5 +1,6 @@
 import type { WorkspaceMode } from '@pixelstudio/domain';
 import { useState } from 'react';
+import { LayerPanel } from './LayerPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -15,6 +16,18 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
 };
+
+function PanelContent({ tabName }: { tabName: string }) {
+  if (tabName === 'Layers') {
+    return <LayerPanel />;
+  }
+
+  return (
+    <div className="dock-panel-placeholder">
+      <span className="placeholder-label">{tabName}</span>
+    </div>
+  );
+}
 
 export function RightDock({ activeMode }: RightDockProps) {
   const tabs = MODE_TABS[activeMode] ?? [];
@@ -34,9 +47,7 @@ export function RightDock({ activeMode }: RightDockProps) {
         ))}
       </div>
       <div className="dock-content">
-        <div className="dock-panel-placeholder">
-          <span className="placeholder-label">{tabs[activeTab] ?? 'No panel'}</span>
-        </div>
+        <PanelContent tabName={tabs[activeTab] ?? 'No panel'} />
       </div>
     </aside>
   );

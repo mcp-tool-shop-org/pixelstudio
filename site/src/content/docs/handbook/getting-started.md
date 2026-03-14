@@ -27,12 +27,22 @@ pnpm install
 ```
 pixelstudio/
   apps/desktop/           # Tauri v2 + React app
-    src/                  # React components and styles
-    src-tauri/            # Rust backend
+    src/
+      app/                # AppShell, routing
+      components/         # Canvas, ToolRail, LayerPanel, docks
+      lib/                # Shared stores (canvasFrameStore, syncLayers)
+      styles/             # CSS (globals, layout)
+    src-tauri/
+      src/
+        commands/         # Tauri command handlers (canvas, project, ...)
+        engine/           # Pixel buffer, canvas state, compositing
+        persistence/      # Project I/O, autosave, recovery (stubs)
+        types/            # Rust domain + API types
   packages/
-    domain/               # Pure TypeScript types
-    api-contract/         # Tauri command/event payloads
-    state/                # Zustand store slices
+    domain/               # Pure TypeScript types (layers, tools, palettes)
+    api-contract/         # Tauri command/event payload types
+    state/                # Zustand store slices (14 stores)
+  site/                   # Astro landing page + Starlight handbook
 ```
 
 ## Typecheck
@@ -59,3 +69,18 @@ The Rust backend lives in `apps/desktop/src-tauri/` and compiles automatically w
 cd apps/desktop/src-tauri
 cargo check
 ```
+
+## Current implementation status
+
+**Milestone 1A (Breathing Canvas)** — complete:
+- Rust-owned pixel buffer with RGBA storage
+- Canvas renderer with nearest-neighbor scaling, checkerboard background, pixel grid
+- Viewport model: zoom steps (1x–32x), pan (spacebar/middle-mouse), scroll wheel zoom
+- Correct screen-to-pixel coordinate mapping at all zoom levels
+
+**Milestone 1B (Real Edits)** — complete:
+- Stroke transactions: begin → append (with Bresenham interpolation) → commit
+- Undo/redo at stroke level (one drag = one undo step, Ctrl+Z / Ctrl+Shift+Z)
+- Layer management: create, delete, rename, select, visibility, lock, opacity, reorder
+- Layer panel UI: active highlight, visibility/lock toggles, inline rename, add/delete
+- Pencil and eraser tools with continuous drag strokes (no gaps)

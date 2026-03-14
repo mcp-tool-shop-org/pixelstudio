@@ -5,27 +5,55 @@ sidebar:
   order: 4
 ---
 
-PixelStudio's backend exposes 34 Tauri commands organized into 10 modules.
+PixelStudio's backend exposes Tauri commands organized by domain. Commands marked with **[live]** are fully implemented; others are planned stubs.
 
-## Project commands
+## Canvas commands [live]
+
+| Command | Description |
+|---------|------------|
+| `init_canvas` | Initialize pixel buffer with width/height, creates default layer, returns composited frame |
+| `get_canvas_state` | Return full composited RGBA frame + layer metadata + undo/redo state |
+| `write_pixel` | Write a single pixel to a layer (legacy, outside stroke transactions) |
+| `read_pixel` | Read pixel from composite or specific layer (for color picker) |
+
+## Stroke commands [live]
+
+| Command | Description |
+|---------|------------|
+| `begin_stroke` | Open a stroke transaction with tool name and RGBA color; validates layer is editable |
+| `stroke_points` | Append pixel coordinates to active stroke; records before/after patches per pixel |
+| `end_stroke` | Commit stroke to undo stack, clear redo stack, return composited frame |
+
+## Undo/Redo commands [live]
+
+| Command | Description |
+|---------|------------|
+| `undo` | Revert the last committed stroke (applies `before` patches), return composited frame |
+| `redo` | Re-apply an undone stroke (applies `after` patches), return composited frame |
+
+## Layer commands [live]
+
+| Command | Description |
+|---------|------------|
+| `create_layer` | Add a new transparent layer, auto-name, set as active |
+| `delete_layer` | Remove a layer (cannot delete the last one) |
+| `rename_layer` | Set layer name |
+| `select_layer` | Set active layer for editing |
+| `set_layer_visibility` | Toggle layer visibility (hidden layers excluded from composite) |
+| `set_layer_lock` | Toggle layer lock (locked layers reject stroke writes) |
+| `set_layer_opacity` | Set layer opacity (0.0–1.0, affects compositing) |
+| `reorder_layer` | Move layer to a new position in the stack |
+
+## Project commands [live]
 
 | Command | Description |
 |---------|------------|
 | `create_project` | Create a new project with name, canvas size, color mode |
-| `open_project` | Load project from disk |
-| `save_project` | Persist project state (manual, autosave, or recovery) |
-| `list_recent_projects` | Get recent project list with thumbnails |
-| `load_recovery_branch` | Restore from crash recovery |
+| `open_project` | Load project from disk (stub) |
+| `save_project` | Persist project state (stub) |
+| `list_recent_projects` | Get recent project list (stub) |
 
-## Layer and pixel commands
-
-| Command | Description |
-|---------|------------|
-| `apply_pixel_operation` | Paint, erase, fill, replace color, transform selection |
-| `apply_layer_operation` | Create, duplicate, delete, reorder, visibility, opacity, blend |
-| `apply_socket_operation` | Create, update, delete socket anchors |
-
-## Palette commands
+## Palette commands (planned)
 
 | Command | Description |
 |---------|------------|
@@ -33,7 +61,7 @@ PixelStudio's backend exposes 34 Tauri commands organized into 10 modules.
 | `apply_palette_operation` | Update slots, create ramps, set contract, remap, quantize |
 | `preview_palette_remap` | Non-destructive remap preview with pixel counts |
 
-## AI orchestration commands
+## AI orchestration commands (planned)
 
 | Command | Description |
 |---------|------------|
@@ -47,7 +75,7 @@ PixelStudio's backend exposes 34 Tauri commands organized into 10 modules.
 
 `region-draft` · `variant-proposal` · `cleanup` · `requantize` · `silhouette-repair` · `inbetween` · `locomotion-draft` · `workflow-run`
 
-## Locomotion commands
+## Locomotion commands (planned)
 
 | Command | Description |
 |---------|------------|
@@ -55,7 +83,7 @@ PixelStudio's backend exposes 34 Tauri commands organized into 10 modules.
 | `plan_locomotion` | Propose motion plan with movement type and target feel |
 | `generate_locomotion_draft_track` | Generate constrained draft frames from a plan |
 
-## Validation commands
+## Validation commands (planned)
 
 | Command | Description |
 |---------|------------|
@@ -63,7 +91,23 @@ PixelStudio's backend exposes 34 Tauri commands organized into 10 modules.
 | `preview_validation_repair` | Non-destructive repair preview |
 | `apply_validation_repair` | Apply a suggested repair |
 
-## Events
+## Response format
+
+All canvas/layer/stroke commands return a `CanvasFrame`:
+
+```typescript
+interface CanvasFrame {
+  width: number;
+  height: number;
+  data: number[];        // RGBA flat array (width × height × 4)
+  layers: LayerInfo[];   // Layer metadata for the panel
+  activeLayerId: string | null;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+```
+
+## Events (planned)
 
 | Event | Payload |
 |-------|---------|

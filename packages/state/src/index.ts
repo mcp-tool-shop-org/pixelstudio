@@ -1,8 +1,9 @@
 export { useAppShellStore } from './appShellStore';
 export { useProjectStore } from './projectStore';
 export { useWorkspaceStore } from './workspaceStore';
-export { useCanvasViewStore } from './canvasViewStore';
+export { useCanvasViewStore, ZOOM_STEPS } from './canvasViewStore';
 export { useToolStore } from './toolStore';
+export type { RgbaColor } from './toolStore';
 export { useSelectionStore } from './selectionStore';
 export { useLayerStore } from './layerStore';
 export { usePaletteStore } from './paletteStore';
