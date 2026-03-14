@@ -18,4 +18,4 @@ export { useValidationStore } from './validationStore';
 export { useProvenanceStore } from './provenanceStore';
 export { useExportStore } from './exportStore';
 export { useSandboxStore } from './sandboxStore';
-export { useScenePlaybackStore } from './scenePlaybackStore';
+export { useScenePlaybackStore, deriveShotsFromCameraKeyframes } from './scenePlaybackStore';

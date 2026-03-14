@@ -4746,6 +4746,7 @@
 }
 
 .camkf-col-tick { width: 36px; text-align: right; }
+.camkf-col-name { width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .camkf-col-xy { width: 44px; text-align: right; }
 .camkf-col-zoom { width: 38px; text-align: right; }
 .camkf-col-interp { width: 24px; text-align: center; }
@@ -4908,4 +4909,40 @@
   font-size: 9px;
   color: var(--error, #e55);
   padding: 2px 0;
+}
+
+/* View toggle (Keyframes / Shots) */
+
+.camkf-view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+
+.camkf-view-btn {
+  flex: 1;
+  padding: 2px 0;
+  font-size: 9px;
+  font-weight: 600;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #1e1e1e);
+  color: var(--text-muted, #888);
+  border-radius: 2px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.camkf-view-btn.active {
+  background: var(--accent-bg, rgba(53, 120, 229, 0.25));
+  color: var(--accent, #5599ee);
+  border-color: var(--accent, #3578e5);
+}
+
+.camkf-name-cell {
+  font-size: 9px;
+  color: var(--text-muted, #999);
+}
+
+.camkf-field-wide {
+  grid-column: 1 / -1;
 }

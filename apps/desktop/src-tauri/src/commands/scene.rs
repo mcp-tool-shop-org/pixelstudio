@@ -539,6 +539,7 @@ pub fn add_scene_camera_keyframe(
     y: f64,
     zoom: f64,
     interpolation: Option<CameraInterpolationMode>,
+    name: Option<String>,
     state: State<'_, ManagedSceneState>,
 ) -> Result<Vec<SceneCameraKeyframe>, AppError> {
     let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
@@ -558,6 +559,7 @@ pub fn add_scene_camera_keyframe(
         y,
         zoom: clamped_zoom,
         interpolation: interp,
+        name,
     });
 
     scene.document.camera_keyframes.sort_by_key(|k| k.tick);
@@ -574,6 +576,7 @@ pub fn update_scene_camera_keyframe(
     y: Option<f64>,
     zoom: Option<f64>,
     interpolation: Option<CameraInterpolationMode>,
+    name: Option<String>,
     state: State<'_, ManagedSceneState>,
 ) -> Result<Vec<SceneCameraKeyframe>, AppError> {
     let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
@@ -601,6 +604,11 @@ pub fn update_scene_camera_keyframe(
     }
     if let Some(new_interp) = interpolation {
         kf.interpolation = new_interp;
+    }
+    // name is double-wrapped: outer Option = "was this param sent?", inner = the value
+    // When sent, it replaces the current name (Some("x") sets name, None clears it)
+    if name.is_some() {
+        kf.name = name;
     }
 
     scene.dirty = true;

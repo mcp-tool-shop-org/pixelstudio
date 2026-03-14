@@ -128,6 +128,9 @@ pub struct SceneCameraKeyframe {
     /// Interpolation mode from previous keyframe to this one.
     #[serde(default)]
     pub interpolation: CameraInterpolationMode,
+    /// Optional human-readable name for this keyframe / shot marker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// Scene-level playback configuration.

@@ -52,6 +52,24 @@ export interface SceneCameraKeyframe {
   zoom: number;
   /** Interpolation mode from previous keyframe to this one. */
   interpolation: CameraInterpolationMode;
+  /** Optional human-readable name for this keyframe / shot marker. */
+  name?: string;
+}
+
+/** A derived shot — a segment between two named (or boundary) keyframes. */
+export interface SceneCameraShot {
+  /** Shot name (from the starting keyframe, or auto-generated). */
+  name: string;
+  /** Starting tick (inclusive). */
+  startTick: number;
+  /** Ending tick (exclusive — next shot's start, or scene end). */
+  endTick: number;
+  /** Duration in ticks. */
+  durationTicks: number;
+  /** Interpolation mode of the starting keyframe. */
+  interpolation: CameraInterpolationMode;
+  /** Index of the starting keyframe in the sorted keyframes array. */
+  keyframeIndex: number;
 }
 
 /** Scene-level playback configuration. */

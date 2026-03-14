@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe } from '@pixelstudio/domain';
+import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe, SceneCameraShot } from '@pixelstudio/domain';
 
 /** Pure camera resolver — identical algorithm to Rust resolve_scene_camera_at_tick. */
 function resolveCameraAtTick(
@@ -286,3 +286,35 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
       cameraKeyframes: [],
     }),
 }));
+
+/**
+ * Derive named shots from camera keyframes.
+ * Each keyframe becomes a shot that spans from its tick to the next keyframe's tick (or totalTicks).
+ * Names come from the keyframe's name field, falling back to "Shot N".
+ */
+export function deriveShotsFromCameraKeyframes(
+  keyframes: SceneCameraKeyframe[],
+  totalTicks: number,
+): SceneCameraShot[] {
+  if (keyframes.length === 0) return [];
+
+  const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+  const shots: SceneCameraShot[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const kf = sorted[i];
+    const endTick = i < sorted.length - 1 ? sorted[i + 1].tick : Math.max(totalTicks, kf.tick + 1);
+    const durationTicks = endTick - kf.tick;
+
+    shots.push({
+      name: kf.name ?? `Shot ${i + 1}`,
+      startTick: kf.tick,
+      endTick,
+      durationTicks,
+      interpolation: kf.interpolation,
+      keyframeIndex: i,
+    });
+  }
+
+  return shots;
+}

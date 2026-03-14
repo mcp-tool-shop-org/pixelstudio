@@ -902,6 +902,11 @@ If all metadata fields are at defaults (empty name, version `0.1.0`, no author/d
 | `set_scene_camera_position` | `x: number, y: number` | `SceneCamera` | Set camera center position |
 | `set_scene_camera_zoom` | `zoom: number` | `SceneCamera` | Set camera zoom (clamped 0.1–10.0) |
 | `reset_scene_camera` | — | `SceneCamera` | Reset camera to default (origin, zoom 1.0) |
+| `get_scene_camera_at_tick` | `tick: number` | `SceneCamera` | Get resolved camera at a tick (evaluates keyframe interpolation) |
+| `list_scene_camera_keyframes` | — | `SceneCameraKeyframe[]` | List all camera keyframes sorted by tick |
+| `add_scene_camera_keyframe` | `tick, x, y, zoom, interpolation?, name?` | `SceneCameraKeyframe[]` | Add/replace keyframe at tick, returns all keyframes |
+| `update_scene_camera_keyframe` | `tick, x?, y?, zoom?, interpolation?, name?` | `SceneCameraKeyframe[]` | Patch keyframe fields at tick |
+| `delete_scene_camera_keyframe` | `tick: number` | `SceneCameraKeyframe[]` | Delete keyframe, returns remaining keyframes |
 | `get_scene_timeline_summary` | — | `SceneTimelineSummary` | Get scene timeline span and timing info |
 | `seek_scene_tick` | `tick: number` | `SceneTimelineSummary` | Validate seek target against timeline |
 
@@ -933,6 +938,34 @@ interface SceneCamera {
   name?: string;           // optional label
 }
 ```
+
+### SceneCameraKeyframe
+
+```typescript
+interface SceneCameraKeyframe {
+  tick: number;              // tick at which this key takes effect
+  x: number;                 // camera X position
+  y: number;                 // camera Y position
+  zoom: number;              // zoom factor
+  interpolation: 'hold' | 'linear';
+  name?: string;             // optional shot/key label
+}
+```
+
+### SceneCameraShot (frontend-derived)
+
+```typescript
+interface SceneCameraShot {
+  name: string;              // from keyframe name, or "Shot N"
+  startTick: number;         // inclusive
+  endTick: number;           // exclusive (next shot start or scene end)
+  durationTicks: number;
+  interpolation: 'hold' | 'linear';
+  keyframeIndex: number;     // index into sorted keyframes array
+}
+```
+
+Derived via `deriveShotsFromCameraKeyframes(keyframes, totalTicks)` — each keyframe defines a shot segment that runs until the next keyframe.
 
 ### SceneTimelineSummary
 

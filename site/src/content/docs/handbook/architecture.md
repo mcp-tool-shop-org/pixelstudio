@@ -56,7 +56,7 @@ The frontend never holds pixel truth. Every pixel mutation goes through Rust and
 
 ## State model
 
-The frontend uses 14 Zustand stores organized by domain, plus a canvas frame store for rendering:
+The frontend uses 15 Zustand stores organized by domain, plus a canvas frame store for rendering:
 
 | Store | Responsibility |
 |-------|---------------|
@@ -74,6 +74,7 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 | validation | Reports, issues, repair previews |
 | provenance | Operation log with deterministic/probabilistic badges |
 | export | Preset selection, readiness, preview state |
+| scenePlayback | Scene clock, camera resolver, keyframes, shot derivation |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -88,7 +89,7 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-123 implemented Tauri commands across:
+163 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
 - **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
@@ -103,5 +104,5 @@ The frontend uses 14 Zustand stores organized by domain, plus a canvas frame sto
 - **Asset Catalog** (6): list assets, get/upsert/remove catalog entry, refresh catalog, generate thumbnail (file-backed index separate from projects)
 - **Bundle Packaging** (4): preview/export asset bundle, preview/export catalog bundle (multi-asset with per-asset subfolders)
 - **Package Metadata** (2): get/set asset package metadata (name, version, author, description, tags — persisted with project)
-- **Scene** (26): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick
+- **Scene** (32): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick
 - Plus stubs for palette, validation, AI, locomotion analysis, and provenance
