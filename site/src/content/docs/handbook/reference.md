@@ -967,6 +967,33 @@ interface SceneCameraShot {
 
 Derived via `deriveShotsFromCameraKeyframes(keyframes, totalTicks)` — each keyframe defines a shot segment that runs until the next keyframe.
 
+### CameraTimelineMarker (frontend-derived)
+
+```typescript
+interface CameraTimelineMarker {
+  tick: number;
+  x: number;
+  y: number;
+  zoom: number;
+  interpolation: 'hold' | 'linear';
+  name: string | undefined;
+  index: number;             // sorted position
+}
+```
+
+Derived via `deriveCameraTimelineMarkers(keyframes)` — sorted marker positions for the camera timeline lane.
+
+### Camera timeline lane helpers
+
+| Helper | Signature | Purpose |
+|--------|-----------|---------|
+| `deriveCameraTimelineMarkers` | `(keyframes) → CameraTimelineMarker[]` | Sorted markers for lane rendering |
+| `deriveShotsFromCameraKeyframes` | `(keyframes, totalTicks) → SceneCameraShot[]` | Shot segments between keyframes |
+| `findCurrentCameraShotAtTick` | `(shots, tick) → SceneCameraShot \| null` | Which shot contains the given tick |
+| `findCameraKeyframeAtTick` | `(keyframes, tick) → { keyframe, index } \| null` | Exact keyframe at a tick |
+
+All helpers are pure functions exported from `@pixelstudio/state`. The camera timeline lane uses these to project `cameraKeyframes[]` into visual elements without maintaining a separate data model.
+
 ### SceneTimelineSummary
 
 ```typescript

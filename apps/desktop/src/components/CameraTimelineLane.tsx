@@ -167,7 +167,7 @@ export function CameraTimelineLane() {
       </div>
       <div className="cam-lane-body">
         {!hasKeyframes ? (
-          <div className="cam-lane-empty">No camera keyframes</div>
+          <div className="cam-lane-empty">No camera keyframes — use + to add</div>
         ) : (
           <div className="cam-lane-track">
             {/* Shot span bars */}

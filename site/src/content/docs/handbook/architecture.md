@@ -74,7 +74,7 @@ The frontend uses 15 Zustand stores organized by domain, plus a canvas frame sto
 | validation | Reports, issues, repair previews |
 | provenance | Operation log with deterministic/probabilistic badges |
 | export | Preset selection, readiness, preview state |
-| scenePlayback | Scene clock, camera resolver, keyframes, shot derivation |
+| scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, timeline lane state |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
