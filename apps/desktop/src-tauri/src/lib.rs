@@ -53,6 +53,15 @@ pub fn run() {
             selection::cut_selection,
             selection::paste_selection,
             selection::delete_selection,
+            selection::begin_selection_transform,
+            selection::move_selection_preview,
+            selection::nudge_selection,
+            selection::commit_selection_transform,
+            selection::cancel_selection_transform,
+            selection::flip_selection_horizontal,
+            selection::flip_selection_vertical,
+            selection::rotate_selection_90_cw,
+            selection::rotate_selection_90_ccw,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PixelStudio");

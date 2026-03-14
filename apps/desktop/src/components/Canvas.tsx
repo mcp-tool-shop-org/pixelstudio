@@ -51,6 +51,9 @@ export function Canvas() {
   // Marching ants animation
   const antOffsetRef = useRef(0);
   const antAnimRef = useRef<number | null>(null);
+  // Transform drag state
+  const isTransformDraggingRef = useRef(false);
+  const transformDragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
 
   const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -77,6 +80,10 @@ export function Canvas() {
   const setSelection = useSelectionStore((s) => s.setSelection);
   const clearSelection = useSelectionStore((s) => s.clearSelection);
   const hasSelection = useSelectionStore((s) => s.hasSelection);
+  const isTransforming = useSelectionStore((s) => s.isTransforming);
+  const transformPreview = useSelectionStore((s) => s.transformPreview);
+  const setTransform = useSelectionStore((s) => s.setTransform);
+  const clearTransform = useSelectionStore((s) => s.clearTransform);
 
   // Unclamped screen-to-pixel (allows coords outside canvas for drag)
   const screenToPixelUnclamped = useCallback(
@@ -216,36 +223,75 @@ export function Canvas() {
       ctx.stroke();
     }
 
-    // --- Selection overlay ---
-    const sel = dragSelection || selectionBounds;
-    if (sel) {
-      const sx = originX + sel.x * zoom;
-      const sy = originY + sel.y * zoom;
-      const sw = sel.width * zoom;
-      const sh = sel.height * zoom;
+    // --- Transform preview overlay ---
+    if (transformPreview) {
+      const tp = transformPreview;
+      const tpX = originX + (tp.sourceX + tp.offsetX) * zoom;
+      const tpY = originY + (tp.sourceY + tp.offsetY) * zoom;
 
-      // Semi-transparent fill
-      ctx.fillStyle = 'rgba(100,160,255,0.08)';
-      ctx.fillRect(sx, sy, sw, sh);
+      // Draw each pixel of the payload
+      for (let py = 0; py < tp.payloadHeight; py++) {
+        for (let px = 0; px < tp.payloadWidth; px++) {
+          const i = (py * tp.payloadWidth + px) * 4;
+          const a = tp.payloadData[i + 3];
+          if (a === 0) continue;
+          const sx = tpX + px * zoom;
+          const sy = tpY + py * zoom;
+          if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
+          if (a === 255) {
+            ctx.fillStyle = `rgb(${tp.payloadData[i]},${tp.payloadData[i + 1]},${tp.payloadData[i + 2]})`;
+          } else {
+            ctx.fillStyle = `rgba(${tp.payloadData[i]},${tp.payloadData[i + 1]},${tp.payloadData[i + 2]},${a / 255})`;
+          }
+          ctx.fillRect(sx, sy, zoom, zoom);
+        }
+      }
 
-      // Marching ants border
+      // Marching ants around transform payload
+      const tpSW = tp.payloadWidth * zoom;
+      const tpSH = tp.payloadHeight * zoom;
       ctx.save();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1;
       ctx.setLineDash(SELECTION_DASH);
       ctx.lineDashOffset = -antOffsetRef.current;
-      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
-
+      ctx.strokeRect(tpX + 0.5, tpY + 0.5, tpSW - 1, tpSH - 1);
       ctx.strokeStyle = '#000';
       ctx.lineDashOffset = -(antOffsetRef.current + 4);
-      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+      ctx.strokeRect(tpX + 0.5, tpY + 0.5, tpSW - 1, tpSH - 1);
       ctx.restore();
+    } else {
+      // --- Selection overlay (only when not transforming) ---
+      const sel = dragSelection || selectionBounds;
+      if (sel) {
+        const sx = originX + sel.x * zoom;
+        const sy = originY + sel.y * zoom;
+        const sw = sel.width * zoom;
+        const sh = sel.height * zoom;
+
+        // Semi-transparent fill
+        ctx.fillStyle = 'rgba(100,160,255,0.08)';
+        ctx.fillRect(sx, sy, sw, sh);
+
+        // Marching ants border
+        ctx.save();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.setLineDash(SELECTION_DASH);
+        ctx.lineDashOffset = -antOffsetRef.current;
+        ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+
+        ctx.strokeStyle = '#000';
+        ctx.lineDashOffset = -(antOffsetRef.current + 4);
+        ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+        ctx.restore();
+      }
     }
 
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection]);
+  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -273,7 +319,7 @@ export function Canvas() {
     return () => {
       if (antAnimRef.current) cancelAnimationFrame(antAnimRef.current);
     };
-  }, [!!dragSelection, !!selectionBounds, render]);
+  }, [!!dragSelection, !!selectionBounds, !!transformPreview, render]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -309,10 +355,54 @@ export function Canvas() {
         return;
       }
 
+      // Move tool or drag inside selection during transform — begin or continue transform
+      if (e.button === 0 && (activeTool === 'move' || isTransforming)) {
+        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (!pixel) return;
+
+        const selState = useSelectionStore.getState();
+
+        // If we have a selection but no active transform yet, begin one
+        if (selState.hasSelection && !selState.isTransforming) {
+          const sel = selState.selectionBounds;
+          if (sel && pixel.x >= sel.x && pixel.x < sel.x + sel.width && pixel.y >= sel.y && pixel.y < sel.y + sel.height) {
+            try {
+              const result = await invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>('begin_selection_transform');
+              setFrame(result.frame);
+              syncLayersFromFrame(result.frame);
+              setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
+              isTransformDraggingRef.current = true;
+              transformDragStartRef.current = { x: pixel.x, y: pixel.y, offsetX: 0, offsetY: 0 };
+              canvas.setPointerCapture(e.pointerId);
+            } catch (err) { console.error('begin_selection_transform failed:', err); }
+            return;
+          }
+        }
+
+        // Already transforming — drag to move
+        if (selState.isTransforming && selState.transformPreview) {
+          isTransformDraggingRef.current = true;
+          transformDragStartRef.current = { x: pixel.x, y: pixel.y, offsetX: selState.transformPreview.offsetX, offsetY: selState.transformPreview.offsetY };
+          canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+
       // Marquee tool
       if (e.button === 0 && activeTool === 'marquee') {
         const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
         if (pixel && frame) {
+          // If transforming and clicking outside, commit first
+          if (isTransforming) {
+            try {
+              const f = await invoke<CanvasFrameData>('commit_selection_transform');
+              setFrame(f);
+              syncLayersFromFrame(f);
+              clearTransform();
+              markDirty();
+              invoke('mark_dirty').catch(() => {});
+            } catch (err) { console.error('commit_selection_transform failed:', err); }
+          }
           isSelectingRef.current = true;
           selectionStartRef.current = pixel;
           canvas.setPointerCapture(e.pointerId);
@@ -341,7 +431,7 @@ export function Canvas() {
         }
       }
     },
-    [activeTool, primaryColor, screenToPixel, screenToPixelUnclamped, sendStrokePoints, frame],
+    [activeTool, primaryColor, screenToPixel, screenToPixelUnclamped, sendStrokePoints, frame, isTransforming, setTransform, setFrame, clearTransform, markDirty],
   );
 
   const handlePointerMove = useCallback(
@@ -354,6 +444,22 @@ export function Canvas() {
         const dy = e.clientY - lastPanRef.current.y;
         lastPanRef.current = { x: e.clientX, y: e.clientY };
         panBy(dx, dy);
+        return;
+      }
+
+      // Transform drag
+      if (isTransformDraggingRef.current) {
+        const current = screenToPixelUnclamped(e.clientX, e.clientY);
+        const start = transformDragStartRef.current;
+        if (current && start) {
+          const newOffsetX = start.offsetX + (current.x - start.x);
+          const newOffsetY = start.offsetY + (current.y - start.y);
+          invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>('move_selection_preview', { offsetX: newOffsetX, offsetY: newOffsetY })
+            .then((result) => {
+              setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
+            })
+            .catch(() => {});
+        }
         return;
       }
 
@@ -394,10 +500,17 @@ export function Canvas() {
         lastPixelRef.current = pixel;
       }
     },
-    [screenToPixel, screenToPixelUnclamped, panBy, sendStrokePoints, frame],
+    [screenToPixel, screenToPixelUnclamped, panBy, sendStrokePoints, frame, setTransform],
   );
 
   const handlePointerUp = useCallback(async () => {
+    // Transform drag complete (just stop dragging, don't commit)
+    if (isTransformDraggingRef.current) {
+      isTransformDraggingRef.current = false;
+      transformDragStartRef.current = null;
+      return;
+    }
+
     // Marquee complete
     if (isSelectingRef.current) {
       isSelectingRef.current = false;
@@ -455,10 +568,49 @@ export function Canvas() {
         return;
       }
 
-      // Esc clears selection
+      // Enter commits active transform
+      if (e.code === 'Enter' && useSelectionStore.getState().isTransforming) {
+        e.preventDefault();
+        try {
+          const f = await invoke<CanvasFrameData>('commit_selection_transform');
+          setFrame(f);
+          syncLayersFromFrame(f);
+          clearTransform();
+          markDirty();
+          invoke('mark_dirty').catch(() => {});
+        } catch (err) { console.error('commit_selection_transform failed:', err); }
+        return;
+      }
+
+      // Esc cancels transform or clears selection
       if (e.code === 'Escape') {
+        if (useSelectionStore.getState().isTransforming) {
+          try {
+            const f = await invoke<CanvasFrameData>('cancel_selection_transform');
+            setFrame(f);
+            syncLayersFromFrame(f);
+            clearTransform();
+          } catch (err) { console.error('cancel_selection_transform failed:', err); }
+          return;
+        }
         clearSelection();
         invoke('clear_selection').catch(() => {});
+        return;
+      }
+
+      // Arrow keys nudge during transform
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && useSelectionStore.getState().isTransforming) {
+        e.preventDefault();
+        const step = e.shiftKey ? 8 : 1;
+        let dx = 0, dy = 0;
+        if (e.code === 'ArrowLeft') dx = -step;
+        if (e.code === 'ArrowRight') dx = step;
+        if (e.code === 'ArrowUp') dy = -step;
+        if (e.code === 'ArrowDown') dy = step;
+        try {
+          const result = await invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>('nudge_selection', { dx, dy });
+          setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
+        } catch (err) { console.error('nudge_selection failed:', err); }
         return;
       }
 
@@ -544,7 +696,7 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [setFrame, markDirty, clearSelection]);
+  }, [setFrame, markDirty, clearSelection, clearTransform, setTransform]);
 
   const zoomPercent = `${zoom * 100}%`;
   const pixelCoord = hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '\u2014';
@@ -553,11 +705,15 @@ export function Canvas() {
     ? `${selectionBounds.width}\u00d7${selectionBounds.height}`
     : null;
 
-  const cursor = activeTool === 'pencil' || activeTool === 'eraser'
-    ? 'crosshair'
-    : activeTool === 'marquee'
+  const cursor = isTransforming
+    ? 'move'
+    : activeTool === 'pencil' || activeTool === 'eraser'
       ? 'crosshair'
-      : 'default';
+      : activeTool === 'marquee'
+        ? 'crosshair'
+        : activeTool === 'move'
+          ? 'move'
+          : 'default';
 
   return (
     <main className="canvas-container" ref={containerRef}>
@@ -578,6 +734,7 @@ export function Canvas() {
         <span style={{ color: colorHex }}>{colorHex}</span>
         <span>{activeTool}</span>
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
+        {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
       </div>

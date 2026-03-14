@@ -5,6 +5,7 @@ export { useCanvasViewStore, ZOOM_STEPS } from './canvasViewStore';
 export { useToolStore } from './toolStore';
 export type { RgbaColor } from './toolStore';
 export { useSelectionStore } from './selectionStore';
+export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
 export { usePaletteStore } from './paletteStore';
 export { useTimelineStore } from './timelineStore';
