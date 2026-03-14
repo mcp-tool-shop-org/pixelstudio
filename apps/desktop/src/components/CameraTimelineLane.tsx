@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   useScenePlaybackStore,
   deriveShotsFromCameraKeyframes,
@@ -6,11 +7,12 @@ import {
   findCurrentCameraShotAtTick,
 } from '@pixelstudio/state';
 import type { CameraTimelineMarker } from '@pixelstudio/state';
-import type { SceneCameraShot } from '@pixelstudio/domain';
+import type { SceneCameraKeyframe, SceneCameraShot, CameraInterpolationMode } from '@pixelstudio/domain';
 
 /**
  * Camera timeline lane — renders keyframe markers and shot span bars
  * within the scene timeline. Click markers/shots to select and navigate.
+ * Lane toolbar provides add/delete/nav without needing the dock panel.
  */
 export function CameraTimelineLane() {
   const cameraKeyframes = useScenePlaybackStore((s) => s.cameraKeyframes);
@@ -19,6 +21,11 @@ export function CameraTimelineLane() {
   const selectedKeyframeTick = useScenePlaybackStore((s) => s.selectedKeyframeTick);
   const selectKeyframe = useScenePlaybackStore((s) => s.selectKeyframe);
   const seekToTick = useScenePlaybackStore((s) => s.seekToTick);
+  const cameraX = useScenePlaybackStore((s) => s.cameraX);
+  const cameraY = useScenePlaybackStore((s) => s.cameraY);
+  const cameraZoom = useScenePlaybackStore((s) => s.cameraZoom);
+
+  const [busy, setBusy] = useState(false);
 
   const markers: CameraTimelineMarker[] = useMemo(
     () => deriveCameraTimelineMarkers(cameraKeyframes),
@@ -41,7 +48,6 @@ export function CameraTimelineLane() {
   }, [selectKeyframe, seekToTick]);
 
   const handleShotClick = useCallback((shot: SceneCameraShot) => {
-    // Select the starting keyframe for this shot
     const kf = cameraKeyframes.find((k) => k.tick === shot.startTick);
     if (kf) {
       selectKeyframe(kf.tick);
@@ -49,12 +55,110 @@ export function CameraTimelineLane() {
     seekToTick(shot.startTick);
   }, [cameraKeyframes, selectKeyframe, seekToTick]);
 
+  // --- Lane actions ---
+  const handleAddKey = useCallback(async () => {
+    setBusy(true);
+    try {
+      const kfs = await invoke<SceneCameraKeyframe[]>('add_scene_camera_keyframe', {
+        tick: currentTick,
+        x: cameraX,
+        y: cameraY,
+        zoom: cameraZoom,
+        interpolation: 'linear' as CameraInterpolationMode,
+      });
+      useScenePlaybackStore.getState().setCameraKeyframes(kfs);
+      selectKeyframe(currentTick);
+    } catch {
+      // ignore — panel will show error if open
+    } finally {
+      setBusy(false);
+    }
+  }, [currentTick, cameraX, cameraY, cameraZoom, selectKeyframe]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedKeyframeTick === null) return;
+    setBusy(true);
+    try {
+      const kfs = await invoke<SceneCameraKeyframe[]>('delete_scene_camera_keyframe', {
+        tick: selectedKeyframeTick,
+      });
+      useScenePlaybackStore.getState().setCameraKeyframes(kfs);
+      selectKeyframe(null);
+    } catch {
+      // ignore
+    } finally {
+      setBusy(false);
+    }
+  }, [selectedKeyframeTick, selectKeyframe]);
+
+  const handlePrevKey = useCallback(() => {
+    const sorted = [...cameraKeyframes].sort((a, b) => a.tick - b.tick);
+    const before = sorted.filter((k) => k.tick < currentTick);
+    if (before.length > 0) {
+      const target = before[before.length - 1];
+      selectKeyframe(target.tick);
+      seekToTick(target.tick);
+    }
+  }, [cameraKeyframes, currentTick, selectKeyframe, seekToTick]);
+
+  const handleNextKey = useCallback(() => {
+    const sorted = [...cameraKeyframes].sort((a, b) => a.tick - b.tick);
+    const after = sorted.filter((k) => k.tick > currentTick);
+    if (after.length > 0) {
+      selectKeyframe(after[0].tick);
+      seekToTick(after[0].tick);
+    }
+  }, [cameraKeyframes, currentTick, selectKeyframe, seekToTick]);
+
+  const handleJumpToSelected = useCallback(() => {
+    if (selectedKeyframeTick !== null) {
+      seekToTick(selectedKeyframeTick);
+    }
+  }, [selectedKeyframeTick, seekToTick]);
+
   const hasKeyframes = markers.length > 0;
+  const hasPrev = cameraKeyframes.some((k) => k.tick < currentTick);
+  const hasNext = cameraKeyframes.some((k) => k.tick > currentTick);
 
   return (
     <div className="cam-lane">
       <div className="cam-lane-header">
-        <span className="cam-lane-label">{'\uD83C\uDFA5'} Camera</span>
+        <div className="cam-lane-header-top">
+          <span className="cam-lane-label">{'\uD83C\uDFA5'} Camera</span>
+          <div className="cam-lane-actions">
+            <button
+              className="cam-lane-action-btn"
+              title="Add key at playhead"
+              onClick={handleAddKey}
+              disabled={busy}
+            >+</button>
+            <button
+              className="cam-lane-action-btn"
+              title="Delete selected key"
+              onClick={handleDeleteSelected}
+              disabled={selectedKeyframeTick === null || busy}
+            >{'\u2715'}</button>
+            <button
+              className="cam-lane-action-btn"
+              title="Previous key"
+              onClick={handlePrevKey}
+              disabled={!hasPrev}
+            >{'\u25C0'}</button>
+            <button
+              className="cam-lane-action-btn"
+              title="Next key"
+              onClick={handleNextKey}
+              disabled={!hasNext}
+            >{'\u25B6'}</button>
+            {selectedKeyframeTick !== null && (
+              <button
+                className="cam-lane-action-btn"
+                title="Jump to selected"
+                onClick={handleJumpToSelected}
+              >{'\u23CE'}</button>
+            )}
+          </div>
+        </div>
         {currentShot && (
           <span className="cam-lane-current-shot" title={`Current: ${currentShot.name}`}>
             {currentShot.name}

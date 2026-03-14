@@ -4638,13 +4638,52 @@
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  padding: 2px 8px;
-  min-width: 90px;
-  max-width: 90px;
+  padding: 2px 4px;
+  min-width: 120px;
+  max-width: 120px;
   background: var(--bg-secondary, #1a1a2e);
   border-right: 1px solid var(--border, #333);
   user-select: none;
   gap: 1px;
+}
+
+.cam-lane-header-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.cam-lane-actions {
+  display: flex;
+  gap: 1px;
+  margin-left: auto;
+}
+
+.cam-lane-action-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted, #999);
+  font-size: 9px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.cam-lane-action-btn:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #ddd);
+  border-color: var(--border, #444);
+}
+
+.cam-lane-action-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .cam-lane-current-shot {
