@@ -4623,6 +4623,126 @@
   white-space: nowrap;
 }
 
+/* ===== Camera Timeline Lane ===== */
+
+.cam-lane {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--border, #333);
+  min-height: 32px;
+  font-size: 10px;
+}
+
+.cam-lane-header {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  min-width: 80px;
+  max-width: 80px;
+  background: var(--bg-secondary, #1a1a2e);
+  border-right: 1px solid var(--border, #333);
+  user-select: none;
+}
+
+.cam-lane-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted, #999);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cam-lane-body {
+  flex: 1;
+  position: relative;
+  min-height: 28px;
+  overflow: hidden;
+}
+
+.cam-lane-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted, #666);
+  font-size: 10px;
+  font-style: italic;
+  user-select: none;
+}
+
+.cam-lane-track {
+  position: relative;
+  height: 100%;
+  min-height: 28px;
+}
+
+.cam-lane-shot {
+  position: absolute;
+  top: 2px;
+  height: calc(100% - 4px);
+  background: var(--accent-dim, rgba(80, 120, 200, 0.15));
+  border: 1px solid var(--accent-border, rgba(80, 120, 200, 0.3));
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cam-lane-shot.current {
+  background: var(--accent-dim-active, rgba(80, 120, 200, 0.25));
+  border-color: var(--accent, #5078c8);
+}
+
+.cam-lane-shot-label {
+  padding: 0 4px;
+  font-size: 9px;
+  color: var(--text-secondary, #aaa);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.cam-lane-marker {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.cam-lane-marker::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 7px;
+  height: 7px;
+  background: var(--accent, #5078c8);
+  border: 1px solid var(--accent-bright, #6090e0);
+  border-radius: 1px;
+}
+
+.cam-lane-marker.at-playhead::after {
+  background: var(--highlight, #e0e040);
+  border-color: var(--highlight-bright, #f0f060);
+}
+
+.cam-lane-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--playhead, #ff6060);
+  z-index: 3;
+  pointer-events: none;
+}
+
 /* ===== Camera Keyframe Panel ===== */
 
 .camkf-panel {

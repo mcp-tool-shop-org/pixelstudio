@@ -15,6 +15,7 @@ import { PresetPanel } from './PresetPanel';
 import { ClipPanel } from './ClipPanel';
 import { ExportPreviewPanel } from './ExportPreviewPanel';
 import { ScenePlaybackControls } from './ScenePlaybackControls';
+import { CameraTimelineLane } from './CameraTimelineLane';
 
 interface TimelineResult {
   frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>;
@@ -309,6 +310,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     return (
       <footer className="bottom-dock">
         <ScenePlaybackControls />
+        <CameraTimelineLane />
       </footer>
     );
   }

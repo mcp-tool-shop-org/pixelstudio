@@ -318,3 +318,57 @@ export function deriveShotsFromCameraKeyframes(
 
   return shots;
 }
+
+/** Marker data for timeline lane rendering. */
+export interface CameraTimelineMarker {
+  tick: number;
+  x: number;
+  y: number;
+  zoom: number;
+  interpolation: 'hold' | 'linear';
+  name: string | undefined;
+  index: number;
+}
+
+/** Derive marker positions from keyframes for timeline lane rendering. */
+export function deriveCameraTimelineMarkers(
+  keyframes: SceneCameraKeyframe[],
+): CameraTimelineMarker[] {
+  const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+  return sorted.map((kf, i) => ({
+    tick: kf.tick,
+    x: kf.x,
+    y: kf.y,
+    zoom: kf.zoom,
+    interpolation: kf.interpolation,
+    name: kf.name,
+    index: i,
+  }));
+}
+
+/** Find the shot that contains a given tick, or null if none. */
+export function findCurrentCameraShotAtTick(
+  shots: SceneCameraShot[],
+  tick: number,
+): SceneCameraShot | null {
+  for (const shot of shots) {
+    if (tick >= shot.startTick && tick < shot.endTick) {
+      return shot;
+    }
+  }
+  return null;
+}
+
+/** Find the exact keyframe at a given tick, or null if no keyframe sits there. */
+export function findCameraKeyframeAtTick(
+  keyframes: SceneCameraKeyframe[],
+  tick: number,
+): { keyframe: SceneCameraKeyframe; index: number } | null {
+  const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].tick === tick) {
+      return { keyframe: sorted[i], index: i };
+    }
+  }
+  return null;
+}
