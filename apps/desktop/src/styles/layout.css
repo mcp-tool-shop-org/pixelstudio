@@ -4699,12 +4699,21 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.cam-lane-shot:hover {
+  background: var(--accent-dim, rgba(80, 120, 200, 0.2));
 }
 
 .cam-lane-shot.current {
   background: var(--accent-dim-active, rgba(80, 120, 200, 0.25));
   border-color: var(--accent, #5078c8);
+}
+
+.cam-lane-shot.selected {
+  border-color: var(--highlight, #e0e040);
+  box-shadow: 0 0 0 1px var(--highlight, #e0e040);
 }
 
 .cam-lane-shot.hold {
@@ -4753,11 +4762,11 @@
 .cam-lane-marker {
   position: absolute;
   top: 0;
-  width: 8px;
+  width: 14px;
   height: 100%;
   transform: translateX(-50%);
   z-index: 2;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .cam-lane-marker::after {
@@ -4778,6 +4787,13 @@
   transform: translate(-50%, -50%);
   width: 6px;
   height: 6px;
+}
+
+.cam-lane-marker.selected::after {
+  background: var(--highlight, #e0e040);
+  border-color: var(--highlight-bright, #f0f060);
+  width: 9px;
+  height: 9px;
 }
 
 .cam-lane-marker.at-playhead::after {

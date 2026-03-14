@@ -8,7 +8,6 @@ type ViewMode = 'keyframes' | 'shots';
 /** Camera keyframe authoring panel — list, add, edit, delete, jump between keys. */
 export function CameraKeyframePanel() {
   const [keyframes, setKeyframes] = useState<SceneCameraKeyframe[]>([]);
-  const [selectedTick, setSelectedTick] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('keyframes');
 
@@ -18,6 +17,8 @@ export function CameraKeyframePanel() {
   const cameraY = useScenePlaybackStore((s) => s.cameraY);
   const cameraZoom = useScenePlaybackStore((s) => s.cameraZoom);
   const seekToTick = useScenePlaybackStore((s) => s.seekToTick);
+  const selectedTick = useScenePlaybackStore((s) => s.selectedKeyframeTick);
+  const selectKeyframe = useScenePlaybackStore((s) => s.selectKeyframe);
 
   const shots = useMemo(
     () => deriveShotsFromCameraKeyframes(keyframes, totalTicks),
@@ -42,7 +43,7 @@ export function CameraKeyframePanel() {
   // Clear selection if the selected keyframe was deleted
   useEffect(() => {
     if (selectedTick !== null && !keyframes.some((k) => k.tick === selectedTick)) {
-      setSelectedTick(null);
+      selectKeyframe(null);
     }
   }, [keyframes, selectedTick]);
 
@@ -59,7 +60,7 @@ export function CameraKeyframePanel() {
       });
       setKeyframes(kfs);
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
-      setSelectedTick(currentTick);
+      selectKeyframe(currentTick);
     } catch (err) {
       setError(String(err));
     }
@@ -80,7 +81,7 @@ export function CameraKeyframePanel() {
   // Jump playhead to a keyframe tick
   const handleJumpTo = useCallback((tick: number) => {
     seekToTick(tick);
-    setSelectedTick(tick);
+    selectKeyframe(tick);
   }, [seekToTick]);
 
   // Navigate to previous/next keyframe
@@ -206,7 +207,7 @@ export function CameraKeyframePanel() {
           keyframes={keyframes}
           selectedTick={selectedTick}
           currentTick={currentTick}
-          onSelect={setSelectedTick}
+          onSelect={selectKeyframe}
           onJump={handleJumpTo}
           onDelete={handleDelete}
         />

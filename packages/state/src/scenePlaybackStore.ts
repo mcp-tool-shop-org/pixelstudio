@@ -94,6 +94,9 @@ interface ScenePlaybackStoreState {
   /** Camera keyframes from document (sorted by tick). */
   cameraKeyframes: SceneCameraKeyframe[];
 
+  /** Selected camera keyframe tick (shared between lane and panel). Null = no selection. */
+  selectedKeyframeTick: number | null;
+
   // Actions
   setPlaying: (playing: boolean) => void;
   setFps: (fps: number) => void;
@@ -114,6 +117,8 @@ interface ScenePlaybackStoreState {
   setCameraKeyframes: (keyframes: SceneCameraKeyframe[]) => void;
   /** Set the base/manual camera values (persisted state). */
   setBaseCamera: (x: number, y: number, zoom: number) => void;
+  /** Select a camera keyframe by tick. Null clears selection. */
+  selectKeyframe: (tick: number | null) => void;
   clearAll: () => void;
 }
 
@@ -137,6 +142,8 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
   baseCameraZoom: 1.0,
 
   cameraKeyframes: [],
+
+  selectedKeyframeTick: null,
 
   setPlaying: (playing) =>
     set((s) => ({
@@ -267,6 +274,8 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
     set({ baseCameraX: x, baseCameraY: y, baseCameraZoom: clampedZoom });
   },
 
+  selectKeyframe: (tick) => set({ selectedKeyframeTick: tick }),
+
   clearAll: () =>
     set({
       isPlaying: false,
@@ -284,6 +293,7 @@ export const useScenePlaybackStore = create<ScenePlaybackStoreState>((set, get) 
       baseCameraY: 0,
       baseCameraZoom: 1.0,
       cameraKeyframes: [],
+      selectedKeyframeTick: null,
     }),
 }));
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   useScenePlaybackStore,
   deriveShotsFromCameraKeyframes,
@@ -10,12 +10,15 @@ import type { SceneCameraShot } from '@pixelstudio/domain';
 
 /**
  * Camera timeline lane — renders keyframe markers and shot span bars
- * within the scene timeline. Read-only; interactions come in Commit 3.
+ * within the scene timeline. Click markers/shots to select and navigate.
  */
 export function CameraTimelineLane() {
   const cameraKeyframes = useScenePlaybackStore((s) => s.cameraKeyframes);
   const totalTicks = useScenePlaybackStore((s) => s.totalTicks);
   const currentTick = useScenePlaybackStore((s) => s.currentTick);
+  const selectedKeyframeTick = useScenePlaybackStore((s) => s.selectedKeyframeTick);
+  const selectKeyframe = useScenePlaybackStore((s) => s.selectKeyframe);
+  const seekToTick = useScenePlaybackStore((s) => s.seekToTick);
 
   const markers: CameraTimelineMarker[] = useMemo(
     () => deriveCameraTimelineMarkers(cameraKeyframes),
@@ -31,6 +34,20 @@ export function CameraTimelineLane() {
     () => findCurrentCameraShotAtTick(shots, currentTick),
     [shots, currentTick],
   );
+
+  const handleMarkerClick = useCallback((tick: number) => {
+    selectKeyframe(tick);
+    seekToTick(tick);
+  }, [selectKeyframe, seekToTick]);
+
+  const handleShotClick = useCallback((shot: SceneCameraShot) => {
+    // Select the starting keyframe for this shot
+    const kf = cameraKeyframes.find((k) => k.tick === shot.startTick);
+    if (kf) {
+      selectKeyframe(kf.tick);
+    }
+    seekToTick(shot.startTick);
+  }, [cameraKeyframes, selectKeyframe, seekToTick]);
 
   const hasKeyframes = markers.length > 0;
 
@@ -56,7 +73,9 @@ export function CameraTimelineLane() {
                 shot={shot}
                 totalTicks={totalTicks}
                 isCurrent={currentShot?.startTick === shot.startTick}
+                isSelected={selectedKeyframeTick === shot.startTick}
                 isLast={i === shots.length - 1}
+                onClick={handleShotClick}
               />
             ))}
             {/* Keyframe markers */}
@@ -66,6 +85,8 @@ export function CameraTimelineLane() {
                 marker={marker}
                 totalTicks={totalTicks}
                 isAtPlayhead={marker.tick === currentTick}
+                isSelected={marker.tick === selectedKeyframeTick}
+                onClick={handleMarkerClick}
               />
             ))}
             {/* Playhead */}
@@ -84,27 +105,31 @@ function CamShotBar({
   shot,
   totalTicks,
   isCurrent,
+  isSelected,
   isLast,
+  onClick,
 }: {
   shot: SceneCameraShot;
   totalTicks: number;
   isCurrent: boolean;
+  isSelected: boolean;
   isLast: boolean;
+  onClick: (shot: SceneCameraShot) => void;
 }) {
   const max = Math.max(1, totalTicks - 1);
   const left = (shot.startTick / max) * 100;
-  // Clamp the right edge to 100% so the last shot doesn't overflow
   const rawWidth = ((shot.endTick - shot.startTick) / max) * 100;
   const width = Math.min(rawWidth, 100 - left);
 
   const interpBadge = shot.interpolation === 'hold' ? 'H' : 'L';
   const durationLabel = `${shot.durationTicks}t`;
   const rangeLabel = `${shot.startTick}–${shot.endTick - 1}`;
-  const endLabel = isLast ? `\u2192 End` : '';
+  const endLabel = isLast ? '\u2192 End' : '';
 
   const cls = [
     'cam-lane-shot',
     isCurrent ? 'current' : '',
+    isSelected ? 'selected' : '',
     shot.interpolation === 'hold' ? 'hold' : 'linear',
   ].filter(Boolean).join(' ');
 
@@ -113,6 +138,7 @@ function CamShotBar({
       className={cls}
       style={{ left: `${left}%`, width: `${width}%` }}
       title={`${shot.name} (${rangeLabel}, ${durationLabel}, ${shot.interpolation})`}
+      onClick={() => onClick(shot)}
     >
       <span className="cam-lane-shot-badge">{interpBadge}</span>
       <span className="cam-lane-shot-label">{shot.name}</span>
@@ -127,10 +153,14 @@ function CamMarker({
   marker,
   totalTicks,
   isAtPlayhead,
+  isSelected,
+  onClick,
 }: {
   marker: CameraTimelineMarker;
   totalTicks: number;
   isAtPlayhead: boolean;
+  isSelected: boolean;
+  onClick: (tick: number) => void;
 }) {
   const max = Math.max(1, totalTicks - 1);
   const left = (marker.tick / max) * 100;
@@ -138,6 +168,7 @@ function CamMarker({
   const cls = [
     'cam-lane-marker',
     isAtPlayhead ? 'at-playhead' : '',
+    isSelected ? 'selected' : '',
     marker.interpolation === 'hold' ? 'hold' : 'linear',
   ].filter(Boolean).join(' ');
 
@@ -149,6 +180,7 @@ function CamMarker({
       className={cls}
       style={{ left: `${left}%` }}
       title={detail}
+      onClick={() => onClick(marker.tick)}
     />
   );
 }
