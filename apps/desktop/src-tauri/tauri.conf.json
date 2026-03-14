@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicholasrice/tauri/main/crates/tauri-cli/schema.json",
+  "productName": "PixelStudio",
+  "version": "0.1.0",
+  "identifier": "com.mcptoolshop.pixelstudio",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "PixelStudio",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "fs": {
+      "scope": {
+        "allow": ["$APPDATA/**", "$HOME/**", "$DESKTOP/**", "$DOCUMENT/**"],
+        "deny": []
+      }
+    }
+  }
+}
