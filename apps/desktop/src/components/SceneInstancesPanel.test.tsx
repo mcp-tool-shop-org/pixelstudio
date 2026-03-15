@@ -1288,8 +1288,12 @@ describe('SceneInstancesPanel', () => {
     expect(screen.getByTitle('Sever source relationship — instance keeps its snapshot')).toBeInTheDocument();
   });
 
-  it('clicking Unlink changes status to "Unlinked" and hides Reapply/Unlink', async () => {
-    mock.on('get_scene_instances', () => [INST_CHAR]);
+  it('clicking Unlink invokes backend command and updates UI', async () => {
+    const unlinkedResult: SceneAssetInstance = { ...INST_CHAR, characterLinkMode: 'unlinked' };
+    let afterUnlink = false;
+    mock.on('get_scene_instances', () => [afterUnlink ? unlinkedResult : INST_CHAR]);
+    mock.on('unlink_scene_instance_from_source', () => { afterUnlink = true; return unlinkedResult; });
+    mock.on('mark_dirty', () => undefined);
     seedStores({ libraryBuildIds: ['build-1'] });
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
@@ -1300,8 +1304,11 @@ describe('SceneInstancesPanel', () => {
     expect(screen.getByText('Unlink')).toBeInTheDocument();
     // Click Unlink
     await act(async () => { await userEvent.click(screen.getByText('Unlink')); });
+    // Verify backend command was invoked
+    const calls = mock.fn.mock.calls.map((c: unknown[]) => c[0]);
+    expect(calls).toContain('unlink_scene_instance_from_source');
     // After unlink: Unlinked status, no Reapply, no Unlink, Relink visible
-    expect(screen.getByText('Unlinked')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('Unlinked')).toBeInTheDocument(); });
     expect(screen.queryByText('Reapply from Source')).toBeNull();
     expect(screen.queryByText('Unlink')).toBeNull();
     expect(screen.getByText('Relink')).toBeInTheDocument();
@@ -1345,16 +1352,23 @@ describe('SceneInstancesPanel', () => {
     expect(screen.queryByText('Reapply from Source')).toBeNull();
   });
 
-  it('clicking Relink restores linked status and shows Reapply/Unlink', async () => {
-    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+  it('clicking Relink invokes backend command and restores linked status', async () => {
+    const relinkedResult: SceneAssetInstance = { ...INST_CHAR_UNLINKED, characterLinkMode: undefined };
+    let afterRelink = false;
+    mock.on('get_scene_instances', () => [afterRelink ? relinkedResult : INST_CHAR_UNLINKED]);
+    mock.on('relink_scene_instance_to_source', () => { afterRelink = true; return relinkedResult; });
+    mock.on('mark_dirty', () => undefined);
     seedStores({ libraryBuildIds: ['build-1'] });
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
     // Click Relink
     await act(async () => { await userEvent.click(screen.getByText('Relink')); });
+    // Verify backend command was invoked
+    const calls = mock.fn.mock.calls.map((c: unknown[]) => c[0]);
+    expect(calls).toContain('relink_scene_instance_to_source');
     // After relink: Linked status, Reapply enabled, Unlink available, no Relink
-    expect(screen.getByText('Linked')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('Linked')).toBeInTheDocument(); });
     expect(screen.getByText('Reapply from Source')).toBeInTheDocument();
     expect(screen.getByText('Unlink')).toBeInTheDocument();
     expect(screen.queryByText('Relink')).toBeNull();
@@ -1410,6 +1424,58 @@ describe('SceneInstancesPanel', () => {
     expect(screen.queryByText('Reapply from Source')).toBeNull();
   });
 
+  it('unlink command passes correct instanceId argument', async () => {
+    const unlinkedResult: SceneAssetInstance = { ...INST_CHAR, characterLinkMode: 'unlinked' };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    mock.on('unlink_scene_instance_from_source', () => unlinkedResult);
+    mock.on('mark_dirty', () => undefined);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    await act(async () => { await userEvent.click(screen.getByText('Unlink')); });
+    const unlinkCall = mock.fn.mock.calls.find((c: unknown[]) => c[0] === 'unlink_scene_instance_from_source');
+    expect(unlinkCall).toBeDefined();
+    expect((unlinkCall![1] as { instanceId: string }).instanceId).toBe('i4');
+  });
+
+  it('relink command passes correct instanceId argument', async () => {
+    const relinkedResult: SceneAssetInstance = { ...INST_CHAR_UNLINKED, characterLinkMode: undefined };
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    mock.on('relink_scene_instance_to_source', () => relinkedResult);
+    mock.on('mark_dirty', () => undefined);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    await act(async () => { await userEvent.click(screen.getByText('Relink')); });
+    const relinkCall = mock.fn.mock.calls.find((c: unknown[]) => c[0] === 'relink_scene_instance_to_source');
+    expect(relinkCall).toBeDefined();
+    expect((relinkCall![1] as { instanceId: string }).instanceId).toBe('i6');
+  });
+
+  it('unlink command error is displayed to user', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    mock.on('unlink_scene_instance_from_source', () => { throw new Error('Instance is not a character'); });
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    await act(async () => { await userEvent.click(screen.getByText('Unlink')); });
+    expect(screen.getByText(/Instance is not a character/)).toBeInTheDocument();
+  });
+
+  it('relink command error is displayed to user', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    mock.on('relink_scene_instance_to_source', () => { throw new Error('Instance is not currently unlinked'); });
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    await act(async () => { await userEvent.click(screen.getByText('Relink')); });
+    expect(screen.getByText(/Instance is not currently unlinked/)).toBeInTheDocument();
+  });
+
   it('Unlink button absent for missing-source instances', async () => {
     mock.on('get_scene_instances', () => [INST_CHAR_ORPHAN]);
     seedStores({ libraryBuildIds: [] });
@@ -1419,5 +1485,35 @@ describe('SceneInstancesPanel', () => {
     expect(screen.getByText('Source missing')).toBeInTheDocument();
     expect(screen.queryByText('Unlink')).toBeNull();
     expect(screen.queryByText('Relink')).toBeNull();
+  });
+
+  // ── Dirty-flag / persistence audit tests ──
+
+  it('unlink marks project dirty via mark_dirty command', async () => {
+    const unlinkedResult: SceneAssetInstance = { ...INST_CHAR, characterLinkMode: 'unlinked' };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    mock.on('unlink_scene_instance_from_source', () => unlinkedResult);
+    mock.on('mark_dirty', () => undefined);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    await act(async () => { await userEvent.click(screen.getByText('Unlink')); });
+    const markDirtyCalls = mock.fn.mock.calls.filter((c: unknown[]) => c[0] === 'mark_dirty');
+    expect(markDirtyCalls.length).toBeGreaterThan(0);
+  });
+
+  it('relink marks project dirty via mark_dirty command', async () => {
+    const relinkedResult: SceneAssetInstance = { ...INST_CHAR_UNLINKED, characterLinkMode: undefined };
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    mock.on('relink_scene_instance_to_source', () => relinkedResult);
+    mock.on('mark_dirty', () => undefined);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    await act(async () => { await userEvent.click(screen.getByText('Relink')); });
+    const markDirtyCalls = mock.fn.mock.calls.filter((c: unknown[]) => c[0] === 'mark_dirty');
+    expect(markDirtyCalls.length).toBeGreaterThan(0);
   });
 });

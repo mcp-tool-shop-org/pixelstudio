@@ -8,7 +8,7 @@ import {
   deriveEffectiveCharacterSlotStates, setSlotOverride, clearSlotOverride, clearAllOverrides,
   overrideSummary, effectiveSlotSummary, hasOverrides,
   effectiveCompositionAsBuild, classifyAllPresetsForSlot,
-  canReapplyFromSource, canRelinkToSource, unlinkFromSource, relinkToSource,
+  canReapplyFromSource, canRelinkToSource,
 } from '@glyphstudio/state';
 
 export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: CharacterPartPreset[] }) {
@@ -121,6 +121,28 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     setInstances((prev) => prev.map((i) => i.instanceId === updated.instanceId ? updated : i));
   }, []);
 
+  const handleUnlink = useCallback(async (instanceId: string) => {
+    try {
+      const updated = await invoke<SceneAssetInstance>('unlink_scene_instance_from_source', { instanceId });
+      setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
+      notifyDirty();
+      refresh();
+    } catch (err) {
+      setError(String(err));
+    }
+  }, [refresh, notifyDirty]);
+
+  const handleRelink = useCallback(async (instanceId: string) => {
+    try {
+      const updated = await invoke<SceneAssetInstance>('relink_scene_instance_to_source', { instanceId });
+      setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
+      notifyDirty();
+      refresh();
+    } catch (err) {
+      setError(String(err));
+    }
+  }, [refresh, notifyDirty]);
+
   // Sort by z-order descending (top items first in list)
   const sorted = [...instances].sort((a, b) => b.zOrder - a.zOrder);
 
@@ -213,6 +235,8 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
             buildLibrary={buildLibrary}
             partCatalog={partCatalog}
             onReapply={handleReapply}
+            onUnlink={handleUnlink}
+            onRelink={handleRelink}
             onInstanceUpdate={handleInstanceUpdate}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
@@ -252,6 +276,8 @@ function InstanceDetailPane({
   buildLibrary,
   partCatalog,
   onReapply,
+  onUnlink,
+  onRelink,
   onInstanceUpdate,
   onOpacityChange,
   onParallaxChange,
@@ -262,6 +288,8 @@ function InstanceDetailPane({
   buildLibrary: { builds: { id: string; name: string; slots: Record<string, unknown> }[] };
   partCatalog: CharacterPartPreset[];
   onReapply: (instanceId: string) => void;
+  onUnlink: (instanceId: string) => void;
+  onRelink: (instanceId: string) => void;
   onInstanceUpdate: (updated: SceneAssetInstance) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
@@ -381,7 +409,7 @@ function InstanceDetailPane({
                 <button
                   className="scene-instance-unlink-btn"
                   title="Sever source relationship — instance keeps its snapshot"
-                  onClick={() => onInstanceUpdate(unlinkFromSource(instance))}
+                  onClick={() => onUnlink(instance.instanceId)}
                 >
                   Unlink
                 </button>
@@ -390,7 +418,7 @@ function InstanceDetailPane({
                 <button
                   className="scene-instance-relink-btn"
                   title="Restore source relationship"
-                  onClick={() => onInstanceUpdate(relinkToSource(instance))}
+                  onClick={() => onRelink(instance.instanceId)}
                 >
                   Relink
                 </button>

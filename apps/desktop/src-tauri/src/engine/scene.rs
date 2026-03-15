@@ -31,6 +31,58 @@ pub struct SceneDocument {
     pub updated_at: String,
 }
 
+/// Instance kind — distinguishes generic assets from character-derived instances.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SceneInstanceKind {
+    Asset,
+    Character,
+}
+
+/// Source link mode for a character scene instance.
+///
+/// - `Linked`: instance tracks its source build (default when absent)
+/// - `Unlinked`: source relationship intentionally severed by user
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CharacterSourceLinkMode {
+    Linked,
+    Unlinked,
+}
+
+/// Snapshot of a character build's equipped slots at placement time.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSlotSnapshot {
+    /// Equipped slot entries — slot ID → source part ID.
+    pub slots: std::collections::HashMap<String, String>,
+    /// Number of equipped slots at time of snapshot.
+    pub equipped_count: u32,
+    /// Total slots in the vocabulary at time of snapshot.
+    pub total_slots: u32,
+}
+
+/// Override mode for a single slot on a character instance.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CharacterSlotOverrideMode {
+    Replace,
+    Remove,
+}
+
+/// A local override for a single slot on a placed character instance.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSlotOverride {
+    /// Which slot this override applies to.
+    pub slot: String,
+    /// Override mode.
+    pub mode: CharacterSlotOverrideMode,
+    /// Replacement part source ID (only for 'replace' mode).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_part_id: Option<String>,
+}
+
 /// A placed asset instance within a scene.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +93,24 @@ pub struct SceneAssetInstance {
     /// Optional asset catalog ID for quick lookup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    /// Instance kind — 'asset' (default) or 'character'.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_kind: Option<SceneInstanceKind>,
+    /// Source character build ID this instance was derived from (character instances only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_character_build_id: Option<String>,
+    /// Snapshot of the character build's name at placement time (character instances only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_character_build_name: Option<String>,
+    /// Snapshot of equipped slots at placement time (character instances only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub character_slot_snapshot: Option<CharacterSlotSnapshot>,
+    /// Local slot overrides for this character instance (character instances only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub character_overrides: Option<std::collections::HashMap<String, CharacterSlotOverride>>,
+    /// Source link mode — defaults to 'linked' when absent (character instances only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub character_link_mode: Option<CharacterSourceLinkMode>,
     /// Display name for the instance (defaults from asset name).
     pub name: String,
     /// Which clip to play (None = first clip or static).
@@ -193,6 +263,12 @@ impl SceneAssetInstance {
             instance_id: uuid::Uuid::new_v4().to_string(),
             source_path,
             asset_id: None,
+            instance_kind: None,
+            source_character_build_id: None,
+            source_character_build_name: None,
+            character_slot_snapshot: None,
+            character_overrides: None,
+            character_link_mode: None,
             name,
             clip_id: None,
             x: 0,

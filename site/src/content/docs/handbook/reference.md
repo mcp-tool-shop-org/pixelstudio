@@ -909,6 +909,8 @@ If all metadata fields are at defaults (empty name, version `0.1.0`, no author/d
 | `delete_scene_camera_keyframe` | `tick: number` | `SceneCameraKeyframe[]` | Delete keyframe, returns remaining keyframes |
 | `get_scene_timeline_summary` | — | `SceneTimelineSummary` | Get scene timeline span and timing info |
 | `seek_scene_tick` | `tick: number` | `SceneTimelineSummary` | Validate seek target against timeline |
+| `unlink_scene_instance_from_source` | `instanceId: string` | `SceneAssetInstance` | Sever source relationship — sets `characterLinkMode` to `'unlinked'`. Rejects non-character or already-unlinked instances |
+| `relink_scene_instance_to_source` | `instanceId: string` | `SceneAssetInstance` | Restore source relationship — clears `characterLinkMode`. Rejects non-character or not-currently-unlinked instances |
 
 ### SceneAssetInstance
 

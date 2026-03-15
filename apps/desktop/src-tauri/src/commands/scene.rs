@@ -673,3 +673,94 @@ pub fn export_scene_frame(
         warnings,
     })
 }
+
+// --- Character link mode commands ---
+
+/// Unlink a character instance from its source build.
+///
+/// Preserves snapshot, overrides, and sourceCharacterBuildId.
+/// Only mutates characterLinkMode → 'unlinked'.
+/// Rejects non-character instances and instances already unlinked.
+#[command]
+pub fn unlink_scene_instance_from_source(
+    instance_id: String,
+    state: State<'_, ManagedSceneState>,
+) -> Result<SceneAssetInstance, AppError> {
+    use crate::engine::scene::{CharacterSourceLinkMode, SceneInstanceKind};
+
+    let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_mut()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+
+    let inst = scene
+        .document
+        .find_instance_mut(&instance_id)
+        .ok_or_else(|| AppError::Internal(format!("Instance not found: {}", instance_id)))?;
+
+    // Must be a character instance
+    if inst.instance_kind != Some(SceneInstanceKind::Character) {
+        return Err(AppError::Internal(format!(
+            "Instance '{}' is not a character instance",
+            instance_id
+        )));
+    }
+
+    // Must not already be unlinked
+    if inst.character_link_mode == Some(CharacterSourceLinkMode::Unlinked) {
+        return Err(AppError::Internal(format!(
+            "Instance '{}' is already unlinked",
+            instance_id
+        )));
+    }
+
+    inst.character_link_mode = Some(CharacterSourceLinkMode::Unlinked);
+    let result = inst.clone();
+    scene.dirty = true;
+    Ok(result)
+}
+
+/// Relink a character instance to its source build.
+///
+/// Clears characterLinkMode (restores linked-by-default).
+/// Does NOT rewrite snapshot or overrides.
+/// Rejects non-character instances and instances not currently unlinked.
+#[command]
+pub fn relink_scene_instance_to_source(
+    instance_id: String,
+    state: State<'_, ManagedSceneState>,
+) -> Result<SceneAssetInstance, AppError> {
+    use crate::engine::scene::{CharacterSourceLinkMode, SceneInstanceKind};
+
+    let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_mut()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+
+    let inst = scene
+        .document
+        .find_instance_mut(&instance_id)
+        .ok_or_else(|| AppError::Internal(format!("Instance not found: {}", instance_id)))?;
+
+    // Must be a character instance
+    if inst.instance_kind != Some(SceneInstanceKind::Character) {
+        return Err(AppError::Internal(format!(
+            "Instance '{}' is not a character instance",
+            instance_id
+        )));
+    }
+
+    // Must currently be unlinked
+    if inst.character_link_mode != Some(CharacterSourceLinkMode::Unlinked) {
+        return Err(AppError::Internal(format!(
+            "Instance '{}' is not currently unlinked",
+            instance_id
+        )));
+    }
+
+    // Clear link mode — None means linked-by-default
+    inst.character_link_mode = None;
+    let result = inst.clone();
+    scene.dirty = true;
+    Ok(result)
+}
