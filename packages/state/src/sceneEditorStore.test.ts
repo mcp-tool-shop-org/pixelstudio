@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import { useSceneEditorStore } from './sceneEditorStore';
 import { createEmptySceneHistoryState } from './sceneHistoryEngine';
 import { resetProvenanceSequence } from './sceneProvenance';
@@ -1374,5 +1374,247 @@ describe('SceneEditorStore — drilldown derivation bridge', () => {
       expect(diff!.clearedSlots).toContain('head');
       expect(diff!.clearedSlots).toContain('torso');
     }
+  });
+});
+
+// ── Camera through applyEdit ──
+
+describe('sceneEditorStore — camera through applyEdit', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 100, y: 50, zoom: 2.0 };
+  const CAM_C: SceneCamera = { x: -30, y: 80, zoom: 0.5 };
+
+  beforeEach(() => {
+    resetProvenanceSequence();
+    useSceneEditorStore.setState({
+      instances: [INST_ASSET],
+      camera: undefined,
+      history: createEmptySceneHistoryState(),
+      provenance: [],
+      drilldownBySequence: {},
+      canUndo: false,
+      canRedo: false,
+    });
+  });
+
+  // ── loadCamera ──
+
+  it('loadCamera sets camera without recording history', () => {
+    const { loadCamera } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const state = useSceneEditorStore.getState();
+    expect(state.camera).toEqual(CAM_A);
+    expect(state.canUndo).toBe(false);
+    expect(state.provenance).toHaveLength(0);
+  });
+
+  // ── applyEdit with camera ──
+
+  it('applyEdit with nextCamera records camera in history and updates store camera', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    // Camera edit — instances differ to avoid no-op
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['x', 'y', 'zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+    const state = useSceneEditorStore.getState();
+    expect(state.camera).toEqual(CAM_B);
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].kind).toBe('set-scene-camera');
+  });
+
+  it('applyEdit without nextCamera preserves existing camera', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 200 };
+    applyEdit('move-instance', [movedInst], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_A);
+  });
+
+  it('camera-only no-op is skipped (identical instances, no camera change)', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    // Same instances, same camera — no-op
+    applyEdit('set-scene-camera', [INST_ASSET], {
+      changedFields: ['x'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_A,
+    }, CAM_A);
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  // ── undo / redo with camera ──
+
+  it('undo restores camera from before-snapshot', () => {
+    const { loadCamera, applyEdit, undo } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['x', 'y', 'zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_B);
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    expect(result!.camera).toEqual(CAM_A);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_A);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+  });
+
+  it('redo restores camera from after-snapshot', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['x', 'y', 'zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    useSceneEditorStore.getState().undo();
+    const result = useSceneEditorStore.getState().redo();
+    expect(result).toBeDefined();
+    expect(result!.camera).toEqual(CAM_B);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_B);
+  });
+
+  it('undo rollback restores camera to pre-undo state', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    // Simulate backend failure — rollback
+    result!.rollback();
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_B);
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+  });
+
+  it('redo rollback restores camera to pre-redo state', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    useSceneEditorStore.getState().undo();
+    const result = useSceneEditorStore.getState().redo();
+    expect(result).toBeDefined();
+    result!.rollback();
+    // Should restore to pre-redo state (camera A, after undo)
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_A);
+  });
+
+  // ── instance-only undo returns no camera ──
+
+  it('undo of instance-only edit returns undefined camera', () => {
+    const { applyEdit } = useSceneEditorStore.getState();
+    const movedInst = { ...INST_ASSET, x: 200 };
+    applyEdit('move-instance', [movedInst], { instanceId: 'i1' });
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    expect(result!.camera).toBeUndefined();
+  });
+
+  // ── multi-step camera history ──
+
+  it('multiple camera edits create separate undo entries', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+
+    // Edit 1: A → B
+    const inst1 = { ...INST_ASSET, x: 111 };
+    applyEdit('set-scene-camera', [inst1], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    // Edit 2: B → C
+    useSceneEditorStore.getState().loadCamera(CAM_B);
+    const inst2 = { ...INST_ASSET, x: 222 };
+    useSceneEditorStore.getState().applyEdit('set-scene-camera', [inst2], {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_B,
+      afterCamera: CAM_C,
+    }, CAM_C);
+
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(2);
+
+    // Undo → back to B
+    const r1 = useSceneEditorStore.getState().undo();
+    expect(r1!.camera).toEqual(CAM_B);
+
+    // Undo → back to A
+    const r2 = useSceneEditorStore.getState().undo();
+    expect(r2!.camera).toEqual(CAM_A);
+
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+  });
+
+  // ── provenance + drilldown for camera ──
+
+  it('camera applyEdit produces provenance entry with drilldown source', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(1);
+    const entry = provenance[0];
+    expect(entry.kind).toBe('set-scene-camera');
+
+    const src = drilldownBySequence[entry.sequence];
+    expect(src).toBeDefined();
+    expect(src.kind).toBe('set-scene-camera');
+    expect(src.metadata).toEqual({
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    });
+  });
+
+  // ── resetHistory clears camera-related provenance ──
+
+  it('resetHistory clears camera provenance and drilldown', () => {
+    const { loadCamera, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+
+    useSceneEditorStore.getState().resetHistory();
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(0);
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(0);
+    expect(state.canUndo).toBe(false);
+    expect(state.canRedo).toBe(false);
   });
 });

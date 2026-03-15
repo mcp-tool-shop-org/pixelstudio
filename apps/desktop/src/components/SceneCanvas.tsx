@@ -72,7 +72,9 @@ export function SceneCanvas() {
       }
       setSceneInfo(info);
       // Sync base camera from backend → store
-      useScenePlaybackStore.getState().setCamera(info.cameraX, info.cameraY, info.cameraZoom);
+      const cam: SceneCamera = { x: info.cameraX, y: info.cameraY, zoom: info.cameraZoom };
+      useScenePlaybackStore.getState().setCamera(cam.x, cam.y, cam.zoom);
+      useSceneEditorStore.getState().loadCamera(cam);
       // Load keyframes so tick-based camera resolution works
       const kfs = await invoke<SceneCameraKeyframe[]>('list_scene_camera_keyframes');
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
@@ -215,12 +217,24 @@ export function SceneCanvas() {
 
   const handleMouseUp = useCallback(async () => {
     if (panning) {
-      // Commit camera position to backend
+      // Commit camera pan through lawful edit seam
       const cam = useScenePlaybackStore.getState();
+      const beforeCam: SceneCamera = { x: panning.origCamX, y: panning.origCamY, zoom: cam.cameraZoom };
+      const afterCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: cam.cameraZoom };
       try {
-        await invoke('set_scene_camera_position', { x: cam.cameraX, y: cam.cameraY });
+        await invoke('set_scene_camera_position', { x: afterCam.x, y: afterCam.y });
+        useProjectStore.getState().markDirty();
+        invoke('mark_dirty').catch(() => {});
+        // Record via editor store — use loadCamera to set before, then applyEdit with after
+        useSceneEditorStore.getState().loadCamera(beforeCam);
+        applyEdit('set-scene-camera', instances, {
+          changedFields: ['x', 'y'],
+          beforeCamera: beforeCam,
+          afterCamera: afterCam,
+        }, afterCam);
       } catch {
-        // ignore
+        // Restore camera on failure
+        useScenePlaybackStore.getState().setCameraPosition(panning.origCamX, panning.origCamY);
       }
       setPanning(null);
       return;
@@ -274,25 +288,51 @@ export function SceneCanvas() {
   }, []);
 
   // Wheel zoom (centered on mouse position)
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const handleWheel = useCallback(async (e: React.WheelEvent) => {
     e.preventDefault();
     const cam = useScenePlaybackStore.getState();
+    const oldZoom = cam.cameraZoom;
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    const newZoom = Math.max(0.1, Math.min(10.0, cam.cameraZoom * factor));
+    const newZoom = Math.max(0.1, Math.min(10.0, oldZoom * factor));
     setCameraZoom(newZoom);
-    // Commit to backend (debounced via next mouseup or explicit save)
-    invoke('set_scene_camera_zoom', { zoom: newZoom }).catch(() => {});
-  }, [setCameraZoom]);
+    const beforeCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: oldZoom };
+    const afterCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: newZoom };
+    try {
+      await invoke('set_scene_camera_zoom', { zoom: newZoom });
+      useProjectStore.getState().markDirty();
+      invoke('mark_dirty').catch(() => {});
+      useSceneEditorStore.getState().loadCamera(beforeCam);
+      applyEdit('set-scene-camera', instances, {
+        changedFields: ['zoom'],
+        beforeCamera: beforeCam,
+        afterCamera: afterCam,
+      }, afterCam);
+    } catch {
+      setCameraZoom(oldZoom);
+    }
+  }, [setCameraZoom, instances, applyEdit]);
 
   // Reset camera handler
   const handleResetCamera = useCallback(async () => {
+    const cam = useScenePlaybackStore.getState();
+    const beforeCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: cam.cameraZoom };
+    const afterCam: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
     resetCamera();
     try {
       await invoke('reset_scene_camera');
+      useProjectStore.getState().markDirty();
+      invoke('mark_dirty').catch(() => {});
+      useSceneEditorStore.getState().loadCamera(beforeCam);
+      applyEdit('set-scene-camera', instances, {
+        changedFields: ['x', 'y', 'zoom'],
+        beforeCamera: beforeCam,
+        afterCamera: afterCam,
+      }, afterCam);
     } catch {
-      // ignore
+      // Restore camera on failure
+      useScenePlaybackStore.getState().setCamera(beforeCam.x, beforeCam.y, beforeCam.zoom);
     }
-  }, [resetCamera]);
+  }, [resetCamera, instances, applyEdit]);
 
   // Scene undo/redo keyboard shortcuts
   const sceneUndo = useSceneEditorStore((s) => s.undo);
@@ -318,6 +358,11 @@ export function SceneCanvas() {
         if (result) {
           try {
             await invoke('restore_scene_instances', { instances: result.instances });
+            if (result.camera) {
+              useScenePlaybackStore.getState().setCamera(result.camera.x, result.camera.y, result.camera.zoom);
+              await invoke('set_scene_camera_position', { x: result.camera.x, y: result.camera.y });
+              await invoke('set_scene_camera_zoom', { zoom: result.camera.zoom });
+            }
             useProjectStore.getState().markDirty();
             invoke('mark_dirty').catch(() => {});
           } catch {
@@ -330,6 +375,11 @@ export function SceneCanvas() {
         if (result) {
           try {
             await invoke('restore_scene_instances', { instances: result.instances });
+            if (result.camera) {
+              useScenePlaybackStore.getState().setCamera(result.camera.x, result.camera.y, result.camera.zoom);
+              await invoke('set_scene_camera_position', { x: result.camera.x, y: result.camera.y });
+              await invoke('set_scene_camera_zoom', { zoom: result.camera.zoom });
+            }
             useProjectStore.getState().markDirty();
             invoke('mark_dirty').catch(() => {});
           } catch {
@@ -498,6 +548,11 @@ export function SceneCanvas() {
               if (result) {
                 try {
                   await invoke('restore_scene_instances', { instances: result.instances });
+                  if (result.camera) {
+                    useScenePlaybackStore.getState().setCamera(result.camera.x, result.camera.y, result.camera.zoom);
+                    await invoke('set_scene_camera_position', { x: result.camera.x, y: result.camera.y });
+                    await invoke('set_scene_camera_zoom', { zoom: result.camera.zoom });
+                  }
                   useProjectStore.getState().markDirty();
                   invoke('mark_dirty').catch(() => {});
                 } catch {
@@ -515,6 +570,11 @@ export function SceneCanvas() {
               if (result) {
                 try {
                   await invoke('restore_scene_instances', { instances: result.instances });
+                  if (result.camera) {
+                    useScenePlaybackStore.getState().setCamera(result.camera.x, result.camera.y, result.camera.zoom);
+                    await invoke('set_scene_camera_position', { x: result.camera.x, y: result.camera.y });
+                    await invoke('set_scene_camera_zoom', { zoom: result.camera.zoom });
+                  }
                   useProjectStore.getState().markDirty();
                   invoke('mark_dirty').catch(() => {});
                 } catch {
@@ -529,19 +589,51 @@ export function SceneCanvas() {
           <button
             className="scene-camera-btn"
             title="Zoom in"
-            onClick={() => {
-              const z = Math.min(10.0, cameraZoom * 1.25);
-              setCameraZoom(z);
-              invoke('set_scene_camera_zoom', { zoom: z }).catch(() => {});
+            onClick={async () => {
+              const cam = useScenePlaybackStore.getState();
+              const oldZoom = cam.cameraZoom;
+              const newZoom = Math.min(10.0, oldZoom * 1.25);
+              setCameraZoom(newZoom);
+              const beforeCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: oldZoom };
+              const afterCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: newZoom };
+              try {
+                await invoke('set_scene_camera_zoom', { zoom: newZoom });
+                useProjectStore.getState().markDirty();
+                invoke('mark_dirty').catch(() => {});
+                useSceneEditorStore.getState().loadCamera(beforeCam);
+                applyEdit('set-scene-camera', instances, {
+                  changedFields: ['zoom'],
+                  beforeCamera: beforeCam,
+                  afterCamera: afterCam,
+                }, afterCam);
+              } catch {
+                setCameraZoom(oldZoom);
+              }
             }}
           >+</button>
           <button
             className="scene-camera-btn"
             title="Zoom out"
-            onClick={() => {
-              const z = Math.max(0.1, cameraZoom / 1.25);
-              setCameraZoom(z);
-              invoke('set_scene_camera_zoom', { zoom: z }).catch(() => {});
+            onClick={async () => {
+              const cam = useScenePlaybackStore.getState();
+              const oldZoom = cam.cameraZoom;
+              const newZoom = Math.max(0.1, oldZoom / 1.25);
+              setCameraZoom(newZoom);
+              const beforeCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: oldZoom };
+              const afterCam: SceneCamera = { x: cam.cameraX, y: cam.cameraY, zoom: newZoom };
+              try {
+                await invoke('set_scene_camera_zoom', { zoom: newZoom });
+                useProjectStore.getState().markDirty();
+                invoke('mark_dirty').catch(() => {});
+                useSceneEditorStore.getState().loadCamera(beforeCam);
+                applyEdit('set-scene-camera', instances, {
+                  changedFields: ['zoom'],
+                  beforeCamera: beforeCam,
+                  afterCamera: afterCam,
+                }, afterCam);
+              } catch {
+                setCameraZoom(oldZoom);
+              }
             }}
           >{'\u2212'}</button>
           <button
