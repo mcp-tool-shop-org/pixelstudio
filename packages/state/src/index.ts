@@ -122,3 +122,19 @@ export type {
   SceneHistoryCameraMeta,
   SceneHistoryOperationMetadata,
 } from './sceneHistory';
+export {
+  createEmptySceneHistoryState,
+  canUndoScene,
+  canRedoScene,
+  recordSceneHistoryEntry,
+  undoSceneHistory,
+  redoSceneHistory,
+  finishApplyingHistory,
+  applySceneEditWithHistory,
+} from './sceneHistoryEngine';
+export type {
+  SceneHistoryState,
+  SceneHistoryUndoResult,
+  SceneHistoryRedoResult,
+  ApplySceneEditResult,
+} from './sceneHistoryEngine';
