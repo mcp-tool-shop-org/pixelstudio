@@ -62,6 +62,7 @@ export {
   saveBuildToLibrary,
   deleteBuildFromLibrary,
   duplicateBuildInLibrary,
+  deriveDuplicateName,
   findBuildById,
   renameBuildInLibrary,
   hasBuildInLibrary,

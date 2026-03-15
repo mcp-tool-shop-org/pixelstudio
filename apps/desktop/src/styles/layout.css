@@ -5424,6 +5424,11 @@
   background: var(--surface-active, rgba(255, 255, 255, 0.08));
 }
 
+.char-library-row.active {
+  border-left: 2px solid var(--accent-primary, #64b5f6);
+  padding-left: 6px;
+}
+
 .char-library-row-info {
   display: flex;
   flex-direction: column;
@@ -5443,6 +5448,11 @@
 .char-library-row-meta {
   font-size: 10px;
   opacity: 0.5;
+}
+
+.char-library-row-date {
+  font-size: 9px;
+  opacity: 0.4;
 }
 
 .char-library-row-actions {

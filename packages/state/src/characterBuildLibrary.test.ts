@@ -13,6 +13,7 @@ import {
   saveBuildToLibrary,
   deleteBuildFromLibrary,
   duplicateBuildInLibrary,
+  deriveDuplicateName,
   findBuildById,
   renameBuildInLibrary,
   hasBuildInLibrary,
@@ -438,5 +439,66 @@ describe('library lifecycle round-trip', () => {
     expect(withWarrior.builds).toHaveLength(1);
     expect(withMage.builds).toHaveLength(2);
     expect(afterDelete.builds).toHaveLength(1);
+  });
+});
+
+// ── deriveDuplicateName ──
+
+describe('deriveDuplicateName', () => {
+  it('appends " Copy" when no collision exists', () => {
+    expect(deriveDuplicateName('Warrior', [])).toBe('Warrior Copy');
+  });
+
+  it('appends " Copy" when only unrelated names exist', () => {
+    expect(deriveDuplicateName('Warrior', ['Mage', 'Ranger'])).toBe('Warrior Copy');
+  });
+
+  it('appends " Copy 2" when "Copy" already exists', () => {
+    expect(deriveDuplicateName('Warrior', ['Warrior Copy'])).toBe('Warrior Copy 2');
+  });
+
+  it('increments to " Copy 3" when "Copy" and "Copy 2" exist', () => {
+    expect(deriveDuplicateName('Warrior', ['Warrior Copy', 'Warrior Copy 2'])).toBe('Warrior Copy 3');
+  });
+
+  it('finds gaps — skips to first available number', () => {
+    expect(deriveDuplicateName('Warrior', ['Warrior Copy', 'Warrior Copy 2', 'Warrior Copy 3'])).toBe('Warrior Copy 4');
+  });
+
+  it('strips existing " Copy" suffix from input name before deriving', () => {
+    // Duplicating "Warrior Copy" should produce "Warrior Copy 2", not "Warrior Copy Copy"
+    expect(deriveDuplicateName('Warrior Copy', ['Warrior Copy'])).toBe('Warrior Copy 2');
+  });
+
+  it('strips existing " Copy N" suffix from input name before deriving', () => {
+    expect(deriveDuplicateName('Warrior Copy 2', ['Warrior Copy', 'Warrior Copy 2'])).toBe('Warrior Copy 3');
+  });
+});
+
+// ── duplicateBuildInLibrary — smart naming integration ──
+
+describe('duplicateBuildInLibrary smart naming', () => {
+  it('uses smart naming to avoid collisions when duplicating repeatedly', () => {
+    let lib = createEmptyLibrary();
+    lib = saveBuildToLibrary(lib, WARRIOR_BUILD);
+
+    const dup1 = duplicateBuildInLibrary(lib, 'build-warrior');
+    expect(dup1.library.builds[0].name).toBe('Warrior Copy');
+
+    const dup2 = duplicateBuildInLibrary(dup1.library, 'build-warrior');
+    expect(dup2.library.builds[0].name).toBe('Warrior Copy 2');
+
+    const dup3 = duplicateBuildInLibrary(dup2.library, 'build-warrior');
+    expect(dup3.library.builds[0].name).toBe('Warrior Copy 3');
+  });
+
+  it('uses smart naming when duplicating a copy', () => {
+    let lib = createEmptyLibrary();
+    lib = saveBuildToLibrary(lib, WARRIOR_BUILD);
+
+    const dup1 = duplicateBuildInLibrary(lib, 'build-warrior');
+    // Now duplicate "Warrior Copy" itself
+    const dup2 = duplicateBuildInLibrary(dup1.library, dup1.newBuildId!);
+    expect(dup2.library.builds[0].name).toBe('Warrior Copy 2');
   });
 });

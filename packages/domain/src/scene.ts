@@ -8,6 +8,8 @@ export interface SceneAssetInstance {
   sourcePath: string;
   /** Optional asset catalog ID. */
   assetId?: string;
+  /** Optional character build ID this instance was derived from (future bridge). */
+  sourceCharacterBuildId?: string;
   /** Display name for the instance. */
   name: string;
   /** Which clip to play (undefined = first clip or static). */

@@ -1722,3 +1722,87 @@ describe('identity separation', () => {
     expect(useCharacterStore.getState().activeSavedBuildId).toBe(otherId);
   });
 });
+
+// ── Active build marker ──
+
+describe('active build marker', () => {
+  it('marks the library row matching activeSavedBuildId with data-active', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const savedId = useCharacterStore.getState().activeSavedBuildId!;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const row = screen.getByTestId(`char-library-row-${savedId}`);
+    expect(row.dataset.active).toBe('true');
+  });
+
+  it('does not mark non-active rows with data-active', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const activeId = useCharacterStore.getState().activeSavedBuildId!;
+    // Save a second build
+    useCharacterStore.getState().createCharacterBuild('Other');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    // The first build should not be active
+    const row = screen.getByTestId(`char-library-row-${activeId}`);
+    expect(row.dataset.active).toBe('false');
+  });
+
+  it('shows "Active" text in metadata for the active library row', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const savedId = useCharacterStore.getState().activeSavedBuildId!;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const meta = screen.getByTestId(`char-library-meta-${savedId}`);
+    expect(meta.textContent).toContain('Active');
+  });
+
+  it('does not show "Active" in metadata for non-active rows', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const firstId = useCharacterStore.getState().activeSavedBuildId!;
+    useCharacterStore.getState().createCharacterBuild('Other');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const meta = screen.getByTestId(`char-library-meta-${firstId}`);
+    expect(meta.textContent).not.toContain('Active');
+  });
+});
+
+// ── Library row timestamps ──
+
+describe('library row timestamps', () => {
+  it('renders the updatedAt date for each library row', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const savedId = useCharacterStore.getState().activeSavedBuildId!;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const dateEl = screen.getByTestId(`char-library-date-${savedId}`);
+    expect(dateEl.textContent).toBeTruthy();
+    // Should be a valid date string
+    expect(dateEl.textContent!.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Smart duplicate naming in UI ──
+
+describe('smart duplicate naming', () => {
+  it('duplicate produces "Name Copy", second duplicate produces "Name Copy 2"', async () => {
+    useCharacterStore.getState().createCharacterBuild('Hero');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const savedId = useCharacterStore.getState().activeSavedBuildId!;
+    // First duplicate
+    useCharacterStore.getState().duplicateLibraryBuild(savedId);
+    let builds = useCharacterStore.getState().buildLibrary.builds;
+    expect(builds[0].name).toBe('Hero Copy');
+    // Second duplicate of original
+    useCharacterStore.getState().duplicateLibraryBuild(savedId);
+    builds = useCharacterStore.getState().buildLibrary.builds;
+    expect(builds[0].name).toBe('Hero Copy 2');
+  });
+});

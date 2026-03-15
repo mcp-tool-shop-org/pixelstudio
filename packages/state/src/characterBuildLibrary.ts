@@ -117,8 +117,26 @@ export function deleteBuildFromLibrary(
 }
 
 /**
+ * Derive a unique duplicate name by appending " Copy", " Copy 2", etc.
+ * Scans existing library names to avoid collisions.
+ */
+export function deriveDuplicateName(
+  baseName: string,
+  existingNames: string[],
+): string {
+  // Strip any existing " Copy" / " Copy N" suffix to get the root
+  const root = baseName.replace(/ Copy(?: \d+)?$/, '');
+  const candidate = `${root} Copy`;
+  if (!existingNames.includes(candidate)) return candidate;
+
+  let n = 2;
+  while (existingNames.includes(`${root} Copy ${n}`)) n++;
+  return `${root} Copy ${n}`;
+}
+
+/**
  * Duplicate a build in the library.
- * Creates a new build with a new ID and optional new name.
+ * Creates a new build with a new ID and a unique name derived from the source.
  * The duplicate is prepended as the most recent entry.
  * Returns the new library and the duplicated build's ID.
  */
@@ -132,10 +150,11 @@ export function duplicateBuildInLibrary(
 
   const now = new Date().toISOString();
   const newId = generateSavedBuildId();
+  const existingNames = library.builds.map((b) => b.name);
   const duplicate: SavedCharacterBuild = {
     ...source,
     id: newId,
-    name: newName ?? `${source.name} Copy`,
+    name: newName ?? deriveDuplicateName(source.name, existingNames),
     slots: { ...source.slots },
     tags: source.tags ? [...source.tags] : undefined,
     createdAt: now,

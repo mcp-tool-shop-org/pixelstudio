@@ -206,22 +206,27 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
         <div className="char-library-list" data-testid="char-library-list">
           {library.builds.map((saved) => {
             const isSelected = selectedLibraryBuildId === saved.id;
+            const isActive = activeSavedBuildId === saved.id;
             const equipped = countEquippedSlots(saved.slots);
             const isConfirmingDelete = confirmingDeleteId === saved.id;
             return (
               <div
                 key={saved.id}
-                className={`char-library-row${isSelected ? ' selected' : ''}`}
+                className={`char-library-row${isSelected ? ' selected' : ''}${isActive ? ' active' : ''}`}
                 onClick={() => selectLibraryBuild(saved.id)}
                 data-testid={`char-library-row-${saved.id}`}
                 data-selected={isSelected ? 'true' : 'false'}
+                data-active={isActive ? 'true' : 'false'}
               >
                 <div className="char-library-row-info">
                   <span className="char-library-row-name" data-testid={`char-library-name-${saved.id}`}>
                     {saved.name}
                   </span>
                   <span className="char-library-row-meta" data-testid={`char-library-meta-${saved.id}`}>
-                    {equipped}/{TOTAL_SLOTS} slots
+                    {equipped}/{TOTAL_SLOTS} slots{isActive ? ' · Active' : ''}
+                  </span>
+                  <span className="char-library-row-date" data-testid={`char-library-date-${saved.id}`}>
+                    {new Date(saved.updatedAt).toLocaleDateString()}
                   </span>
                 </div>
                 <div className="char-library-row-actions">

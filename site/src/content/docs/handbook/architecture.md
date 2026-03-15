@@ -230,9 +230,63 @@ Each slot in the builder UI shows its current health at a glance:
 
 The Character Builder panel provides:
 
-1. **Header** — build name (double-click to rename), new/clear actions
+1. **Header** — build name (double-click to rename), dirty indicator, build status (New/Saved/Modified), save/save-as/revert/new/clear actions
 2. **Validation summary** — error/warning counts, distinct "Valid build" state with success styling
 3. **Slot list** — 12 slots in canonical order with health badges, equipped part IDs
 4. **Selected slot detail** — part info, remove/replace actions, per-slot issues with related-slot references, required-slot guidance
 5. **Preset picker** — inline part selection with compatibility classification, current occupant marker, incompatible toggle
 6. **Issue list** — grouped by severity (errors first, then warnings), each with slot badge
+7. **Build Library** — saved builds list with load/duplicate/delete, active build marker, timestamps
+
+### Persistence workflow
+
+Character builds are persisted to a **Build Library** stored in localStorage. The persistence layer uses strict type coercion on load to survive schema drift or corruption.
+
+#### Identity model
+
+Three distinct identity concepts prevent confusion:
+
+| Identity | Purpose | Where |
+|----------|---------|-------|
+| `activeCharacterBuild.id` | Editor build identity | `characterStore` |
+| `activeSavedBuildId` | Which saved artifact the editor derives from | `characterStore` |
+| `selectedLibraryBuildId` | Which library row is highlighted in the UI | `characterStore` |
+
+#### Save semantics
+
+- **Save** overwrites the library entry matching `activeCharacterBuild.id`. Clears dirty flag, sets `activeSavedBuildId`.
+- **Save As New** generates a new ID, forks the build, saves to library. The editor now tracks the new ID as its saved identity.
+- **Revert** restores the last saved version from library (by `activeSavedBuildId`), clears dirty flag.
+
+#### Dirty state
+
+Any edit (name change, equip, unequip) sets `isDirty = true`. Save/load/revert clears it. Deleting the active saved build orphans the editor (clears `activeSavedBuildId`, marks dirty).
+
+#### Load protection
+
+When `isDirty` is true, loading a library build triggers an inline confirmation ("Discard changes? Yes/No") instead of immediately loading.
+
+#### Library operations
+
+All library operations are immutable — they return new library instances. The `onLibraryChange` callback notifies the parent for storage persistence.
+
+| Operation | Behavior |
+|-----------|----------|
+| Save | Upsert by ID, prepend to list, refresh `updatedAt` |
+| Duplicate | New ID, smart name ("Copy", "Copy 2", …), prepend |
+| Delete | Remove by ID, orphan editor if active build deleted |
+| Load | Copy saved build into editor, set `activeSavedBuildId` |
+
+#### Storage format
+
+```
+localStorage key: glyphstudio_character_builds
+Schema version: CHARACTER_BUILD_LIBRARY_VERSION (1)
+Format: { schemaVersion, builds: SavedCharacterBuild[] }
+```
+
+Version mismatches or parse failures fall back to an empty library.
+
+### Future bridge: character → scene
+
+Scene asset instances (`SceneAssetInstance`) carry an optional `sourceCharacterBuildId` field. This is a clean seam for future character→scene integration — when a character build is placed into a scene, the instance records which build it came from, enabling round-trip editing and build-aware rendering.
