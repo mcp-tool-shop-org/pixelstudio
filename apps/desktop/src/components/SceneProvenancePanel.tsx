@@ -51,8 +51,8 @@ export function SceneProvenancePanel() {
           <span className="scene-provenance-title">Activity</span>
         </div>
         <div className="scene-provenance-empty">
-          <div>No scene changes recorded yet.</div>
-          <div>Edits you make this session will appear here.</div>
+          <div>No scene changes recorded.</div>
+          <div>Edits will appear here as you work.</div>
         </div>
       </div>
     );
@@ -105,7 +105,7 @@ export function SceneProvenancePanel() {
         </div>
       </div>
       <div className="scene-provenance-footer">
-        Session activity only
+        Scene activity log
       </div>
     </div>
   );

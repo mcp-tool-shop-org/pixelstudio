@@ -89,12 +89,12 @@ function applyTestEdit(
 describe('SceneProvenancePanel — rendering', () => {
   it('empty state renders when provenance is empty', () => {
     render(<SceneProvenancePanel />);
-    expect(screen.getByText('No scene changes recorded yet.')).toBeDefined();
+    expect(screen.getByText('No scene changes recorded.')).toBeDefined();
   });
 
-  it('empty state shows session hint', () => {
+  it('empty state shows hint', () => {
     render(<SceneProvenancePanel />);
-    expect(screen.getByText(/Edits you make this session/)).toBeDefined();
+    expect(screen.getByText(/Edits will appear here/)).toBeDefined();
   });
 
   it('single provenance entry renders label', () => {
@@ -285,7 +285,7 @@ describe('SceneProvenancePanel — UI sanity', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
     render(<SceneProvenancePanel />);
-    expect(screen.getByText('Session activity only')).toBeDefined();
+    expect(screen.getByText('Scene activity log')).toBeDefined();
   });
 
   it('long instance ids truncate with ellipsis class', () => {
@@ -980,5 +980,207 @@ describe('SceneProvenancePanel — hardening', () => {
     useSceneEditorStore.getState().resetHistory();
     expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(0);
     expect(useSceneEditorStore.getState().provenance.length).toBe(0);
+  });
+});
+
+// ── Stage 20.4 — Restored provenance UI tests ──
+
+describe('SceneProvenancePanel — restored (persisted) entries', () => {
+  it('persisted instance entry renders in Activity after load', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Move Instance (i1)', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      { 1: { kind: 'move-instance', metadata: { instanceId: 'i1' }, beforeInstance: { ...INST_A }, afterInstance: { ...INST_A, x: 200 } } },
+    );
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Move Instance/)).toBeDefined();
+    // Empty state should not render
+    expect(screen.queryByText('No scene changes recorded.')).toBeNull();
+  });
+
+  it('persisted camera entry renders in Activity after load', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'set-scene-camera', label: 'Set Camera', timestamp: '2026-03-15T12:00:00Z', metadata: { changedFields: ['x', 'y'] } }],
+      { 1: { kind: 'set-scene-camera', metadata: { changedFields: ['x', 'y'] }, beforeCamera: { x: 0, y: 0, zoom: 1 }, afterCamera: { x: 120, y: 80, zoom: 1 } } },
+    );
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Set Camera/)).toBeDefined();
+    // Metadata summary should show changed fields
+    expect(screen.getByText(/Fields: x, y/)).toBeDefined();
+  });
+
+  it('multiple persisted entries render in newest-first order', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [
+        { sequence: 1, kind: 'add-instance', label: 'First Entry', timestamp: '2026-03-15T12:00:00Z' },
+        { sequence: 2, kind: 'move-instance', label: 'Second Entry', timestamp: '2026-03-15T12:01:00Z' },
+        { sequence: 3, kind: 'set-scene-camera', label: 'Third Entry', timestamp: '2026-03-15T12:02:00Z' },
+      ],
+      {},
+    );
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    expect(rows).toHaveLength(3);
+    // Newest first
+    expect(rows[0].getAttribute('data-sequence')).toBe('3');
+    expect(rows[1].getAttribute('data-sequence')).toBe('2');
+    expect(rows[2].getAttribute('data-sequence')).toBe('1');
+  });
+
+  it('clicking restored instance entry opens drilldown correctly', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 5, kind: 'move-instance', label: 'Move Instance (i1)', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      { 5: { kind: 'move-instance', metadata: { instanceId: 'i1' }, beforeInstance: { ...INST_A, x: 50, y: 100 }, afterInstance: { ...INST_A, x: 200, y: 300 } } },
+    );
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Drilldown should show the move detail
+    expect(document.querySelector('.provenance-drilldown-header')).not.toBeNull();
+    expect(document.querySelector('[data-family="move"]')).not.toBeNull();
+  });
+
+  it('clicking restored camera entry shows exact before/after values', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 7, kind: 'set-scene-camera', label: 'Set Camera', timestamp: '2026-03-15T12:00:00Z', metadata: { changedFields: ['x', 'y'], beforeCamera: { x: 0, y: 0, zoom: 1 }, afterCamera: { x: 120, y: 80, zoom: 1 } } }],
+      { 7: { kind: 'set-scene-camera', metadata: { changedFields: ['x', 'y'], beforeCamera: { x: 0, y: 0, zoom: 1 }, afterCamera: { x: 120, y: 80, zoom: 1 } }, beforeCamera: { x: 0, y: 0, zoom: 1 }, afterCamera: { x: 120, y: 80, zoom: 1 } } },
+    );
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Camera drilldown should show before/after values
+    expect(document.querySelector('[data-family="camera"]')).not.toBeNull();
+    // X before/after
+    const baLabels = document.querySelectorAll('.provenance-drilldown-ba-label');
+    const labels = Array.from(baLabels).map((el) => el.textContent);
+    expect(labels).toContain('X');
+    expect(labels).toContain('Y');
+  });
+
+  it('persisted row with missing drilldown source shows fallback', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Move Instance', timestamp: '2026-03-15T12:00:00Z' }],
+      {}, // no drilldown source
+    );
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Should show fallback, not crash
+    expect(document.querySelector('.provenance-drilldown-fallback')).not.toBeNull();
+  });
+
+  it('scene switch clears stale selection', () => {
+    // Load scene A with entry at sequence 5
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 5, kind: 'add-instance', label: 'Scene A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 5: { kind: 'add-instance', afterInstance: { ...INST_A } } },
+    );
+    const { unmount } = render(<SceneProvenancePanel />);
+    // Select the entry
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+    expect(document.querySelector('.scene-provenance-row.selected')).not.toBeNull();
+    unmount();
+
+    // Scene switch: reset + load empty
+    useSceneEditorStore.getState().resetHistory();
+    useSceneEditorStore.getState().loadPersistedProvenance([], {});
+
+    render(<SceneProvenancePanel />);
+    // Should show empty state, no stale selection
+    expect(screen.getByText('No scene changes recorded.')).toBeDefined();
+    expect(document.querySelector('.scene-provenance-row.selected')).toBeNull();
+  });
+
+  it('refresh after hydration does not duplicate restored rows', () => {
+    const entries = [
+      { sequence: 1, kind: 'add-instance' as const, label: 'A', timestamp: '2026-03-15T12:00:00Z' },
+      { sequence: 2, kind: 'move-instance' as const, label: 'B', timestamp: '2026-03-15T12:01:00Z' },
+    ];
+    useSceneEditorStore.getState().loadPersistedProvenance(entries, {});
+    // Simulate refresh re-hydration
+    useSceneEditorStore.getState().loadPersistedProvenance(entries, {});
+
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    expect(rows).toHaveLength(2);
+  });
+
+  it('selecting restored entry does not mutate provenance state', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance', afterInstance: { ...INST_A } } },
+    );
+    const provenanceBefore = useSceneEditorStore.getState().provenance;
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Provenance should be the same reference
+    expect(useSceneEditorStore.getState().provenance).toBe(provenanceBefore);
+  });
+
+  it('load + first new edit yields one new appended row', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 3, kind: 'add-instance', label: 'Loaded Entry', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+
+    // New edit
+    const moved = { ...INST_A, x: 999 };
+    applyTestEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    expect(rows).toHaveLength(2);
+    // Newest first — the new edit should be row[0]
+    expect(rows[0].getAttribute('data-sequence')).toBe('4');
+    expect(rows[1].getAttribute('data-sequence')).toBe('3');
+  });
+
+  it('restored camera drilldown stays fixed after live camera change', () => {
+    // Load persisted camera entry with specific values
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'set-scene-camera', label: 'Set Camera', timestamp: '2026-03-15T12:00:00Z', metadata: { changedFields: ['zoom'] } }],
+      { 1: { kind: 'set-scene-camera', metadata: { changedFields: ['zoom'], beforeCamera: { x: 0, y: 0, zoom: 1.0 }, afterCamera: { x: 0, y: 0, zoom: 2.5 } }, beforeCamera: { x: 0, y: 0, zoom: 1.0 }, afterCamera: { x: 0, y: 0, zoom: 2.5 } } },
+    );
+
+    // Change the live camera (simulates later edits)
+    useSceneEditorStore.getState().loadCamera({ x: 999, y: 999, zoom: 5.0 });
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Drilldown should still show the persisted values, not current live camera
+    expect(document.querySelector('[data-family="camera"]')).not.toBeNull();
+    // The drilldown source in store should still have original values
+    const source = useSceneEditorStore.getState().drilldownBySequence[1];
+    expect(source.beforeCamera?.zoom).toBe(1.0);
+    expect(source.afterCamera?.zoom).toBe(2.5);
+  });
+
+  it('restored instance drilldown stays fixed after instance later changes', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Move Instance (i1)', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      { 1: { kind: 'move-instance', metadata: { instanceId: 'i1' }, beforeInstance: { ...INST_A, x: 50 }, afterInstance: { ...INST_A, x: 200 } } },
+    );
+
+    // Instance moves again (live change after load)
+    useSceneEditorStore.getState().loadInstances([{ ...INST_A, x: 999 }]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Drilldown should show original persisted values
+    const source = useSceneEditorStore.getState().drilldownBySequence[1];
+    expect(source.beforeInstance?.x).toBe(50);
+    expect(source.afterInstance?.x).toBe(200);
   });
 });
