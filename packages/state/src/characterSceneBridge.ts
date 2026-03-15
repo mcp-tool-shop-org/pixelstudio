@@ -165,10 +165,12 @@ export function isSourceBuildAvailable(
 /**
  * Source linkage status for a character scene instance.
  *
- * Future seam: if unlink or conflict detection is added, extend this union
- * with states like 'unlinked' or 'conflicted' rather than adding separate flags.
+ * - 'linked': source build exists in library and instance tracks it
+ * - 'missing-source': source build ID is set but build not found in library
+ * - 'unlinked': source relationship intentionally severed by user
+ * - 'not-character': not a character instance
  */
-export type CharacterSourceStatus = 'linked' | 'missing-source' | 'not-character';
+export type CharacterSourceStatus = 'linked' | 'missing-source' | 'unlinked' | 'not-character';
 
 /** Derive the source linkage status for a scene instance. */
 export function deriveSourceStatus(
@@ -176,6 +178,7 @@ export function deriveSourceStatus(
   libraryBuildIds: string[],
 ): CharacterSourceStatus {
   if (instance.instanceKind !== 'character') return 'not-character';
+  if (instance.characterLinkMode === 'unlinked') return 'unlinked';
   return isSourceBuildAvailable(instance, libraryBuildIds) ? 'linked' : 'missing-source';
 }
 
@@ -184,6 +187,7 @@ export function sourceStatusLabel(status: CharacterSourceStatus): string {
   switch (status) {
     case 'linked': return 'Linked';
     case 'missing-source': return 'Source missing';
+    case 'unlinked': return 'Unlinked';
     case 'not-character': return '';
   }
 }
@@ -209,20 +213,87 @@ export function snapshotSummary(instance: SceneAssetInstance): string {
  * Local overrides do not affect staleness — stale means "snapshot differs from
  * source," not "instance has local edits."
  *
+ * Returns false for:
+ * - Non-character instances
+ * - Missing source builds (undefined)
+ * - Unlinked instances (source relationship severed — stale is meaningless)
+ *
  * Compares equipped slot count and build name — a lightweight heuristic
- * that avoids deep slot-by-slot diffing. Returns false for non-character
- * instances or when the source is missing.
+ * that avoids deep slot-by-slot diffing.
  */
 export function isSnapshotPossiblyStale(
   instance: SceneAssetInstance,
   sourceBuild: { name: string; slots: Record<string, unknown> } | undefined,
 ): boolean {
   if (instance.instanceKind !== 'character' || !sourceBuild) return false;
+  if (instance.characterLinkMode === 'unlinked') return false;
   if (!instance.characterSlotSnapshot) return true;
   const sourceEquipped = Object.keys(sourceBuild.slots).length;
   if (instance.characterSlotSnapshot.equippedCount !== sourceEquipped) return true;
   if (instance.sourceCharacterBuildName !== sourceBuild.name) return true;
   return false;
+}
+
+// ── Source relationship helpers ──
+
+/**
+ * Check whether a character instance can be reapplied from its source build.
+ *
+ * Reapply requires:
+ * - Character instance
+ * - Linked (not unlinked)
+ * - Source build exists in library
+ */
+export function canReapplyFromSource(
+  instance: SceneAssetInstance,
+  libraryBuildIds: string[],
+): boolean {
+  if (instance.instanceKind !== 'character') return false;
+  if (instance.characterLinkMode === 'unlinked') return false;
+  return isSourceBuildAvailable(instance, libraryBuildIds);
+}
+
+/**
+ * Check whether a character instance can be relinked to its original source build.
+ *
+ * Relink is available when:
+ * - Character instance
+ * - Currently unlinked
+ * - Original source build still exists in library
+ */
+export function canRelinkToSource(
+  instance: SceneAssetInstance,
+  libraryBuildIds: string[],
+): boolean {
+  if (instance.instanceKind !== 'character') return false;
+  if (instance.characterLinkMode !== 'unlinked') return false;
+  return isSourceBuildAvailable(instance, libraryBuildIds);
+}
+
+/**
+ * Unlink a character instance from its source build.
+ *
+ * Preserves snapshot and local overrides exactly as-is.
+ * The instance remains a character instance but no longer tracks its source.
+ * Returns the instance unchanged if already unlinked or not a character.
+ */
+export function unlinkFromSource(instance: SceneAssetInstance): SceneAssetInstance {
+  if (instance.instanceKind !== 'character') return instance;
+  if (instance.characterLinkMode === 'unlinked') return instance;
+  return { ...instance, characterLinkMode: 'unlinked' };
+}
+
+/**
+ * Relink a character instance to its original source build.
+ *
+ * Restores linkage without mutating snapshot or overrides.
+ * The user must manually reapply to refresh the snapshot.
+ * Returns the instance unchanged if already linked or not a character.
+ */
+export function relinkToSource(instance: SceneAssetInstance): SceneAssetInstance {
+  if (instance.instanceKind !== 'character') return instance;
+  if (instance.characterLinkMode !== 'unlinked') return instance;
+  return { ...instance, characterLinkMode: undefined };
 }
 
 // ── Reapply ──

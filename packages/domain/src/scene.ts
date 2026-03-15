@@ -21,6 +21,8 @@ export interface SceneAssetInstance {
   characterSlotSnapshot?: CharacterSlotSnapshot;
   /** Local slot overrides for this character instance (character instances only). */
   characterOverrides?: CharacterInstanceOverrides;
+  /** Source link mode — defaults to 'linked' when absent (character instances only). */
+  characterLinkMode?: CharacterSourceLinkMode;
   /** Display name for the instance. */
   name: string;
   /** Which clip to play (undefined = first clip or static). */
@@ -51,6 +53,16 @@ export interface CharacterSlotSnapshot {
   /** Total slots in the vocabulary at time of snapshot. */
   totalSlots: number;
 }
+
+// ── Character source link mode ──
+
+/**
+ * Source link mode for a character scene instance.
+ *
+ * - 'linked': instance tracks its source build (default)
+ * - 'unlinked': source relationship intentionally severed by user
+ */
+export type CharacterSourceLinkMode = 'linked' | 'unlinked';
 
 // ── Character instance overrides ──
 

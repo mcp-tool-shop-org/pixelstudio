@@ -37,6 +37,10 @@ import {
   overrideSummary,
   effectiveSlotSummary,
   effectiveCompositionAsBuild,
+  canReapplyFromSource,
+  canRelinkToSource,
+  unlinkFromSource,
+  relinkToSource,
 } from './characterSceneBridge';
 import { findBuildById } from './characterBuildLibrary';
 
@@ -531,6 +535,18 @@ describe('deriveSourceStatus', () => {
     };
     expect(deriveSourceStatus(asset, [])).toBe('not-character');
   });
+
+  it('returns "unlinked" when characterLinkMode is unlinked', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    expect(deriveSourceStatus(inst, ['build-warrior'])).toBe('unlinked');
+  });
+
+  it('returns "unlinked" even if source build is missing', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    expect(deriveSourceStatus(inst, [])).toBe('unlinked');
+  });
 });
 
 describe('sourceStatusLabel', () => {
@@ -544,6 +560,10 @@ describe('sourceStatusLabel', () => {
 
   it('returns empty string for not-character status', () => {
     expect(sourceStatusLabel('not-character')).toBe('');
+  });
+
+  it('returns "Unlinked" for unlinked status', () => {
+    expect(sourceStatusLabel('unlinked')).toBe('Unlinked');
   });
 });
 
@@ -631,6 +651,211 @@ describe('isSnapshotPossiblyStale', () => {
     const inst = placeCharacterBuild(WARRIOR);
     inst.characterSlotSnapshot = undefined;
     expect(isSnapshotPossiblyStale(inst, { name: 'Warrior', slots: {} })).toBe(true);
+  });
+
+  it('returns false for unlinked instances even when snapshot differs from source', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    // Source has different slot count — would be stale if linked
+    expect(isSnapshotPossiblyStale(inst, {
+      name: 'Warrior', slots: { head: 'h' },
+    })).toBe(false);
+  });
+});
+
+// ── Source relationship helpers ──
+
+describe('canReapplyFromSource', () => {
+  it('returns true for linked character with source in library', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(canReapplyFromSource(inst, ['build-warrior'])).toBe(true);
+  });
+
+  it('returns false when source not in library', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(canReapplyFromSource(inst, [])).toBe(false);
+  });
+
+  it('returns false for unlinked instance even if source exists', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    expect(canReapplyFromSource(inst, ['build-warrior'])).toBe(false);
+  });
+
+  it('returns false for non-character instance', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(canReapplyFromSource(asset, [])).toBe(false);
+  });
+});
+
+describe('canRelinkToSource', () => {
+  it('returns true for unlinked instance when source exists', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    expect(canRelinkToSource(inst, ['build-warrior'])).toBe(true);
+  });
+
+  it('returns false for linked instance', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(canRelinkToSource(inst, ['build-warrior'])).toBe(false);
+  });
+
+  it('returns false for unlinked instance when source missing', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    expect(canRelinkToSource(inst, [])).toBe(false);
+  });
+
+  it('returns false for non-character instance', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(canRelinkToSource(asset, [])).toBe(false);
+  });
+});
+
+describe('unlinkFromSource', () => {
+  it('sets characterLinkMode to unlinked', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const unlinked = unlinkFromSource(inst);
+    expect(unlinked.characterLinkMode).toBe('unlinked');
+  });
+
+  it('preserves snapshot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const unlinked = unlinkFromSource(inst);
+    expect(unlinked.characterSlotSnapshot).toEqual(inst.characterSlotSnapshot);
+  });
+
+  it('preserves overrides', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    const unlinked = unlinkFromSource(inst);
+    expect(unlinked.characterOverrides).toEqual(inst.characterOverrides);
+    expect(getOverrideCount(unlinked)).toBe(1);
+  });
+
+  it('preserves sourceCharacterBuildId', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const unlinked = unlinkFromSource(inst);
+    expect(unlinked.sourceCharacterBuildId).toBe('build-warrior');
+  });
+
+  it('returns instance unchanged if already unlinked', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    const result = unlinkFromSource(inst);
+    expect(result).toBe(inst);
+  });
+
+  it('returns instance unchanged for non-character', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(unlinkFromSource(asset)).toBe(asset);
+  });
+});
+
+describe('relinkToSource', () => {
+  it('clears characterLinkMode (restores linked)', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    const relinked = relinkToSource(inst);
+    expect(relinked.characterLinkMode).toBeUndefined();
+  });
+
+  it('preserves snapshot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterLinkMode = 'unlinked';
+    const relinked = relinkToSource(inst);
+    expect(relinked.characterSlotSnapshot).toEqual(inst.characterSlotSnapshot);
+  });
+
+  it('preserves overrides', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+    const unlinked = unlinkFromSource(inst);
+    const relinked = relinkToSource(unlinked);
+    expect(getOverrideCount(relinked)).toBe(1);
+  });
+
+  it('returns instance unchanged if already linked', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const result = relinkToSource(inst);
+    expect(result).toBe(inst);
+  });
+
+  it('returns instance unchanged for non-character', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(relinkToSource(asset)).toBe(asset);
+  });
+});
+
+describe('source relationship integration', () => {
+  it('stale only when linked + source exists + snapshot differs', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const changedSource = { name: 'Warrior v2', slots: { head: 'h' } };
+
+    // Linked + source exists + snapshot differs → stale
+    expect(isSnapshotPossiblyStale(inst, changedSource)).toBe(true);
+
+    // Linked + source missing → not stale
+    expect(isSnapshotPossiblyStale(inst, undefined)).toBe(false);
+
+    // Unlinked + source exists + snapshot differs → not stale
+    inst.characterLinkMode = 'unlinked';
+    expect(isSnapshotPossiblyStale(inst, changedSource)).toBe(false);
+  });
+
+  it('unlink → relink → stale recalculates', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const changedSource = { name: 'Warrior v2', slots: { head: 'h' } };
+
+    // Start linked and stale
+    expect(isSnapshotPossiblyStale(inst, changedSource)).toBe(true);
+
+    // Unlink — stale gone
+    const unlinked = unlinkFromSource(inst);
+    expect(isSnapshotPossiblyStale(unlinked, changedSource)).toBe(false);
+
+    // Relink — stale returns
+    const relinked = relinkToSource(unlinked);
+    expect(isSnapshotPossiblyStale(relinked, changedSource)).toBe(true);
+  });
+
+  it('deriveSourceStatus transitions correctly through unlink/relink', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const libIds = ['build-warrior'];
+
+    expect(deriveSourceStatus(inst, libIds)).toBe('linked');
+
+    const unlinked = unlinkFromSource(inst);
+    expect(deriveSourceStatus(unlinked, libIds)).toBe('unlinked');
+
+    const relinked = relinkToSource(unlinked);
+    expect(deriveSourceStatus(relinked, libIds)).toBe('linked');
+  });
+
+  it('canReapply and canRelink are mutually exclusive for same instance', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const libIds = ['build-warrior'];
+
+    // Linked: can reapply, cannot relink
+    expect(canReapplyFromSource(inst, libIds)).toBe(true);
+    expect(canRelinkToSource(inst, libIds)).toBe(false);
+
+    // Unlinked: cannot reapply, can relink
+    const unlinked = unlinkFromSource(inst);
+    expect(canReapplyFromSource(unlinked, libIds)).toBe(false);
+    expect(canRelinkToSource(unlinked, libIds)).toBe(true);
   });
 });
 

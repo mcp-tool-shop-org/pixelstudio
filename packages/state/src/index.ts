@@ -54,7 +54,7 @@ export {
   getEquippedSlotsInDisplayOrder,
 } from './characterStore';
 export type { CharacterBuildLibrary, SavedCharacterBuild } from '@glyphstudio/domain';
-export type { SceneInstanceKind, CharacterSlotSnapshot, CharacterInstanceOverrides, CharacterSlotOverride, CharacterSlotOverrideMode } from '@glyphstudio/domain';
+export type { SceneInstanceKind, CharacterSlotSnapshot, CharacterInstanceOverrides, CharacterSlotOverride, CharacterSlotOverrideMode, CharacterSourceLinkMode } from '@glyphstudio/domain';
 export {
   placeCharacterBuild,
   reapplyCharacterBuild,
@@ -86,6 +86,10 @@ export {
   overrideSummary,
   effectiveSlotSummary,
   effectiveCompositionAsBuild,
+  canReapplyFromSource,
+  canRelinkToSource,
+  unlinkFromSource,
+  relinkToSource,
 } from './characterSceneBridge';
 export type { CharacterPlacementOptions, PlaceabilityResult, CharacterSourceStatus, EffectiveSlotComposition, EffectiveCharacterSlotState, EffectiveSlotSource } from './characterSceneBridge';
 export {
