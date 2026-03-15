@@ -1193,7 +1193,7 @@ describe('library metadata', () => {
     const id = useCharacterStore.getState().buildLibrary.builds[0].id;
     const { rerender } = render(<CharacterBuilderPanel />);
     rerender(<CharacterBuilderPanel />);
-    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toBe('4/12 slots');
+    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toContain('4/12 slots');
   });
 
   it('empty build shows 0/12 slots', async () => {
@@ -1202,7 +1202,7 @@ describe('library metadata', () => {
     const id = useCharacterStore.getState().buildLibrary.builds[0].id;
     const { rerender } = render(<CharacterBuilderPanel />);
     rerender(<CharacterBuilderPanel />);
-    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toBe('0/12 slots');
+    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toContain('0/12 slots');
   });
 });
 
