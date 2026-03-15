@@ -4967,6 +4967,41 @@
   padding-left: 4px;
   border-left: 1px solid var(--border);
 }
+.provenance-drilldown-before-after {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 9px;
+}
+.provenance-drilldown-ba-label {
+  color: var(--text-muted);
+  font-size: 9px;
+  margin-bottom: 1px;
+}
+.provenance-drilldown-ba-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-left: 8px;
+}
+.provenance-drilldown-ba-tag {
+  font-size: 8px;
+  color: var(--text-muted);
+  min-width: 32px;
+  flex-shrink: 0;
+}
+.provenance-drilldown-note {
+  font-size: 9px;
+  color: var(--text-secondary, #ccc);
+  font-style: italic;
+  margin-top: 2px;
+}
+.provenance-drilldown-section-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 4px;
+}
 .provenance-drilldown-placeholder,
 .provenance-drilldown-fallback {
   font-size: 9px;

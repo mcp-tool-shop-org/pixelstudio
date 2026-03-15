@@ -452,10 +452,11 @@ describe('SceneProvenancePanel — drilldown detail rendering', () => {
     applyTestEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
-    const desc = document.querySelector('.provenance-drilldown-description');
-    expect(desc).not.toBeNull();
-    expect(desc!.textContent).toContain('Cleared');
-    expect(desc!.textContent).toContain('2');
+    const detail = document.querySelector('.provenance-drilldown-detail');
+    expect(detail).not.toBeNull();
+    // Should show before/after override count and a note about clearing
+    expect(detail!.textContent).toContain('Overrides');
+    expect(detail!.textContent).toContain('0');
   });
 });
 
@@ -501,9 +502,216 @@ describe('SceneProvenancePanel — selection stability', () => {
     render(<SceneProvenancePanel />);
     // Click the newest entry (visibility, rendered first)
     fireEvent.click(document.querySelectorAll('.scene-provenance-row')[0]);
-    const desc = document.querySelector('.provenance-drilldown-description');
-    expect(desc).not.toBeNull();
-    expect(desc!.textContent).toContain('hidden');
+    const detail = document.querySelector('.provenance-drilldown-detail');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Hidden');
+  });
+});
+
+// ── Operation family rendering tests ──
+
+describe('SceneProvenancePanel — move rendering', () => {
+  it('move diff shows Before and After position tags', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200, y: 300 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const tags = document.querySelectorAll('.provenance-drilldown-ba-tag');
+    const tagTexts = Array.from(tags).map((t) => t.textContent);
+    expect(tagTexts).toContain('Before');
+    expect(tagTexts).toContain('After');
+  });
+
+  it('move diff shows instance id field', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="move"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('i1');
+  });
+});
+
+describe('SceneProvenancePanel — property rendering', () => {
+  it('visibility diff shows Visible/Hidden labels', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, visible: false }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="property"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Visible');
+    expect(detail!.textContent).toContain('Hidden');
+  });
+
+  it('opacity diff shows percentage values', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="property"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('100%');
+    expect(detail!.textContent).toContain('50%');
+  });
+
+  it('layer diff shows before/after layer values', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('set-instance-layer', [{ ...INST_A, zOrder: 5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="property"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('0');
+    expect(detail!.textContent).toContain('5');
+  });
+
+  it('parallax diff shows decimal values', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('set-instance-parallax', [{ ...INST_A, parallax: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="property"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('1.0');
+    expect(detail!.textContent).toContain('0.5');
+  });
+});
+
+describe('SceneProvenancePanel — source relationship rendering', () => {
+  it('unlink shows Linked→Unlinked transition with note', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR]);
+    applyTestEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="source"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Linked');
+    expect(detail!.textContent).toContain('Unlinked');
+    const note = detail!.querySelector('.provenance-drilldown-note');
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toContain('Snapshot and overrides preserved');
+  });
+
+  it('relink shows Unlinked→Linked transition with note', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR_UNLINKED]);
+    applyTestEdit('relink-character-source', [{ ...INST_CHAR_UNLINKED, characterLinkMode: undefined }], { instanceId: 'i3' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="source"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Unlinked');
+    expect(detail!.textContent).toContain('Linked');
+    const note = detail!.querySelector('.provenance-drilldown-note');
+    expect(note!.textContent).toContain('Source relationship restored');
+  });
+
+  it('reapply with no slot changes shows "no slot changes" note', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR]);
+    // Reapply — must produce a different snapshot to avoid no-op; change x to simulate backend response
+    const reapplied = { ...INST_CHAR, x: 31 };
+    applyTestEdit('reapply-character-source', [reapplied], { instanceId: 'i2' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="source"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('No slot changes');
+  });
+});
+
+describe('SceneProvenancePanel — override rendering', () => {
+  it('set-override shows slot and mode', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR]);
+    const withOverride = {
+      ...INST_CHAR,
+      characterOverrides: { head: { slot: 'head', mode: 'replace' as const, replacementPartId: 'helm-gold' } },
+    };
+    applyTestEdit('set-character-override', [withOverride], { instanceId: 'i2', slotId: 'head' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="override"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('head');
+    expect(detail!.textContent).toContain('Replace');
+  });
+
+  it('remove-override shows cleared note', () => {
+    const withOverride = {
+      ...INST_CHAR,
+      characterOverrides: { head: { slot: 'head', mode: 'replace' as const, replacementPartId: 'helm-gold' } },
+    };
+    useSceneEditorStore.getState().loadInstances([withOverride]);
+    const cleared = { ...INST_CHAR, characterOverrides: undefined };
+    applyTestEdit('remove-character-override', [cleared], { instanceId: 'i2', slotId: 'head' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="override"]');
+    expect(detail).not.toBeNull();
+    const note = detail!.querySelector('.provenance-drilldown-note');
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toContain('Override cleared');
+  });
+
+  it('clear-all overrides shows count and cleared slots', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const noOverrides = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyTestEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="override"]');
+    expect(detail).not.toBeNull();
+    const note = detail!.querySelector('.provenance-drilldown-note');
+    expect(note!.textContent).toContain('All overrides removed');
+  });
+});
+
+describe('SceneProvenancePanel — instance lifecycle rendering', () => {
+  it('add-instance shows instance name and position', () => {
+    useSceneEditorStore.getState().loadInstances([]);
+    applyTestEdit('add-instance', [INST_A], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="lifecycle"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Tree');
+    expect(detail!.textContent).toContain('(50, 100)');
+  });
+
+  it('remove-instance shows "Was at" position', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('remove-instance', [], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="lifecycle"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Was at');
+    expect(detail!.textContent).toContain('(50, 100)');
+  });
+});
+
+describe('SceneProvenancePanel — camera/playback rendering', () => {
+  it('camera diff shows changed fields', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    // Must change instances to avoid no-op detection
+    applyTestEdit('set-scene-camera', [{ ...INST_A, x: 999 }], { changedFields: ['x', 'zoom'] });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('x');
+    expect(detail!.textContent).toContain('zoom');
+  });
+
+  it('playback diff shows note', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    // Must change instances to avoid no-op detection
+    applyTestEdit('set-scene-playback', [{ ...INST_A, x: 888 }], {});
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Playback settings changed');
   });
 });
 
