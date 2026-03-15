@@ -316,9 +316,11 @@ Future edits to the source build do **not** automatically propagate. The snapsho
 Users can manually refresh a placed instance from its source build:
 
 - **Reapply from Source** updates: build name, slot snapshot
-- **Preserved**: position (x/y), z-order, visibility, opacity, parallax, instance ID
+- **Preserved**: position (x/y), z-order, visibility, opacity, parallax, instance ID, **local overrides**
 - Source lookup uses `sourceCharacterBuildId` against the saved build library
 - If the source build no longer exists, reapply is blocked (not silently skipped)
+- After reapply, inherited slots reflect the new source; overridden slots keep their local override
+- Clearing an override after reapply reveals the newly inherited part, not the old snapshot
 
 There is no automatic live sync. Reapply is always manual and explicit.
 
@@ -348,14 +350,33 @@ These fields belong to the scene instance, not the source build:
 
 Reapply never touches scene-local state.
 
+#### Local overrides
+
+Character instances support per-slot local overrides that layer on top of the inherited snapshot:
+
+| Override mode | Effect |
+|---|---|
+| **Replace** | Swap the slot occupant with a different part |
+| **Remove** | Hide/delete the slot from the effective composition |
+
+Override rules:
+- Overrides are scene-local — they do not mutate the source Character Build
+- Overrides are preserved across reapply (they layer on top of the refreshed snapshot)
+- The effective composition is always: snapshot + overrides
+- Stale detection compares snapshot vs source, not overrides vs source
+- An inline slot picker classifies candidates by compatibility tier (compatible, warning, incompatible)
+
+The `CharacterSourceStatus` type (`'linked' | 'missing-source' | 'not-character'`) is designed as an extensible union — future states like `'unlinked'` or `'conflicted'` can be added without breaking existing code.
+
 #### Current limitations
 
 The bridge does not currently support:
 
 - Automatic live sync between builds and instances
-- Per-slot overrides on placed instances
 - Unlink-from-source action
 - Source/instance diff viewer
-- Scene-side slot editing
+- Scene-side source build mutation
+- Per-slot transform/anchor/socket overrides (only part replacement and removal)
+- Override conflict resolution (e.g. when a reapplied source removes a slot that has an override)
 
-These are potential future extensions. The `sourceCharacterBuildId` and `instanceKind` fields provide clean seams for attaching them.
+These are potential future extensions. The `sourceCharacterBuildId`, `instanceKind`, and `CharacterSourceStatus` fields provide clean seams for attaching them.

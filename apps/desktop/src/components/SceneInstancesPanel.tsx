@@ -353,7 +353,7 @@ function InstanceDetailPane({
                 className="scene-instance-reapply-btn"
                 disabled={!isLinked}
                 title={isLinked
-                  ? 'Refresh snapshot from saved source build'
+                  ? 'Refresh inherited slots from source build (keeps local overrides)'
                   : 'Source build not found in library'}
                 onClick={() => onReapply(instance.instanceId)}
               >
@@ -515,7 +515,7 @@ function InstanceDetailPane({
               ))}
             </div>
             <div className="scene-override-hint">
-              Local overrides do not modify the source Character Build.
+              Local overrides affect only this scene instance. Reapply refreshes inherited slots.
             </div>
           </div>
         );

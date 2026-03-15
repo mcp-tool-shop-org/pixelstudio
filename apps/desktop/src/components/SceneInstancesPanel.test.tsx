@@ -696,7 +696,7 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Knight')); });
-    expect(screen.getByText('Local overrides do not modify the source Character Build.')).toBeInTheDocument();
+    expect(screen.getByText('Local overrides affect only this scene instance. Reapply refreshes inherited slots.')).toBeInTheDocument();
   });
 
   it('clicking Remove locally sets remove override and updates row', async () => {
@@ -1056,5 +1056,181 @@ describe('SceneInstancesPanel', () => {
     expect(screen.getByText(/mana-crystal/)).toBeInTheDocument();
     const applyBtn = screen.getByText('Apply');
     expect(applyBtn).not.toBeDisabled();
+  });
+
+  // ── Reapply + overrides UI ──
+
+  it('override hint text communicates reapply law', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Local overrides affect only this scene instance. Reapply refreshes inherited slots.')).toBeInTheDocument();
+  });
+
+  it('reapply button tooltip mentions keeping overrides', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const reapplyBtn = screen.getByText('Reapply from Source');
+    expect(reapplyBtn.getAttribute('title')).toBe('Refresh inherited slots from source build (keeps local overrides)');
+  });
+
+  it('overridden slot stays overridden after reapply', async () => {
+    // Instance with head override
+    const instWithOverride: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      },
+    };
+    // Source build with updated slots (torso changed)
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build v2',
+      slots: { head: { sourceId: 'helm-iron', slot: 'head' }, torso: { sourceId: 'chain-mail', slot: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [instWithOverride]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Head should still show Local Replace with crown-gold
+    expect(screen.getByText('crown-gold')).toBeInTheDocument();
+    expect(screen.getByText('Local Replace')).toBeInTheDocument();
+  });
+
+  it('inherited slot updates after reapply', async () => {
+    // Instance snapshot has torso: plate-steel, source now has torso: chain-mail
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', slot: 'head' }, torso: { sourceId: 'chain-mail', slot: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Before reapply: torso shows plate-steel
+    expect(screen.getByText('plate-steel')).toBeInTheDocument();
+    // Reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // After reapply: torso shows chain-mail
+    expect(screen.getByText('chain-mail')).toBeInTheDocument();
+    expect(screen.queryByText('plate-steel')).toBeNull();
+  });
+
+  it('clearing override after reapply reveals updated inherited slot', async () => {
+    // Instance has head override, source changed head to helm-v2
+    const instWithOverride: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      },
+    };
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-v2', slot: 'head' }, torso: { sourceId: 'plate-steel', slot: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [instWithOverride]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Reapply first
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Head still shows crown-gold (overridden)
+    expect(screen.getByText('crown-gold')).toBeInTheDocument();
+    // Clear the head override (second btn after Replace)
+    const headRow = document.querySelectorAll('.scene-override-slot-row')[0];
+    const clearBtn = headRow.querySelectorAll('.scene-override-action-btn')[1] as HTMLElement;
+    expect(clearBtn.textContent).toBe('Clear');
+    await act(async () => { await userEvent.click(clearBtn); });
+    // Should now show helm-v2 (from reapplied source), not helm-iron (original)
+    expect(screen.getByText('helm-v2')).toBeInTheDocument();
+  });
+
+  it('override count remains stable after reapply', async () => {
+    const instWithOverrides: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+        torso: { slot: 'torso', mode: 'remove' },
+      },
+    };
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', slot: 'head' }, torso: { sourceId: 'plate-steel', slot: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [instWithOverrides]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('2 local overrides')).toBeInTheDocument();
+    // Reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Override count unchanged
+    expect(screen.getByText('2 local overrides')).toBeInTheDocument();
+  });
+
+  it('stale hint appears for snapshot/source drift, not override-only', async () => {
+    // Source has different slot count than snapshot (triggers stale)
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', slot: 'head' } }, // 1 slot vs snapshot's 2
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Out of date')).toBeInTheDocument();
+  });
+
+  it('no false stale hint for override-only state', async () => {
+    // Source matches snapshot exactly — overrides exist but should NOT trigger stale
+    const instWithOverride: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      },
+    };
+    const sourceBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', slot: 'head' }, torso: { sourceId: 'plate-steel', slot: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [instWithOverride]);
+    seedStores({ libraryBuilds: [sourceBuild] as never[] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.queryByText('Out of date')).toBeNull();
+  });
+
+  it('missing-source still disables reapply with overrides present', async () => {
+    const instWithOverride: SceneAssetInstance = {
+      ...INST_CHAR_ORPHAN,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown' },
+      },
+    };
+    mock.on('get_scene_instances', () => [instWithOverride]);
+    seedStores({ libraryBuildIds: [] }); // no builds in library
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Deleted Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
+    const reapplyBtn = screen.getByText('Reapply from Source');
+    expect(reapplyBtn).toBeDisabled();
   });
 });

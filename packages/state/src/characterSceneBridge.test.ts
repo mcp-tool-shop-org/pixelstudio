@@ -1312,6 +1312,146 @@ describe('effective derivation after reapply', () => {
   });
 });
 
+// ── reapply-with-overrides law ──
+
+describe('reapply preserves overrides', () => {
+  it('override count unchanged after reapply', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+    expect(getOverrideCount(inst)).toBe(2);
+
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior v2', slots: { head: HEAD, torso: TORSO } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+    expect(getOverrideCount(reapplied)).toBe(2);
+  });
+
+  it('inherited slots update after reapply', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    // Only override head — torso remains inherited
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+
+    // Source changes torso from torso-plate to torso-chain
+    const TORSO_V2: CharacterPartRef = { sourceId: 'torso-chain', slot: 'torso' };
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior v2', slots: { head: HEAD, torso: TORSO_V2 } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+
+    const states = deriveEffectiveCharacterSlotStates(reapplied);
+    const torso = states.find((s) => s.slot === 'torso')!;
+    expect(torso.effectivePart).toBe('torso-chain');
+    expect(torso.source).toBe('inherited');
+  });
+
+  it('overridden slots remain overridden after reapply', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior v2', slots: { head: HEAD, torso: TORSO } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+
+    const states = deriveEffectiveCharacterSlotStates(reapplied);
+    const head = states.find((s) => s.slot === 'head')!;
+    expect(head.effectivePart).toBe('crown');
+    expect(head.source).toBe('override_replace');
+    expect(head.isOverridden).toBe(true);
+  });
+
+  it('clearing override after reapply reveals new inherited part', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'torso', mode: 'replace', replacementPartId: 'robe-silk' });
+
+    // Source changes torso
+    const TORSO_V2: CharacterPartRef = { sourceId: 'torso-chain', slot: 'torso' };
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior', slots: { head: HEAD, torso: TORSO_V2 } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+
+    // Before clear: override is active
+    let states = deriveEffectiveCharacterSlotStates(reapplied);
+    expect(states.find((s) => s.slot === 'torso')!.effectivePart).toBe('robe-silk');
+
+    // Clear override — should reveal v2's torso, not v1's
+    const cleared = clearSlotOverride(reapplied, 'torso');
+    states = deriveEffectiveCharacterSlotStates(cleared);
+    const torso = states.find((s) => s.slot === 'torso')!;
+    expect(torso.effectivePart).toBe('torso-chain');
+    expect(torso.source).toBe('inherited');
+  });
+
+  it('effective summary updates correctly after reapply', () => {
+    let inst = placeCharacterBuild(WARRIOR); // 5 equipped
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+    expect(effectiveSlotSummary(inst)).toBe('4/12 effective');
+
+    // Source drops to 2 slots
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior', slots: { head: HEAD, torso: TORSO } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+    // weapon remove override on absent slot = no-op, 2 effective
+    expect(effectiveSlotSummary(reapplied)).toBe('2/12 effective');
+  });
+});
+
+// ── stale detection with overrides ──
+
+describe('stale detection override-aware', () => {
+  it('override-only change does not mark stale', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const withOverride = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    // Source hasn't changed — snapshot still matches
+    expect(isSnapshotPossiblyStale(withOverride, {
+      name: 'Warrior',
+      slots: { head: 'h', torso: 't', arms: 'a', legs: 'l', weapon: 'w' },
+    })).toBe(false);
+  });
+
+  it('source changed without reapply marks stale', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const withOverride = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    // Source changed (different slot count)
+    expect(isSnapshotPossiblyStale(withOverride, {
+      name: 'Warrior',
+      slots: { head: 'h', torso: 't' }, // 2 instead of 5
+    })).toBe(true);
+  });
+
+  it('reapply clears stale', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior v2', slots: { head: HEAD, torso: TORSO } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+
+    // After reapply, snapshot matches v2
+    expect(isSnapshotPossiblyStale(reapplied, {
+      name: 'Warrior v2',
+      slots: { head: 'h', torso: 't' },
+    })).toBe(false);
+  });
+
+  it('missing source does not incorrectly show stale', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const withOverride = setSlotOverride(inst, { slot: 'head', mode: 'remove' });
+    // source missing (undefined) → false, not stale
+    expect(isSnapshotPossiblyStale(withOverride, undefined)).toBe(false);
+  });
+
+  it('reapply clears stale even when overrides remain', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+
+    const v2: CharacterBuild = { id: 'build-warrior', name: 'Warrior', slots: { head: HEAD, torso: TORSO, arms: ARMS } };
+    const reapplied = reapplyCharacterBuild(inst, v2)!;
+
+    // Overrides still present
+    expect(getOverrideCount(reapplied)).toBe(2);
+    // But stale is cleared because snapshot matches source
+    expect(isSnapshotPossiblyStale(reapplied, {
+      name: 'Warrior',
+      slots: { head: 'h', torso: 't', arms: 'a' },
+    })).toBe(false);
+  });
+});
+
 // ── effectiveCompositionAsBuild ──
 
 describe('effectiveCompositionAsBuild', () => {

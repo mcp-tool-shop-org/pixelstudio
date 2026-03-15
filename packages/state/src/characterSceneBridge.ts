@@ -162,7 +162,12 @@ export function isSourceBuildAvailable(
 
 // ── Instance summary helpers ──
 
-/** Source linkage status for a character scene instance. */
+/**
+ * Source linkage status for a character scene instance.
+ *
+ * Future seam: if unlink or conflict detection is added, extend this union
+ * with states like 'unlinked' or 'conflicted' rather than adding separate flags.
+ */
 export type CharacterSourceStatus = 'linked' | 'missing-source' | 'not-character';
 
 /** Derive the source linkage status for a scene instance. */
@@ -200,6 +205,10 @@ export function snapshotSummary(instance: SceneAssetInstance): string {
  * Check if a character instance's snapshot may be stale relative to the
  * current source build in the library.
  *
+ * **Stale detection law:** compares snapshot vs source, not overrides vs source.
+ * Local overrides do not affect staleness — stale means "snapshot differs from
+ * source," not "instance has local edits."
+ *
  * Compares equipped slot count and build name — a lightweight heuristic
  * that avoids deep slot-by-slot diffing. Returns false for non-character
  * instances or when the source is missing.
@@ -221,8 +230,19 @@ export function isSnapshotPossiblyStale(
 /**
  * Reapply a character build onto an existing scene instance.
  *
- * Refreshes the character snapshot (name, slots) while preserving
- * scene-local state (position, z-order, visibility, opacity, parallax).
+ * **Reapply law:** refreshes inherited state, preserves local overrides.
+ *
+ * Specifically:
+ * - `characterSlotSnapshot` is refreshed from the current source build
+ * - `sourceCharacterBuildName` is updated to the current build name
+ * - `characterOverrides` remain unchanged — they layer on top of the new snapshot
+ * - Scene-local state (position, z-order, visibility, opacity, parallax) is untouched
+ *
+ * After reapply:
+ * - Inherited slots reflect the new source build
+ * - Overridden slots keep their local override
+ * - Clearing an override reveals the newly inherited part (not the old snapshot)
+ * - Stale hint clears because the snapshot now matches the source
  *
  * @returns A new instance with updated character data, or null if instance
  *          is not a character instance.
@@ -238,7 +258,7 @@ export function reapplyCharacterBuild(
     sourceCharacterBuildId: build.id,
     sourceCharacterBuildName: build.name,
     characterSlotSnapshot: createSlotSnapshot(build),
-    // Overrides are preserved across reapply — they layer on top of the new snapshot
+    // characterOverrides intentionally preserved — local overrides survive reapply
   };
 }
 
