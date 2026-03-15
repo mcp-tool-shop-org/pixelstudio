@@ -4819,6 +4819,81 @@
   cursor: not-allowed;
 }
 
+/* --- Scene Provenance / Activity Panel --- */
+
+.scene-provenance-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.scene-provenance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.scene-provenance-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+.scene-provenance-count {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.scene-provenance-empty {
+  padding: 12px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
+}
+.scene-provenance-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.scene-provenance-row {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.scene-provenance-row-primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.scene-provenance-label {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-provenance-time {
+  font-size: 8px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.scene-provenance-row-meta {
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-provenance-footer {
+  padding: 3px 8px;
+  font-size: 8px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {

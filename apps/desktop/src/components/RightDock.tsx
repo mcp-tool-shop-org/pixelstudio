@@ -5,6 +5,7 @@ import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
 import { CameraKeyframePanel } from './CameraKeyframePanel';
 import { CharacterBuilderPanel } from './CharacterBuilderPanel';
+import { SceneProvenancePanel } from './SceneProvenancePanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -19,7 +20,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
-  scene: ['Instances', 'Camera', 'Assets'],
+  scene: ['Instances', 'Camera', 'Assets', 'Activity'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -37,6 +38,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Character') {
     return <CharacterBuilderPanel />;
+  }
+  if (tabName === 'Activity') {
+    return <SceneProvenancePanel />;
   }
 
   return (
