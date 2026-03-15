@@ -86,6 +86,48 @@ const INST_CHAR_ORPHAN: SceneAssetInstance = {
   },
 };
 
+const INST_CHAR_UNLINKED: SceneAssetInstance = {
+  instanceId: 'i6',
+  name: 'Rogue',
+  sourcePath: '',
+  x: 10,
+  y: 10,
+  zOrder: 2,
+  visible: true,
+  opacity: 1.0,
+  parallax: 1.0,
+  instanceKind: 'character',
+  sourceCharacterBuildId: 'build-1',
+  sourceCharacterBuildName: 'Rogue Build',
+  characterSlotSnapshot: {
+    slots: { head: 'hood-leather', torso: 'vest-dark' },
+    equippedCount: 2,
+    totalSlots: 12,
+  },
+  characterLinkMode: 'unlinked',
+};
+
+const INST_CHAR_UNLINKED_ORPHAN: SceneAssetInstance = {
+  instanceId: 'i7',
+  name: 'Ghost',
+  sourcePath: '',
+  x: 0,
+  y: 0,
+  zOrder: 1,
+  visible: true,
+  opacity: 1.0,
+  parallax: 1.0,
+  instanceKind: 'character',
+  sourceCharacterBuildId: 'build-gone',
+  sourceCharacterBuildName: 'Ghost Build',
+  characterSlotSnapshot: {
+    slots: { head: 'helm-ghost' },
+    equippedCount: 1,
+    totalSlots: 12,
+  },
+  characterLinkMode: 'unlinked',
+};
+
 const PLAYBACK_STATE = {
   fps: 12,
   looping: true,
@@ -1232,5 +1274,150 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
     const reapplyBtn = screen.getByText('Reapply from Source');
     expect(reapplyBtn).toBeDisabled();
+  });
+
+  // ── Unlink / Relink controls ──
+
+  it('linked character instance shows Unlink button', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Unlink')).toBeInTheDocument();
+    expect(screen.getByTitle('Sever source relationship — instance keeps its snapshot')).toBeInTheDocument();
+  });
+
+  it('clicking Unlink changes status to "Unlinked" and hides Reapply/Unlink', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Before unlink: Linked, Reapply, Unlink visible
+    expect(screen.getByText('Linked')).toBeInTheDocument();
+    expect(screen.getByText('Reapply from Source')).toBeInTheDocument();
+    expect(screen.getByText('Unlink')).toBeInTheDocument();
+    // Click Unlink
+    await act(async () => { await userEvent.click(screen.getByText('Unlink')); });
+    // After unlink: Unlinked status, no Reapply, no Unlink, Relink visible
+    expect(screen.getByText('Unlinked')).toBeInTheDocument();
+    expect(screen.queryByText('Reapply from Source')).toBeNull();
+    expect(screen.queryByText('Unlink')).toBeNull();
+    expect(screen.getByText('Relink')).toBeInTheDocument();
+  });
+
+  it('unlinked instance shows "Unlinked" status with correct CSS class', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    const statusEl = document.querySelector('.scene-instance-source-status');
+    expect(statusEl?.textContent).toBe('Unlinked');
+    expect(statusEl?.className).toContain('source-unlinked');
+  });
+
+  it('unlinked instance does not show stale hint even with source drift', async () => {
+    // Source build has different slot count, but instance is unlinked — no stale hint
+    const driftedBuild = {
+      id: 'build-1', name: 'Rogue Build',
+      slots: { head: { sourceId: 'hood-v2', slot: 'head' } }, // 1 slot vs snapshot's 2
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    seedStores({ libraryBuilds: [driftedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    expect(screen.queryByText('Out of date')).toBeNull();
+  });
+
+  it('unlinked instance shows Relink when source build exists', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    expect(screen.getByText('Relink')).toBeInTheDocument();
+    expect(screen.getByTitle('Restore source relationship')).toBeInTheDocument();
+    // Reapply should NOT be shown for unlinked
+    expect(screen.queryByText('Reapply from Source')).toBeNull();
+  });
+
+  it('clicking Relink restores linked status and shows Reapply/Unlink', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    // Click Relink
+    await act(async () => { await userEvent.click(screen.getByText('Relink')); });
+    // After relink: Linked status, Reapply enabled, Unlink available, no Relink
+    expect(screen.getByText('Linked')).toBeInTheDocument();
+    expect(screen.getByText('Reapply from Source')).toBeInTheDocument();
+    expect(screen.getByText('Unlink')).toBeInTheDocument();
+    expect(screen.queryByText('Relink')).toBeNull();
+  });
+
+  it('unlinked instance with missing source shows reason text instead of Relink', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED_ORPHAN]);
+    seedStores({ libraryBuildIds: [] }); // source gone
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Ghost')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Ghost')); });
+    expect(screen.getByText('Unlinked')).toBeInTheDocument();
+    expect(screen.queryByText('Relink')).toBeNull();
+    expect(screen.getByText('Source not available for relink')).toBeInTheDocument();
+  });
+
+  it('unlinked instance preserves overrides display', async () => {
+    const unlinkedWithOverride: SceneAssetInstance = {
+      ...INST_CHAR_UNLINKED,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'hood-magic' },
+      },
+    };
+    mock.on('get_scene_instances', () => [unlinkedWithOverride]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    // Overrides section still visible and functional
+    expect(screen.getByText('Instance Overrides')).toBeInTheDocument();
+    expect(screen.getByText('Local Replace')).toBeInTheDocument();
+    expect(screen.getByText('hood-magic')).toBeInTheDocument();
+    expect(screen.getByText('1 local override')).toBeInTheDocument();
+  });
+
+  it('Reapply and Relink never appear together', async () => {
+    // Linked instance: Reapply yes, Relink no
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Reapply from Source')).toBeInTheDocument();
+    expect(screen.queryByText('Relink')).toBeNull();
+    cleanup();
+    // Unlinked instance: Relink yes, Reapply no
+    mock.on('get_scene_instances', () => [INST_CHAR_UNLINKED]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Rogue')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Rogue')); });
+    expect(screen.getByText('Relink')).toBeInTheDocument();
+    expect(screen.queryByText('Reapply from Source')).toBeNull();
+  });
+
+  it('Unlink button absent for missing-source instances', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_ORPHAN]);
+    seedStores({ libraryBuildIds: [] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Deleted Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
+    expect(screen.getByText('Source missing')).toBeInTheDocument();
+    expect(screen.queryByText('Unlink')).toBeNull();
+    expect(screen.queryByText('Relink')).toBeNull();
   });
 });

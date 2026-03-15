@@ -4516,6 +4516,33 @@
   margin-left: 4px;
 }
 
+.scene-instance-unlink-btn,
+.scene-instance-relink-btn {
+  font-size: 9px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.scene-instance-unlink-btn:hover {
+  border-color: var(--warning, #f0ad4e);
+  color: var(--warning, #f0ad4e);
+}
+
+.scene-instance-relink-btn:hover {
+  border-color: var(--accent, #4a9eff);
+  color: var(--accent, #4a9eff);
+}
+
+.source-unlinked {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .scene-instance-stale-hint {
   font-size: 8px;
   color: #ffaa44;

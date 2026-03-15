@@ -8,6 +8,7 @@ import {
   deriveEffectiveCharacterSlotStates, setSlotOverride, clearSlotOverride, clearAllOverrides,
   overrideSummary, effectiveSlotSummary, hasOverrides,
   effectiveCompositionAsBuild, classifyAllPresetsForSlot,
+  canReapplyFromSource, canRelinkToSource, unlinkFromSource, relinkToSource,
 } from '@glyphstudio/state';
 
 export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: CharacterPartPreset[] }) {
@@ -108,13 +109,13 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
 
   const handleReapply = useCallback((instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
-    if (!inst || inst.instanceKind !== 'character' || !inst.sourceCharacterBuildId) return;
-    const sourceBuild = findBuildById(buildLibrary, inst.sourceCharacterBuildId);
+    if (!inst || !canReapplyFromSource(inst, libraryBuildIds)) return;
+    const sourceBuild = findBuildById(buildLibrary, inst.sourceCharacterBuildId!);
     if (!sourceBuild) return;
     const updated = reapplyCharacterBuild(inst, sourceBuild);
     if (!updated) return;
     setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
-  }, [instances, buildLibrary]);
+  }, [instances, buildLibrary, libraryBuildIds]);
 
   const handleInstanceUpdate = useCallback((updated: SceneAssetInstance) => {
     setInstances((prev) => prev.map((i) => i.instanceId === updated.instanceId ? updated : i));
@@ -320,10 +321,16 @@ function InstanceDetailPane({
         const buildName = instanceBuildName(instance);
         const snapshot = snapshotSummary(instance);
         const isLinked = srcStatus === 'linked';
+        const isUnlinked = srcStatus === 'unlinked';
         const sourceBuild = instance.sourceCharacterBuildId
           ? buildLibrary.builds.find((b) => b.id === instance.sourceCharacterBuildId)
           : undefined;
         const stale = isSnapshotPossiblyStale(instance, sourceBuild);
+        const showReapply = canReapplyFromSource(instance, libraryBuildIds);
+        const showRelink = canRelinkToSource(instance, libraryBuildIds);
+        const sourceStatusClass = isLinked ? 'source-linked'
+          : isUnlinked ? 'source-unlinked'
+          : 'source-missing';
         return (
           <>
             <div className="scene-instance-detail-row">
@@ -343,24 +350,53 @@ function InstanceDetailPane({
             </div>
             <div className="scene-instance-detail-row">
               <span className="scene-instance-detail-label">Source</span>
-              <span className={`scene-instance-source-status ${isLinked ? 'source-linked' : 'source-missing'}`}>
+              <span className={`scene-instance-source-status ${sourceStatusClass}`}>
                 {srcLabel}
               </span>
             </div>
             <div className="scene-instance-detail-row">
               <span className="scene-instance-detail-label" />
-              <button
-                className="scene-instance-reapply-btn"
-                disabled={!isLinked}
-                title={isLinked
-                  ? 'Refresh inherited slots from source build (keeps local overrides)'
-                  : 'Source build not found in library'}
-                onClick={() => onReapply(instance.instanceId)}
-              >
-                Reapply from Source
-              </button>
-              {!isLinked && (
-                <span className="scene-instance-reapply-reason">Build not in library</span>
+              {showReapply && (
+                <button
+                  className="scene-instance-reapply-btn"
+                  title="Refresh inherited slots from source build (keeps local overrides)"
+                  onClick={() => onReapply(instance.instanceId)}
+                >
+                  Reapply from Source
+                </button>
+              )}
+              {!showReapply && !isUnlinked && isCharacterInstance(instance) && (
+                <>
+                  <button
+                    className="scene-instance-reapply-btn"
+                    disabled
+                    title="Source build not found in library"
+                  >
+                    Reapply from Source
+                  </button>
+                  <span className="scene-instance-reapply-reason">Build not in library</span>
+                </>
+              )}
+              {isLinked && (
+                <button
+                  className="scene-instance-unlink-btn"
+                  title="Sever source relationship — instance keeps its snapshot"
+                  onClick={() => onInstanceUpdate(unlinkFromSource(instance))}
+                >
+                  Unlink
+                </button>
+              )}
+              {showRelink && (
+                <button
+                  className="scene-instance-relink-btn"
+                  title="Restore source relationship"
+                  onClick={() => onInstanceUpdate(relinkToSource(instance))}
+                >
+                  Relink
+                </button>
+              )}
+              {isUnlinked && !showRelink && (
+                <span className="scene-instance-reapply-reason">Source not available for relink</span>
               )}
             </div>
           </>
