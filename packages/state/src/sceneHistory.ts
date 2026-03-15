@@ -1,4 +1,4 @@
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 
 // ── Operation kinds ──
 
@@ -46,6 +46,10 @@ export interface SceneHistoryOverrideMeta {
 
 export interface SceneHistoryCameraMeta {
   changedFields?: string[];
+  /** Camera state before the edit — captured for drilldown inspection. */
+  beforeCamera?: SceneCamera;
+  /** Camera state after the edit — captured for drilldown inspection. */
+  afterCamera?: SceneCamera;
 }
 
 export type SceneHistoryOperationMetadata =
@@ -65,9 +69,16 @@ export type SceneHistoryOperationMetadata =
  * Undo restores the stored snapshot exactly — it does NOT recalculate from
  * current library/source state. Old characterLinkMode, old overrides, old
  * slot snapshot all come back verbatim.
+ *
+ * Camera is optional — present when the edit involves camera state.
+ * Instance-only edits omit camera. Camera-only edits include camera
+ * but instances may be unchanged. Undo/redo restores whichever fields
+ * are present.
  */
 export interface SceneHistorySnapshot {
   instances: SceneAssetInstance[];
+  /** Camera state at this point in time. Present for camera-aware edits. */
+  camera?: SceneCamera;
 }
 
 // ── History entry ──
@@ -134,7 +145,14 @@ export function isSceneHistoryChange(
   before: SceneHistorySnapshot,
   after: SceneHistorySnapshot,
 ): boolean {
-  return JSON.stringify(before.instances) !== JSON.stringify(after.instances);
+  if (JSON.stringify(before.instances) !== JSON.stringify(after.instances)) {
+    return true;
+  }
+  // Camera change detection — only when at least one snapshot carries camera
+  if (before.camera || after.camera) {
+    return JSON.stringify(before.camera) !== JSON.stringify(after.camera);
+  }
+  return false;
 }
 
 /**
@@ -161,15 +179,22 @@ export function createSceneHistoryEntry(
 }
 
 /**
- * Capture a snapshot of the current scene instances.
+ * Capture a snapshot of the current scene state.
  *
- * Deep-clones the instance array to prevent aliasing between history entries
- * and live state.
+ * Deep-clones instances (and camera when provided) to prevent aliasing
+ * between history entries and live state.
  */
-export function captureSceneSnapshot(instances: SceneAssetInstance[]): SceneHistorySnapshot {
-  return {
+export function captureSceneSnapshot(
+  instances: SceneAssetInstance[],
+  camera?: SceneCamera,
+): SceneHistorySnapshot {
+  const snapshot: SceneHistorySnapshot = {
     instances: JSON.parse(JSON.stringify(instances)) as SceneAssetInstance[],
   };
+  if (camera !== undefined) {
+    snapshot.camera = { ...camera };
+  }
+  return snapshot;
 }
 
 /**

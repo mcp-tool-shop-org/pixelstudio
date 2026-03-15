@@ -1,4 +1,4 @@
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import type {
   SceneHistoryEntry,
   SceneHistorySnapshot,
@@ -154,6 +154,7 @@ export function finishApplyingHistory(
 
 export interface ApplySceneEditResult {
   instances: SceneAssetInstance[];
+  camera?: SceneCamera;
   history: SceneHistoryState;
 }
 
@@ -176,23 +177,26 @@ export function applySceneEditWithHistory(
   kind: SceneHistoryOperationKind,
   nextInstances: SceneAssetInstance[],
   metadata?: SceneHistoryOperationMetadata,
+  currentCamera?: SceneCamera,
+  nextCamera?: SceneCamera,
 ): ApplySceneEditResult {
   // If we're mid-undo/redo, apply the edit but don't record it
   if (history.isApplyingHistory) {
-    return { instances: nextInstances, history };
+    return { instances: nextInstances, camera: nextCamera, history };
   }
 
-  const before = captureSceneSnapshot(currentInstances);
-  const after = captureSceneSnapshot(nextInstances);
+  const before = captureSceneSnapshot(currentInstances, currentCamera);
+  const after = captureSceneSnapshot(nextInstances, nextCamera);
   const entry = createSceneHistoryEntry(kind, before, after, metadata);
 
   if (!entry) {
     // No-op — scene didn't change
-    return { instances: nextInstances, history };
+    return { instances: nextInstances, camera: nextCamera, history };
   }
 
   return {
     instances: nextInstances,
+    camera: nextCamera,
     history: recordSceneHistoryEntry(history, entry),
   };
 }

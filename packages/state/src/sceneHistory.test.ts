@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import {
   describeSceneHistoryOperation,
   isSceneHistoryChange,
@@ -337,11 +337,132 @@ describe('SceneHistory — metadata shape', () => {
     expect(Object.keys(meta)).toEqual(['changedFields']);
   });
 
+  it('camera metadata supports before/after camera values', () => {
+    const meta = {
+      changedFields: ['x'],
+      beforeCamera: { x: 0, y: 0, zoom: 1.0 },
+      afterCamera: { x: 100, y: 0, zoom: 1.0 },
+    };
+    expect(meta.beforeCamera!.x).toBe(0);
+    expect(meta.afterCamera!.x).toBe(100);
+  });
+
   it('metadata is optional — entry works without it', () => {
     const before = snap([INST_ASSET]);
     const after = snap([{ ...INST_ASSET, x: 999 }]);
     const entry = createSceneHistoryEntry('move-instance', before, after);
     expect(entry).toBeDefined();
     expect(entry!.metadata).toBeUndefined();
+  });
+});
+
+// ── Camera snapshot contract ──
+
+const CAM_DEFAULT: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+const CAM_PANNED: SceneCamera = { x: 100, y: 200, zoom: 1.0 };
+const CAM_ZOOMED: SceneCamera = { x: 0, y: 0, zoom: 2.5 };
+
+describe('SceneHistory — camera snapshot change detection', () => {
+  it('identical camera is not a change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: { ...CAM_DEFAULT } };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('camera position change is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_PANNED };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('camera zoom change is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_ZOOMED };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('camera-only change with same instances is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [], camera: CAM_PANNED };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('instance change with same camera is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [{ ...INST_ASSET, x: 999 }], camera: CAM_DEFAULT };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('no camera on either side falls back to instance-only comparison', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('camera added where none existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_PANNED };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('camera removed where one existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+});
+
+describe('SceneHistory — camera snapshot capture', () => {
+  it('captures camera when provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET], CAM_DEFAULT);
+    expect(snapshot.camera).toEqual(CAM_DEFAULT);
+  });
+
+  it('omits camera when not provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET]);
+    expect(snapshot.camera).toBeUndefined();
+  });
+
+  it('deep-clones camera (no aliasing)', () => {
+    const cam = { x: 10, y: 20, zoom: 1.5 };
+    const snapshot = captureSceneSnapshot([], cam);
+    cam.x = 9999;
+    expect(snapshot.camera!.x).toBe(10);
+  });
+});
+
+describe('SceneHistory — camera history entry creation', () => {
+  it('creates entry for camera-only change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_PANNED };
+    const entry = createSceneHistoryEntry('set-scene-camera', before, after, {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_DEFAULT,
+      afterCamera: CAM_PANNED,
+    });
+    expect(entry).toBeDefined();
+    expect(entry!.kind).toBe('set-scene-camera');
+    expect(entry!.label).toBe('Edit Camera');
+    expect(entry!.before.camera).toEqual(CAM_DEFAULT);
+    expect(entry!.after.camera).toEqual(CAM_PANNED);
+  });
+
+  it('returns undefined for no-op camera edit', () => {
+    const s: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const entry = createSceneHistoryEntry('set-scene-camera', s, { ...s, camera: { ...CAM_DEFAULT } });
+    expect(entry).toBeUndefined();
+  });
+
+  it('camera metadata carries before/after values', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], camera: CAM_ZOOMED };
+    const entry = createSceneHistoryEntry('set-scene-camera', before, after, {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_DEFAULT,
+      afterCamera: CAM_ZOOMED,
+    });
+    const meta = entry!.metadata as { beforeCamera?: SceneCamera; afterCamera?: SceneCamera };
+    expect(meta.beforeCamera).toEqual(CAM_DEFAULT);
+    expect(meta.afterCamera).toEqual(CAM_ZOOMED);
   });
 });
