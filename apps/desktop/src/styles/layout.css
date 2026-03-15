@@ -4982,20 +4982,48 @@
 }
 
 .char-builder-validation {
-  padding: 3px 0;
+  padding: 4px 6px;
   font-size: 11px;
+  border-radius: 3px;
+  background: var(--surface-dim, #1a1a2a);
+  border: 1px solid var(--border, #444);
+}
+
+.char-builder-validation.char-validation-valid {
+  border-color: var(--success-dim, #2d5a2d);
+  background: rgba(76, 175, 80, 0.08);
+}
+
+.char-validation-ok-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .char-validation-ok {
   color: var(--success, #81c784);
+  font-weight: 600;
+}
+
+.char-validation-ok-sub {
+  font-size: 10px;
+  color: var(--text-dim, #666);
+}
+
+.char-validation-error-block {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .char-validation-errors {
   color: var(--error, #e57373);
+  font-weight: 600;
 }
 
 .char-validation-warnings {
   color: var(--warning, #ffb74d);
+  margin-top: 2px;
 }
 
 .char-builder-slots {
@@ -5023,8 +5051,20 @@
   border-left: 2px solid var(--accent, #5078c8);
 }
 
-.char-slot-row.missing {
+.char-slot-row.slot-missing {
   color: var(--error, #e57373);
+}
+
+.char-slot-row.slot-error {
+  color: var(--error, #e57373);
+}
+
+.char-slot-row.slot-warning {
+  color: var(--text, #ccc);
+}
+
+.char-slot-row.slot-ready {
+  color: var(--text, #ccc);
 }
 
 .char-slot-label {
@@ -5056,15 +5096,30 @@
 
 .char-slot-badge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-weight: 600;
 }
 
-.missing-badge {
+.char-status-missing {
   color: var(--error, #e57373);
+  background: rgba(229, 115, 115, 0.12);
 }
 
-.issue-badge {
+.char-status-error {
+  color: var(--error, #e57373);
+  background: rgba(229, 115, 115, 0.12);
+}
+
+.char-status-warning {
   color: var(--warning, #ffb74d);
+  background: rgba(255, 183, 77, 0.12);
+}
+
+.char-status-ready {
+  color: var(--success, #81c784);
+  background: rgba(129, 199, 132, 0.12);
 }
 
 .char-builder-detail {
@@ -5146,8 +5201,25 @@
   margin: 0;
 }
 
-.char-detail-issues {
-  margin-top: 2px;
+.char-detail-issues,
+.char-detail-related-issues {
+  margin-top: 4px;
+}
+
+.char-detail-issues-header {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted, #888);
+  margin-bottom: 2px;
+}
+
+.char-detail-required-hint {
+  color: var(--error, #e57373);
+}
+
+.char-issue-related-slot {
+  font-size: 10px;
+  color: var(--text-dim, #666);
 }
 
 .char-detail-issue {
@@ -5187,6 +5259,98 @@
 
 .char-issue-row.warning {
   color: var(--warning, #ffb74d);
+}
+
+.char-issues-group {
+  margin-bottom: 4px;
+}
+
+.char-issue-slot-badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 0 3px;
+  margin-right: 4px;
+  border-radius: 2px;
+  background: var(--tag-bg, #333);
+  color: var(--text-muted, #888);
+  font-weight: 600;
+}
+
+.char-issue-message {
+  font-size: 11px;
+}
+
+/* ── Clear confirm ── */
+
+.char-btn-confirm {
+  color: var(--error, #e57373) !important;
+  border-color: var(--error, #e57373) !important;
+}
+
+/* ── Preset picker polish ── */
+
+.char-preset-current {
+  font-size: 10px;
+  color: var(--text-dim, #666);
+  padding: 2px 0;
+}
+
+.char-preset-current-id {
+  color: var(--text-bright, #e0e0e0);
+}
+
+.char-preset-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.char-preset-toggle input {
+  margin: 0;
+}
+
+.char-preset-candidate.current {
+  border-left: 2px solid var(--accent, #5078c8);
+}
+
+.char-preset-candidate.incompatible {
+  opacity: 0.5;
+}
+
+.char-candidate-current-tag {
+  font-size: 9px;
+  color: var(--accent, #5078c8);
+}
+
+.char-candidate-tier-badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.tier-compatible {
+  color: var(--success, #81c784);
+  background: rgba(129, 199, 132, 0.12);
+}
+
+.tier-warning {
+  color: var(--warning, #ffb74d);
+  background: rgba(255, 183, 77, 0.12);
+}
+
+.tier-incompatible {
+  color: var(--error, #e57373);
+  background: rgba(229, 115, 115, 0.12);
+}
+
+.char-candidate-incompat-reason {
+  color: var(--error, #e57373);
 }
 
 /* ===== Camera Keyframe Panel ===== */

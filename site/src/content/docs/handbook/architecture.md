@@ -56,7 +56,7 @@ The frontend never holds pixel truth. Every pixel mutation goes through Rust and
 
 ## State model
 
-The frontend uses 15 Zustand stores organized by domain, plus a canvas frame store for rendering:
+The frontend uses 16 Zustand stores organized by domain, plus a canvas frame store for rendering:
 
 | Store | Responsibility |
 |-------|---------------|
@@ -74,6 +74,7 @@ The frontend uses 15 Zustand stores organized by domain, plus a canvas frame sto
 | validation | Reports, issues, repair previews |
 | provenance | Operation log with deterministic/probabilistic badges |
 | export | Preset selection, readiness, preview state |
+| character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
@@ -135,13 +136,28 @@ The scene timeline includes a dedicated camera lane (`CameraTimelineLane`) that 
 | Previous / Next key | Navigates to adjacent keyframe in sorted order |
 | Jump to selected | Seeks playhead to `selectedKeyframeTick` |
 
-## Character workflow foundation
+## Character workflow
 
 GlyphStudio treats characters as a first-class concept above raw layers. A character is not "some layers that happen to look like a person" — it is a structured build with named slots, typed parts, and validation rules.
 
 ### Why characters are first-class
 
 The app already has layers, anchors, sockets, presets, and clips. But without an explicit character model, users assemble characters by manually juggling anonymous layers. The character workflow makes assembly intentional: equip parts into slots, validate the build, save and reuse compositions.
+
+### Terminology
+
+The character system uses a consistent vocabulary:
+
+| Term | Meaning |
+|------|---------|
+| **Build** | A named character composition — slots mapped to equipped parts |
+| **Slot** | A body region where exactly one part can be equipped |
+| **Part** | A concrete asset/preset reference occupying a slot |
+| **Preset** | A catalog entry (part with name, description, metadata) available for equipping |
+| **Compatible** | A preset whose declared slot matches and all requirements are met |
+| **Warning** | A preset whose slot matches but has unmet socket/anchor requirements |
+| **Incompatible** | A preset whose declared slot does not match the target |
+| **Valid build** | A build with zero errors (warnings are allowed) |
 
 ### Slot vocabulary
 
@@ -173,6 +189,21 @@ Each equipped part (`CharacterPartRef`) carries:
 - Optional tags for filtering
 - Required/provided sockets and anchors for compatibility
 
+### Preset application
+
+Parts are selected from a catalog of `CharacterPartPreset` entries. When equipping:
+
+1. The picker filters presets to those targeting the selected slot
+2. Each candidate is classified into a compatibility tier:
+   - **Compatible** — slot matches, all socket/anchor requirements satisfied
+   - **Warning** — slot matches, but some requirements are unmet by the current build
+   - **Incompatible** — slot does not match (hidden by default, togglable)
+3. Compatible and warning-tier presets are sorted (compatible first) and shown with tier badges
+4. Warning-tier presets can still be equipped — warnings inform but do not block
+5. Equipping replaces any existing occupant and auto-revalidates the build
+
+Socket/anchor checks exclude the target slot's current occupant since the preset would replace it, but include what the preset itself provides (self-satisfied requirements are valid).
+
 ### Validation
 
 Validation derives typed issues from a build:
@@ -181,4 +212,27 @@ Validation derives typed issues from a build:
 - `missing_required_socket` (warning) — part needs a socket role no other part provides
 - `missing_required_anchor` (warning) — part needs an anchor kind no other part provides
 
-A build is valid when it has zero errors. Warnings inform but do not block.
+A build is **valid** when it has zero errors. Warnings inform but do not block.
+
+### Slot health states
+
+Each slot in the builder UI shows its current health at a glance:
+
+| State | Meaning | Visual |
+|-------|---------|--------|
+| Missing | Required slot with no part | Red "Missing" badge |
+| Error | Slot has error-severity issues | Red "Error" badge |
+| Warning | Slot has warning-severity issues | Yellow "Warning" badge |
+| Ready | Part equipped, no issues | Green "Ready" badge |
+| Empty | Optional slot with no part | No badge |
+
+### Builder UI structure
+
+The Character Builder panel provides:
+
+1. **Header** — build name (double-click to rename), new/clear actions
+2. **Validation summary** — error/warning counts, distinct "Valid build" state with success styling
+3. **Slot list** — 12 slots in canonical order with health badges, equipped part IDs
+4. **Selected slot detail** — part info, remove/replace actions, per-slot issues with related-slot references, required-slot guidance
+5. **Preset picker** — inline part selection with compatibility classification, current occupant marker, incompatible toggle
+6. **Issue list** — grouped by severity (errors first, then warnings), each with slot badge

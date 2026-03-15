@@ -13,12 +13,36 @@ import {
   getCharacterWarnings,
   isCharacterValid,
   getCompatiblePresetsForSlot,
+  classifyAllPresetsForSlot,
 } from '@glyphstudio/state';
 
 interface CharacterBuilderPanelProps {
   /** Available part presets for the picker. */
   partCatalog?: CharacterPartPreset[];
 }
+
+/** Derive a slot's health status for badge display. */
+function deriveSlotStatus(
+  slotId: CharacterSlotId,
+  hasPartEquipped: boolean,
+  isRequired: boolean,
+  hasError: boolean,
+  hasWarning: boolean,
+): 'missing' | 'error' | 'warning' | 'ready' | 'empty' {
+  if (!hasPartEquipped && isRequired) return 'missing';
+  if (hasError) return 'error';
+  if (hasWarning) return 'warning';
+  if (hasPartEquipped) return 'ready';
+  return 'empty';
+}
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  missing: { label: 'Missing', cls: 'char-status-missing' },
+  error: { label: 'Error', cls: 'char-status-error' },
+  warning: { label: 'Warning', cls: 'char-status-warning' },
+  ready: { label: 'Ready', cls: 'char-status-ready' },
+  empty: { label: '', cls: '' },
+};
 
 export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPanelProps) {
   const build = useCharacterStore((s) => s.activeCharacterBuild);
@@ -34,6 +58,8 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [showingPicker, setShowingPicker] = useState(false);
+  const [showIncompatible, setShowIncompatible] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const state = useCharacterStore.getState();
   const errors = getCharacterErrors(state);
@@ -70,6 +96,15 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
     [equipPart],
   );
 
+  const handleClear = useCallback(() => {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      return;
+    }
+    clearBuild();
+    setConfirmingClear(false);
+  }, [confirmingClear, clearBuild]);
+
   // ── Empty state ──
   if (!build) {
     return (
@@ -94,13 +129,23 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
   const isSelectedRequired = selectedSlot
     ? (REQUIRED_SLOTS as readonly string[]).includes(selectedSlot)
     : false;
-  const selectedSlotIssues = selectedSlot
-    ? validationIssues.filter((i) => i.slot === selectedSlot)
+  const selectedSlotErrors = selectedSlot
+    ? validationIssues.filter((i) => i.slot === selectedSlot && i.severity === 'error')
+    : [];
+  const selectedSlotWarnings = selectedSlot
+    ? validationIssues.filter((i) => i.slot === selectedSlot && i.severity === 'warning')
+    : [];
+  const selectedSlotIssues = [...selectedSlotErrors, ...selectedSlotWarnings];
+  // Related-slot issues: issues from other slots that reference this selected slot
+  const relatedSlotIssues = selectedSlot
+    ? validationIssues.filter((i) => i.relatedSlot === selectedSlot && i.slot !== selectedSlot)
     : [];
 
   // Compute candidates when picker is open
   const candidates = showingPicker && selectedSlot && build
-    ? getCompatiblePresetsForSlot(partCatalog, selectedSlot, build)
+    ? (showIncompatible
+        ? classifyAllPresetsForSlot(partCatalog, selectedSlot, build)
+        : getCompatiblePresetsForSlot(partCatalog, selectedSlot, build))
     : [];
 
   return (
@@ -133,34 +178,46 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
           <button
             className="char-builder-action-btn"
             title="New build"
-            onClick={() => createBuild()}
+            onClick={() => {
+              createBuild();
+              setConfirmingClear(false);
+            }}
             data-testid="char-new-btn"
           >
             +
           </button>
           <button
-            className="char-builder-action-btn"
-            title="Clear build"
-            onClick={clearBuild}
+            className={`char-builder-action-btn${confirmingClear ? ' char-btn-confirm' : ''}`}
+            title={confirmingClear ? 'Click again to confirm' : 'Clear build'}
+            onClick={handleClear}
+            onBlur={() => setConfirmingClear(false)}
             data-testid="char-clear-btn"
           >
-            {'\u2715'}
+            {confirmingClear ? 'Confirm?' : '\u2715'}
           </button>
         </div>
       </div>
 
       {/* ── Validation summary ── */}
-      <div className="char-builder-validation" data-testid="char-validation-summary">
+      <div
+        className={`char-builder-validation${valid ? ' char-validation-valid' : ''}`}
+        data-testid="char-validation-summary"
+      >
         {valid ? (
-          <span className="char-validation-ok">{'\u2713'} Valid build</span>
+          <div className="char-validation-ok-block" data-testid="char-valid-state">
+            <span className="char-validation-ok">{'\u2713'} Valid build</span>
+            <span className="char-validation-ok-sub">All required slots filled</span>
+          </div>
         ) : (
-          <span className="char-validation-errors">
-            {errors.length} error{errors.length !== 1 ? 's' : ''}
-          </span>
+          <div className="char-validation-error-block">
+            <span className="char-validation-errors">
+              {errors.length} error{errors.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         )}
         {warnings.length > 0 && (
           <span className="char-validation-warnings">
-            {' '}{'\u26A0'} {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
+            {'\u26A0'} {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -170,15 +227,17 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
         {CHARACTER_SLOT_IDS.map((slotId) => {
           const part = getEquippedPartForSlot(state, slotId);
           const isRequired = (REQUIRED_SLOTS as readonly string[]).includes(slotId);
+          const slotErrors = validationIssues.filter((i) => i.slot === slotId && i.severity === 'error');
+          const slotWarnings = validationIssues.filter((i) => i.slot === slotId && i.severity === 'warning');
           const isMissing = isRequired && !part;
           const isSelected = selectedSlot === slotId;
-          const hasIssue = validationIssues.some((i) => i.slot === slotId);
+          const status = deriveSlotStatus(slotId, !!part, isRequired, slotErrors.length > 0, slotWarnings.length > 0);
+          const badge = STATUS_BADGE[status];
 
           const cls = [
             'char-slot-row',
             isSelected ? 'selected' : '',
-            isMissing ? 'missing' : '',
-            hasIssue ? 'has-issue' : '',
+            `slot-${status}`,
           ].filter(Boolean).join(' ');
 
           return (
@@ -188,9 +247,11 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
               onClick={() => {
                 selectSlot(slotId);
                 setShowingPicker(false);
+                setConfirmingClear(false);
               }}
               data-testid={`char-slot-${slotId}`}
               data-slot={slotId}
+              data-status={status}
             >
               <span className="char-slot-label">
                 {CHARACTER_SLOT_LABELS[slotId]}
@@ -202,11 +263,17 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
                     {part.sourceId}
                   </span>
                 ) : (
-                  <span className="char-slot-empty">—</span>
+                  <span className="char-slot-empty">{'\u2014'}</span>
                 )}
               </span>
-              {isMissing && <span className="char-slot-badge missing-badge" title="Required slot is empty">{'\u26A0'}</span>}
-              {hasIssue && !isMissing && <span className="char-slot-badge issue-badge" title="Has validation issue">{'\u25CF'}</span>}
+              {badge.label && (
+                <span
+                  className={`char-slot-badge ${badge.cls}`}
+                  data-testid={`char-badge-${slotId}`}
+                >
+                  {badge.label}
+                </span>
+              )}
             </div>
           );
         })}
@@ -219,7 +286,7 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
             <span className="char-detail-slot-name">
               {CHARACTER_SLOT_LABELS[selectedSlot]}
             </span>
-            <span className="char-detail-required-tag">
+            <span className={`char-detail-required-tag ${isSelectedRequired ? 'tag-required' : 'tag-optional'}`}>
               {isSelectedRequired ? 'Required' : 'Optional'}
             </span>
           </div>
@@ -242,7 +309,7 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
               <div className="char-detail-actions">
                 <button
                   className="char-builder-action-btn"
-                  title="Remove from slot"
+                  title="Remove part from this slot"
                   onClick={() => unequipSlot(selectedSlot)}
                   data-testid="char-remove-part-btn"
                 >
@@ -250,7 +317,7 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
                 </button>
                 <button
                   className="char-builder-action-btn char-replace-btn"
-                  title="Replace with another part"
+                  title="Replace with a different part"
                   onClick={() => setShowingPicker(true)}
                   data-testid="char-replace-part-btn"
                 >
@@ -260,7 +327,13 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
             </div>
           ) : (
             <div className="char-detail-empty">
-              <p className="char-detail-empty-msg">No part equipped in this slot.</p>
+              {isSelectedRequired ? (
+                <p className="char-detail-empty-msg char-detail-required-hint" data-testid="char-required-hint">
+                  This slot is required. Choose a part to complete your build.
+                </p>
+              ) : (
+                <p className="char-detail-empty-msg">No part equipped in this slot.</p>
+              )}
               <button
                 className="char-builder-action-btn char-apply-btn"
                 title="Choose a part for this slot"
@@ -287,56 +360,115 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
                   {'\u2715'}
                 </button>
               </div>
+              {selectedPart && (
+                <div className="char-preset-current" data-testid="char-picker-current">
+                  Current: <span className="char-preset-current-id">{selectedPart.sourceId}</span>
+                </div>
+              )}
+              {partCatalog.length > 0 && (
+                <label className="char-preset-toggle" data-testid="char-picker-incompat-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showIncompatible}
+                    onChange={(e) => setShowIncompatible(e.target.checked)}
+                  />
+                  <span>Show incompatible</span>
+                </label>
+              )}
               {candidates.length === 0 ? (
                 <div className="char-preset-picker-empty" data-testid="char-picker-empty">
-                  No compatible parts available for this slot.
+                  {partCatalog.length === 0
+                    ? 'No parts in catalog.'
+                    : `No compatible parts available for ${CHARACTER_SLOT_LABELS[selectedSlot]}.`}
                 </div>
               ) : (
                 <div className="char-preset-picker-list" data-testid="char-picker-list">
-                  {candidates.map((candidate) => (
-                    <div
-                      key={candidate.preset.sourceId}
-                      className={`char-preset-candidate ${candidate.tier}`}
-                      data-testid={`char-candidate-${candidate.preset.sourceId}`}
-                      data-tier={candidate.tier}
-                    >
-                      <div className="char-candidate-info">
-                        <span className="char-candidate-name">{candidate.preset.name}</span>
-                        {candidate.preset.description && (
-                          <span className="char-candidate-desc">{candidate.preset.description}</span>
-                        )}
-                        {candidate.tier === 'warning' && (
-                          <div className="char-candidate-warnings" data-testid="char-candidate-warnings">
-                            {candidate.reasons.map((reason, i) => (
-                              <span key={i} className="char-candidate-warning-reason">
-                                {'\u26A0'} {reason}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        className="char-builder-action-btn char-candidate-apply-btn"
-                        onClick={() => handleApplyPreset(candidate.preset)}
-                        data-testid={`char-apply-${candidate.preset.sourceId}`}
+                  {candidates.map((candidate) => {
+                    const isCurrent = selectedPart?.sourceId === candidate.preset.sourceId;
+                    return (
+                      <div
+                        key={candidate.preset.sourceId}
+                        className={`char-preset-candidate ${candidate.tier}${isCurrent ? ' current' : ''}`}
+                        data-testid={`char-candidate-${candidate.preset.sourceId}`}
+                        data-tier={candidate.tier}
                       >
-                        {selectedPart ? 'Replace' : 'Equip'}
-                      </button>
-                    </div>
-                  ))}
+                        <div className="char-candidate-info">
+                          <span className="char-candidate-name">
+                            {candidate.preset.name}
+                            {isCurrent && <span className="char-candidate-current-tag"> (current)</span>}
+                          </span>
+                          {candidate.preset.description && (
+                            <span className="char-candidate-desc">{candidate.preset.description}</span>
+                          )}
+                          <span className={`char-candidate-tier-badge tier-${candidate.tier}`} data-testid={`char-tier-badge-${candidate.preset.sourceId}`}>
+                            {candidate.tier === 'compatible' ? 'Compatible' : candidate.tier === 'warning' ? 'Warning' : 'Incompatible'}
+                          </span>
+                          {candidate.tier === 'warning' && (
+                            <div className="char-candidate-warnings" data-testid="char-candidate-warnings">
+                              {candidate.reasons.map((reason, i) => (
+                                <span key={i} className="char-candidate-warning-reason">
+                                  {'\u26A0'} {reason}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {candidate.tier === 'incompatible' && (
+                            <div className="char-candidate-warnings">
+                              {candidate.reasons.map((reason, i) => (
+                                <span key={i} className="char-candidate-warning-reason char-candidate-incompat-reason">
+                                  {'\u2715'} {reason}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          className="char-builder-action-btn char-candidate-apply-btn"
+                          onClick={() => handleApplyPreset(candidate.preset)}
+                          disabled={candidate.tier === 'incompatible'}
+                          data-testid={`char-apply-${candidate.preset.sourceId}`}
+                        >
+                          {isCurrent ? 'Re-equip' : selectedPart ? 'Replace' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
+          {/* ── Slot-specific issues ── */}
           {selectedSlotIssues.length > 0 && (
             <div className="char-detail-issues" data-testid="char-slot-issues">
-              {selectedSlotIssues.map((issue, i) => (
-                <div
-                  key={i}
-                  className={`char-detail-issue ${issue.severity}`}
-                >
+              <div className="char-detail-issues-header">Slot issues</div>
+              {selectedSlotErrors.map((issue, i) => (
+                <div key={`e-${i}`} className="char-detail-issue error">
                   {issue.message}
+                  {issue.relatedSlot && (
+                    <span className="char-issue-related-slot"> ({CHARACTER_SLOT_LABELS[issue.relatedSlot]})</span>
+                  )}
+                </div>
+              ))}
+              {selectedSlotWarnings.map((issue, i) => (
+                <div key={`w-${i}`} className="char-detail-issue warning">
+                  {issue.message}
+                  {issue.relatedSlot && (
+                    <span className="char-issue-related-slot"> ({CHARACTER_SLOT_LABELS[issue.relatedSlot]})</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {relatedSlotIssues.length > 0 && (
+            <div className="char-detail-related-issues" data-testid="char-related-issues">
+              <div className="char-detail-issues-header">Related issues</div>
+              {relatedSlotIssues.map((issue, i) => (
+                <div key={`r-${i}`} className="char-detail-issue warning">
+                  {issue.message}
+                  {issue.slot && (
+                    <span className="char-issue-related-slot"> (from {CHARACTER_SLOT_LABELS[issue.slot]})</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -344,20 +476,35 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
         </div>
       )}
 
-      {/* ── Validation issue list ── */}
+      {/* ── Validation issue list (grouped) ── */}
       {validationIssues.length > 0 && (
         <div className="char-builder-issues" data-testid="char-issue-list">
-          <div className="char-issues-header">Issues</div>
-          {errors.map((issue, i) => (
-            <div key={`e-${i}`} className="char-issue-row error">
-              {issue.message}
+          {errors.length > 0 && (
+            <div className="char-issues-group" data-testid="char-issue-errors">
+              <div className="char-issues-header">Errors ({errors.length})</div>
+              {errors.map((issue, i) => (
+                <div key={`e-${i}`} className="char-issue-row error">
+                  {issue.slot && (
+                    <span className="char-issue-slot-badge">{CHARACTER_SLOT_LABELS[issue.slot]}</span>
+                  )}
+                  <span className="char-issue-message">{issue.message}</span>
+                </div>
+              ))}
             </div>
-          ))}
-          {warnings.map((issue, i) => (
-            <div key={`w-${i}`} className="char-issue-row warning">
-              {issue.message}
+          )}
+          {warnings.length > 0 && (
+            <div className="char-issues-group" data-testid="char-issue-warnings">
+              <div className="char-issues-header">Warnings ({warnings.length})</div>
+              {warnings.map((issue, i) => (
+                <div key={`w-${i}`} className="char-issue-row warning">
+                  {issue.slot && (
+                    <span className="char-issue-slot-badge">{CHARACTER_SLOT_LABELS[issue.slot]}</span>
+                  )}
+                  <span className="char-issue-message">{issue.message}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

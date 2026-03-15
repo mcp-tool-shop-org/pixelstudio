@@ -120,21 +120,42 @@ describe('build lifecycle', () => {
     expect(build!.id).not.toBe('v1');
   });
 
-  it('clear button returns to empty state', async () => {
+  it('clear button requires confirmation', async () => {
     useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
     render(<CharacterBuilderPanel />);
+    const clearBtn = screen.getByTestId('char-clear-btn');
+    // First click shows confirm state
     await act(async () => {
-      await userEvent.click(screen.getByTestId('char-clear-btn'));
+      await userEvent.click(clearBtn);
+    });
+    expect(clearBtn.textContent).toBe('Confirm?');
+    expect(useCharacterStore.getState().activeCharacterBuild).not.toBeNull();
+    // Second click actually clears
+    await act(async () => {
+      await userEvent.click(clearBtn);
     });
     expect(useCharacterStore.getState().activeCharacterBuild).toBeNull();
     expect(screen.getByText(/No character build active/)).toBeInTheDocument();
+  });
+
+  it('clear confirm resets on blur', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    const clearBtn = screen.getByTestId('char-clear-btn');
+    await act(async () => {
+      await userEvent.click(clearBtn);
+    });
+    expect(clearBtn.textContent).toBe('Confirm?');
+    await act(async () => {
+      fireEvent.blur(clearBtn);
+    });
+    expect(clearBtn.textContent).not.toBe('Confirm?');
   });
 
   it('rename updates displayed build name', async () => {
     useCharacterStore.getState().createCharacterBuild('Old Name');
     render(<CharacterBuilderPanel />);
     const nameEl = screen.getByTestId('char-build-name');
-    // Double-click to enter rename mode
     await act(async () => {
       fireEvent.doubleClick(nameEl);
     });
@@ -165,7 +186,6 @@ describe('slot list', () => {
     render(<CharacterBuilderPanel />);
     const headSlot = screen.getByTestId('char-slot-head');
     expect(headSlot.querySelector('.char-slot-required')).not.toBeNull();
-    // accessory is optional — no asterisk
     const accSlot = screen.getByTestId('char-slot-accessory');
     expect(accSlot.querySelector('.char-slot-required')).toBeNull();
   });
@@ -177,13 +197,6 @@ describe('slot list', () => {
     expect(headSlot.querySelector('.char-slot-equipped')!.textContent).toBe('head-basic');
   });
 
-  it('empty required slots show missing badge', () => {
-    useCharacterStore.getState().createCharacterBuild();
-    render(<CharacterBuilderPanel />);
-    const headSlot = screen.getByTestId('char-slot-head');
-    expect(headSlot.querySelector('.missing-badge')).not.toBeNull();
-  });
-
   it('clicking a slot updates selected state', async () => {
     useCharacterStore.getState().createCharacterBuild();
     render(<CharacterBuilderPanel />);
@@ -192,6 +205,57 @@ describe('slot list', () => {
     });
     expect(useCharacterStore.getState().selectedSlot).toBe('torso');
     expect(screen.getByTestId('char-slot-torso').className).toContain('selected');
+  });
+});
+
+// ── Slot-level validation badges ──
+
+describe('slot-level validation badges', () => {
+  it('empty required slot shows "Missing" badge', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    const headSlot = screen.getByTestId('char-slot-head');
+    expect(headSlot.dataset.status).toBe('missing');
+    expect(screen.getByTestId('char-badge-head').textContent).toBe('Missing');
+  });
+
+  it('equipped valid slot shows "Ready" badge', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    const headSlot = screen.getByTestId('char-slot-head');
+    expect(headSlot.dataset.status).toBe('ready');
+    expect(screen.getByTestId('char-badge-head').textContent).toBe('Ready');
+  });
+
+  it('equipped slot with warning shows "Warning" badge', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    const weaponSlot = screen.getByTestId('char-slot-weapon');
+    expect(weaponSlot.dataset.status).toBe('warning');
+    expect(screen.getByTestId('char-badge-weapon').textContent).toBe('Warning');
+  });
+
+  it('optional empty slot shows no badge', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    const accSlot = screen.getByTestId('char-slot-accessory');
+    expect(accSlot.dataset.status).toBe('empty');
+    expect(accSlot.querySelector('.char-slot-badge')).toBeNull();
+  });
+
+  it('slot status is scannable at a glance via data-status', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    const rows = screen.getByTestId('char-slot-list').querySelectorAll('.char-slot-row');
+    const statuses = Array.from(rows).map((r) => (r as HTMLElement).dataset.status);
+    // head=ready, face=empty, hair=empty, torso=ready, arms=ready,
+    // hands=empty, legs=ready, feet=empty, accessory=empty, back=empty, weapon=warning, offhand=empty
+    expect(statuses).toEqual([
+      'ready', 'empty', 'empty', 'ready', 'ready',
+      'empty', 'ready', 'empty', 'empty', 'empty', 'warning', 'empty',
+    ]);
   });
 });
 
@@ -237,6 +301,26 @@ describe('selected slot detail', () => {
     expect(useCharacterStore.getState().activeCharacterBuild!.slots.head).toBeUndefined();
   });
 
+  it('empty required slot shows required guidance', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    expect(screen.getByTestId('char-required-hint')).toBeInTheDocument();
+    expect(screen.getByText(/This slot is required/)).toBeInTheDocument();
+  });
+
+  it('empty optional slot shows generic empty message', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    expect(screen.queryByTestId('char-required-hint')).toBeNull();
+    expect(screen.getByText(/No part equipped/)).toBeInTheDocument();
+  });
+
   it('empty slot shows choose part button', async () => {
     useCharacterStore.getState().createCharacterBuild();
     render(<CharacterBuilderPanel />);
@@ -244,7 +328,6 @@ describe('selected slot detail', () => {
       await userEvent.click(screen.getByTestId('char-slot-weapon'));
     });
     expect(screen.getByTestId('char-apply-part-btn')).toBeInTheDocument();
-    expect(screen.getByText(/No part equipped/)).toBeInTheDocument();
   });
 
   it('detail pane shows required/optional tag', async () => {
@@ -269,6 +352,77 @@ describe('selected slot detail', () => {
       await userEvent.click(screen.getByTestId('char-slot-weapon'));
     });
     expect(screen.getByTestId('char-slot-issues')).toBeInTheDocument();
+  });
+
+  it('issues show "Slot issues" header', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    expect(screen.getByText('Slot issues')).toBeInTheDocument();
+  });
+});
+
+// ── Validation summary ──
+
+describe('validation summary', () => {
+  it('shows error count when required slots missing', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('4 errors');
+  });
+
+  it('shows valid state with distinct element when no errors', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-valid-state')).toBeInTheDocument();
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('Valid build');
+    expect(screen.getByText('All required slots filled')).toBeInTheDocument();
+  });
+
+  it('valid summary has success styling class', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').className).toContain('char-validation-valid');
+  });
+
+  it('invalid summary does not have success class', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').className).not.toContain('char-validation-valid');
+  });
+
+  it('shows warnings when socket requirements unsatisfied', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('warning');
+  });
+
+  it('errors group in issue list has count', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    const errorsGroup = screen.getByTestId('char-issue-errors');
+    expect(errorsGroup.textContent).toContain('Errors (4)');
+  });
+
+  it('warnings group in issue list has count', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    const warningsGroup = screen.getByTestId('char-issue-warnings');
+    expect(warningsGroup.textContent).toContain('Warnings (1)');
+  });
+
+  it('issue rows show slot badges', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    const badges = screen.getByTestId('char-issue-list').querySelectorAll('.char-issue-slot-badge');
+    expect(badges.length).toBeGreaterThan(0);
+    // First error should be Head (missing required slot)
+    expect(badges[0].textContent).toBe('Head');
   });
 });
 
@@ -309,7 +463,6 @@ describe('preset picker', () => {
       await userEvent.click(screen.getByTestId('char-apply-part-btn'));
     });
     const list = screen.getByTestId('char-picker-list');
-    // Only head presets should appear
     expect(list.querySelectorAll('.char-preset-candidate')).toHaveLength(2);
     expect(screen.getByTestId('char-candidate-head-knight')).toBeInTheDocument();
     expect(screen.getByTestId('char-candidate-head-wizard')).toBeInTheDocument();
@@ -328,7 +481,7 @@ describe('preset picker', () => {
     expect(screen.getByText(/No compatible parts/)).toBeInTheDocument();
   });
 
-  it('picker shows empty message when catalog is empty', async () => {
+  it('picker shows catalog-empty message when catalog is empty', async () => {
     useCharacterStore.getState().createCharacterBuild();
     render(<CharacterBuilderPanel partCatalog={[]} />);
     await act(async () => {
@@ -338,6 +491,7 @@ describe('preset picker', () => {
       await userEvent.click(screen.getByTestId('char-apply-part-btn'));
     });
     expect(screen.getByTestId('char-picker-empty')).toBeInTheDocument();
+    expect(screen.getByText('No parts in catalog.')).toBeInTheDocument();
   });
 
   it('clicking a candidate equips the part', async () => {
@@ -410,7 +564,6 @@ describe('preset picker', () => {
     await act(async () => {
       await userEvent.click(screen.getByTestId('char-slot-head'));
     });
-    // Currently head-basic is equipped
     expect(screen.getByTestId('char-detail-part-id').textContent).toBe('head-basic');
     await act(async () => {
       await userEvent.click(screen.getByTestId('char-replace-part-btn'));
@@ -423,7 +576,6 @@ describe('preset picker', () => {
   });
 
   it('warning-tier candidates show warning indicators', async () => {
-    // Weapon presets with requiredSockets but no hands equipped → warning tier
     useCharacterStore.getState().createCharacterBuild();
     render(<CharacterBuilderPanel partCatalog={CATALOG} />);
     await act(async () => {
@@ -432,11 +584,9 @@ describe('preset picker', () => {
     await act(async () => {
       await userEvent.click(screen.getByTestId('char-apply-part-btn'));
     });
-    // WEAPON_PRESET requires 'hand' socket → warning
     const swordCandidate = screen.getByTestId('char-candidate-sword-steel');
     expect(swordCandidate.dataset.tier).toBe('warning');
     expect(swordCandidate.querySelector('.char-candidate-warnings')).not.toBeNull();
-    // WEAPON_PRESET_CLEAN has no requirements → compatible
     const daggerCandidate = screen.getByTestId('char-candidate-dagger-iron');
     expect(daggerCandidate.dataset.tier).toBe('compatible');
   });
@@ -452,7 +602,6 @@ describe('preset picker', () => {
     });
     const candidates = screen.getByTestId('char-picker-list').querySelectorAll('.char-preset-candidate');
     const tiers = Array.from(candidates).map((c) => (c as HTMLElement).dataset.tier);
-    // Compatible first, then warnings
     expect(tiers[0]).toBe('compatible');
   });
 
@@ -483,28 +632,73 @@ describe('preset picker', () => {
     });
     expect(screen.getByText('A sturdy metal helmet.')).toBeInTheDocument();
   });
-});
 
-// ── Validation summary ──
-
-describe('validation summary', () => {
-  it('shows error count when required slots missing', () => {
+  it('candidates show compatibility tier badges', async () => {
     useCharacterStore.getState().createCharacterBuild();
-    render(<CharacterBuilderPanel />);
-    expect(screen.getByTestId('char-validation-summary').textContent).toContain('4 errors');
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-tier-badge-dagger-iron').textContent).toBe('Compatible');
+    expect(screen.getByTestId('char-tier-badge-sword-steel').textContent).toBe('Warning');
   });
 
-  it('shows valid state when all required slots filled', () => {
+  it('picker shows current occupant marker when replacing', async () => {
     useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
-    render(<CharacterBuilderPanel />);
-    expect(screen.getByTestId('char-validation-summary').textContent).toContain('Valid build');
+    // Add head-knight to catalog so it matches the sourceId
+    const catalogWithCurrent = [...CATALOG, { ...HEAD, name: 'Basic Head' } as CharacterPartPreset];
+    render(<CharacterBuilderPanel partCatalog={catalogWithCurrent} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-replace-part-btn'));
+    });
+    const currentEl = screen.getByTestId('char-picker-current');
+    expect(currentEl).toBeInTheDocument();
+    expect(currentEl.textContent).toContain('head-basic');
   });
 
-  it('shows warnings when socket requirements unsatisfied', () => {
-    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
-    useCharacterStore.getState().equipCharacterPart(WEAPON);
-    render(<CharacterBuilderPanel />);
-    expect(screen.getByTestId('char-validation-summary').textContent).toContain('warning');
+  it('show incompatible toggle reveals incompatible candidates', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    // Initially only 2 head presets
+    expect(screen.getByTestId('char-picker-list').querySelectorAll('.char-preset-candidate')).toHaveLength(2);
+    // Toggle show incompatible
+    const toggle = screen.getByTestId('char-picker-incompat-toggle').querySelector('input')!;
+    await act(async () => {
+      await userEvent.click(toggle);
+    });
+    // Now shows all presets including incompatible ones
+    const allCandidates = screen.getByTestId('char-picker-list').querySelectorAll('.char-preset-candidate');
+    expect(allCandidates.length).toBe(CATALOG.length);
+  });
+
+  it('incompatible candidates have disabled apply button', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    const toggle = screen.getByTestId('char-picker-incompat-toggle').querySelector('input')!;
+    await act(async () => {
+      await userEvent.click(toggle);
+    });
+    // Torso preset is incompatible for head slot
+    const torsoApply = screen.getByTestId('char-apply-torso-chain');
+    expect(torsoApply).toBeDisabled();
   });
 });
 
@@ -514,9 +708,7 @@ describe('store/UI integration', () => {
   it('equip parts in store → panel updates slot display', () => {
     useCharacterStore.getState().createCharacterBuild();
     const { rerender } = render(<CharacterBuilderPanel />);
-    // Initially head is empty
     expect(screen.getByTestId('char-slot-head').querySelector('.char-slot-empty')).not.toBeNull();
-    // Equip head
     act(() => {
       useCharacterStore.getState().equipCharacterPart(HEAD);
     });
@@ -550,7 +742,6 @@ describe('store/UI integration', () => {
     useCharacterStore.getState().createCharacterBuild();
     const { rerender } = render(<CharacterBuilderPanel partCatalog={CATALOG} />);
     expect(screen.getByTestId('char-validation-summary').textContent).toContain('4 errors');
-    // Equip head via picker
     await act(async () => {
       await userEvent.click(screen.getByTestId('char-slot-head'));
     });
@@ -562,5 +753,45 @@ describe('store/UI integration', () => {
     });
     rerender(<CharacterBuilderPanel partCatalog={CATALOG} />);
     expect(screen.getByTestId('char-validation-summary').textContent).toContain('3 errors');
+  });
+
+  it('slot badge updates when equipping fills required slot', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-slot-head').dataset.status).toBe('missing');
+    act(() => {
+      useCharacterStore.getState().equipCharacterPart(HEAD);
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-slot-head').dataset.status).toBe('ready');
+  });
+});
+
+// ── Docs-linked semantics ──
+
+describe('docs-linked semantics', () => {
+  it('build valid = zero errors, warnings allowed', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().equipCharacterPart(WEAPON);
+    render(<CharacterBuilderPanel />);
+    // Build is valid (all required slots filled) even with warning
+    expect(screen.getByTestId('char-valid-state')).toBeInTheDocument();
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('Valid build');
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('warning');
+  });
+
+  it('preset compatibility tiers appear consistently in UI', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    // Compatible tier
+    expect(screen.getByTestId('char-tier-badge-dagger-iron').textContent).toBe('Compatible');
+    // Warning tier
+    expect(screen.getByTestId('char-tier-badge-sword-steel').textContent).toBe('Warning');
   });
 });
