@@ -299,6 +299,8 @@ Character Builds can be placed into scenes as **Character Instances** — scene-
 | **Character Instance** | Scene-level snapshot created from a build via placement |
 | **Source Build** | The saved library build the instance was created from |
 | **Snapshot** | Frozen record of slot assignments at placement time |
+| **Link Mode** | Whether the instance participates in inheritance/reapply (`linked` or `unlinked`) |
+| **Source Status** | Derived runtime classification: `linked`, `missing-source`, `unlinked`, or `not-character` |
 
 #### Placement law
 
@@ -308,6 +310,7 @@ Placement creates an independent copy. The scene instance records:
 - `sourceCharacterBuildId` — which saved build it came from
 - `sourceCharacterBuildName` — build name at placement time
 - `characterSlotSnapshot` — frozen slot→part mapping with equipped count
+- `characterLinkMode` — absent (defaults to `'linked'`) or `'unlinked'`
 
 Future edits to the source build do **not** automatically propagate. The snapshot is independent.
 
@@ -333,6 +336,76 @@ If a source build is deleted from the library after placement:
 - Source status shows "Source missing"
 - Reapply is disabled until the source is available again
 - The source ID is never silently cleared
+
+#### Link mode law
+
+Link mode (`CharacterSourceLinkMode`) controls whether a character instance participates in source inheritance and reapply behavior. It is separate from source presence — an instance may remember its source build ID while being unlinked.
+
+| Mode | Meaning |
+|---|---|
+| `'linked'` (default) | Instance tracks its source build. Reapply is available when source exists. Stale detection is active. |
+| `'unlinked'` | Source relationship intentionally severed by operator. Reapply is blocked. Stale detection is suppressed. |
+
+Key truths:
+- `characterLinkMode` is optional — absent means `'linked'` (no migration needed)
+- Unlinked is **not** the same as missing. Missing is an error state; unlinked is an intentional operator decision.
+- An unlinked instance still stores its `sourceCharacterBuildId` — the memory is preserved, only the behavior changes.
+
+#### Source status derivation
+
+Source status (`CharacterSourceStatus`) is derived at runtime from link mode + library lookup:
+
+| Status | Condition | UI presentation |
+|---|---|---|
+| `'linked'` | Character instance, linked mode, source build exists in library | "Linked" |
+| `'missing-source'` | Character instance, linked mode, source build **not** in library | "Source missing" |
+| `'unlinked'` | Character instance, unlinked mode (regardless of source presence) | "Unlinked" |
+| `'not-character'` | Not a character instance | (no character UI) |
+
+Derivation rules:
+- Unlinked takes priority over library lookup — an unlinked instance always reports `'unlinked'`, even if the source build still exists
+- Stale detection (`isSnapshotPossiblyStale`) returns `false` for unlinked instances
+- Stale is not a status value — it is a secondary indicator shown only on `'linked'` instances when the snapshot diverges from the current source build
+
+#### Relationship operations
+
+**Unlink** (`unlinkFromSource`) — sever the source relationship:
+- Preserves snapshot exactly as-is
+- Preserves all local overrides
+- Preserves the remembered `sourceCharacterBuildId`
+- Changes only `characterLinkMode` to `'unlinked'`
+- After unlink: reapply is blocked, stale hint disappears
+
+**Relink** (`relinkToSource`) — restore the source relationship:
+- Clears `characterLinkMode` (restores default `'linked'` behavior)
+- Does **not** mutate snapshot or overrides
+- Derived status recalculates immediately after relink
+- Stale hint may reappear if the source changed while the instance was detached
+
+#### Reapply vs relink
+
+These are different operations with different effects:
+
+| Operation | When available | What it does | What it preserves |
+|---|---|---|---|
+| **Reapply from Source** | Linked + source exists | Refreshes snapshot from current source build | Local overrides, scene-local state |
+| **Relink to Source** | Unlinked + source exists | Re-enables the relationship only | Snapshot, overrides, scene-local state |
+
+Pinned laws:
+- Reapply and Relink are mutually exclusive — they never both apply to the same instance
+- Reapply updates inherited data; Relink only changes the relationship mode
+- Relinking does not itself rewrite the snapshot — the operator must explicitly Reapply after relinking if they want fresh data
+
+#### Missing-source + unlinked behavior
+
+| State | Reapply | Relink | Snapshot |
+|---|---|---|---|
+| Linked + source exists | Available | N/A | Usable, may be stale |
+| Linked + source missing | Blocked | N/A | Usable, preserved |
+| Unlinked + source exists | Blocked | Available | Usable, stale suppressed |
+| Unlinked + source missing | Blocked | Blocked | Usable, preserved |
+
+In all cases the snapshot remains usable as scene content. Missing source never erases or invalidates the local snapshot.
 
 #### Placeability rules
 
@@ -366,17 +439,16 @@ Override rules:
 - Stale detection compares snapshot vs source, not overrides vs source
 - An inline slot picker classifies candidates by compatibility tier (compatible, warning, incompatible)
 
-The `CharacterSourceStatus` type (`'linked' | 'missing-source' | 'not-character'`) is designed as an extensible union — future states like `'unlinked'` or `'conflicted'` can be added without breaking existing code.
+The `CharacterSourceStatus` type (`'linked' | 'missing-source' | 'unlinked' | 'not-character'`) covers all current relationship states. Future states like `'conflicted'` can be added without breaking existing code.
 
 #### Current limitations
 
 The bridge does not currently support:
 
 - Automatic live sync between builds and instances
-- Unlink-from-source action
 - Source/instance diff viewer
 - Scene-side source build mutation
 - Per-slot transform/anchor/socket overrides (only part replacement and removal)
 - Override conflict resolution (e.g. when a reapplied source removes a slot that has an override)
 
-These are potential future extensions. The `sourceCharacterBuildId`, `instanceKind`, and `CharacterSourceStatus` fields provide clean seams for attaching them.
+These are potential future extensions. The `sourceCharacterBuildId`, `instanceKind`, `characterLinkMode`, and `CharacterSourceStatus` fields provide clean seams for attaching them.

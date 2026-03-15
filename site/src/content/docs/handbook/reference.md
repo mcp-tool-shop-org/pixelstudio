@@ -994,12 +994,32 @@ Pure functions exported from `@glyphstudio/state` for the character scene bridge
 | `checkPlaceability` | `(build, issues) → PlaceabilityResult` | Check if a build can be placed (errors block, warnings allowed) |
 | `isCharacterInstance` | `(instance) → boolean` | Check if a scene instance is character-derived |
 | `isSourceBuildAvailable` | `(instance, buildIds) → boolean` | Check if source build exists in library |
-| `deriveSourceStatus` | `(instance, buildIds) → CharacterSourceStatus` | Classify as `'linked'`, `'missing-source'`, or `'not-character'` |
+| `deriveSourceStatus` | `(instance, buildIds) → CharacterSourceStatus` | Classify as `'linked'`, `'missing-source'`, `'unlinked'`, or `'not-character'` |
 | `sourceStatusLabel` | `(status) → string` | Human-readable status label |
 | `instanceBuildName` | `(instance) → string` | Build name with "Unknown build" fallback |
 | `snapshotSummary` | `(instance) → string` | Snapshot text (e.g. "4/12 equipped") |
-| `isSnapshotPossiblyStale` | `(instance, sourceBuild?) → boolean` | Lightweight staleness check (count + name heuristic) |
+| `isSnapshotPossiblyStale` | `(instance, sourceBuild?) → boolean` | Lightweight staleness check (count + name heuristic); returns false for unlinked |
 | `createSlotSnapshot` | `(build) → CharacterSlotSnapshot` | Create a frozen slot snapshot from a build |
+| `canReapplyFromSource` | `(instance, buildIds) → boolean` | True when linked + source exists (reapply is lawful) |
+| `canRelinkToSource` | `(instance, buildIds) → boolean` | True when unlinked + source exists (relink is lawful) |
+| `unlinkFromSource` | `(instance) → SceneAssetInstance` | Sever source relationship; preserves snapshot and overrides |
+| `relinkToSource` | `(instance) → SceneAssetInstance` | Restore source relationship; does not mutate snapshot |
+| `effectiveCompositionAsBuild` | `(instance) → CharacterBuild \| null` | Synthetic build from effective composition for compatibility checks |
+
+### Character instance override helpers
+
+| Helper | Signature | Purpose |
+|--------|-----------|---------|
+| `applyOverridesToSnapshot` | `(snapshot?, overrides?) → EffectiveSlotComposition` | Apply local overrides to a snapshot |
+| `deriveEffectiveSlots` | `(instance) → EffectiveSlotComposition` | Effective slot composition (snapshot + overrides) |
+| `deriveEffectiveCharacterSlotStates` | `(instance) → EffectiveCharacterSlotState[]` | Per-slot UI-ready state for all 12 canonical slots |
+| `setSlotOverride` | `(instance, override) → SceneAssetInstance` | Set a local override (immutable) |
+| `clearSlotOverride` | `(instance, slotId) → SceneAssetInstance` | Clear a single override (immutable) |
+| `clearAllOverrides` | `(instance) → SceneAssetInstance` | Clear all overrides (immutable) |
+| `hasOverrides` | `(instance) → boolean` | Check if any overrides exist |
+| `getOverrideCount` | `(instance) → number` | Count of local overrides |
+| `overrideSummary` | `(instance) → string` | Compact summary (e.g. "2 local overrides") |
+| `effectiveSlotSummary` | `(instance) → string` | Effective slot count (e.g. "4/12 effective") |
 
 ### Camera timeline lane helpers
 
