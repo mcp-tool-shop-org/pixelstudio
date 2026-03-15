@@ -4,6 +4,8 @@ import type {
   SceneAssetInstance,
   CharacterSlotSnapshot,
   CharacterSlotId,
+  CharacterInstanceOverrides,
+  CharacterSlotOverride,
 } from '@glyphstudio/domain';
 import { CHARACTER_SLOT_IDS } from '@glyphstudio/domain';
 
@@ -234,5 +236,132 @@ export function reapplyCharacterBuild(
     sourceCharacterBuildId: build.id,
     sourceCharacterBuildName: build.name,
     characterSlotSnapshot: createSlotSnapshot(build),
+    // Overrides are preserved across reapply — they layer on top of the new snapshot
   };
+}
+
+// ── Character instance overrides ──
+
+/**
+ * Effective slot composition after applying overrides to a snapshot.
+ * Key = slot ID, value = source part ID (slots removed by override are absent).
+ */
+export type EffectiveSlotComposition = Record<string, string>;
+
+/**
+ * Apply local overrides to a snapshot, producing the effective slot composition.
+ *
+ * Rules:
+ * - Slots not in overrides inherit from snapshot as-is
+ * - 'replace' override swaps the slot occupant
+ * - 'remove' override deletes the slot from effective composition
+ * - Override for a slot not in snapshot: 'replace' adds it, 'remove' is a no-op
+ */
+export function applyOverridesToSnapshot(
+  snapshot: CharacterSlotSnapshot | undefined,
+  overrides: CharacterInstanceOverrides | undefined,
+): EffectiveSlotComposition {
+  // Start with snapshot slots
+  const effective: EffectiveSlotComposition = { ...(snapshot?.slots ?? {}) };
+
+  if (!overrides) return effective;
+
+  for (const [slotId, override] of Object.entries(overrides)) {
+    switch (override.mode) {
+      case 'remove':
+        delete effective[slotId];
+        break;
+      case 'replace':
+        if (override.replacementPartId) {
+          effective[slotId] = override.replacementPartId;
+        }
+        break;
+    }
+  }
+
+  return effective;
+}
+
+/**
+ * Derive the effective slot composition for a character scene instance.
+ * Combines snapshot + local overrides.
+ * Returns empty composition for non-character instances.
+ */
+export function deriveEffectiveSlots(
+  instance: SceneAssetInstance,
+): EffectiveSlotComposition {
+  if (instance.instanceKind !== 'character') return {};
+  return applyOverridesToSnapshot(instance.characterSlotSnapshot, instance.characterOverrides);
+}
+
+/** Check if a character instance has any local overrides. */
+export function hasOverrides(instance: SceneAssetInstance): boolean {
+  if (!instance.characterOverrides) return false;
+  return Object.keys(instance.characterOverrides).length > 0;
+}
+
+/** Get the list of slot IDs that have local overrides. */
+export function getOverriddenSlots(instance: SceneAssetInstance): string[] {
+  if (!instance.characterOverrides) return [];
+  return Object.keys(instance.characterOverrides);
+}
+
+/** Check if a specific slot has a local override. */
+export function isSlotOverridden(instance: SceneAssetInstance, slotId: string): boolean {
+  if (!instance.characterOverrides) return false;
+  return slotId in instance.characterOverrides;
+}
+
+/** Get the override for a specific slot, or undefined if not overridden. */
+export function getSlotOverride(
+  instance: SceneAssetInstance,
+  slotId: string,
+): CharacterSlotOverride | undefined {
+  return instance.characterOverrides?.[slotId];
+}
+
+/**
+ * Create a new instance with a slot override applied.
+ * Returns a new instance — does not mutate.
+ */
+export function setSlotOverride(
+  instance: SceneAssetInstance,
+  override: CharacterSlotOverride,
+): SceneAssetInstance {
+  const existing = instance.characterOverrides ?? {};
+  return {
+    ...instance,
+    characterOverrides: {
+      ...existing,
+      [override.slot]: override,
+    },
+  };
+}
+
+/**
+ * Create a new instance with a slot override cleared.
+ * Returns a new instance — does not mutate.
+ * If no overrides remain, characterOverrides is set to undefined.
+ */
+export function clearSlotOverride(
+  instance: SceneAssetInstance,
+  slotId: string,
+): SceneAssetInstance {
+  if (!instance.characterOverrides || !(slotId in instance.characterOverrides)) {
+    return instance;
+  }
+  const { [slotId]: _removed, ...remaining } = instance.characterOverrides;
+  return {
+    ...instance,
+    characterOverrides: Object.keys(remaining).length > 0 ? remaining : undefined,
+  };
+}
+
+/**
+ * Create a new instance with all overrides cleared.
+ * Returns a new instance — does not mutate.
+ */
+export function clearAllOverrides(instance: SceneAssetInstance): SceneAssetInstance {
+  if (!instance.characterOverrides) return instance;
+  return { ...instance, characterOverrides: undefined };
 }

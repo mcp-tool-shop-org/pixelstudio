@@ -19,6 +19,8 @@ export interface SceneAssetInstance {
   sourceCharacterBuildName?: string;
   /** Snapshot of equipped slots at placement time (character instances only). */
   characterSlotSnapshot?: CharacterSlotSnapshot;
+  /** Local slot overrides for this character instance (character instances only). */
+  characterOverrides?: CharacterInstanceOverrides;
   /** Display name for the instance. */
   name: string;
   /** Which clip to play (undefined = first clip or static). */
@@ -49,6 +51,33 @@ export interface CharacterSlotSnapshot {
   /** Total slots in the vocabulary at time of snapshot. */
   totalSlots: number;
 }
+
+// ── Character instance overrides ──
+
+/** Override mode for a single slot on a character instance. */
+export type CharacterSlotOverrideMode = 'replace' | 'remove';
+
+/**
+ * A local override for a single slot on a placed character instance.
+ *
+ * Overrides layer on top of the snapshot from the source build:
+ * - 'replace': swap the slot occupant with a different part
+ * - 'remove': hide/remove the slot from the effective composition
+ */
+export interface CharacterSlotOverride {
+  /** Which slot this override applies to. */
+  slot: string;
+  /** Override mode. */
+  mode: CharacterSlotOverrideMode;
+  /** Replacement part source ID (only for 'replace' mode). */
+  replacementPartId?: string;
+}
+
+/**
+ * Local overrides for a character instance in a scene.
+ * Keyed by slot ID. One override per slot.
+ */
+export type CharacterInstanceOverrides = Record<string, CharacterSlotOverride>;
 
 /** Scene camera — defines the viewport into the scene stage. */
 export interface SceneCamera {
