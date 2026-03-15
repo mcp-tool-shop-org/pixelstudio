@@ -82,6 +82,29 @@ export interface CharacterPartRef {
   providedAnchors?: string[];
 }
 
+// ── Character Part Preset ──
+
+/** A character part available in the catalog for equipping into slots. */
+export interface CharacterPartPreset extends CharacterPartRef {
+  /** Human-readable name for display. */
+  name: string;
+  /** Optional description. */
+  description?: string;
+}
+
+/** Compatibility tier for a preset relative to a target slot + build. */
+export type PresetCompatibilityTier = 'compatible' | 'warning' | 'incompatible';
+
+/** Compatibility classification result for a preset candidate. */
+export interface PresetSlotCompatibility {
+  /** The preset being evaluated. */
+  preset: CharacterPartPreset;
+  /** Compatibility tier. */
+  tier: PresetCompatibilityTier;
+  /** Reasons for the tier (e.g. missing sockets, slot mismatch). */
+  reasons: string[];
+}
+
 // ── Character Build ──
 
 /** A complete character build — slots mapped to equipped parts. */

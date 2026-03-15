@@ -3,7 +3,7 @@ import { render, screen, cleanup, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { useCharacterStore } from '@glyphstudio/state';
 import { CHARACTER_SLOT_IDS } from '@glyphstudio/domain';
-import type { CharacterBuild, CharacterPartRef } from '@glyphstudio/domain';
+import type { CharacterBuild, CharacterPartRef, CharacterPartPreset } from '@glyphstudio/domain';
 
 import { CharacterBuilderPanel } from '../components/CharacterBuilderPanel';
 
@@ -20,6 +20,49 @@ const VALID_BUILD: CharacterBuild = {
   name: 'Warrior',
   slots: { head: HEAD, torso: TORSO, arms: ARMS, legs: LEGS },
 };
+
+// Preset fixtures
+const HEAD_PRESET_A: CharacterPartPreset = {
+  sourceId: 'head-knight',
+  slot: 'head',
+  name: 'Knight Helm',
+  description: 'A sturdy metal helmet.',
+  tags: ['human', 'heavy'],
+};
+
+const HEAD_PRESET_B: CharacterPartPreset = {
+  sourceId: 'head-wizard',
+  slot: 'head',
+  name: 'Wizard Hat',
+  tags: ['human', 'cloth'],
+};
+
+const TORSO_PRESET: CharacterPartPreset = {
+  sourceId: 'torso-chain',
+  slot: 'torso',
+  name: 'Chainmail',
+};
+
+const WEAPON_PRESET: CharacterPartPreset = {
+  sourceId: 'sword-steel',
+  slot: 'weapon',
+  name: 'Steel Sword',
+  requiredSockets: ['hand'],
+};
+
+const WEAPON_PRESET_CLEAN: CharacterPartPreset = {
+  sourceId: 'dagger-iron',
+  slot: 'weapon',
+  name: 'Iron Dagger',
+};
+
+const CATALOG: CharacterPartPreset[] = [
+  HEAD_PRESET_A,
+  HEAD_PRESET_B,
+  TORSO_PRESET,
+  WEAPON_PRESET,
+  WEAPON_PRESET_CLEAN,
+];
 
 // ── Lifecycle ──
 
@@ -194,7 +237,7 @@ describe('selected slot detail', () => {
     expect(useCharacterStore.getState().activeCharacterBuild!.slots.head).toBeUndefined();
   });
 
-  it('empty slot shows choose part placeholder', async () => {
+  it('empty slot shows choose part button', async () => {
     useCharacterStore.getState().createCharacterBuild();
     render(<CharacterBuilderPanel />);
     await act(async () => {
@@ -226,6 +269,219 @@ describe('selected slot detail', () => {
       await userEvent.click(screen.getByTestId('char-slot-weapon'));
     });
     expect(screen.getByTestId('char-slot-issues')).toBeInTheDocument();
+  });
+});
+
+// ── Preset picker ──
+
+describe('preset picker', () => {
+  it('choose part button opens picker', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-preset-picker')).toBeInTheDocument();
+  });
+
+  it('replace part button opens picker', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-replace-part-btn'));
+    });
+    expect(screen.getByTestId('char-preset-picker')).toBeInTheDocument();
+  });
+
+  it('picker shows only compatible presets for the selected slot', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    const list = screen.getByTestId('char-picker-list');
+    // Only head presets should appear
+    expect(list.querySelectorAll('.char-preset-candidate')).toHaveLength(2);
+    expect(screen.getByTestId('char-candidate-head-knight')).toBeInTheDocument();
+    expect(screen.getByTestId('char-candidate-head-wizard')).toBeInTheDocument();
+  });
+
+  it('picker shows empty message when no compatible presets', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-feet'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-picker-empty')).toBeInTheDocument();
+    expect(screen.getByText(/No compatible parts/)).toBeInTheDocument();
+  });
+
+  it('picker shows empty message when catalog is empty', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={[]} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-picker-empty')).toBeInTheDocument();
+  });
+
+  it('clicking a candidate equips the part', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-head-knight'));
+    });
+    const build = useCharacterStore.getState().activeCharacterBuild!;
+    expect(build.slots.head).toBeDefined();
+    expect(build.slots.head!.sourceId).toBe('head-knight');
+  });
+
+  it('equipping a preset closes the picker', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-head-knight'));
+    });
+    expect(screen.queryByTestId('char-preset-picker')).toBeNull();
+  });
+
+  it('close button closes the picker', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-preset-picker')).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-picker-close-btn'));
+    });
+    expect(screen.queryByTestId('char-preset-picker')).toBeNull();
+  });
+
+  it('switching slots closes the picker', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByTestId('char-preset-picker')).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-torso'));
+    });
+    expect(screen.queryByTestId('char-preset-picker')).toBeNull();
+  });
+
+  it('replace flow equips preset into already-occupied slot', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    // Currently head-basic is equipped
+    expect(screen.getByTestId('char-detail-part-id').textContent).toBe('head-basic');
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-replace-part-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-head-knight'));
+    });
+    const build = useCharacterStore.getState().activeCharacterBuild!;
+    expect(build.slots.head!.sourceId).toBe('head-knight');
+  });
+
+  it('warning-tier candidates show warning indicators', async () => {
+    // Weapon presets with requiredSockets but no hands equipped → warning tier
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    // WEAPON_PRESET requires 'hand' socket → warning
+    const swordCandidate = screen.getByTestId('char-candidate-sword-steel');
+    expect(swordCandidate.dataset.tier).toBe('warning');
+    expect(swordCandidate.querySelector('.char-candidate-warnings')).not.toBeNull();
+    // WEAPON_PRESET_CLEAN has no requirements → compatible
+    const daggerCandidate = screen.getByTestId('char-candidate-dagger-iron');
+    expect(daggerCandidate.dataset.tier).toBe('compatible');
+  });
+
+  it('compatible candidates appear before warning candidates', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    const candidates = screen.getByTestId('char-picker-list').querySelectorAll('.char-preset-candidate');
+    const tiers = Array.from(candidates).map((c) => (c as HTMLElement).dataset.tier);
+    // Compatible first, then warnings
+    expect(tiers[0]).toBe('compatible');
+  });
+
+  it('warning-tier candidates can still be equipped', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-weapon'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-sword-steel'));
+    });
+    const build = useCharacterStore.getState().activeCharacterBuild!;
+    expect(build.slots.weapon!.sourceId).toBe('sword-steel');
+  });
+
+  it('preset description is displayed when present', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    expect(screen.getByText('A sturdy metal helmet.')).toBeInTheDocument();
   });
 });
 
@@ -288,5 +544,23 @@ describe('store/UI integration', () => {
     });
     rerender(<CharacterBuilderPanel />);
     expect(screen.getByTestId('char-validation-summary').textContent).toContain('1 error');
+  });
+
+  it('equip via picker → validation updates', async () => {
+    useCharacterStore.getState().createCharacterBuild();
+    const { rerender } = render(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('4 errors');
+    // Equip head via picker
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-slot-head'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-part-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-apply-head-knight'));
+    });
+    rerender(<CharacterBuilderPanel partCatalog={CATALOG} />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('3 errors');
   });
 });

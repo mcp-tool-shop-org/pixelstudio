@@ -40,6 +40,11 @@ export {
   isCharacterBuildValid,
 } from './characterHelpers';
 export {
+  classifyPresetCompatibility,
+  getCompatiblePresetsForSlot,
+  classifyAllPresetsForSlot,
+} from './characterPresetHelpers';
+export {
   useCharacterStore,
   getEquippedPartForSlot,
   getMissingRequiredSlots,

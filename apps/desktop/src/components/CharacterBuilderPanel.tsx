@@ -4,7 +4,7 @@ import {
   CHARACTER_SLOT_LABELS,
   REQUIRED_SLOTS,
 } from '@glyphstudio/domain';
-import type { CharacterSlotId } from '@glyphstudio/domain';
+import type { CharacterPartPreset, CharacterSlotId } from '@glyphstudio/domain';
 import {
   useCharacterStore,
   getEquippedPartForSlot,
@@ -12,9 +12,15 @@ import {
   getCharacterErrors,
   getCharacterWarnings,
   isCharacterValid,
+  getCompatiblePresetsForSlot,
 } from '@glyphstudio/state';
 
-export function CharacterBuilderPanel() {
+interface CharacterBuilderPanelProps {
+  /** Available part presets for the picker. */
+  partCatalog?: CharacterPartPreset[];
+}
+
+export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPanelProps) {
   const build = useCharacterStore((s) => s.activeCharacterBuild);
   const selectedSlot = useCharacterStore((s) => s.selectedSlot);
   const validationIssues = useCharacterStore((s) => s.validationIssues);
@@ -23,9 +29,11 @@ export function CharacterBuilderPanel() {
   const setName = useCharacterStore((s) => s.setCharacterName);
   const selectSlot = useCharacterStore((s) => s.selectSlot);
   const unequipSlot = useCharacterStore((s) => s.unequipCharacterSlot);
+  const equipPart = useCharacterStore((s) => s.equipCharacterPart);
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [showingPicker, setShowingPicker] = useState(false);
 
   const state = useCharacterStore.getState();
   const errors = getCharacterErrors(state);
@@ -54,6 +62,14 @@ export function CharacterBuilderPanel() {
     [handleCommitRename],
   );
 
+  const handleApplyPreset = useCallback(
+    (preset: CharacterPartPreset) => {
+      equipPart(preset);
+      setShowingPicker(false);
+    },
+    [equipPart],
+  );
+
   // ── Empty state ──
   if (!build) {
     return (
@@ -80,6 +96,11 @@ export function CharacterBuilderPanel() {
     : false;
   const selectedSlotIssues = selectedSlot
     ? validationIssues.filter((i) => i.slot === selectedSlot)
+    : [];
+
+  // Compute candidates when picker is open
+  const candidates = showingPicker && selectedSlot && build
+    ? getCompatiblePresetsForSlot(partCatalog, selectedSlot, build)
     : [];
 
   return (
@@ -164,7 +185,10 @@ export function CharacterBuilderPanel() {
             <div
               key={slotId}
               className={cls}
-              onClick={() => selectSlot(slotId)}
+              onClick={() => {
+                selectSlot(slotId);
+                setShowingPicker(false);
+              }}
               data-testid={`char-slot-${slotId}`}
               data-slot={slotId}
             >
@@ -227,7 +251,7 @@ export function CharacterBuilderPanel() {
                 <button
                   className="char-builder-action-btn char-replace-btn"
                   title="Replace with another part"
-                  disabled
+                  onClick={() => setShowingPicker(true)}
                   data-testid="char-replace-part-btn"
                 >
                   Replace Part
@@ -240,11 +264,68 @@ export function CharacterBuilderPanel() {
               <button
                 className="char-builder-action-btn char-apply-btn"
                 title="Choose a part for this slot"
-                disabled
+                onClick={() => setShowingPicker(true)}
                 data-testid="char-apply-part-btn"
               >
                 Choose Part
               </button>
+            </div>
+          )}
+
+          {/* ── Preset picker ── */}
+          {showingPicker && (
+            <div className="char-preset-picker" data-testid="char-preset-picker">
+              <div className="char-preset-picker-header">
+                <span className="char-preset-picker-title">
+                  Choose part for {CHARACTER_SLOT_LABELS[selectedSlot]}
+                </span>
+                <button
+                  className="char-builder-action-btn char-preset-picker-close"
+                  onClick={() => setShowingPicker(false)}
+                  data-testid="char-picker-close-btn"
+                >
+                  {'\u2715'}
+                </button>
+              </div>
+              {candidates.length === 0 ? (
+                <div className="char-preset-picker-empty" data-testid="char-picker-empty">
+                  No compatible parts available for this slot.
+                </div>
+              ) : (
+                <div className="char-preset-picker-list" data-testid="char-picker-list">
+                  {candidates.map((candidate) => (
+                    <div
+                      key={candidate.preset.sourceId}
+                      className={`char-preset-candidate ${candidate.tier}`}
+                      data-testid={`char-candidate-${candidate.preset.sourceId}`}
+                      data-tier={candidate.tier}
+                    >
+                      <div className="char-candidate-info">
+                        <span className="char-candidate-name">{candidate.preset.name}</span>
+                        {candidate.preset.description && (
+                          <span className="char-candidate-desc">{candidate.preset.description}</span>
+                        )}
+                        {candidate.tier === 'warning' && (
+                          <div className="char-candidate-warnings" data-testid="char-candidate-warnings">
+                            {candidate.reasons.map((reason, i) => (
+                              <span key={i} className="char-candidate-warning-reason">
+                                {'\u26A0'} {reason}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className="char-builder-action-btn char-candidate-apply-btn"
+                        onClick={() => handleApplyPreset(candidate.preset)}
+                        data-testid={`char-apply-${candidate.preset.sourceId}`}
+                      >
+                        {selectedPart ? 'Replace' : 'Equip'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
