@@ -599,4 +599,252 @@ describe('SceneInstancesPanel', () => {
     // Stale hint should be gone after reapply
     expect(screen.queryByText('Out of date')).toBeNull();
   });
+
+  // ── Instance Overrides section ──
+
+  it('overrides section appears for character instances', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Instance Overrides')).toBeInTheDocument();
+  });
+
+  it('overrides section absent for asset instances', async () => {
+    mock.on('get_scene_instances', () => [INST_A]);
+    seedStores();
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Hero')); });
+    expect(screen.queryByText('Instance Overrides')).toBeNull();
+  });
+
+  it('renders all 12 canonical slots in order', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const slotRows = document.querySelectorAll('.scene-override-slot-row');
+    expect(slotRows.length).toBe(12);
+    // First slot should be Head, last should be Offhand
+    const names = Array.from(slotRows).map((r) => r.querySelector('.scene-override-slot-name')?.textContent);
+    expect(names[0]).toBe('Head');
+    expect(names[names.length - 1]).toBe('Offhand');
+  });
+
+  it('inherited slot rows show Inherited badge', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // head has a part → Inherited badge
+    const slotRows = document.querySelectorAll('.scene-override-slot-row');
+    const headRow = slotRows[0]; // head is first
+    expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Inherited');
+    expect(headRow.querySelector('.scene-override-slot-badge')?.classList.contains('badge-inherited')).toBe(true);
+  });
+
+  it('equipped inherited slots show part ID and Remove button', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // head slot has part 'helm-iron'
+    const slotRows = document.querySelectorAll('.scene-override-slot-row');
+    const headRow = slotRows[0];
+    expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('helm-iron');
+    // Should have Remove button
+    const removeBtn = headRow.querySelector('.scene-override-action-btn');
+    expect(removeBtn?.textContent).toBe('Remove');
+  });
+
+  it('empty inherited slots show dash and no action button', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // face slot (index 1) has no part
+    const slotRows = document.querySelectorAll('.scene-override-slot-row');
+    const faceRow = slotRows[1];
+    expect(faceRow.querySelector('.scene-override-slot-part')?.textContent).toBe('\u2014');
+    expect(faceRow.querySelector('.scene-override-action-btn')).toBeNull();
+  });
+
+  it('shows summary counts', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // INST_CHAR has 2 equipped slots, no overrides
+    expect(screen.getByText('2/12 effective')).toBeInTheDocument();
+    expect(screen.getByText('No local overrides')).toBeInTheDocument();
+  });
+
+  it('shows scene-local explanatory text', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Local overrides do not modify the source Character Build.')).toBeInTheDocument();
+  });
+
+  it('clicking Remove locally sets remove override and updates row', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Find head slot Remove button and click it
+    const slotRows = document.querySelectorAll('.scene-override-slot-row');
+    const headRemoveBtn = slotRows[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    expect(headRemoveBtn.textContent).toBe('Remove');
+    await act(async () => { await userEvent.click(headRemoveBtn); });
+    // After remove: head row should show Local Remove badge and Clear button
+    const updatedRows = document.querySelectorAll('.scene-override-slot-row');
+    const headRow = updatedRows[0];
+    expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Local Remove');
+    expect(headRow.querySelector('.scene-override-slot-badge')?.classList.contains('badge-remove')).toBe(true);
+    const clearBtn = headRow.querySelector('.scene-override-action-btn');
+    expect(clearBtn?.textContent).toBe('Clear');
+    // Part should show dash (removed)
+    expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('\u2014');
+  });
+
+  it('clicking Remove updates override count summary', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Remove head slot
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    await act(async () => { await userEvent.click(headRemoveBtn); });
+    expect(screen.getByText('1/12 effective')).toBeInTheDocument();
+    expect(screen.getByText('1 local override')).toBeInTheDocument();
+  });
+
+  it('clicking Clear override restores inherited state', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Remove head slot
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    await act(async () => { await userEvent.click(headRemoveBtn); });
+    // Now clear the override
+    const clearBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    expect(clearBtn.textContent).toBe('Clear');
+    await act(async () => { await userEvent.click(clearBtn); });
+    // Head row should be back to Inherited with part restored
+    const headRow = document.querySelectorAll('.scene-override-slot-row')[0];
+    expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Inherited');
+    expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('helm-iron');
+    expect(screen.getByText('No local overrides')).toBeInTheDocument();
+  });
+
+  it('overrides section shows override state from instance data', async () => {
+    const instWithOverrides: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'remove' },
+      },
+    };
+    mock.on('get_scene_instances', () => [instWithOverrides]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // head should show Local Remove
+    const headRow = document.querySelectorAll('.scene-override-slot-row')[0];
+    expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Local Remove');
+    expect(screen.getByText('1 local override')).toBeInTheDocument();
+    expect(screen.getByText('1/12 effective')).toBeInTheDocument();
+  });
+
+  it('replaced override row shows Local Replace badge', async () => {
+    const instWithReplace: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      },
+    };
+    mock.on('get_scene_instances', () => [instWithReplace]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const headRow = document.querySelectorAll('.scene-override-slot-row')[0];
+    expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Local Replace');
+    expect(headRow.querySelector('.scene-override-slot-badge')?.classList.contains('badge-replace')).toBe(true);
+    expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('crown-gold');
+    // Should have Clear button
+    expect(headRow.querySelector('.scene-override-action-btn')?.textContent).toBe('Clear');
+  });
+
+  it('Clear all button appears when overrides exist and clears them', async () => {
+    const instWithOverrides: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'remove' },
+        torso: { slot: 'torso', mode: 'remove' },
+      },
+    };
+    mock.on('get_scene_instances', () => [instWithOverrides]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Clear all button should exist
+    const clearAllBtn = screen.getByText('Clear all');
+    expect(clearAllBtn).toBeInTheDocument();
+    await act(async () => { await userEvent.click(clearAllBtn); });
+    // All overrides cleared
+    expect(screen.getByText('No local overrides')).toBeInTheDocument();
+    expect(screen.getByText('2/12 effective')).toBeInTheDocument();
+    // Clear all button should be gone
+    expect(screen.queryByText('Clear all')).toBeNull();
+  });
+
+  it('Clear all button absent when no overrides', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.queryByText('Clear all')).toBeNull();
+  });
+
+  it('source build/snapshot labels unchanged after local remove', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Remove head locally
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    await act(async () => { await userEvent.click(headRemoveBtn); });
+    // Build name and snapshot labels should still show original values
+    expect(screen.getByText('Knight Build')).toBeInTheDocument();
+    expect(screen.getByText('2/12 equipped')).toBeInTheDocument(); // snapshot unchanged
+    expect(screen.getByText('Linked')).toBeInTheDocument();
+  });
+
+  it('non-character instances unaffected by override features', async () => {
+    mock.on('get_scene_instances', () => [INST_A, INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Hero')).toBeInTheDocument(); });
+    // Select plain asset
+    await act(async () => { await userEvent.click(screen.getByText('Hero')); });
+    expect(screen.queryByText('Instance Overrides')).toBeNull();
+    expect(screen.queryByText(/local override/)).toBeNull();
+  });
 });

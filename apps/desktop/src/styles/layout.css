@@ -4523,6 +4523,147 @@
   margin-left: 6px;
 }
 
+/* --- Scene Instance Overrides --- */
+
+.scene-override-section {
+  border-top: 1px solid var(--border-subtle, #333);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.scene-override-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.scene-override-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scene-override-clear-all-btn {
+  font-size: 9px;
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid var(--border-subtle, #555);
+  color: var(--text-secondary, #aaa);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.scene-override-clear-all-btn:hover {
+  background: var(--surface-2, #2a2a40);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.scene-override-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--text-muted, #888);
+  margin-bottom: 4px;
+}
+
+.scene-override-summary-text {
+  white-space: nowrap;
+}
+
+.scene-override-summary-sep {
+  color: var(--text-muted, #555);
+}
+
+.scene-override-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.scene-override-slot-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  font-size: 9px;
+  border-radius: 2px;
+}
+
+.scene-override-slot-row:hover {
+  background: var(--surface-1, #1e1e30);
+}
+
+.scene-override-slot-overridden {
+  background: rgba(255, 170, 68, 0.06);
+}
+
+.scene-override-slot-name {
+  color: var(--text-secondary, #aaa);
+  font-weight: 500;
+}
+
+.scene-override-slot-part {
+  color: var(--text-muted, #777);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-override-slot-badge {
+  font-size: 8px;
+  padding: 0 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.scene-override-slot-badge.badge-inherited {
+  color: var(--text-muted, #666);
+}
+
+.scene-override-slot-badge.badge-replace {
+  color: #66bbff;
+  background: rgba(102, 187, 255, 0.1);
+}
+
+.scene-override-slot-badge.badge-remove {
+  color: #ff7766;
+  background: rgba(255, 119, 102, 0.1);
+}
+
+.scene-override-slot-actions {
+  min-width: 40px;
+  text-align: right;
+}
+
+.scene-override-action-btn {
+  font-size: 8px;
+  padding: 1px 5px;
+  background: transparent;
+  border: 1px solid var(--border-subtle, #444);
+  color: var(--text-secondary, #aaa);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.scene-override-action-btn:hover {
+  background: var(--surface-2, #2a2a40);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.scene-override-hint {
+  font-size: 8px;
+  color: var(--text-muted, #666);
+  font-style: italic;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle, #2a2a2a);
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {

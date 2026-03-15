@@ -5,6 +5,8 @@ import {
   useScenePlaybackStore, useProjectStore, useCharacterStore,
   isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById,
   deriveSourceStatus, sourceStatusLabel, instanceBuildName, snapshotSummary, isSnapshotPossiblyStale,
+  deriveEffectiveCharacterSlotStates, setSlotOverride, clearSlotOverride, clearAllOverrides,
+  overrideSummary, effectiveSlotSummary, hasOverrides,
 } from '@glyphstudio/state';
 
 export function SceneInstancesPanel() {
@@ -110,9 +112,12 @@ export function SceneInstancesPanel() {
     if (!sourceBuild) return;
     const updated = reapplyCharacterBuild(inst, sourceBuild);
     if (!updated) return;
-    // Update local instances state — selection stays stable
     setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
   }, [instances, buildLibrary]);
+
+  const handleInstanceUpdate = useCallback((updated: SceneAssetInstance) => {
+    setInstances((prev) => prev.map((i) => i.instanceId === updated.instanceId ? updated : i));
+  }, []);
 
   // Sort by z-order descending (top items first in list)
   const sorted = [...instances].sort((a, b) => b.zOrder - a.zOrder);
@@ -205,6 +210,7 @@ export function SceneInstancesPanel() {
             libraryBuildIds={libraryBuildIds}
             buildLibrary={buildLibrary}
             onReapply={handleReapply}
+            onInstanceUpdate={handleInstanceUpdate}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
               try {
@@ -231,12 +237,18 @@ export function SceneInstancesPanel() {
   );
 }
 
+/** Slot label formatter — capitalize first letter. */
+function slotLabel(slotId: string): string {
+  return slotId.charAt(0).toUpperCase() + slotId.slice(1);
+}
+
 /** Detail pane for the selected instance — includes clip picker. */
 function InstanceDetailPane({
   instance,
   libraryBuildIds,
   buildLibrary,
   onReapply,
+  onInstanceUpdate,
   onOpacityChange,
   onParallaxChange,
   onClipChange,
@@ -245,6 +257,7 @@ function InstanceDetailPane({
   libraryBuildIds: string[];
   buildLibrary: { builds: { id: string; name: string; slots: Record<string, unknown> }[] };
   onReapply: (instanceId: string) => void;
+  onInstanceUpdate: (updated: SceneAssetInstance) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
   onClipChange: (instanceId: string, clipId: string | null) => void;
@@ -343,6 +356,77 @@ function InstanceDetailPane({
               )}
             </div>
           </>
+        );
+      })()}
+
+      {isCharacterInstance(instance) && (() => {
+        const slotStates = deriveEffectiveCharacterSlotStates(instance);
+        const overSummary = overrideSummary(instance);
+        const effSummary = effectiveSlotSummary(instance);
+        const hasOv = hasOverrides(instance);
+        return (
+          <div className="scene-override-section">
+            <div className="scene-override-header">
+              <span className="scene-override-title">Instance Overrides</span>
+              {hasOv && (
+                <button
+                  className="scene-override-clear-all-btn"
+                  title="Clear all local overrides"
+                  onClick={() => onInstanceUpdate(clearAllOverrides(instance))}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <div className="scene-override-summary">
+              <span className="scene-override-summary-text">{effSummary}</span>
+              <span className="scene-override-summary-sep">{'\u00B7'}</span>
+              <span className="scene-override-summary-text">{overSummary}</span>
+            </div>
+            <div className="scene-override-slot-list">
+              {slotStates.map((s) => (
+                <div key={s.slot} className={`scene-override-slot-row ${s.isOverridden ? 'scene-override-slot-overridden' : ''}`}>
+                  <span className="scene-override-slot-name">{slotLabel(s.slot)}</span>
+                  <span className="scene-override-slot-part">
+                    {s.hasPart ? s.effectivePart : '\u2014'}
+                  </span>
+                  <span className={`scene-override-slot-badge ${
+                    s.source === 'inherited' ? 'badge-inherited'
+                    : s.source === 'override_replace' ? 'badge-replace'
+                    : 'badge-remove'
+                  }`}>
+                    {s.source === 'inherited' ? 'Inherited'
+                      : s.source === 'override_replace' ? 'Local Replace'
+                      : 'Local Remove'}
+                  </span>
+                  <span className="scene-override-slot-actions">
+                    {s.isOverridden ? (
+                      <button
+                        className="scene-override-action-btn"
+                        title="Clear override"
+                        onClick={() => onInstanceUpdate(clearSlotOverride(instance, s.slot))}
+                      >
+                        Clear
+                      </button>
+                    ) : s.hasPart ? (
+                      <button
+                        className="scene-override-action-btn"
+                        title="Remove locally"
+                        onClick={() => onInstanceUpdate(
+                          setSlotOverride(instance, { slot: s.slot, mode: 'remove' })
+                        )}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="scene-override-hint">
+              Local overrides do not modify the source Character Build.
+            </div>
+          </div>
         );
       })()}
 
