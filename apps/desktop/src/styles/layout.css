@@ -4888,6 +4888,307 @@
   color: var(--text-muted, #888);
 }
 
+/* ===== Character Builder Panel ===== */
+
+.char-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  font-size: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.char-builder-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-muted, #888);
+}
+
+.char-builder-empty-msg {
+  font-size: 13px;
+  margin: 0;
+}
+
+.char-builder-empty-hint {
+  font-size: 11px;
+  margin: 0;
+  color: var(--text-dim, #666);
+}
+
+.char-builder-create-btn {
+  margin-top: 4px;
+}
+
+.char-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border, #444);
+}
+
+.char-builder-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.char-builder-name {
+  font-weight: 600;
+  color: var(--text-bright, #e0e0e0);
+  cursor: default;
+  user-select: none;
+}
+
+.char-builder-rename-input {
+  background: var(--input-bg, #2a2a3a);
+  border: 1px solid var(--accent, #5078c8);
+  color: var(--text-bright, #e0e0e0);
+  padding: 1px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+  outline: none;
+}
+
+.char-builder-header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.char-builder-action-btn {
+  background: var(--btn-bg, #2a2a3a);
+  border: 1px solid var(--border, #444);
+  color: var(--text, #ccc);
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.char-builder-action-btn:hover:not(:disabled) {
+  background: var(--btn-bg-hover, #3a3a4a);
+  color: var(--text-bright, #e0e0e0);
+}
+
+.char-builder-action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.char-builder-validation {
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.char-validation-ok {
+  color: var(--success, #81c784);
+}
+
+.char-validation-errors {
+  color: var(--error, #e57373);
+}
+
+.char-validation-warnings {
+  color: var(--warning, #ffb74d);
+}
+
+.char-builder-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.char-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+
+.char-slot-row:hover {
+  background: var(--row-hover, #2a2a3a);
+}
+
+.char-slot-row.selected {
+  background: var(--row-selected, #3a3a5a);
+  border-left: 2px solid var(--accent, #5078c8);
+}
+
+.char-slot-row.missing {
+  color: var(--error, #e57373);
+}
+
+.char-slot-label {
+  flex: 0 0 80px;
+  font-weight: 500;
+  color: var(--text, #ccc);
+}
+
+.char-slot-required {
+  color: var(--error, #e57373);
+  font-weight: 700;
+}
+
+.char-slot-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.char-slot-equipped {
+  color: var(--text-bright, #e0e0e0);
+}
+
+.char-slot-empty {
+  color: var(--text-dim, #555);
+}
+
+.char-slot-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.missing-badge {
+  color: var(--error, #e57373);
+}
+
+.issue-badge {
+  color: var(--warning, #ffb74d);
+}
+
+.char-builder-detail {
+  border-top: 1px solid var(--border, #444);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.char-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.char-detail-slot-name {
+  font-weight: 600;
+  color: var(--text-bright, #e0e0e0);
+}
+
+.char-detail-required-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--tag-bg, #333);
+  color: var(--text-muted, #888);
+}
+
+.char-detail-equipped {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.char-detail-part-info {
+  display: flex;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.char-detail-part-label {
+  color: var(--text-muted, #888);
+}
+
+.char-detail-part-id {
+  color: var(--text-bright, #e0e0e0);
+}
+
+.char-detail-tags {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.char-detail-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--tag-bg, #333);
+  color: var(--text-muted, #888);
+}
+
+.char-detail-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.char-detail-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.char-detail-empty-msg {
+  color: var(--text-dim, #555);
+  font-size: 11px;
+  margin: 0;
+}
+
+.char-detail-issues {
+  margin-top: 2px;
+}
+
+.char-detail-issue {
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.char-detail-issue.error {
+  color: var(--error, #e57373);
+}
+
+.char-detail-issue.warning {
+  color: var(--warning, #ffb74d);
+}
+
+.char-builder-issues {
+  border-top: 1px solid var(--border, #444);
+  padding: 4px 0;
+}
+
+.char-issues-header {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  margin-bottom: 2px;
+}
+
+.char-issue-row {
+  font-size: 11px;
+  padding: 1px 4px;
+}
+
+.char-issue-row.error {
+  color: var(--error, #e57373);
+}
+
+.char-issue-row.warning {
+  color: var(--warning, #ffb74d);
+}
+
 /* ===== Camera Keyframe Panel ===== */
 
 .camkf-panel {

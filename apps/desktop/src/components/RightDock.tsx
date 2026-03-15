@@ -4,6 +4,7 @@ import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
 import { CameraKeyframePanel } from './CameraKeyframePanel';
+import { CharacterBuilderPanel } from './CharacterBuilderPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -11,8 +12,8 @@ interface RightDockProps {
 
 const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Properties', 'Palette', 'Assets'],
-  animate: ['Layers', 'Properties', 'Palette', 'Locomotion'],
+  edit: ['Layers', 'Character', 'Properties', 'Palette', 'Assets'],
+  animate: ['Layers', 'Character', 'Properties', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
   ai: ['AI Assist', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
@@ -33,6 +34,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Camera') {
     return <CameraKeyframePanel />;
+  }
+  if (tabName === 'Character') {
+    return <CharacterBuilderPanel />;
   }
 
   return (

@@ -16,6 +16,9 @@ vi.mock('../components/SceneInstancesPanel', () => ({
 vi.mock('../components/CameraKeyframePanel', () => ({
   CameraKeyframePanel: () => <div data-testid="camera-keyframe-panel">CameraKeyframePanel</div>,
 }));
+vi.mock('../components/CharacterBuilderPanel', () => ({
+  CharacterBuilderPanel: () => <div data-testid="char-builder-panel">CharacterBuilderPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';
@@ -25,8 +28,8 @@ describe('RightDock', () => {
 
   describe('tab rendering per mode', () => {
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Properties', 'Palette', 'Assets']],
-      ['animate', ['Layers', 'Properties', 'Palette', 'Locomotion']],
+      ['edit', ['Layers', 'Character', 'Properties', 'Palette', 'Assets']],
+      ['animate', ['Layers', 'Character', 'Properties', 'Palette', 'Locomotion']],
       ['palette', ['Palette Props', 'Validation']],
       ['ai', ['AI Assist', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
@@ -49,9 +52,9 @@ describe('RightDock', () => {
   });
 
   describe('tab count per mode', () => {
-    it('edit has 4 tabs', () => {
+    it('edit has 5 tabs', () => {
       render(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(4);
+      expect(screen.getAllByRole('button')).toHaveLength(5);
     });
 
     it('export has 1 tab', () => {
@@ -100,6 +103,14 @@ describe('RightDock', () => {
     it('edit mode first tab renders LayerPanel', () => {
       render(<RightDock activeMode="edit" />);
       expect(screen.getByTestId('layer-panel')).toBeInTheDocument();
+    });
+
+    it('edit mode Character tab renders CharacterBuilderPanel', async () => {
+      render(<RightDock activeMode="edit" />);
+      await act(async () => {
+        await userEvent.click(screen.getByText('Character'));
+      });
+      expect(screen.getByTestId('char-builder-panel')).toBeInTheDocument();
     });
 
     it('edit mode Assets tab renders AssetBrowserPanel', async () => {
@@ -154,7 +165,7 @@ describe('RightDock', () => {
     it('switching from project-home to edit works', () => {
       const { rerender } = render(<RightDock activeMode="project-home" />);
       rerender(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(4);
+      expect(screen.getAllByRole('button')).toHaveLength(5);
     });
 
     it('rapidly switching modes does not break active tab', () => {
