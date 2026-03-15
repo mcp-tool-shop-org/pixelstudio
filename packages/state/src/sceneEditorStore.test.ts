@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { SceneAssetInstance } from '@glyphstudio/domain';
 import { useSceneEditorStore } from './sceneEditorStore';
 import { createEmptySceneHistoryState } from './sceneHistoryEngine';
+import { resetProvenanceSequence } from './sceneProvenance';
 
 // ── Fixtures ──
 
@@ -62,9 +63,11 @@ const INST_CHAR_WITH_OVERRIDES: SceneAssetInstance = {
 // ── Setup ──
 
 beforeEach(() => {
+  resetProvenanceSequence();
   useSceneEditorStore.setState({
     instances: [],
     history: createEmptySceneHistoryState(),
+    provenance: [],
     canUndo: false,
     canRedo: false,
   });
@@ -602,5 +605,179 @@ describe('SceneEditorStore — history pollution', () => {
     // Re-apply same state as current — should be no-op
     applyEdit('move-instance', [INST_ASSET]);
     expect(useSceneEditorStore.getState().history.past).toHaveLength(0);
+  });
+});
+
+// ── Provenance append mechanics ──
+
+describe('SceneEditorStore — provenance append', () => {
+  it('successful edit appends one provenance entry', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }], { instanceId: 'i1' });
+    const { provenance } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(1);
+  });
+
+  it('entry kind matches operation kind', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, visible: false }], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().provenance[0].kind).toBe('set-instance-visibility');
+  });
+
+  it('entry metadata matches supplied metadata', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('entry has non-empty label', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    expect(useSceneEditorStore.getState().provenance[0].label.length).toBeGreaterThan(0);
+  });
+
+  it('entry has ISO timestamp', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    expect(useSceneEditorStore.getState().provenance[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('two edits append two entries in order', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('set-instance-parallax', [{ ...INST_ASSET, x: 100, parallax: 0.5 }]);
+    const { provenance } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(2);
+    expect(provenance[0].kind).toBe('move-instance');
+    expect(provenance[1].kind).toBe('set-instance-parallax');
+  });
+
+  it('sequence is monotonic across edits', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 300 }]);
+    const { provenance } = useSceneEditorStore.getState();
+    expect(provenance[0].sequence).toBe(1);
+    expect(provenance[1].sequence).toBe(2);
+    expect(provenance[2].sequence).toBe(3);
+  });
+});
+
+// ── Provenance no-op / failure guards ──
+
+describe('SceneEditorStore — provenance guards', () => {
+  it('no-op edit appends no provenance', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [INST_ASSET]); // identical — no-op
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('loadInstances appends no provenance', () => {
+    const { loadInstances } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadInstances([{ ...INST_ASSET, x: 999 }]);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('multiple loadInstances cycles append no provenance', () => {
+    const { loadInstances } = useSceneEditorStore.getState();
+    for (let i = 0; i < 5; i++) {
+      loadInstances([{ ...INST_ASSET, x: i }]);
+    }
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('identical applyEdit after undo appends no provenance', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    undo();
+    applyEdit('move-instance', [INST_ASSET]); // same as current — no-op
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1); // only the first edit
+  });
+});
+
+// ── Provenance and undo/redo ──
+
+describe('SceneEditorStore — provenance vs undo/redo', () => {
+  it('successful edit records both history and provenance', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    expect(useSceneEditorStore.getState().history.past).toHaveLength(1);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+  });
+
+  it('undo does not append provenance', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+    undo();
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+  });
+
+  it('redo does not append provenance', () => {
+    const { loadInstances, applyEdit, undo, redo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    undo();
+    redo();
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+  });
+
+  it('undo then new forward edit appends second provenance entry', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    undo();
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    const { provenance } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(2);
+    expect(provenance[1].sequence).toBe(2);
+  });
+});
+
+// ── Provenance reset ──
+
+describe('SceneEditorStore — provenance reset', () => {
+  it('resetHistory clears provenance', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(2);
+    resetHistory();
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('resetHistory resets sequence counter', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    resetHistory();
+    // New edits after reset start at sequence 1
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 300 }]);
+    expect(useSceneEditorStore.getState().provenance[0].sequence).toBe(1);
+  });
+
+  it('resetHistory does not clear instances', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    resetHistory();
+    expect(useSceneEditorStore.getState().instances).toHaveLength(1);
   });
 });

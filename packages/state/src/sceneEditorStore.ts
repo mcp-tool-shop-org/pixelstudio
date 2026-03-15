@@ -14,6 +14,11 @@ import {
   redoSceneHistory,
   finishApplyingHistory,
 } from './sceneHistoryEngine';
+import type { SceneProvenanceEntry } from './sceneProvenance';
+import {
+  createSceneProvenanceEntry,
+  resetProvenanceSequence,
+} from './sceneProvenance';
 
 // ── Undo/redo result with rollback ──
 
@@ -31,6 +36,8 @@ export interface SceneEditorState {
   instances: SceneAssetInstance[];
   /** Undo/redo history stacks. */
   history: SceneHistoryState;
+  /** Append-only provenance log for this editing session. */
+  provenance: SceneProvenanceEntry[];
 
   // ── Queries ──
 
@@ -90,7 +97,7 @@ export interface SceneEditorState {
 
   // ── Lifecycle ──
 
-  /** Reset history stacks (call on scene change / new scene). */
+  /** Reset history stacks and provenance log (call on scene change / new scene). */
   resetHistory: () => void;
 }
 
@@ -99,6 +106,7 @@ export interface SceneEditorState {
 export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   instances: [],
   history: createEmptySceneHistoryState(),
+  provenance: [],
   canUndo: false,
   canRedo: false,
 
@@ -107,11 +115,17 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
 
   applyEdit: (kind, nextInstances, metadata) => {
-    const { instances: current, history } = get();
+    const { instances: current, history, provenance } = get();
     const result = applySceneEditWithHistory(current, history, kind, nextInstances, metadata);
+    // Provenance appends only when history actually recorded an entry (not no-op, not mid-undo)
+    const historyChanged = result.history !== history;
+    const nextProvenance = historyChanged
+      ? [...provenance, createSceneProvenanceEntry(kind, metadata)]
+      : provenance;
     set({
       instances: result.instances,
       history: result.history,
+      provenance: nextProvenance,
       canUndo: canUndoScene(result.history),
       canRedo: canRedoScene(result.history),
     });
@@ -169,8 +183,10 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
 
   resetHistory: () => {
     const fresh = createEmptySceneHistoryState();
+    resetProvenanceSequence();
     set({
       history: fresh,
+      provenance: [],
       canUndo: false,
       canRedo: false,
     });
