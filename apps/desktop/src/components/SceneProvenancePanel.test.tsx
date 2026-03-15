@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import { useSceneEditorStore, createEmptySceneHistoryState, resetProvenanceSequence } from '@glyphstudio/state';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
 
@@ -712,6 +712,177 @@ describe('SceneProvenancePanel — camera/playback rendering', () => {
     const detail = document.querySelector('[data-family="camera"]');
     expect(detail).not.toBeNull();
     expect(detail!.textContent).toContain('Playback settings changed');
+  });
+});
+
+// ── Camera drilldown rendering with real values ──
+
+/** Apply a camera edit through the store with full camera params. */
+function applyCameraEdit(
+  nextInstances: SceneAssetInstance[],
+  beforeCamera: SceneCamera,
+  afterCamera: SceneCamera,
+  changedFields: string[],
+) {
+  useSceneEditorStore.getState().loadCamera(beforeCamera);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useSceneEditorStore.getState().applyEdit(
+    'set-scene-camera' as any,
+    nextInstances,
+    { changedFields, beforeCamera, afterCamera } as any,
+    afterCamera,
+  );
+}
+
+describe('SceneProvenancePanel — camera drilldown with values', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 48, y: -16, zoom: 1.0 };
+  const CAM_ZOOM: SceneCamera = { x: 0, y: 0, zoom: 3.0 };
+  const CAM_RESET: SceneCamera = { x: 48, y: -16, zoom: 3.0 };
+
+  it('pan entry shows before/after x and y values', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_B, ['x', 'y']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    const text = detail!.textContent!;
+    // Before values
+    expect(text).toContain('0');
+    // After values
+    expect(text).toContain('48');
+    expect(text).toContain('-16');
+    // Note
+    expect(text).toContain('Camera position changed');
+  });
+
+  it('zoom entry shows before/after zoom values', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_ZOOM, ['zoom']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    const text = detail!.textContent!;
+    expect(text).toContain('1');
+    expect(text).toContain('3');
+    expect(text).toContain('Camera zoom changed');
+  });
+
+  it('reset entry shows before/after x, y, and zoom', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_RESET, CAM_A, ['x', 'y', 'zoom']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    const text = detail!.textContent!;
+    expect(text).toContain('48');
+    expect(text).toContain('-16');
+    expect(text).toContain('3');
+    expect(text).toContain('Camera reset to defaults');
+  });
+
+  it('changed fields summary renders correctly for pan', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_B, ['x', 'y']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail!.textContent).toContain('x, y');
+  });
+
+  it('changed fields summary renders correctly for zoom', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_ZOOM, ['zoom']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail!.textContent).toContain('zoom');
+  });
+
+  it('changed fields summary renders correctly for reset', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_RESET, CAM_A, ['x', 'y', 'zoom']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail!.textContent).toContain('x, y, zoom');
+  });
+
+  it('camera drilldown uses captured values not current live state', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_B, ['x', 'y']);
+    // Change camera again (simulating live state divergence)
+    useSceneEditorStore.getState().loadCamera({ x: 999, y: 999, zoom: 5.0 });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    const text = detail!.textContent!;
+    // Should show the captured values, not the current live state
+    expect(text).toContain('48');
+    expect(text).not.toContain('999');
+  });
+
+  it('instance edit after camera edit does not alter camera drilldown', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 111 }], CAM_A, CAM_B, ['x', 'y']);
+    // Instance edit
+    useSceneEditorStore.getState().applyEdit(
+      'move-instance', [{ ...INST_A, x: 222 }], { instanceId: 'i1' },
+    );
+    render(<SceneProvenancePanel />);
+    // Panel renders newest-first, so camera entry is rows[1]
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[1]);
+    const detail = document.querySelector('[data-family="camera"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('48');
+  });
+
+  it('camera entry remains read-only', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_B, ['x', 'y']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const pane = document.querySelector('.provenance-drilldown-pane');
+    expect(pane!.querySelectorAll('button').length).toBe(0);
+  });
+
+  it('zoom-only drilldown does not render x/y rows', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_ZOOM, ['zoom']);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="camera"]');
+    const text = detail!.textContent!;
+    // Should have Zoom but not X/Y as before/after labels
+    expect(text).toContain('Zoom');
+    // X and Y should not appear as before/after labeled rows
+    const baLabels = detail!.querySelectorAll('.provenance-drilldown-ba-label');
+    const labelTexts = Array.from(baLabels).map((el) => el.textContent);
+    expect(labelTexts).not.toContain('X');
+    expect(labelTexts).not.toContain('Y');
+  });
+
+  it('camera drilldown is visually distinct from instance property drilldown', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyCameraEdit([{ ...INST_A, x: 111 }], CAM_A, CAM_B, ['x', 'y']);
+    useSceneEditorStore.getState().applyEdit(
+      'move-instance', [{ ...INST_A, x: 222 }], { instanceId: 'i1' },
+    );
+    render(<SceneProvenancePanel />);
+    // Panel renders newest-first: rows[0]=move, rows[1]=camera
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    // Click camera entry (older, at bottom)
+    fireEvent.click(rows[1]);
+    expect(document.querySelector('[data-family="camera"]')).not.toBeNull();
+    expect(document.querySelector('[data-family="move"]')).toBeNull();
+    // Click instance entry (newer, at top)
+    fireEvent.click(rows[0]);
+    expect(document.querySelector('[data-family="move"]')).not.toBeNull();
+    expect(document.querySelector('[data-family="camera"]')).toBeNull();
   });
 });
 

@@ -238,18 +238,59 @@ function CharacterOverrideDiffView({ diff }: { diff: SceneProvenanceDiff }) {
 
 // ── Camera / playback ──
 
-function CameraPlaybackDiffView({ diff }: { diff: SceneProvenanceDiff }) {
-  if (diff.type === 'camera') {
+/** Format a camera coordinate for display. */
+function fmtCam(v: number): string {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+/** Contextual note based on which fields changed. */
+function cameraNote(fields?: string[]): string {
+  if (!fields?.length) return 'Camera changed.';
+  const hasPos = fields.includes('x') || fields.includes('y');
+  const hasZoom = fields.includes('zoom');
+  if (hasPos && hasZoom) return 'Camera reset to defaults.';
+  if (hasPos) return 'Camera position changed.';
+  if (hasZoom) return 'Camera zoom changed.';
+  return 'Camera changed.';
+}
+
+function CameraDiffView({ diff }: { diff: SceneProvenanceDiff }) {
+  if (diff.type !== 'camera') return null;
+  const { changedFields, before, after } = diff;
+
+  // Real before/after values available — show per-field rows
+  if (before && after && changedFields?.length) {
     return (
       <div className="provenance-drilldown-detail" data-family="camera">
-        {diff.changedFields?.length ? (
-          <Field label="Changed" value={diff.changedFields.join(', ')} />
-        ) : (
-          <Note text="Camera settings changed." />
+        <Field label="Changed" value={changedFields.join(', ')} />
+        {changedFields.includes('x') && (
+          <BeforeAfter label="X" before={fmtCam(before.x)} after={fmtCam(after.x)} />
         )}
+        {changedFields.includes('y') && (
+          <BeforeAfter label="Y" before={fmtCam(before.y)} after={fmtCam(after.y)} />
+        )}
+        {changedFields.includes('zoom') && (
+          <BeforeAfter label="Zoom" before={fmtCam(before.zoom)} after={fmtCam(after.zoom)} />
+        )}
+        <Note text={cameraNote(changedFields)} />
       </div>
     );
   }
+
+  // Fallback: metadata only (legacy entries without captured camera)
+  return (
+    <div className="provenance-drilldown-detail" data-family="camera">
+      {changedFields?.length ? (
+        <Field label="Changed" value={changedFields.join(', ')} />
+      ) : (
+        <Note text="Camera settings changed." />
+      )}
+    </div>
+  );
+}
+
+function CameraPlaybackDiffView({ diff }: { diff: SceneProvenanceDiff }) {
+  if (diff.type === 'camera') return <CameraDiffView diff={diff} />;
   if (diff.type === 'playback') {
     return (
       <div className="provenance-drilldown-detail" data-family="camera">
@@ -328,6 +369,8 @@ export function SceneProvenanceDrilldownPane({ sequence }: Props) {
     source.beforeInstance ? [source.beforeInstance] : [],
     source.afterInstance ? [source.afterInstance] : [],
     source.metadata,
+    source.beforeCamera,
+    source.afterCamera,
   );
 
   if (!diff) {
