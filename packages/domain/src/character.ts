@@ -121,6 +121,39 @@ export interface CharacterBuild {
   sourcePresetId?: string;
 }
 
+// ── Saved Character Build ──
+
+/** Current schema version for the character build library format. */
+export const CHARACTER_BUILD_LIBRARY_VERSION = 1;
+
+/** A character build persisted to the build library. */
+export interface SavedCharacterBuild {
+  /** Unique build identifier (stable across saves). */
+  id: string;
+  /** Human-readable name. */
+  name: string;
+  /** Equipped parts by slot. */
+  slots: Partial<Record<CharacterSlotId, CharacterPartRef>>;
+  /** Optional tags for categorization. */
+  tags?: string[];
+  /** Optional description. */
+  description?: string;
+  /** Optional source preset/build ID this was derived from. */
+  sourcePresetId?: string;
+  /** ISO timestamp when this build was first created. */
+  createdAt: string;
+  /** ISO timestamp when this build was last modified. */
+  updatedAt: string;
+}
+
+/** The persisted character build library — a versioned collection of saved builds. */
+export interface CharacterBuildLibrary {
+  /** Schema version for future migrations. */
+  schemaVersion: number;
+  /** Saved builds, ordered by updatedAt descending. */
+  builds: SavedCharacterBuild[];
+}
+
 // ── Validation ──
 
 /** Kinds of character validation issues. */

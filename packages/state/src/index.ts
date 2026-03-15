@@ -53,3 +53,16 @@ export {
   isCharacterValid,
   getEquippedSlotsInDisplayOrder,
 } from './characterStore';
+export {
+  createEmptyLibrary,
+  generateSavedBuildId,
+  toSavedBuild,
+  toCharacterBuild,
+  saveBuildToLibrary,
+  deleteBuildFromLibrary,
+  duplicateBuildInLibrary,
+  findBuildById,
+  renameBuildInLibrary,
+  hasBuildInLibrary,
+  getLibraryBuildCount,
+} from './characterBuildLibrary';
