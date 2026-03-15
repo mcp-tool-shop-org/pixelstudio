@@ -2088,3 +2088,297 @@ describe('SceneEditorStore — loadPersistedProvenance', () => {
     }
   });
 });
+
+// ── Stage 20.3 — Sequence continuity and post-load append law ──
+
+describe('SceneEditorStore — sequence continuity after load', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 120, y: 80, zoom: 1.0 };
+
+  beforeEach(() => {
+    useSceneEditorStore.setState({
+      instances: [INST_ASSET],
+      history: createEmptySceneHistoryState(),
+      provenance: [],
+      drilldownBySequence: {},
+      canUndo: false,
+      canRedo: false,
+      camera: undefined,
+    });
+    resetProvenanceSequence();
+  });
+
+  // ── Post-load sequence continuity ──
+
+  it('load [1,2,3] then edit → next sequence is 4', () => {
+    const entries = [1, 2, 3].map((s) => ({
+      sequence: s, kind: 'add-instance' as const, label: `Entry ${s}`, timestamp: '2026-03-15T12:00:00Z',
+    }));
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance(entries, {});
+    expect(peekProvenanceSequence()).toBe(4);
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(4);
+    expect(state.provenance[3].sequence).toBe(4);
+  });
+
+  it('load [4,5,9] then edit → next sequence is 10', () => {
+    const entries = [4, 5, 9].map((s) => ({
+      sequence: s, kind: 'move-instance' as const, label: `Entry ${s}`, timestamp: '2026-03-15T12:00:00Z',
+    }));
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance(entries, {});
+    expect(peekProvenanceSequence()).toBe(10);
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance[3].sequence).toBe(10);
+  });
+
+  it('load one entry then multiple edits → sequences continue monotonically', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance(
+      [{ sequence: 7, kind: 'add-instance', label: 'Loaded', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+
+    // Three new edits
+    let inst = { ...INST_ASSET, x: 100 };
+    applyEdit('move-instance', [inst], { instanceId: 'i1' });
+    inst = { ...inst, x: 200 };
+    applyEdit('move-instance', [inst], { instanceId: 'i1' });
+    inst = { ...inst, x: 300 };
+    applyEdit('move-instance', [inst], { instanceId: 'i1' });
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(4);
+    expect(state.provenance[1].sequence).toBe(8);
+    expect(state.provenance[2].sequence).toBe(9);
+    expect(state.provenance[3].sequence).toBe(10);
+  });
+
+  it('new drilldown capture after load keyed by new sequence, not old', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance(
+      [{ sequence: 5, kind: 'add-instance', label: 'Loaded', timestamp: '2026-03-15T12:00:00Z' }],
+      { 5: { kind: 'add-instance', afterInstance: { ...INST_ASSET } } },
+    );
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    const state = useSceneEditorStore.getState();
+    // Old capture still exists at key 5
+    expect(state.drilldownBySequence[5]).toBeDefined();
+    // New capture at key 6 (next after 5)
+    expect(state.drilldownBySequence[6]).toBeDefined();
+    expect(state.drilldownBySequence[6].kind).toBe('move-instance');
+    // No accidental overwrite of key 5
+    expect(state.drilldownBySequence[5].kind).toBe('add-instance');
+  });
+
+  // ── Scene switch / reset tests ──
+
+  it('load scene A then load scene B → B replaces A cleanly', () => {
+    const { loadPersistedProvenance } = useSceneEditorStore.getState();
+
+    // Scene A
+    loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'Scene A Entry', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance', afterInstance: { ...INST_ASSET } } },
+    );
+    expect(useSceneEditorStore.getState().provenance[0].label).toBe('Scene A Entry');
+
+    // Scene B (simulates resetHistory + loadPersistedProvenance)
+    useSceneEditorStore.getState().resetHistory();
+    loadPersistedProvenance(
+      [{ sequence: 10, kind: 'move-instance', label: 'Scene B Entry', timestamp: '2026-03-15T13:00:00Z' }],
+      { 10: { kind: 'move-instance', beforeInstance: { ...INST_ASSET }, afterInstance: { ...INST_ASSET, x: 500 } } },
+    );
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].label).toBe('Scene B Entry');
+    expect(state.provenance[0].sequence).toBe(10);
+    expect(Object.keys(state.drilldownBySequence)).toEqual(['10']);
+    expect(peekProvenanceSequence()).toBe(11);
+  });
+
+  it('load scene A then load scene B with no provenance → empty state', () => {
+    const { loadPersistedProvenance } = useSceneEditorStore.getState();
+
+    // Scene A
+    loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance' } },
+    );
+
+    // Scene B (empty provenance)
+    useSceneEditorStore.getState().resetHistory();
+    loadPersistedProvenance([], {});
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(0);
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(0);
+    expect(peekProvenanceSequence()).toBe(1); // baseline
+  });
+
+  it('resetHistory clears history stacks while scene switch preserves loaded instances', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+
+    // Scene switch: reset then hydrate new scene
+    useSceneEditorStore.getState().resetHistory();
+    const newInst = { ...INST_ASSET, instanceId: 'i2', name: 'Rock', x: 10, y: 20 };
+    loadInstances([newInst]);
+    loadPersistedProvenance([], {});
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(false);
+    expect(state.canRedo).toBe(false);
+    expect(state.instances).toHaveLength(1);
+    expect(state.instances[0].instanceId).toBe('i2');
+  });
+
+  // ── Empty and sparse handling ──
+
+  it('load empty provenance → first new edit uses baseline sequence 1', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance([], {});
+
+    expect(peekProvenanceSequence()).toBe(1);
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance[0].sequence).toBe(1);
+  });
+
+  it('sparse drilldown keys do not break sequence generation', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    // Entries at 2, 5, 8 — drilldown only for 5
+    const entries = [2, 5, 8].map((s) => ({
+      sequence: s, kind: 'move-instance' as const, label: `E${s}`, timestamp: '2026-03-15T12:00:00Z',
+    }));
+    loadPersistedProvenance(entries, {
+      5: { kind: 'move-instance', beforeInstance: { ...INST_ASSET }, afterInstance: { ...INST_ASSET, x: 200 } },
+    });
+
+    expect(peekProvenanceSequence()).toBe(9);
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().provenance[3].sequence).toBe(9);
+  });
+
+  // ── No-noise tests ──
+
+  it('hydration does not append provenance entries', () => {
+    const before = useSceneEditorStore.getState().provenance.length;
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+    // Should be exactly the loaded entries, not loaded + extra
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+  });
+
+  it('hydration does not create undo history', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance', afterInstance: { ...INST_ASSET } } },
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(false);
+    expect(state.canRedo).toBe(false);
+  });
+
+  it('refresh after hydration does not duplicate entries', () => {
+    const { loadInstances, loadPersistedProvenance } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    const entries = [
+      { sequence: 1, kind: 'add-instance' as const, label: 'A', timestamp: '2026-03-15T12:00:00Z' },
+    ];
+    loadPersistedProvenance(entries, {});
+    // Simulate a refresh that re-hydrates the same data
+    loadPersistedProvenance(entries, {});
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+    expect(peekProvenanceSequence()).toBe(2);
+  });
+
+  // ── Mixed continuity tests ──
+
+  it('persisted instance entry + new camera edit → correct next sequence', () => {
+    const { loadInstances, loadCamera, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadCamera(CAM_A);
+    loadPersistedProvenance(
+      [{ sequence: 3, kind: 'add-instance', label: 'Instance', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+
+    const inst2 = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [inst2], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[1].sequence).toBe(4);
+    expect(state.provenance[1].kind).toBe('set-scene-camera');
+  });
+
+  it('persisted camera entry + new instance edit → correct next sequence', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance(
+      [{ sequence: 15, kind: 'set-scene-camera', label: 'Camera', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[1].sequence).toBe(16);
+    expect(state.provenance[1].kind).toBe('move-instance');
+  });
+
+  it('persisted override entry + new override edit → correct next sequence and no overwrite', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    loadPersistedProvenance(
+      [{ sequence: 20, kind: 'clear-all-character-overrides', label: 'Cleared', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i2' } }],
+      { 20: { kind: 'clear-all-character-overrides', metadata: { instanceId: 'i2' }, beforeInstance: { ...INST_CHAR }, afterInstance: { ...INST_CHAR } } },
+    );
+
+    const moved = { ...INST_CHAR, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i2' });
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[1].sequence).toBe(21);
+    // Old drilldown untouched
+    expect(state.drilldownBySequence[20]).toBeDefined();
+    expect(state.drilldownBySequence[20].kind).toBe('clear-all-character-overrides');
+    // New drilldown at 21
+    expect(state.drilldownBySequence[21]).toBeDefined();
+    expect(state.drilldownBySequence[21].kind).toBe('move-instance');
+  });
+});
