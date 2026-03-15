@@ -146,3 +146,12 @@ export {
   resetProvenanceSequence,
 } from './sceneProvenance';
 export type { SceneProvenanceEntry } from './sceneProvenance';
+export {
+  deriveProvenanceDiff,
+  deriveProvenanceDrilldown,
+  describeProvenanceDiff,
+} from './sceneProvenanceDrilldown';
+export type {
+  SceneProvenanceDiff,
+  SceneProvenanceDrilldown,
+} from './sceneProvenanceDrilldown';
