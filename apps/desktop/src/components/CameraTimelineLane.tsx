@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   useScenePlaybackStore,
@@ -116,6 +116,79 @@ export function CameraTimelineLane() {
     }
   }, [selectedKeyframeTick, seekToTick]);
 
+  const handlePrevShot = useCallback(() => {
+    if (shots.length === 0) return;
+    const current = findCurrentCameraShotAtTick(shots, currentTick);
+    if (!current) {
+      // Before first shot — jump to first shot start
+      selectKeyframe(shots[0].startTick);
+      seekToTick(shots[0].startTick);
+      return;
+    }
+    // If at the start of current shot, go to previous shot
+    const idx = shots.indexOf(current);
+    if (currentTick === current.startTick && idx > 0) {
+      selectKeyframe(shots[idx - 1].startTick);
+      seekToTick(shots[idx - 1].startTick);
+    } else {
+      // Jump to start of current shot
+      selectKeyframe(current.startTick);
+      seekToTick(current.startTick);
+    }
+  }, [shots, currentTick, selectKeyframe, seekToTick]);
+
+  const handleNextShot = useCallback(() => {
+    if (shots.length === 0) return;
+    const current = findCurrentCameraShotAtTick(shots, currentTick);
+    if (!current) {
+      selectKeyframe(shots[0].startTick);
+      seekToTick(shots[0].startTick);
+      return;
+    }
+    const idx = shots.indexOf(current);
+    if (idx < shots.length - 1) {
+      selectKeyframe(shots[idx + 1].startTick);
+      seekToTick(shots[idx + 1].startTick);
+    }
+  }, [shots, currentTick, selectKeyframe, seekToTick]);
+
+  // --- Keyboard shortcuts (scene mode only — component only renders in scene mode) ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Suppress when typing in input fields
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.repeat) return;
+
+      if (e.key === '[' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handlePrevKey();
+      } else if (e.key === ']' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleNextKey();
+      } else if (e.key === '{' && e.shiftKey) {
+        // Shift+[ produces { on US layout
+        e.preventDefault();
+        handlePrevShot();
+      } else if (e.key === '}' && e.shiftKey) {
+        // Shift+] produces } on US layout
+        e.preventDefault();
+        handleNextShot();
+      } else if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleAddKey();
+      } else if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleJumpToSelected();
+      } else if (e.key === 'Delete' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleDeleteSelected();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePrevKey, handleNextKey, handlePrevShot, handleNextShot, handleAddKey, handleJumpToSelected, handleDeleteSelected]);
+
   const hasKeyframes = markers.length > 0;
   const hasPrev = cameraKeyframes.some((k) => k.tick < currentTick);
   const hasNext = cameraKeyframes.some((k) => k.tick > currentTick);
@@ -128,32 +201,32 @@ export function CameraTimelineLane() {
           <div className="cam-lane-actions">
             <button
               className="cam-lane-action-btn"
-              title="Add key at playhead"
+              title="Add key at playhead (K)"
               onClick={handleAddKey}
               disabled={busy}
             >+</button>
             <button
               className="cam-lane-action-btn"
-              title="Delete selected key"
+              title="Delete selected key (Del)"
               onClick={handleDeleteSelected}
               disabled={selectedKeyframeTick === null || busy}
             >{'\u2715'}</button>
             <button
               className="cam-lane-action-btn"
-              title="Previous key"
+              title="Previous key ([)"
               onClick={handlePrevKey}
               disabled={!hasPrev}
             >{'\u25C0'}</button>
             <button
               className="cam-lane-action-btn"
-              title="Next key"
+              title="Next key (])"
               onClick={handleNextKey}
               disabled={!hasNext}
             >{'\u25B6'}</button>
             {selectedKeyframeTick !== null && (
               <button
                 className="cam-lane-action-btn"
-                title="Jump to selected"
+                title="Jump to selected (J)"
                 onClick={handleJumpToSelected}
               >{'\u23CE'}</button>
             )}
