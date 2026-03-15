@@ -1572,7 +1572,7 @@ describe('sceneEditorStore — camera through applyEdit', () => {
 
   // ── provenance + drilldown for camera ──
 
-  it('camera applyEdit produces provenance entry with drilldown source', () => {
+  it('camera applyEdit produces provenance entry with drilldown source including camera slices', () => {
     const { loadCamera, applyEdit } = useSceneEditorStore.getState();
     loadCamera(CAM_A);
     const movedInst = { ...INST_ASSET, x: 999 };
@@ -1590,11 +1590,100 @@ describe('sceneEditorStore — camera through applyEdit', () => {
     const src = drilldownBySequence[entry.sequence];
     expect(src).toBeDefined();
     expect(src.kind).toBe('set-scene-camera');
-    expect(src.metadata).toEqual({
+    expect(src.beforeCamera).toEqual(CAM_A);
+    expect(src.afterCamera).toEqual(CAM_B);
+    expect(src.beforeInstance).toBeUndefined();
+    expect(src.afterInstance).toBeUndefined();
+  });
+
+  it('camera drilldown source stores exact before/after values from edit seam', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    const exactBefore: SceneCamera = { x: 42, y: 77, zoom: 1.5 };
+    const exactAfter: SceneCamera = { x: 42, y: 77, zoom: 3.0 };
+    loadCamera(exactBefore);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
+      changedFields: ['zoom'],
+      beforeCamera: exactBefore,
+      afterCamera: exactAfter,
+    }, exactAfter);
+
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    expect(src.beforeCamera!.x).toBe(42);
+    expect(src.beforeCamera!.y).toBe(77);
+    expect(src.beforeCamera!.zoom).toBe(1.5);
+    expect(src.afterCamera!.zoom).toBe(3.0);
+  });
+
+  it('instance edit does not capture camera in drilldown source', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 200 };
+    applyEdit('move-instance', [movedInst], { instanceId: 'i1' });
+
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    expect(src.beforeCamera).toBeUndefined();
+    expect(src.afterCamera).toBeUndefined();
+    expect(src.beforeInstance).toBeDefined();
+    expect(src.afterInstance).toBeDefined();
+  });
+
+  it('camera edit followed by instance edit yields separate clean captures', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    // Camera edit
+    const inst1 = { ...INST_ASSET, x: 111 };
+    applyEdit('set-scene-camera', [inst1], {
+      changedFields: ['zoom'],
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    }, CAM_B);
+    // Instance edit
+    useSceneEditorStore.getState().applyEdit('move-instance', [{ ...INST_ASSET, x: 222 }], { instanceId: 'i1' });
+
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(2);
+
+    const cameraSrc = drilldownBySequence[provenance[0].sequence];
+    expect(cameraSrc.beforeCamera).toEqual(CAM_A);
+    expect(cameraSrc.afterCamera).toEqual(CAM_B);
+    expect(cameraSrc.beforeInstance).toBeUndefined();
+
+    const instSrc = drilldownBySequence[provenance[1].sequence];
+    expect(instSrc.beforeCamera).toBeUndefined();
+    expect(instSrc.afterCamera).toBeUndefined();
+    expect(instSrc.beforeInstance).toBeDefined();
+  });
+
+  it('camera drilldown derives valid diff with exact values via bridge', () => {
+    const { loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadCamera(CAM_A);
+    const movedInst = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [movedInst], {
       changedFields: ['x', 'y'],
       beforeCamera: CAM_A,
       afterCamera: CAM_B,
-    });
+    }, CAM_B);
+
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      src.kind,
+      src.beforeInstance ? [src.beforeInstance] : [],
+      src.afterInstance ? [src.afterInstance] : [],
+      src.metadata,
+      src.beforeCamera,
+      src.afterCamera,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.before).toEqual(CAM_A);
+      expect(diff!.after).toEqual(CAM_B);
+      expect(diff!.changedFields).toEqual(['x', 'y']);
+    }
   });
 
   // ── resetHistory clears camera-related provenance ──

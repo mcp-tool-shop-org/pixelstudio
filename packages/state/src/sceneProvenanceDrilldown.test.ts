@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import {
   deriveProvenanceDiff,
   deriveProvenanceDrilldown,
   describeProvenanceDiff,
+  captureProvenanceDrilldownSource,
 } from './sceneProvenanceDrilldown';
 import type { SceneProvenanceDiff } from './sceneProvenanceDrilldown';
 import { createSceneProvenanceEntry, resetProvenanceSequence } from './sceneProvenance';
@@ -406,11 +407,24 @@ describe('ProvenanceDrilldown — describe diff', () => {
     expect(desc).toContain('torso');
   });
 
-  it('describes camera with changed fields', () => {
+  it('describes camera with changed fields (no before/after)', () => {
     const diff: SceneProvenanceDiff = { type: 'camera', changedFields: ['x', 'zoom'] };
     const desc = describeProvenanceDiff(diff);
     expect(desc).toContain('x');
     expect(desc).toContain('zoom');
+  });
+
+  it('describes camera with before/after values', () => {
+    const diff: SceneProvenanceDiff = {
+      type: 'camera',
+      changedFields: ['x', 'y'],
+      before: { x: 0, y: 0, zoom: 1.0 },
+      after: { x: 100, y: 50, zoom: 1.0 },
+    };
+    const desc = describeProvenanceDiff(diff);
+    expect(desc).toContain('0.0');
+    expect(desc).toContain('100.0');
+    expect(desc).toContain('50.0');
   });
 
   it('describes instance-added with name and position', () => {
@@ -423,5 +437,166 @@ describe('ProvenanceDrilldown — describe diff', () => {
   it('describes instance-removed with name', () => {
     const diff: SceneProvenanceDiff = { type: 'instance-removed', instanceId: 'i1', name: 'Tree', position: { x: 50, y: 100 } };
     expect(describeProvenanceDiff(diff)).toContain('Tree');
+  });
+});
+
+// ── Camera drilldown capture ──
+
+describe('captureProvenanceDrilldownSource — camera', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 100, y: 50, zoom: 2.0 };
+
+  it('set-scene-camera captures beforeCamera and afterCamera', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['x', 'y'] }, CAM_A, CAM_B,
+    );
+    expect(src.kind).toBe('set-scene-camera');
+    expect(src.beforeCamera).toEqual(CAM_A);
+    expect(src.afterCamera).toEqual(CAM_B);
+    expect(src.beforeInstance).toBeUndefined();
+    expect(src.afterInstance).toBeUndefined();
+  });
+
+  it('pan captures beforeCamera and afterCamera with position fields', () => {
+    const panBefore: SceneCamera = { x: 10, y: 20, zoom: 1.0 };
+    const panAfter: SceneCamera = { x: 50, y: 80, zoom: 1.0 };
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['x', 'y'] }, panBefore, panAfter,
+    );
+    expect(src.beforeCamera).toEqual(panBefore);
+    expect(src.afterCamera).toEqual(panAfter);
+  });
+
+  it('zoom captures beforeCamera and afterCamera with zoom field', () => {
+    const zoomBefore: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+    const zoomAfter: SceneCamera = { x: 0, y: 0, zoom: 2.5 };
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['zoom'] }, zoomBefore, zoomAfter,
+    );
+    expect(src.beforeCamera!.zoom).toBe(1.0);
+    expect(src.afterCamera!.zoom).toBe(2.5);
+  });
+
+  it('reset captures beforeCamera and afterCamera with all fields', () => {
+    const resetBefore: SceneCamera = { x: 100, y: 50, zoom: 3.0 };
+    const resetAfter: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['x', 'y', 'zoom'] }, resetBefore, resetAfter,
+    );
+    expect(src.beforeCamera).toEqual(resetBefore);
+    expect(src.afterCamera).toEqual(resetAfter);
+  });
+
+  it('changedFields preserved alongside camera slices', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['zoom'] }, CAM_A, CAM_B,
+    );
+    expect((src.metadata as { changedFields: string[] }).changedFields).toEqual(['zoom']);
+    expect(src.beforeCamera).toBeDefined();
+    expect(src.afterCamera).toBeDefined();
+  });
+
+  it('instance ops do not capture camera fields', () => {
+    const src = captureProvenanceDrilldownSource(
+      'move-instance', [INST_A], [{ ...INST_A, x: 200 }],
+      { instanceId: 'i1' }, CAM_A, CAM_B,
+    );
+    expect(src.beforeCamera).toBeUndefined();
+    expect(src.afterCamera).toBeUndefined();
+    expect(src.beforeInstance).toBeDefined();
+  });
+
+  it('set-scene-playback does not capture camera fields', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-playback', [INST_A], [INST_A],
+      undefined, CAM_A, CAM_B,
+    );
+    expect(src.beforeCamera).toBeUndefined();
+    expect(src.afterCamera).toBeUndefined();
+  });
+
+  it('camera slices are shallow copies (not aliased)', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['x'] }, CAM_A, CAM_B,
+    );
+    expect(src.beforeCamera).toEqual(CAM_A);
+    expect(src.beforeCamera).not.toBe(CAM_A);
+    expect(src.afterCamera).toEqual(CAM_B);
+    expect(src.afterCamera).not.toBe(CAM_B);
+  });
+});
+
+// ── Camera drilldown derivation ──
+
+describe('deriveProvenanceDiff — camera with values', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 100, y: 50, zoom: 2.0 };
+
+  it('pan derives camera diff with exact before/after', () => {
+    const panBefore: SceneCamera = { x: 10, y: 20, zoom: 1.0 };
+    const panAfter: SceneCamera = { x: 50, y: 80, zoom: 1.0 };
+    const diff = deriveProvenanceDiff(
+      'set-scene-camera', [], [],
+      { changedFields: ['x', 'y'] }, panBefore, panAfter,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.before).toEqual(panBefore);
+      expect(diff!.after).toEqual(panAfter);
+      expect(diff!.changedFields).toEqual(['x', 'y']);
+    }
+  });
+
+  it('zoom derives camera diff with exact before/after', () => {
+    const diff = deriveProvenanceDiff(
+      'set-scene-camera', [], [],
+      { changedFields: ['zoom'] }, CAM_A, { ...CAM_A, zoom: 3.0 },
+    );
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.before!.zoom).toBe(1.0);
+      expect(diff!.after!.zoom).toBe(3.0);
+    }
+  });
+
+  it('reset derives camera diff with all changed fields', () => {
+    const diff = deriveProvenanceDiff(
+      'set-scene-camera', [], [],
+      { changedFields: ['x', 'y', 'zoom'] }, CAM_B, CAM_A,
+    );
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.before).toEqual(CAM_B);
+      expect(diff!.after).toEqual(CAM_A);
+      expect(diff!.changedFields).toEqual(['x', 'y', 'zoom']);
+    }
+  });
+
+  it('camera diff without camera params still works (metadata only)', () => {
+    const diff = deriveProvenanceDiff(
+      'set-scene-camera', [], [],
+      { changedFields: ['zoom'] },
+    );
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.changedFields).toEqual(['zoom']);
+      expect(diff!.before).toBeUndefined();
+      expect(diff!.after).toBeUndefined();
+    }
+  });
+
+  it('instance diff ignores camera params', () => {
+    const diff = deriveProvenanceDiff(
+      'move-instance', [INST_A], [{ ...INST_A, x: 200 }],
+      { instanceId: 'i1' }, CAM_A, CAM_B,
+    );
+    expect(diff!.type).toBe('move');
   });
 });

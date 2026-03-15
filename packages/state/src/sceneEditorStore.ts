@@ -152,7 +152,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     if (historyChanged) {
       const entry = createSceneProvenanceEntry(kind, metadata);
       nextProvenance = [...provenance, entry];
-      const source = captureProvenanceDrilldownSource(kind, current, nextInstances, metadata);
+      const source = captureProvenanceDrilldownSource(kind, current, nextInstances, metadata, currentCamera, nextCamera);
       nextDrilldown = { ...drilldownBySequence, [entry.sequence]: source };
     }
     set({

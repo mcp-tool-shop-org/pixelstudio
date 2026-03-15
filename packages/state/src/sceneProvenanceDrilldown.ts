@@ -1,4 +1,4 @@
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import type { SceneHistoryOperationKind, SceneHistoryOperationMetadata } from './sceneHistory';
 import type { SceneProvenanceEntry } from './sceneProvenance';
 
@@ -129,6 +129,8 @@ export interface ClearAllOverridesDiff {
 export interface CameraDiff {
   type: 'camera';
   changedFields?: string[];
+  before?: SceneCamera;
+  after?: SceneCamera;
 }
 
 export interface PlaybackDiff {
@@ -148,6 +150,10 @@ export interface SceneProvenanceDrilldownSource {
   metadata?: SceneHistoryOperationMetadata;
   beforeInstance?: SceneAssetInstance;
   afterInstance?: SceneAssetInstance;
+  /** Camera state before a camera-targeted operation. */
+  beforeCamera?: SceneCamera;
+  /** Camera state after a camera-targeted operation. */
+  afterCamera?: SceneCamera;
 }
 
 /**
@@ -162,6 +168,8 @@ export function captureProvenanceDrilldownSource(
   beforeInstances: SceneAssetInstance[],
   afterInstances: SceneAssetInstance[],
   metadata?: SceneHistoryOperationMetadata,
+  currentCamera?: SceneCamera,
+  nextCamera?: SceneCamera,
 ): SceneProvenanceDrilldownSource {
   const instanceId = metaInstanceId(metadata);
 
@@ -200,6 +208,13 @@ export function captureProvenanceDrilldownSource(
       };
 
     case 'set-scene-camera':
+      return {
+        kind,
+        metadata,
+        beforeCamera: currentCamera ? { ...currentCamera } : undefined,
+        afterCamera: nextCamera ? { ...nextCamera } : undefined,
+      };
+
     case 'set-scene-playback':
       return { kind, metadata };
   }
@@ -260,6 +275,8 @@ export function deriveProvenanceDiff(
   beforeInstances: SceneAssetInstance[],
   afterInstances: SceneAssetInstance[],
   metadata?: SceneHistoryOperationMetadata,
+  beforeCamera?: SceneCamera,
+  afterCamera?: SceneCamera,
 ): SceneProvenanceDiff | undefined {
   const instanceId = metaInstanceId(metadata);
 
@@ -455,7 +472,12 @@ export function deriveProvenanceDiff(
       const changedFields = metadata && 'changedFields' in metadata
         ? metadata.changedFields
         : undefined;
-      return { type: 'camera', changedFields };
+      return {
+        type: 'camera',
+        changedFields,
+        before: beforeCamera,
+        after: afterCamera,
+      };
     }
 
     case 'set-scene-playback': {
@@ -473,12 +495,16 @@ export function deriveProvenanceDrilldown(
   entry: SceneProvenanceEntry,
   beforeInstances: SceneAssetInstance[],
   afterInstances: SceneAssetInstance[],
+  beforeCamera?: SceneCamera,
+  afterCamera?: SceneCamera,
 ): SceneProvenanceDrilldown | undefined {
   const diff = deriveProvenanceDiff(
     entry.kind,
     beforeInstances,
     afterInstances,
     entry.metadata,
+    beforeCamera,
+    afterCamera,
   );
   if (!diff) return undefined;
   return {
@@ -556,10 +582,21 @@ export function describeProvenanceDiff(diff: SceneProvenanceDiff): string {
         ? `Cleared ${diff.count} override${diff.count !== 1 ? 's' : ''} (${diff.clearedSlots.join(', ')})`
         : 'Cleared all overrides';
 
-    case 'camera':
-      return diff.changedFields?.length
-        ? `Camera: ${diff.changedFields.join(', ')}`
-        : 'Camera changed';
+    case 'camera': {
+      if (!diff.changedFields?.length) return 'Camera changed';
+      if (diff.before && diff.after) {
+        const parts = diff.changedFields.map((f) => {
+          const b = diff.before![f as keyof SceneCamera];
+          const a = diff.after![f as keyof SceneCamera];
+          if (typeof b === 'number' && typeof a === 'number') {
+            return `${f}: ${b.toFixed(1)} → ${a.toFixed(1)}`;
+          }
+          return f;
+        });
+        return `Camera: ${parts.join(', ')}`;
+      }
+      return `Camera: ${diff.changedFields.join(', ')}`;
+    }
 
     case 'playback':
       return 'Playback settings changed';
