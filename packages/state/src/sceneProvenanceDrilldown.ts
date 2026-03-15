@@ -135,6 +135,76 @@ export interface PlaybackDiff {
   type: 'playback';
 }
 
+// ── Drilldown source (captured at edit seam) ──
+
+/**
+ * Captured before/after slice for a single provenance entry.
+ *
+ * Stored per-entry at the edit seam. Contains only the target
+ * instance(s) needed for drilldown derivation — NOT full scene clones.
+ */
+export interface SceneProvenanceDrilldownSource {
+  kind: SceneHistoryOperationKind;
+  metadata?: SceneHistoryOperationMetadata;
+  beforeInstance?: SceneAssetInstance;
+  afterInstance?: SceneAssetInstance;
+}
+
+/**
+ * Capture the focused before/after slices for a provenance drilldown.
+ *
+ * Given operation kind, metadata, and the full before/after instance
+ * arrays, extracts only the target instance(s) needed for later
+ * drilldown derivation.
+ */
+export function captureProvenanceDrilldownSource(
+  kind: SceneHistoryOperationKind,
+  beforeInstances: SceneAssetInstance[],
+  afterInstances: SceneAssetInstance[],
+  metadata?: SceneHistoryOperationMetadata,
+): SceneProvenanceDrilldownSource {
+  const instanceId = metaInstanceId(metadata);
+
+  switch (kind) {
+    case 'add-instance':
+      return {
+        kind,
+        metadata,
+        afterInstance: instanceId ? findInstance(afterInstances, instanceId) : undefined,
+      };
+
+    case 'remove-instance':
+      return {
+        kind,
+        metadata,
+        beforeInstance: instanceId ? findInstance(beforeInstances, instanceId) : undefined,
+      };
+
+    case 'move-instance':
+    case 'set-instance-visibility':
+    case 'set-instance-opacity':
+    case 'set-instance-layer':
+    case 'set-instance-clip':
+    case 'set-instance-parallax':
+    case 'unlink-character-source':
+    case 'relink-character-source':
+    case 'reapply-character-source':
+    case 'set-character-override':
+    case 'remove-character-override':
+    case 'clear-all-character-overrides':
+      return {
+        kind,
+        metadata,
+        beforeInstance: instanceId ? findInstance(beforeInstances, instanceId) : undefined,
+        afterInstance: instanceId ? findInstance(afterInstances, instanceId) : undefined,
+      };
+
+    case 'set-scene-camera':
+    case 'set-scene-playback':
+      return { kind, metadata };
+  }
+}
+
 // ── Drilldown ──
 
 /**

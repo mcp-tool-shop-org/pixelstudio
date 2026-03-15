@@ -3,6 +3,8 @@ import type { SceneAssetInstance } from '@glyphstudio/domain';
 import { useSceneEditorStore } from './sceneEditorStore';
 import { createEmptySceneHistoryState } from './sceneHistoryEngine';
 import { resetProvenanceSequence } from './sceneProvenance';
+import { deriveProvenanceDiff } from './sceneProvenanceDrilldown';
+import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 
 // ── Fixtures ──
 
@@ -68,6 +70,7 @@ beforeEach(() => {
     instances: [],
     history: createEmptySceneHistoryState(),
     provenance: [],
+    drilldownBySequence: {},
     canUndo: false,
     canRedo: false,
   });
@@ -1039,5 +1042,337 @@ describe('SceneEditorStore — provenance reset', () => {
     applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
     resetHistory();
     expect(useSceneEditorStore.getState().instances).toHaveLength(1);
+  });
+});
+
+// ── Drilldown capture — operation coverage ──
+
+describe('SceneEditorStore — drilldown capture coverage', () => {
+  function getDrilldown(seq: number): SceneProvenanceDrilldownSource | undefined {
+    return useSceneEditorStore.getState().drilldownBySequence[seq];
+  }
+
+  it('add-instance captures afterInstance only', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([]);
+    applyEdit('add-instance', [INST_ASSET], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src).toBeDefined();
+    expect(src!.kind).toBe('add-instance');
+    expect(src!.afterInstance?.instanceId).toBe('i1');
+    expect(src!.beforeInstance).toBeUndefined();
+  });
+
+  it('remove-instance captures beforeInstance only', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('remove-instance', [], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src).toBeDefined();
+    expect(src!.kind).toBe('remove-instance');
+    expect(src!.beforeInstance?.instanceId).toBe('i1');
+    expect(src!.afterInstance).toBeUndefined();
+  });
+
+  it('move-instance captures before and after target', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.x).toBe(50);
+    expect(src!.afterInstance?.x).toBe(999);
+  });
+
+  it('set-instance-visibility captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, visible: false }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.visible).toBe(true);
+    expect(src!.afterInstance?.visible).toBe(false);
+  });
+
+  it('set-instance-opacity captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-opacity', [{ ...INST_ASSET, opacity: 0.5 }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.opacity).toBe(1.0);
+    expect(src!.afterInstance?.opacity).toBe(0.5);
+  });
+
+  it('set-instance-layer captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-layer', [{ ...INST_ASSET, zOrder: 5 }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.zOrder).toBe(0);
+    expect(src!.afterInstance?.zOrder).toBe(5);
+  });
+
+  it('set-instance-clip captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-clip', [{ ...INST_ASSET, clipId: 'clip-1' }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.clipId).toBeUndefined();
+    expect(src!.afterInstance?.clipId).toBe('clip-1');
+  });
+
+  it('set-instance-parallax captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-parallax', [{ ...INST_ASSET, parallax: 0.5 }], { instanceId: 'i1' });
+    const src = getDrilldown(1);
+    expect(src!.beforeInstance?.parallax).toBe(1.0);
+    expect(src!.afterInstance?.parallax).toBe(0.5);
+  });
+
+  it('unlink-character-source captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('unlink-character-source');
+    expect(src!.beforeInstance?.characterLinkMode).toBeUndefined();
+    expect(src!.afterInstance?.characterLinkMode).toBe('unlinked');
+  });
+
+  it('relink-character-source captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_UNLINKED]);
+    applyEdit('relink-character-source', [{ ...INST_CHAR_UNLINKED, characterLinkMode: undefined }], { instanceId: 'i3' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('relink-character-source');
+    expect(src!.beforeInstance?.characterLinkMode).toBe('unlinked');
+  });
+
+  it('reapply-character-source captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    const reapplied = { ...INST_CHAR, characterSlotSnapshot: { slots: { head: 'helm-v2' }, equippedCount: 1, totalSlots: 12 } };
+    applyEdit('reapply-character-source', [reapplied], { instanceId: 'i2' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('reapply-character-source');
+    expect(src!.beforeInstance?.characterSlotSnapshot?.slots.head).toBe('helm-iron');
+    expect(src!.afterInstance?.characterSlotSnapshot?.slots.head).toBe('helm-v2');
+  });
+
+  it('set-character-override captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    const withOverride = {
+      ...INST_CHAR,
+      characterOverrides: { head: { slot: 'head', mode: 'replace' as const, replacementPartId: 'helm-gold' } },
+    };
+    applyEdit('set-character-override', [withOverride], { instanceId: 'i2', slotId: 'head' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('set-character-override');
+    expect(src!.beforeInstance?.characterOverrides).toBeUndefined();
+    expect(src!.afterInstance?.characterOverrides?.head?.replacementPartId).toBe('helm-gold');
+  });
+
+  it('remove-character-override captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const cleared = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: { torso: INST_CHAR_WITH_OVERRIDES.characterOverrides!.torso } };
+    applyEdit('remove-character-override', [cleared], { instanceId: 'i4', slotId: 'head' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('remove-character-override');
+    expect(src!.beforeInstance?.characterOverrides?.head).toBeDefined();
+    expect(src!.afterInstance?.characterOverrides?.head).toBeUndefined();
+  });
+
+  it('clear-all-character-overrides captures before and after', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const noOverrides = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
+    const src = getDrilldown(1);
+    expect(src!.kind).toBe('clear-all-character-overrides');
+    expect(Object.keys(src!.beforeInstance?.characterOverrides ?? {})).toHaveLength(2);
+    expect(src!.afterInstance?.characterOverrides).toBeUndefined();
+  });
+});
+
+// ── Drilldown capture — keying / lookup ──
+
+describe('SceneEditorStore — drilldown keying', () => {
+  it('capture is stored under the correct provenance sequence', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(1);
+    const seq = provenance[0].sequence;
+    expect(drilldownBySequence[seq]).toBeDefined();
+    expect(drilldownBySequence[seq].kind).toBe('move-instance');
+  });
+
+  it('multiple edits store multiple independent captures', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    applyEdit('set-instance-opacity', [{ ...INST_ASSET, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    expect(provenance).toHaveLength(2);
+    const seq1 = provenance[0].sequence;
+    const seq2 = provenance[1].sequence;
+    expect(drilldownBySequence[seq1].kind).toBe('move-instance');
+    expect(drilldownBySequence[seq2].kind).toBe('set-instance-opacity');
+  });
+
+  it('looking up one sequence does not return another edits slices', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, x: 200, visible: false }], { instanceId: 'i1' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const moveSrc = drilldownBySequence[provenance[0].sequence];
+    const visSrc = drilldownBySequence[provenance[1].sequence];
+    // Move source has the original position, visibility source has the moved position
+    expect(moveSrc.beforeInstance?.x).toBe(50);
+    expect(visSrc.beforeInstance?.x).toBe(200);
+  });
+});
+
+// ── Drilldown capture — guard tests ──
+
+describe('SceneEditorStore — drilldown guards', () => {
+  it('failed/no-op edit stores no drilldown source', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    // No-op: same instances
+    applyEdit('move-instance', [INST_ASSET], { instanceId: 'i1' });
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('undo stores no drilldown source', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    const countBefore = Object.keys(useSceneEditorStore.getState().drilldownBySequence).length;
+    useSceneEditorStore.getState().undo();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(countBefore);
+  });
+
+  it('redo stores no drilldown source', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    useSceneEditorStore.getState().undo();
+    const countBefore = Object.keys(useSceneEditorStore.getState().drilldownBySequence).length;
+    useSceneEditorStore.getState().redo();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(countBefore);
+  });
+
+  it('loadInstances stores no drilldown source', () => {
+    useSceneEditorStore.getState().loadInstances([INST_ASSET]);
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('refresh-only loadInstances cycle stores no drilldown source', () => {
+    const { loadInstances } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadInstances([{ ...INST_ASSET, x: 999 }]);
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence)).toHaveLength(0);
+  });
+});
+
+// ── Drilldown capture — reset ──
+
+describe('SceneEditorStore — drilldown reset', () => {
+  it('resetHistory clears drilldown source map', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBeGreaterThan(0);
+    resetHistory();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('resetHistory resets provenance sequence', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    resetHistory();
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 300 }], { instanceId: 'i1' });
+    const { provenance } = useSceneEditorStore.getState();
+    // After reset, sequence restarts from 1
+    expect(provenance[0].sequence).toBe(1);
+  });
+
+  it('resetHistory preserves current instances', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    resetHistory();
+    expect(useSceneEditorStore.getState().instances).toHaveLength(1);
+  });
+});
+
+// ── Drilldown capture — derivation bridge ──
+
+describe('SceneEditorStore — drilldown derivation bridge', () => {
+  it('captured unlink source derives valid unlink drilldown', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      src.kind,
+      src.beforeInstance ? [src.beforeInstance] : [],
+      src.afterInstance ? [src.afterInstance] : [],
+      src.metadata,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('unlink');
+  });
+
+  it('captured set-override source derives valid slot-aware drilldown', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    const withOverride = {
+      ...INST_CHAR,
+      characterOverrides: { head: { slot: 'head', mode: 'replace' as const, replacementPartId: 'helm-gold' } },
+    };
+    applyEdit('set-character-override', [withOverride], { instanceId: 'i2', slotId: 'head' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      src.kind,
+      src.beforeInstance ? [src.beforeInstance] : [],
+      src.afterInstance ? [src.afterInstance] : [],
+      src.metadata,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('set-override');
+    if (diff!.type === 'set-override') {
+      expect(diff!.slotId).toBe('head');
+      expect(diff!.replacementPartId).toBe('helm-gold');
+    }
+  });
+
+  it('captured clear-all source derives expected clear-all drilldown', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const noOverrides = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
+    const { provenance, drilldownBySequence } = useSceneEditorStore.getState();
+    const src = drilldownBySequence[provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      src.kind,
+      src.beforeInstance ? [src.beforeInstance] : [],
+      src.afterInstance ? [src.afterInstance] : [],
+      src.metadata,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('clear-all-overrides');
+    if (diff!.type === 'clear-all-overrides') {
+      expect(diff!.count).toBe(2);
+      expect(diff!.clearedSlots).toContain('head');
+      expect(diff!.clearedSlots).toContain('torso');
+    }
   });
 });

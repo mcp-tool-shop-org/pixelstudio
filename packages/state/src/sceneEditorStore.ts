@@ -19,6 +19,8 @@ import {
   createSceneProvenanceEntry,
   resetProvenanceSequence,
 } from './sceneProvenance';
+import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
+import { captureProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 
 // ── Undo/redo result with rollback ──
 
@@ -38,6 +40,8 @@ export interface SceneEditorState {
   history: SceneHistoryState;
   /** Append-only provenance log for this editing session. */
   provenance: SceneProvenanceEntry[];
+  /** Captured before/after slices keyed by provenance sequence. */
+  drilldownBySequence: Record<number, SceneProvenanceDrilldownSource>;
 
   // ── Queries ──
 
@@ -107,6 +111,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   instances: [],
   history: createEmptySceneHistoryState(),
   provenance: [],
+  drilldownBySequence: {},
   canUndo: false,
   canRedo: false,
 
@@ -115,17 +120,23 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
 
   applyEdit: (kind, nextInstances, metadata) => {
-    const { instances: current, history, provenance } = get();
+    const { instances: current, history, provenance, drilldownBySequence } = get();
     const result = applySceneEditWithHistory(current, history, kind, nextInstances, metadata);
-    // Provenance appends only when history actually recorded an entry (not no-op, not mid-undo)
+    // Provenance + drilldown capture only when history actually recorded an entry (not no-op, not mid-undo)
     const historyChanged = result.history !== history;
-    const nextProvenance = historyChanged
-      ? [...provenance, createSceneProvenanceEntry(kind, metadata)]
-      : provenance;
+    let nextProvenance = provenance;
+    let nextDrilldown = drilldownBySequence;
+    if (historyChanged) {
+      const entry = createSceneProvenanceEntry(kind, metadata);
+      nextProvenance = [...provenance, entry];
+      const source = captureProvenanceDrilldownSource(kind, current, nextInstances, metadata);
+      nextDrilldown = { ...drilldownBySequence, [entry.sequence]: source };
+    }
     set({
       instances: result.instances,
       history: result.history,
       provenance: nextProvenance,
+      drilldownBySequence: nextDrilldown,
       canUndo: canUndoScene(result.history),
       canRedo: canRedoScene(result.history),
     });
@@ -187,6 +198,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     set({
       history: fresh,
       provenance: [],
+      drilldownBySequence: {},
       canUndo: false,
       canRedo: false,
     });

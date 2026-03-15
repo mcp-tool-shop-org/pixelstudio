@@ -150,8 +150,10 @@ export {
   deriveProvenanceDiff,
   deriveProvenanceDrilldown,
   describeProvenanceDiff,
+  captureProvenanceDrilldownSource,
 } from './sceneProvenanceDrilldown';
 export type {
   SceneProvenanceDiff,
   SceneProvenanceDrilldown,
+  SceneProvenanceDrilldownSource,
 } from './sceneProvenanceDrilldown';
