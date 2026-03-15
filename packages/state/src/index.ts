@@ -27,3 +27,15 @@ export {
   findCameraKeyframeAtTick,
 } from './scenePlaybackStore';
 export type { CameraTimelineMarker } from './scenePlaybackStore';
+export {
+  equipPart,
+  unequipSlot,
+  replacePart,
+  isSlotCompatible,
+  collectProvidedSockets,
+  collectProvidedAnchors,
+  validateCharacterBuild,
+  deriveMissingRequiredSlots,
+  deriveEquippedParts,
+  isCharacterBuildValid,
+} from './characterHelpers';

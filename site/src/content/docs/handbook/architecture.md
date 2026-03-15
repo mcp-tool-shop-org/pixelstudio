@@ -134,3 +134,51 @@ The scene timeline includes a dedicated camera lane (`CameraTimelineLane`) that 
 | Delete selected | Removes keyframe at `selectedKeyframeTick` |
 | Previous / Next key | Navigates to adjacent keyframe in sorted order |
 | Jump to selected | Seeks playhead to `selectedKeyframeTick` |
+
+## Character workflow foundation
+
+GlyphStudio treats characters as a first-class concept above raw layers. A character is not "some layers that happen to look like a person" — it is a structured build with named slots, typed parts, and validation rules.
+
+### Why characters are first-class
+
+The app already has layers, anchors, sockets, presets, and clips. But without an explicit character model, users assemble characters by manually juggling anonymous layers. The character workflow makes assembly intentional: equip parts into slots, validate the build, save and reuse compositions.
+
+### Slot vocabulary
+
+Characters are built from parts equipped into body-region slots:
+
+| Slot | Required | Description |
+|------|----------|-------------|
+| head | yes | Head shape and structure |
+| face | no | Facial features, expressions |
+| hair | no | Hair style |
+| torso | yes | Body / chest |
+| arms | yes | Arm structure |
+| hands | no | Hand detail, gauntlets |
+| legs | yes | Leg structure |
+| feet | no | Footwear |
+| accessory | no | Earrings, belts, capes |
+| back | no | Wings, backpacks, shields |
+| weapon | no | Primary weapon |
+| offhand | no | Secondary weapon, shield, tool |
+
+One part per slot. Equipping replaces the existing occupant.
+
+### Part references
+
+Each equipped part (`CharacterPartRef`) carries:
+- Source preset/asset ID
+- Target slot
+- Optional variant ID
+- Optional tags for filtering
+- Required/provided sockets and anchors for compatibility
+
+### Validation
+
+Validation derives typed issues from a build:
+- `missing_required_slot` (error) — head, torso, arms, or legs unequipped
+- `slot_mismatch` (error) — part declares a different slot than it occupies
+- `missing_required_socket` (warning) — part needs a socket role no other part provides
+- `missing_required_anchor` (warning) — part needs an anchor kind no other part provides
+
+A build is valid when it has zero errors. Warnings inform but do not block.
