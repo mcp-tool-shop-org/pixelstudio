@@ -57,6 +57,8 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
   const build = useCharacterStore((s) => s.activeCharacterBuild);
   const selectedSlot = useCharacterStore((s) => s.selectedSlot);
   const validationIssues = useCharacterStore((s) => s.validationIssues);
+  const isDirty = useCharacterStore((s) => s.isDirty);
+  const activeSavedBuildId = useCharacterStore((s) => s.activeSavedBuildId);
   const createBuild = useCharacterStore((s) => s.createCharacterBuild);
   const clearBuild = useCharacterStore((s) => s.clearCharacterBuild);
   const setName = useCharacterStore((s) => s.setCharacterName);
@@ -67,9 +69,11 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
   const selectedLibraryBuildId = useCharacterStore((s) => s.selectedLibraryBuildId);
   const selectLibraryBuild = useCharacterStore((s) => s.selectLibraryBuild);
   const saveActiveBuild = useCharacterStore((s) => s.saveActiveBuildToLibrary);
+  const saveAsNew = useCharacterStore((s) => s.saveAsNewToLibrary);
   const loadLibraryBuild = useCharacterStore((s) => s.loadLibraryBuildIntoActive);
   const duplicateLibraryBuild = useCharacterStore((s) => s.duplicateLibraryBuild);
   const deleteLibraryBuild = useCharacterStore((s) => s.deleteLibraryBuild);
+  const revertToSaved = useCharacterStore((s) => s.revertToSaved);
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -77,12 +81,17 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
   const [showIncompatible, setShowIncompatible] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [confirmingLoadId, setConfirmingLoadId] = useState<string | null>(null);
 
   const state = useCharacterStore.getState();
   const errors = getCharacterErrors(state);
   const warnings = getCharacterWarnings(state);
   const valid = isCharacterValid(state);
   const missingSlots = getMissingRequiredSlots(state);
+
+  // Save is disabled when clean+already saved, or no build
+  const saveDisabled = !build || (!isDirty && activeSavedBuildId !== null);
+  const canRevert = isDirty && activeSavedBuildId !== null;
 
   const handleStartRename = useCallback(() => {
     if (!build) return;
@@ -127,10 +136,24 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
     if (updated && onLibraryChange) onLibraryChange(updated);
   }, [saveActiveBuild, onLibraryChange]);
 
+  const handleSaveAsNew = useCallback(() => {
+    const updated = saveAsNew();
+    if (updated && onLibraryChange) onLibraryChange(updated);
+  }, [saveAsNew, onLibraryChange]);
+
   const handleLoadFromLibrary = useCallback((buildId: string) => {
+    if (isDirty && confirmingLoadId !== buildId) {
+      setConfirmingLoadId(buildId);
+      return;
+    }
     loadLibraryBuild(buildId);
     setConfirmingDeleteId(null);
-  }, [loadLibraryBuild]);
+    setConfirmingLoadId(null);
+  }, [isDirty, confirmingLoadId, loadLibraryBuild]);
+
+  const handleCancelLoad = useCallback(() => {
+    setConfirmingLoadId(null);
+  }, []);
 
   const handleDuplicate = useCallback((buildId: string) => {
     const updated = duplicateLibraryBuild(buildId);
@@ -146,6 +169,10 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
     if (updated && onLibraryChange) onLibraryChange(updated);
     setConfirmingDeleteId(null);
   }, [confirmingDeleteId, deleteLibraryBuild, onLibraryChange]);
+
+  const handleRevert = useCallback(() => {
+    revertToSaved();
+  }, [revertToSaved]);
 
   // ── Library section (shared between empty and active states) ──
   const librarySection = (
@@ -198,14 +225,38 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
                   </span>
                 </div>
                 <div className="char-library-row-actions">
-                  <button
-                    className="char-builder-action-btn char-library-load-btn"
-                    title="Load into editor"
-                    onClick={(e) => { e.stopPropagation(); handleLoadFromLibrary(saved.id); }}
-                    data-testid={`char-library-load-${saved.id}`}
-                  >
-                    Load
-                  </button>
+                  {confirmingLoadId === saved.id ? (
+                    <>
+                      <span className="char-library-load-warn" data-testid={`char-library-load-warn-${saved.id}`}>
+                        Discard changes?
+                      </span>
+                      <button
+                        className="char-builder-action-btn char-library-load-btn char-btn-confirm"
+                        title="Discard unsaved changes and load"
+                        onClick={(e) => { e.stopPropagation(); handleLoadFromLibrary(saved.id); }}
+                        data-testid={`char-library-load-confirm-${saved.id}`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        className="char-builder-action-btn char-library-load-btn"
+                        title="Cancel"
+                        onClick={(e) => { e.stopPropagation(); handleCancelLoad(); }}
+                        data-testid={`char-library-load-cancel-${saved.id}`}
+                      >
+                        No
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="char-builder-action-btn char-library-load-btn"
+                      title="Load into editor"
+                      onClick={(e) => { e.stopPropagation(); handleLoadFromLibrary(saved.id); }}
+                      data-testid={`char-library-load-${saved.id}`}
+                    >
+                      Load
+                    </button>
+                  )}
                   <button
                     className="char-builder-action-btn char-library-dup-btn"
                     title="Duplicate"
@@ -301,16 +352,43 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
               {build.name}
             </span>
           )}
+          {isDirty && (
+            <span className="char-dirty-indicator" data-testid="char-dirty-indicator">
+              Unsaved changes
+            </span>
+          )}
+          <span className="char-build-status" data-testid="char-build-status">
+            {activeSavedBuildId ? (isDirty ? 'Modified' : 'Saved') : 'New build'}
+          </span>
         </div>
         <div className="char-builder-header-actions">
           <button
             className="char-builder-action-btn char-save-btn"
-            title="Save to library"
+            title={saveDisabled ? 'No changes to save' : 'Save to library'}
             onClick={handleSaveToLibrary}
+            disabled={saveDisabled}
             data-testid="char-save-btn"
           >
             Save
           </button>
+          <button
+            className="char-builder-action-btn char-save-as-btn"
+            title="Save as new build"
+            onClick={handleSaveAsNew}
+            data-testid="char-save-as-btn"
+          >
+            Save As New
+          </button>
+          {canRevert && (
+            <button
+              className="char-builder-action-btn char-revert-btn"
+              title="Revert to last saved version"
+              onClick={handleRevert}
+              data-testid="char-revert-btn"
+            >
+              Revert
+            </button>
+          )}
           <button
             className="char-builder-action-btn"
             title="New build"

@@ -5462,6 +5462,38 @@
   font-weight: 600;
 }
 
+.char-save-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.char-save-as-btn {
+  font-size: 10px;
+}
+
+.char-revert-btn {
+  font-size: 10px;
+  color: var(--warning, #ffb74d);
+}
+
+.char-dirty-indicator {
+  font-size: 10px;
+  color: var(--warning, #ffb74d);
+  margin-left: 6px;
+}
+
+.char-build-status {
+  font-size: 10px;
+  opacity: 0.5;
+  margin-left: 4px;
+}
+
+.char-library-load-warn {
+  font-size: 10px;
+  color: var(--warning, #ffb74d);
+  white-space: nowrap;
+}
+
 /* ===== Camera Keyframe Panel ===== */
 
 .camkf-panel {

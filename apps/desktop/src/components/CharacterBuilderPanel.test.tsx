@@ -1259,3 +1259,466 @@ describe('library store integration', () => {
     expect(screen.getByTestId('char-library-count').textContent).toBe('1');
   });
 });
+
+// ── Dirty state visibility ──
+
+describe('dirty state visibility', () => {
+  it('new build shows no dirty indicator', () => {
+    useCharacterStore.getState().createCharacterBuild('Fresh');
+    render(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-dirty-indicator')).toBeNull();
+  });
+
+  it('editing active build shows unsaved indicator', () => {
+    useCharacterStore.getState().createCharacterBuild('Fresh');
+    const { rerender } = render(<CharacterBuilderPanel />);
+    act(() => {
+      useCharacterStore.getState().equipCharacterPart(HEAD);
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-dirty-indicator')).toBeInTheDocument();
+    expect(screen.getByTestId('char-dirty-indicator').textContent).toBe('Unsaved changes');
+  });
+
+  it('save clears unsaved indicator', async () => {
+    useCharacterStore.getState().createCharacterBuild('Fresh');
+    const { rerender } = render(<CharacterBuilderPanel />);
+    act(() => {
+      useCharacterStore.getState().equipCharacterPart(HEAD);
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-dirty-indicator')).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-dirty-indicator')).toBeNull();
+  });
+
+  it('loading saved build clears dirty state', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    // Now modify the build to make dirty
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Modified');
+    });
+    const { rerender } = render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-dirty-indicator')).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    // Need confirm since dirty
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-confirm-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-dirty-indicator')).toBeNull();
+  });
+
+  it('save button disabled when clean and already saved', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-save-btn')).toBeDisabled();
+  });
+
+  it('save button enabled when dirty', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Modified');
+    });
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-save-btn')).not.toBeDisabled();
+  });
+
+  it('save button enabled for never-saved build', () => {
+    useCharacterStore.getState().createCharacterBuild('Brand New');
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-save-btn')).not.toBeDisabled();
+  });
+});
+
+// ── Build status label ──
+
+describe('build status label', () => {
+  it('new build shows "New build" status', () => {
+    useCharacterStore.getState().createCharacterBuild('Fresh');
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-build-status').textContent).toBe('New build');
+  });
+
+  it('saved build shows "Saved" status', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-build-status').textContent).toBe('Saved');
+  });
+
+  it('modified saved build shows "Modified" status', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Changed');
+    });
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-build-status').textContent).toBe('Modified');
+  });
+});
+
+// ── Save vs Save As New ──
+
+describe('save vs save as new', () => {
+  it('save overwrites current saved build', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Updated Warrior');
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds).toHaveLength(1);
+    expect(lib.builds[0].name).toBe('Updated Warrior');
+  });
+
+  it('save as new creates new entry with new ID', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const originalId = useCharacterStore.getState().activeSavedBuildId;
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-as-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds).toHaveLength(2);
+    expect(useCharacterStore.getState().activeSavedBuildId).not.toBe(originalId);
+  });
+
+  it('original saved build remains unchanged after save as new', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const originalId = useCharacterStore.getState().activeSavedBuildId!;
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Branched');
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-as-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    const original = lib.builds.find((b) => b.id === originalId)!;
+    expect(original.name).toBe('Warrior');
+  });
+
+  it('active build identity updates after save as new', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const beforeId = useCharacterStore.getState().activeCharacterBuild!.id;
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-as-btn'));
+    });
+    const afterId = useCharacterStore.getState().activeCharacterBuild!.id;
+    expect(afterId).not.toBe(beforeId);
+    expect(useCharacterStore.getState().activeSavedBuildId).toBe(afterId);
+  });
+
+  it('save as new clears dirty', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Changed');
+    });
+    expect(useCharacterStore.getState().isDirty).toBe(true);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-as-btn'));
+    });
+    expect(useCharacterStore.getState().isDirty).toBe(false);
+  });
+
+  it('onLibraryChange fires on save as new', async () => {
+    const onChange = vi.fn();
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel onLibraryChange={onChange} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-as-btn'));
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Load protection when dirty ──
+
+describe('load protection when dirty', () => {
+  function seedAndDirty(): string {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    // Create second build and save
+    useCharacterStore.getState().createCharacterBuild('Other');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    // Make dirty
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Dirty Other');
+    });
+    return id;
+  }
+
+  it('load while dirty shows confirmation', async () => {
+    const id = seedAndDirty();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId(`char-library-load-warn-${id}`)).toBeInTheDocument();
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+  });
+
+  it('cancel leaves active build unchanged', async () => {
+    const id = seedAndDirty();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-cancel-${id}`));
+    });
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Dirty Other');
+    expect(useCharacterStore.getState().isDirty).toBe(true);
+  });
+
+  it('confirm loads selected build and clears dirty', async () => {
+    const id = seedAndDirty();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-confirm-${id}`));
+    });
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Warrior');
+    expect(useCharacterStore.getState().isDirty).toBe(false);
+  });
+
+  it('load without dirty skips confirmation', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    // Not dirty
+    expect(useCharacterStore.getState().isDirty).toBe(false);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    // Should load directly, no confirm step
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Warrior');
+    expect(screen.queryByText('Discard changes?')).toBeNull();
+  });
+});
+
+// ── Delete safety ──
+
+describe('delete safety with active identity', () => {
+  it('deleting non-active saved build leaves active build untouched', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const activeId = useCharacterStore.getState().activeSavedBuildId;
+    // Create and save a second build
+    useCharacterStore.getState().createCharacterBuild('Other');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const otherId = useCharacterStore.getState().buildLibrary.builds.find(
+      (b) => b.id !== useCharacterStore.getState().activeSavedBuildId
+    )!.id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    // Delete the non-active build
+    const delBtn = screen.getByTestId(`char-library-del-${otherId}`);
+    await act(async () => { await userEvent.click(delBtn); });
+    await act(async () => { await userEvent.click(delBtn); });
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Other');
+    expect(useCharacterStore.getState().activeSavedBuildId).not.toBeNull();
+  });
+
+  it('deleting currently loaded saved build marks active as unsaved', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().activeSavedBuildId!;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => { await userEvent.click(delBtn); });
+    await act(async () => { await userEvent.click(delBtn); });
+    // Active build still present
+    expect(useCharacterStore.getState().activeCharacterBuild).not.toBeNull();
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Warrior');
+    // But no longer linked to saved identity
+    expect(useCharacterStore.getState().activeSavedBuildId).toBeNull();
+    // Marked dirty since orphaned
+    expect(useCharacterStore.getState().isDirty).toBe(true);
+  });
+});
+
+// ── Revert to saved ──
+
+describe('revert to saved', () => {
+  it('revert button appears when dirty and has saved identity', () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Changed');
+    });
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-revert-btn')).toBeInTheDocument();
+  });
+
+  it('revert button does not appear for new unsaved build', () => {
+    useCharacterStore.getState().createCharacterBuild('New');
+    act(() => {
+      useCharacterStore.getState().equipCharacterPart(HEAD);
+    });
+    render(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-revert-btn')).toBeNull();
+  });
+
+  it('revert restores saved version', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Modified');
+    });
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Modified');
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-revert-btn'));
+    });
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Warrior');
+  });
+
+  it('revert clears dirty', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Modified');
+    });
+    expect(useCharacterStore.getState().isDirty).toBe(true);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-revert-btn'));
+    });
+    expect(useCharacterStore.getState().isDirty).toBe(false);
+  });
+
+  it('revert updates validation/UI', async () => {
+    // Start with valid, save, then remove a required slot to make invalid+dirty
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().unequipCharacterSlot('head');
+    });
+    const { rerender } = render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('error');
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-revert-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('Valid build');
+  });
+
+  it('revert button disappears after revert', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Modified');
+    });
+    const { rerender } = render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-revert-btn')).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-revert-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-revert-btn')).toBeNull();
+  });
+});
+
+// ── Identity separation ──
+
+describe('identity separation', () => {
+  it('activeSavedBuildId set on save', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    expect(useCharacterStore.getState().activeSavedBuildId).toBeNull();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    expect(useCharacterStore.getState().activeSavedBuildId).not.toBeNull();
+  });
+
+  it('activeSavedBuildId set on load from library', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    useCharacterStore.getState().clearCharacterBuild();
+    expect(useCharacterStore.getState().activeSavedBuildId).toBeNull();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    expect(useCharacterStore.getState().activeSavedBuildId).toBe(id);
+  });
+
+  it('creating new build clears activeSavedBuildId', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    expect(useCharacterStore.getState().activeSavedBuildId).not.toBeNull();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-new-btn'));
+    });
+    expect(useCharacterStore.getState().activeSavedBuildId).toBeNull();
+  });
+
+  it('selectedLibraryBuildId independent from activeSavedBuildId', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    // Create and save a second build
+    useCharacterStore.getState().createCharacterBuild('Other');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const otherId = useCharacterStore.getState().activeSavedBuildId!;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    // Select the first build in library
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-row-${id}`));
+    });
+    expect(useCharacterStore.getState().selectedLibraryBuildId).toBe(id);
+    expect(useCharacterStore.getState().activeSavedBuildId).toBe(otherId);
+  });
+});
