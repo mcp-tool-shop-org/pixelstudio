@@ -73,8 +73,8 @@ describe('TS ↔ Rust enum parity', () => {
   });
 
   it('ManifestFormat', () => {
-    const ts = ['pixelstudio_native', 'generic_runtime'] as const;
-    const rust = ['pixelstudio_native', 'generic_runtime'] as const;
+    const ts = ['glyphstudio_native', 'generic_runtime'] as const;
+    const rust = ['glyphstudio_native', 'generic_runtime'] as const;
     expectSameVariants('ManifestFormat', ts, rust);
   });
 

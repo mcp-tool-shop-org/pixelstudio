@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { MotionIntent, MotionDirection, MotionFrameCount, MotionTargetMode, MotionSessionStatus, MotionTemplateId, MotionTemplateInfo, SecondaryMotionTemplateId, SecondaryTemplateInfo, SecondaryReadinessInfo, MotionPanelMode } from '@pixelstudio/domain';
-import { useMotionStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useAnchorStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
-import type { PresetAnchor, PresetMotionSettings, PresetSaveResult, MotionPresetKind } from '@pixelstudio/domain';
-import { ANCHOR_KIND_LABELS } from '@pixelstudio/domain';
-import type { AnchorKind } from '@pixelstudio/domain';
+import type { MotionIntent, MotionDirection, MotionFrameCount, MotionTargetMode, MotionSessionStatus, MotionTemplateId, MotionTemplateInfo, SecondaryMotionTemplateId, SecondaryTemplateInfo, SecondaryReadinessInfo, MotionPanelMode } from '@glyphstudio/domain';
+import { useMotionStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useAnchorStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
+import type { PresetAnchor, PresetMotionSettings, PresetSaveResult, MotionPresetKind } from '@glyphstudio/domain';
+import { ANCHOR_KIND_LABELS } from '@glyphstudio/domain';
+import type { AnchorKind } from '@glyphstudio/domain';
 
 const INTENTS: { id: MotionIntent; label: string }[] = [
   { id: 'idle_bob', label: 'Idle Bob' },

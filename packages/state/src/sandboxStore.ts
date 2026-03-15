@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SandboxPlaybackSettings, SandboxSessionInfo, SandboxMetricsSummary, AnchorPathInfo } from '@pixelstudio/domain';
+import type { SandboxPlaybackSettings, SandboxSessionInfo, SandboxMetricsSummary, AnchorPathInfo } from '@glyphstudio/domain';
 
 interface SandboxState {
   session: SandboxSessionInfo | null;

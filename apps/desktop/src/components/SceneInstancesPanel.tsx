@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@pixelstudio/domain';
-import { useScenePlaybackStore, useProjectStore } from '@pixelstudio/state';
+import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@glyphstudio/domain';
+import { useScenePlaybackStore, useProjectStore } from '@glyphstudio/state';
 
 export function SceneInstancesPanel() {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);

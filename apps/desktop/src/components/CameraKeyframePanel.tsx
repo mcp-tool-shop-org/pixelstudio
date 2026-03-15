@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneCameraKeyframe, CameraInterpolationMode, SceneCameraShot } from '@pixelstudio/domain';
-import { useScenePlaybackStore, deriveShotsFromCameraKeyframes } from '@pixelstudio/state';
+import type { SceneCameraKeyframe, CameraInterpolationMode, SceneCameraShot } from '@glyphstudio/domain';
+import { useScenePlaybackStore, deriveShotsFromCameraKeyframes } from '@glyphstudio/state';
 
 type ViewMode = 'keyframes' | 'shots';
 

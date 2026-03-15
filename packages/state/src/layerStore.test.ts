@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useLayerStore } from './layerStore';
-import type { LayerNode } from '@pixelstudio/domain';
+import type { LayerNode } from '@glyphstudio/domain';
 
 function makeLayer(id: string, overrides?: Partial<LayerNode>): LayerNode {
   return {

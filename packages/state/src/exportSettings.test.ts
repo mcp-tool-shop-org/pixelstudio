@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 // Production code lives in apps/desktop/src/lib/exportSettings.ts.
 // Inlined here so persistence logic is testable from the state package.
 
-type ManifestFormat = 'pixelstudio_native' | 'generic_runtime';
+type ManifestFormat = 'glyphstudio_native' | 'generic_runtime';
 
 interface PersistedExportSettings {
   scopeChoice: string;
@@ -18,7 +18,7 @@ interface PersistedExportSettings {
   lastOutputFile: string | null;
 }
 
-const STORAGE_KEY = 'pixelstudio_export_settings';
+const STORAGE_KEY = 'glyphstudio_export_settings';
 
 const DEFAULTS: PersistedExportSettings = {
   scopeChoice: 'current_frame',
@@ -27,7 +27,7 @@ const DEFAULTS: PersistedExportSettings = {
   spanStart: 1,
   spanEnd: 1,
   emitManifest: false,
-  manifestFormat: 'pixelstudio_native',
+  manifestFormat: 'glyphstudio_native',
   lastOutputDir: null,
   lastOutputFile: null,
 };

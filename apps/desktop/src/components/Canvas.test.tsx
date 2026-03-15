@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import { Canvas } from '../components/Canvas';
-import { useCanvasViewStore } from '@pixelstudio/state';
-import { useToolStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
+import { useCanvasViewStore } from '@glyphstudio/state';
+import { useToolStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import { getMockInvoke } from '../test/helpers';
-import type { ToolId } from '@pixelstudio/domain';
+import type { ToolId } from '@glyphstudio/domain';
 
 // ── Helpers ────────────────────────────────────────────────────
 function seedStores(overrides?: {

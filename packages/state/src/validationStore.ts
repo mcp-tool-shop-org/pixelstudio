@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ValidationReport } from '@pixelstudio/api-contract';
+import type { ValidationReport } from '@glyphstudio/api-contract';
 
 interface ValidationState {
   currentReport: ValidationReport | null;

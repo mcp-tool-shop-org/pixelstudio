@@ -309,7 +309,7 @@ pub fn preview_sprite_sheet_layout(
 #[serde(rename_all = "snake_case")]
 pub enum ManifestFormat {
     #[default]
-    PixelstudioNative,
+    GlyphstudioNative,
     GenericRuntime,
 }
 
@@ -489,7 +489,7 @@ pub fn package_info_from_canvas(
 
 fn format_manifest(input: &ManifestInput, format: &ManifestFormat, fw: u32, fh: u32) -> Result<String, String> {
     match format {
-        ManifestFormat::PixelstudioNative => {
+        ManifestFormat::GlyphstudioNative => {
             let manifest = ExportManifest {
                 name: input.name.clone(),
                 export_type: input.export_type.clone(),

@@ -1,4 +1,4 @@
-import type { WorkspaceMode } from '@pixelstudio/domain';
+import type { WorkspaceMode } from '@glyphstudio/domain';
 import { useEffect, useState } from 'react';
 import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';

@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SandboxPanel } from '../components/SandboxPanel';
-import { useSandboxStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
+import { useSandboxStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 const MOCK_SESSION = {

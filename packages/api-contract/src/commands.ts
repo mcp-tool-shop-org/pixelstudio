@@ -1,4 +1,4 @@
-import type { ColorMode, ImpactScope, MotionDirection, MotionFrameCount, MotionIntent, MotionTargetMode, ProvenanceRef, Rect, ValidationCategory } from '@pixelstudio/domain';
+import type { ColorMode, ImpactScope, MotionDirection, MotionFrameCount, MotionIntent, MotionTargetMode, ProvenanceRef, Rect, ValidationCategory } from '@glyphstudio/domain';
 
 // ─── Project ───────────────────────────────────────────────────
 export interface CreateProjectInput {

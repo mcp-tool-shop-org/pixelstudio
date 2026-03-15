@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { ClipInfo, ClipValidity, PivotMode } from '@pixelstudio/domain';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
+import type { ClipInfo, ClipValidity, PivotMode } from '@glyphstudio/domain';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 
 export function ClipPanel() {
   const [clips, setClips] = useState<ClipInfo[]>([]);

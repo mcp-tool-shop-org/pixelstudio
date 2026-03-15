@@ -1,11 +1,11 @@
 ---
 title: Architecture
-description: How PixelStudio's frontend and backend fit together
+description: How GlyphStudio's frontend and backend fit together
 sidebar:
   order: 3
 ---
 
-PixelStudio separates concerns cleanly between the React frontend and the Tauri/Rust backend.
+GlyphStudio separates concerns cleanly between the React frontend and the Tauri/Rust backend.
 
 ## Responsibility boundary
 

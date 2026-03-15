@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ToolId } from '@pixelstudio/domain';
+import type { ToolId } from '@glyphstudio/domain';
 
 export interface RgbaColor {
   r: number;

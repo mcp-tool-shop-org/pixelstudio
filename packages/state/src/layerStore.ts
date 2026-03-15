@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
-import type { LayerNode } from '@pixelstudio/domain';
+import type { LayerNode } from '@glyphstudio/domain';
 
 interface LayerState {
   rootLayerIds: string[];

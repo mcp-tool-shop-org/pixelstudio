@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WorkspaceMode } from '@pixelstudio/domain';
+import type { WorkspaceMode } from '@glyphstudio/domain';
 
 // Mock heavy child panels — we're testing the dock's tab routing, not the panels
 vi.mock('../components/LayerPanel', () => ({

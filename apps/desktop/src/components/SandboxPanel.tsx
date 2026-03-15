@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useSandboxStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
+import { useSandboxStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
 import type {
   SandboxSessionInfo,
   SandboxSource,
@@ -12,10 +12,10 @@ import type {
   DiagnosticSeverity,
   AnchorPathInfo,
   ContactLabel,
-} from '@pixelstudio/domain';
+} from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
-import { useSelectionStore, useProjectStore } from '@pixelstudio/state';
+import { useSelectionStore, useProjectStore } from '@glyphstudio/state';
 
 interface TimelineResult {
   frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>;

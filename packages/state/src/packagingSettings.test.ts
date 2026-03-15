@@ -16,7 +16,7 @@ interface PersistedPackagingSettings {
   lastPackagingMode: 'single' | 'catalog' | null;
 }
 
-const STORAGE_KEY = 'pixelstudio_packaging_settings';
+const STORAGE_KEY = 'glyphstudio_packaging_settings';
 
 const DEFAULTS: PersistedPackagingSettings = {
   bundleFormat: 'folder',

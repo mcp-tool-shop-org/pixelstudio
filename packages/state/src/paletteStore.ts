@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PaletteDefinition } from '@pixelstudio/domain';
+import type { PaletteDefinition } from '@glyphstudio/domain';
 
 interface PaletteState {
   activePaletteId: string | null;

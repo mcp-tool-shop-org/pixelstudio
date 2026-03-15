@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AnchorKind } from '@pixelstudio/domain';
-import { ANCHOR_KIND_LABELS, ANCHOR_KIND_COLORS } from '@pixelstudio/domain';
-import { useAnchorStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
-import type { PresetAnchor, PresetMotionSettings, PresetSaveResult } from '@pixelstudio/domain';
+import type { AnchorKind } from '@glyphstudio/domain';
+import { ANCHOR_KIND_LABELS, ANCHOR_KIND_COLORS } from '@glyphstudio/domain';
+import { useAnchorStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
+import type { PresetAnchor, PresetMotionSettings, PresetSaveResult } from '@glyphstudio/domain';
 
 const ANCHOR_KINDS: AnchorKind[] = [
   'head', 'torso', 'arm_left', 'arm_right', 'leg_left', 'leg_right', 'custom',

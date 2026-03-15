@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MotionPanel } from '../components/MotionPanel';
-import { useMotionStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useAnchorStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
+import { useMotionStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useAnchorStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 function seedStores(overrides?: {

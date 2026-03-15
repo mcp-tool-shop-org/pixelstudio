@@ -1,16 +1,16 @@
 import type { SiteConfig } from '@mcptoolshop/site-theme';
 
 export const config: SiteConfig = {
-  title: 'PixelStudio',
+  title: 'GlyphStudio',
   description: 'Desktop-native pixel sprite studio with deterministic craft tools and subordinate AI assistance.',
-  logoBadge: 'Px',
-  brandName: 'PixelStudio',
-  repoUrl: 'https://github.com/mcp-tool-shop-org/pixelstudio',
+  logoBadge: 'Gs',
+  brandName: 'GlyphStudio',
+  repoUrl: 'https://github.com/mcp-tool-shop-org/glyphstudio',
   footerText: 'MIT Licensed — built by <a href="https://github.com/mcp-tool-shop-org" style="color:var(--color-muted);text-decoration:underline">mcp-tool-shop-org</a>',
 
   hero: {
     badge: 'Desktop Studio',
-    headline: 'PixelStudio',
+    headline: 'GlyphStudio',
     headlineAccent: 'craft-first sprite studio.',
     description: 'A desktop-native pixel art studio where deterministic editing is the foundation and AI stays in the passenger seat. Build sprites, animate walk cycles, and validate assets — all with tools that reward skill, not luck.',
     primaryCta: { href: '#features', label: 'Explore Features' },

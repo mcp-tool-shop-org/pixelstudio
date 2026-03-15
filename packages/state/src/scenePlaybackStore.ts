@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe, SceneCameraShot } from '@pixelstudio/domain';
+import type { ScenePlaybackState, InstanceClipState, SceneCameraKeyframe, SceneCameraShot } from '@glyphstudio/domain';
 
 /** Pure camera resolver — identical algorithm to Rust resolve_scene_camera_at_tick. */
 export function resolveCameraAtTick(

@@ -1,22 +1,22 @@
 ---
 title: Welcome
-description: PixelStudio handbook — a craft-first desktop sprite studio
+description: GlyphStudio handbook — a craft-first desktop sprite studio
 sidebar:
   order: 0
 ---
 
-PixelStudio is a desktop-native pixel sprite studio built with React, TypeScript, and Tauri v2.
+GlyphStudio is a desktop-native pixel sprite studio built with React, TypeScript, and Tauri v2.
 
 It is designed around a simple thesis: **creative authority comes from deterministic editing**. AI is a subordinate assistant that operates inside bounded, reversible workflows — never the primary authoring path.
 
-## What PixelStudio is
+## What GlyphStudio is
 
 - A serious desktop studio for building, editing, and animating pixel sprites
 - A tool that rewards skill, muscle memory, and precise control
 - A workspace where indexed palettes, timeline editing, and validation are first-class systems
 - An AI-assisted environment where every generated result lands as an editable, provenance-tracked artifact
 
-## What PixelStudio is not
+## What GlyphStudio is not
 
 - A browser-based casual generator
 - A prompt-and-pray image tool

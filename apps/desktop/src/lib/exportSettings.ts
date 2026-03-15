@@ -1,6 +1,6 @@
-import type { ManifestFormat } from '@pixelstudio/domain';
+import type { ManifestFormat } from '@glyphstudio/domain';
 
-const STORAGE_KEY = 'pixelstudio_export_settings';
+const STORAGE_KEY = 'glyphstudio_export_settings';
 
 export interface PersistedExportSettings {
   scopeChoice: string;
@@ -21,7 +21,7 @@ const DEFAULTS: PersistedExportSettings = {
   spanStart: 1,
   spanEnd: 1,
   emitManifest: false,
-  manifestFormat: 'pixelstudio_native',
+  manifestFormat: 'glyphstudio_native',
   lastOutputDir: null,
   lastOutputFile: null,
 };

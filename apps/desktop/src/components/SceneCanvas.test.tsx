@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SceneCanvas } from '../components/SceneCanvas';
-import { useScenePlaybackStore, useProjectStore } from '@pixelstudio/state';
+import { useScenePlaybackStore, useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 const MOCK_SCENE_INFO = {

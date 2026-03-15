@@ -5,8 +5,8 @@ import type {
   AssetSummary, AssetKind, AssetStatus,
   CatalogBundlePreviewResult, CatalogBundleExportResult,
   ExportBundleFormat,
-} from '@pixelstudio/domain';
-import { useProjectStore } from '@pixelstudio/state';
+} from '@glyphstudio/domain';
+import { useProjectStore } from '@glyphstudio/state';
 import { loadPackagingSettings, savePackagingSettings } from '../lib/packagingSettings';
 
 type SortMode = 'recent' | 'alpha' | 'kind';

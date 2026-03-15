@@ -7,7 +7,7 @@ import type {
   MotionSessionStatus,
   MotionProposal,
   MotionPanelMode,
-} from '@pixelstudio/domain';
+} from '@glyphstudio/domain';
 
 interface MotionState {
   panelMode: MotionPanelMode;

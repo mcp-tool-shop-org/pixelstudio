@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TopBar } from '../components/TopBar';
-import { useProjectStore } from '@pixelstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 
 function seed(overrides: Partial<ReturnType<typeof useProjectStore.getState>> = {}) {
   useProjectStore.setState({
@@ -21,10 +21,10 @@ describe('TopBar', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('shows PixelStudio title', () => {
+    it('shows GlyphStudio title', () => {
       seed();
       render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
-      expect(screen.getByText('PixelStudio')).toBeInTheDocument();
+      expect(screen.getByText('GlyphStudio')).toBeInTheDocument();
     });
 
     it('shows project name when no filePath', () => {

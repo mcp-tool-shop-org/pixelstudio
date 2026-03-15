@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Anchor, AnchorKind, AnchorBounds } from '@pixelstudio/domain';
+import type { Anchor, AnchorKind, AnchorBounds } from '@glyphstudio/domain';
 
 interface AnchorState {
   anchors: Anchor[];

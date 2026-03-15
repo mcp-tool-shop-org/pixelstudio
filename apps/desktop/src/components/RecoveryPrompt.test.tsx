@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecoveryPrompt } from '../components/RecoveryPrompt';
-import { useProjectStore } from '@pixelstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import { getMockInvoke } from '../test/helpers';
 

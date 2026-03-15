@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Point } from '@pixelstudio/domain';
+import type { Point } from '@glyphstudio/domain';
 
 interface LocomotionAnalysis {
   id: string;

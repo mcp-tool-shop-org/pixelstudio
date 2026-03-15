@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import type { WorkspaceMode } from '@pixelstudio/domain';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useScenePlaybackStore } from '@pixelstudio/state';
+import type { WorkspaceMode } from '@glyphstudio/domain';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useScenePlaybackStore } from '@glyphstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { MotionPanel } from './MotionPanel';

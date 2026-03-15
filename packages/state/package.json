@@ -1,5 +1,5 @@
 {
-  "name": "@pixelstudio/state",
+  "name": "@glyphstudio/state",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@pixelstudio/api-contract": "workspace:*",
-    "@pixelstudio/domain": "workspace:*",
+    "@glyphstudio/api-contract": "workspace:*",
+    "@glyphstudio/domain": "workspace:*",
     "immer": "^10.1.1",
     "zustand": "^5.0.3"
   },

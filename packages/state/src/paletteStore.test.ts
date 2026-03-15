@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { usePaletteStore } from './paletteStore';
-import type { PaletteDefinition } from '@pixelstudio/domain';
+import type { PaletteDefinition } from '@glyphstudio/domain';
 
 function makePalette(id: string, name?: string): PaletteDefinition {
   return {

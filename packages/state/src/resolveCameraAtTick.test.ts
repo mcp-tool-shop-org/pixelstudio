@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveCameraAtTick } from './scenePlaybackStore';
-import type { SceneCameraKeyframe } from '@pixelstudio/domain';
+import type { SceneCameraKeyframe } from '@glyphstudio/domain';
 
 function kf(tick: number, overrides?: Partial<SceneCameraKeyframe>): SceneCameraKeyframe {
   return { tick, x: tick * 10, y: tick * 5, zoom: 1.0, interpolation: 'linear', ...overrides };

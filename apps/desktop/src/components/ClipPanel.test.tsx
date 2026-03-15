@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useTimelineStore, useProjectStore } from '@pixelstudio/state';
+import { useTimelineStore, useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
-import type { ClipInfo } from '@pixelstudio/domain';
+import type { ClipInfo } from '@glyphstudio/domain';
 
 import { ClipPanel } from '../components/ClipPanel';
 

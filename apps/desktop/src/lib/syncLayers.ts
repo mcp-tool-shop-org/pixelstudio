@@ -1,4 +1,4 @@
-import { useLayerStore } from '@pixelstudio/state';
+import { useLayerStore } from '@glyphstudio/state';
 import type { CanvasFrameData } from './canvasFrameStore';
 
 /** Sync the frontend layer store from a Rust CanvasFrame response. */

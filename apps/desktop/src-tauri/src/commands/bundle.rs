@@ -640,7 +640,7 @@ fn build_bundle_manifest(
     package_info: Option<super::export::ManifestPackageInfo>,
 ) -> BundleManifest {
     let format_label = match format {
-        ManifestFormat::PixelstudioNative => "pixelstudio_native",
+        ManifestFormat::GlyphstudioNative => "glyphstudio_native",
         ManifestFormat::GenericRuntime => "generic_runtime",
     };
 

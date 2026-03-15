@@ -4,7 +4,7 @@ import { useScenePlaybackStore } from './scenePlaybackStore';
 import { useProjectStore } from './projectStore';
 import { useLayerStore } from './layerStore';
 import { useSelectionStore } from './selectionStore';
-import type { LayerNode } from '@pixelstudio/domain';
+import type { LayerNode } from '@glyphstudio/domain';
 
 // ── Inline replica of syncLayersFromFrame (from apps/desktop) ──
 interface CanvasFrameLayer {

@@ -47,7 +47,7 @@ export interface ExportPreviewResult {
 }
 
 /** Manifest format selection */
-export type ManifestFormat = 'pixelstudio_native' | 'generic_runtime';
+export type ManifestFormat = 'glyphstudio_native' | 'generic_runtime';
 
 /** Summary of a concrete export operation */
 export interface ExportResult {

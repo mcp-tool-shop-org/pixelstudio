@@ -1,10 +1,10 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useCanvasViewStore } from '@pixelstudio/state';
-import { useToolStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
-import { useSelectionStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
+import { useCanvasViewStore } from '@glyphstudio/state';
+import { useToolStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
+import { useSelectionStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 

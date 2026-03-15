@@ -474,7 +474,7 @@ mod tests {
             &cs, "io-test", "IO Test", ColorMode::Rgb, "2025-01-01T00:00:00Z",
         );
 
-        let dir = std::env::temp_dir().join("pixelstudio_test");
+        let dir = std::env::temp_dir().join("glyphstudio_test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("save_load_test.pxs");
 
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn load_nonexistent_file_fails() {
-        let result = load_from_file(Path::new("/tmp/nonexistent_pixelstudio_test.pxs"));
+        let result = load_from_file(Path::new("/tmp/nonexistent_glyphstudio_test.pxs"));
         assert!(result.is_err());
     }
 

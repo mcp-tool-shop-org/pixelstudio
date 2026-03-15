@@ -1,5 +1,5 @@
-import type { ToolId } from '@pixelstudio/domain';
-import { useToolStore } from '@pixelstudio/state';
+import type { ToolId } from '@glyphstudio/domain';
+import { useToolStore } from '@glyphstudio/state';
 
 const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'pencil', label: 'Pencil', shortcut: 'B' },

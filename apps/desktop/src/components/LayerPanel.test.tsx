@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LayerPanel } from '../components/LayerPanel';
-import { useLayerStore, useProjectStore } from '@pixelstudio/state';
+import { useLayerStore, useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 function mkLayer(id: string, name: string, overrides?: Record<string, unknown>) {

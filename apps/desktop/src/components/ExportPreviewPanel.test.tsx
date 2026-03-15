@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExportPreviewPanel } from '../components/ExportPreviewPanel';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 function seedStores(overrides?: {

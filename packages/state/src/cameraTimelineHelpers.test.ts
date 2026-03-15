@@ -5,7 +5,7 @@ import {
   findCurrentCameraShotAtTick,
   findCameraKeyframeAtTick,
 } from './scenePlaybackStore';
-import type { SceneCameraKeyframe, SceneCameraShot } from '@pixelstudio/domain';
+import type { SceneCameraKeyframe, SceneCameraShot } from '@glyphstudio/domain';
 
 function kf(tick: number, overrides?: Partial<SceneCameraKeyframe>): SceneCameraKeyframe {
   return { tick, x: tick * 10, y: tick * 5, zoom: 1.0, interpolation: 'linear', ...overrides };

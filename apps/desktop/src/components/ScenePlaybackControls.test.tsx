@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useScenePlaybackStore } from '@pixelstudio/state';
+import { useScenePlaybackStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 import { ScenePlaybackControls } from '../components/ScenePlaybackControls';

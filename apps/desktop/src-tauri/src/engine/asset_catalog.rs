@@ -113,7 +113,7 @@ impl AssetCatalog {
     pub fn catalog_path() -> std::path::PathBuf {
         let base = dirs::data_local_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."));
-        base.join("PixelStudio").join("asset-catalog.json")
+        base.join("GlyphStudio").join("asset-catalog.json")
     }
 
     /// Load catalog from disk. Returns empty catalog if file doesn't exist.
@@ -376,7 +376,7 @@ mod tests {
         cat.upsert(make_entry("disk-rt-2", "DiskTest2", "/disk-test2.pxs"));
 
         // Save to a temp file to avoid corrupting real catalog
-        let tmp = std::env::temp_dir().join("pixelstudio-test-catalog.json");
+        let tmp = std::env::temp_dir().join("glyphstudio-test-catalog.json");
         let json = serde_json::to_string_pretty(&cat).unwrap();
         std::fs::write(&tmp, &json).unwrap();
 

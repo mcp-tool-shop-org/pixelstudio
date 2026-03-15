@@ -1,5 +1,5 @@
-import type { WorkspaceMode } from '@pixelstudio/domain';
-import { useProjectStore } from '@pixelstudio/state';
+import type { WorkspaceMode } from '@glyphstudio/domain';
+import { useProjectStore } from '@glyphstudio/state';
 
 const MODES: { id: WorkspaceMode; label: string }[] = [
   { id: 'edit', label: 'Edit' },
@@ -30,7 +30,7 @@ export function TopBar({ activeMode, onModeChange }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="topbar-project">
-        <span className="topbar-title">PixelStudio</span>
+        <span className="topbar-title">GlyphStudio</span>
         <span className="topbar-separator">{'\u2014'}</span>
         <span className="topbar-filename">
           {displayName}{isDirty ? ' \u2022' : ''}

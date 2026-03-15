@@ -5,9 +5,9 @@ import {
   deriveShotsFromCameraKeyframes,
   deriveCameraTimelineMarkers,
   findCurrentCameraShotAtTick,
-} from '@pixelstudio/state';
-import type { CameraTimelineMarker } from '@pixelstudio/state';
-import type { SceneCameraKeyframe, SceneCameraShot, CameraInterpolationMode } from '@pixelstudio/domain';
+} from '@glyphstudio/state';
+import type { CameraTimelineMarker } from '@glyphstudio/state';
+import type { SceneCameraKeyframe, SceneCameraShot, CameraInterpolationMode } from '@glyphstudio/domain';
 
 /**
  * Camera timeline lane — renders keyframe markers and shot span bars

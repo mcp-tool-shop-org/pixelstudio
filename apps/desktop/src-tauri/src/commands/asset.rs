@@ -124,7 +124,7 @@ pub fn generate_asset_thumbnail(
 fn thumbnails_dir() -> std::path::PathBuf {
     let base = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    base.join("PixelStudio").join("thumbnails")
+    base.join("GlyphStudio").join("thumbnails")
 }
 
 /// Deterministic thumbnail path for a canvas (based on first frame ID).

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ColorMode } from '@pixelstudio/domain';
+import type { ColorMode } from '@glyphstudio/domain';
 
 interface ProjectState {
   projectId: string | null;

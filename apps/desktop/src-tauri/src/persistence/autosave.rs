@@ -7,7 +7,7 @@ use crate::persistence::project_io::{self, ProjectDocument};
 pub fn recovery_dir() -> PathBuf {
     let base = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("PixelStudio").join("recovery")
+    base.join("GlyphStudio").join("recovery")
 }
 
 /// Recovery file path for a given project.
@@ -43,14 +43,14 @@ mod tests {
         let dir = recovery_dir();
         let components: Vec<_> = dir.components().collect();
         let last_two: Vec<_> = components.iter().rev().take(2).collect();
-        // Last segment is "recovery", second-to-last is "PixelStudio"
+        // Last segment is "recovery", second-to-last is "GlyphStudio"
         assert_eq!(
             last_two[0].as_os_str().to_str().unwrap(),
             "recovery"
         );
         assert_eq!(
             last_two[1].as_os_str().to_str().unwrap(),
-            "PixelStudio"
+            "GlyphStudio"
         );
     }
 

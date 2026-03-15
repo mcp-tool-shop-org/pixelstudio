@@ -7,9 +7,9 @@ describe('ProjectHome', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('shows PixelStudio title', () => {
+    it('shows GlyphStudio title', () => {
       render(<ProjectHome onEnterWorkspace={vi.fn()} />);
-      expect(screen.getByText('PixelStudio')).toBeInTheDocument();
+      expect(screen.getByText('GlyphStudio')).toBeInTheDocument();
     });
 
     it('shows tagline', () => {

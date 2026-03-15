@@ -1,11 +1,11 @@
 ---
 title: Getting Started
-description: Set up PixelStudio for development
+description: Set up GlyphStudio for development
 sidebar:
   order: 1
 ---
 
-PixelStudio is a monorepo using pnpm workspaces with a Tauri v2 desktop app at its center.
+GlyphStudio is a monorepo using pnpm workspaces with a Tauri v2 desktop app at its center.
 
 ## Prerequisites
 
@@ -17,15 +17,15 @@ PixelStudio is a monorepo using pnpm workspaces with a Tauri v2 desktop app at i
 ## Clone and install
 
 ```bash
-git clone https://github.com/mcp-tool-shop-org/pixelstudio.git
-cd pixelstudio
+git clone https://github.com/mcp-tool-shop-org/glyphstudio.git
+cd glyphstudio
 pnpm install
 ```
 
 ## Project structure
 
 ```
-pixelstudio/
+glyphstudio/
   apps/desktop/           # Tauri v2 + React app
     src/
       app/                # AppShell, routing

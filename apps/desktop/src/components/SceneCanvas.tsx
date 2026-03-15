@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@pixelstudio/domain';
-import { useScenePlaybackStore, useProjectStore } from '@pixelstudio/state';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@glyphstudio/domain';
+import { useScenePlaybackStore, useProjectStore } from '@glyphstudio/state';
 
 /** Cached frame images for a source asset + clip combination. */
 interface CachedFrames {

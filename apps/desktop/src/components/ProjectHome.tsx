@@ -13,7 +13,7 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
   return (
     <div className="project-home">
       <div className="project-home-left">
-        <h1 className="project-home-title">PixelStudio</h1>
+        <h1 className="project-home-title">GlyphStudio</h1>
         <p className="project-home-tagline">
           Build sprites with deterministic tools first. AI stays in the passenger seat.
         </p>

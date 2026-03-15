@@ -1,15 +1,15 @@
 [package]
-name = "pixelstudio"
+name = "glyphstudio"
 version = "0.1.0"
 edition = "2021"
 description = "Professional desktop sprite studio"
 
 [lib]
-name = "pixelstudio_lib"
+name = "glyphstudio_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
-name = "pixelstudio"
+name = "glyphstudio"
 path = "src/main.rs"
 
 [build-dependencies]

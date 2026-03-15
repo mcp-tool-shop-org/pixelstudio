@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useAnchorStore, useSelectionStore, useTimelineStore, useProjectStore } from '@pixelstudio/state';
+import { useAnchorStore, useSelectionStore, useTimelineStore, useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
-import type { Anchor } from '@pixelstudio/domain';
+import type { Anchor } from '@glyphstudio/domain';
 
 import { AnchorPanel } from '../components/AnchorPanel';
 

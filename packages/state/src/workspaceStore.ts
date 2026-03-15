@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { WorkspaceMode } from '@pixelstudio/domain';
+import type { WorkspaceMode } from '@glyphstudio/domain';
 
 interface WorkspaceState {
   activeMode: WorkspaceMode;

@@ -17,13 +17,13 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@pixelstudio/api-contract':
+      '@glyphstudio/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract
-      '@pixelstudio/domain':
+      '@glyphstudio/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@pixelstudio/state':
+      '@glyphstudio/state':
         specifier: workspace:*
         version: link:../../packages/state
       '@tauri-apps/api':
@@ -84,7 +84,7 @@ importers:
 
   packages/api-contract:
     dependencies:
-      '@pixelstudio/domain':
+      '@glyphstudio/domain':
         specifier: workspace:*
         version: link:../domain
     devDependencies:
@@ -100,10 +100,10 @@ importers:
 
   packages/state:
     dependencies:
-      '@pixelstudio/api-contract':
+      '@glyphstudio/api-contract':
         specifier: workspace:*
         version: link:../api-contract
-      '@pixelstudio/domain':
+      '@glyphstudio/domain':
         specifier: workspace:*
         version: link:../domain
       immer:

@@ -1,11 +1,11 @@
 ---
 title: Workspace Guide
-description: The eight workspace modes in PixelStudio
+description: The eight workspace modes in GlyphStudio
 sidebar:
   order: 2
 ---
 
-PixelStudio uses workspace modes inside a single desktop shell — not separate windows or browser routes.
+GlyphStudio uses workspace modes inside a single desktop shell — not separate windows or browser routes.
 
 ## Shared shell
 

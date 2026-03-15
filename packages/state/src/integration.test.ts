@@ -18,7 +18,7 @@ import { useSandboxStore } from './sandboxStore';
 import { useMotionStore } from './motionStore';
 import { useAnchorStore } from './anchorStore';
 import { useProvenanceStore } from './provenanceStore';
-import type { SceneCameraKeyframe } from '@pixelstudio/domain';
+import type { SceneCameraKeyframe } from '@glyphstudio/domain';
 
 function kf(tick: number, overrides?: Partial<SceneCameraKeyframe>): SceneCameraKeyframe {
   return { tick, x: tick * 10, y: tick * 5, zoom: 1.0, interpolation: 'linear', ...overrides };

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Rect } from '@pixelstudio/domain';
+import type { Rect } from '@glyphstudio/domain';
 
 export interface TransformPreviewData {
   sourceX: number;

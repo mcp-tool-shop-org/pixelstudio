@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useProjectStore } from '@pixelstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
-import type { AssetSummary } from '@pixelstudio/domain';
+import type { AssetSummary } from '@glyphstudio/domain';
 
 import { AssetBrowserPanel } from '../components/AssetBrowserPanel';
 

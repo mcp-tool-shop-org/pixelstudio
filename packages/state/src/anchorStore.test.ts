@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAnchorStore } from './anchorStore';
-import type { Anchor } from '@pixelstudio/domain';
+import type { Anchor } from '@glyphstudio/domain';
 
 function makeAnchor(id: string, overrides?: Partial<Anchor>): Anchor {
   return {

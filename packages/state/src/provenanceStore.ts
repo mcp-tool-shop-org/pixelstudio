@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { OperationKind } from '@pixelstudio/domain';
+import type { OperationKind } from '@glyphstudio/domain';
 
 interface ProvenanceEntry {
   id: string;

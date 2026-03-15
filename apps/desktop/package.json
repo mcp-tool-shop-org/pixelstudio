@@ -1,5 +1,5 @@
 {
-  "name": "@pixelstudio/desktop",
+  "name": "@glyphstudio/desktop",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -13,9 +13,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@pixelstudio/api-contract": "workspace:*",
-    "@pixelstudio/domain": "workspace:*",
-    "@pixelstudio/state": "workspace:*",
+    "@glyphstudio/api-contract": "workspace:*",
+    "@glyphstudio/domain": "workspace:*",
+    "@glyphstudio/state": "workspace:*",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-dialog": "^2.2.0",
     "@tauri-apps/plugin-fs": "^2.2.0",

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useLayerStore, useProjectStore } from '@pixelstudio/state';
+import { useLayerStore, useProjectStore } from '@glyphstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 

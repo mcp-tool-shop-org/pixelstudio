@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useLayerStore } from './layerStore';
-import type { LayerNode } from '@pixelstudio/domain';
+import type { LayerNode } from '@glyphstudio/domain';
 
 // ── Inline replica of CanvasFrameData + syncLayersFromFrame ──────
 // The production code lives in apps/desktop/src/lib/syncLayers.ts.

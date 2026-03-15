@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AIJobType } from '@pixelstudio/api-contract';
+import type { AIJobType } from '@glyphstudio/api-contract';
 
 interface AIJob {
   id: string;

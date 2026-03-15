@@ -190,5 +190,5 @@ pub fn run() {
             scene::delete_scene_camera_keyframe,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running PixelStudio");
+        .expect("error while running GlyphStudio");
 }

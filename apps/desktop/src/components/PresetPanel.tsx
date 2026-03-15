@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { MotionPresetSummary, PresetApplyResult, PresetCompatibility, BatchApplyResult, PresetApplyOverrides, PresetPreviewResult } from '@pixelstudio/domain';
-import { useAnchorStore } from '@pixelstudio/state';
-import { useTimelineStore } from '@pixelstudio/state';
+import type { MotionPresetSummary, PresetApplyResult, PresetCompatibility, BatchApplyResult, PresetApplyOverrides, PresetPreviewResult } from '@glyphstudio/domain';
+import { useAnchorStore } from '@glyphstudio/state';
+import { useTimelineStore } from '@glyphstudio/state';
 
 type ApplyScope = 'current' | 'span' | 'all';
 

@@ -12,9 +12,9 @@ import type {
   ExportBundleResult,
   BundlePreviewResult,
   PackageMetadata,
-} from '@pixelstudio/domain';
-import { useTimelineStore } from '@pixelstudio/state';
-import { useProjectStore } from '@pixelstudio/state';
+} from '@glyphstudio/domain';
+import { useTimelineStore } from '@glyphstudio/state';
+import { useProjectStore } from '@glyphstudio/state';
 import { loadExportSettings, saveExportSettings } from '../lib/exportSettings';
 import { loadPackagingSettings, savePackagingSettings } from '../lib/packagingSettings';
 
@@ -670,7 +670,7 @@ export function ExportPreviewPanel() {
                 value={manifestFormat}
                 onChange={(e) => setManifestFormat(e.target.value as ManifestFormat)}
               >
-                <option value="pixelstudio_native">PixelStudio Native</option>
+                <option value="glyphstudio_native">GlyphStudio Native</option>
                 <option value="generic_runtime">Generic Runtime</option>
               </select>
             </div>

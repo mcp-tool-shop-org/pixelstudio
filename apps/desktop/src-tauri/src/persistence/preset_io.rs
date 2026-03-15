@@ -6,7 +6,7 @@ use crate::engine::preset::MotionPresetDocument;
 pub fn presets_dir() -> PathBuf {
     let base = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("PixelStudio").join("presets")
+    base.join("GlyphStudio").join("presets")
 }
 
 /// File path for a preset by ID.

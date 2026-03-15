@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WorkspaceMode } from '@pixelstudio/domain';
-import { useTimelineStore, useProjectStore, useSelectionStore, useScenePlaybackStore } from '@pixelstudio/state';
+import type { WorkspaceMode } from '@glyphstudio/domain';
+import { useTimelineStore, useProjectStore, useSelectionStore, useScenePlaybackStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
 // Mock heavy child panels — we're testing the dock's orchestration, not the panels

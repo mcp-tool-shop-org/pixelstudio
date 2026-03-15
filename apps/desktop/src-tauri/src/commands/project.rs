@@ -488,7 +488,7 @@ pub fn export_sprite_strip(
 fn get_recents_path() -> PathBuf {
     let base = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("PixelStudio").join("recent-projects.json")
+    base.join("GlyphStudio").join("recent-projects.json")
 }
 
 /// Add a project to the recents list.

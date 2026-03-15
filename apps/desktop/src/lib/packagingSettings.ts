@@ -1,6 +1,6 @@
-import type { ExportBundleFormat } from '@pixelstudio/domain';
+import type { ExportBundleFormat } from '@glyphstudio/domain';
 
-const STORAGE_KEY = 'pixelstudio_packaging_settings';
+const STORAGE_KEY = 'glyphstudio_packaging_settings';
 
 export interface PersistedPackagingSettings {
   /** Single-asset bundle format */

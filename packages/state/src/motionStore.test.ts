@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useMotionStore } from './motionStore';
-import type { MotionProposal } from '@pixelstudio/domain';
+import type { MotionProposal } from '@glyphstudio/domain';
 
 function makeProposal(id: string): MotionProposal {
   return {

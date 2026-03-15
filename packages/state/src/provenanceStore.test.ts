@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useProvenanceStore } from './provenanceStore';
-import type { OperationKind } from '@pixelstudio/domain';
+import type { OperationKind } from '@glyphstudio/domain';
 
 function makeEntry(id: string, name: string, kind: OperationKind = 'deterministic') {
   return {

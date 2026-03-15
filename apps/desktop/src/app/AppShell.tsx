@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { WorkspaceMode } from '@pixelstudio/domain';
-import { useProjectStore } from '@pixelstudio/state';
+import type { WorkspaceMode } from '@glyphstudio/domain';
+import { useProjectStore } from '@glyphstudio/state';
 import { TopBar } from '../components/TopBar';
 import { ToolRail } from '../components/ToolRail';
 import { Canvas } from '../components/Canvas';
@@ -89,7 +89,7 @@ export function AppShell() {
   // Window title with dirty indicator
   useEffect(() => {
     const state = useProjectStore.getState();
-    const title = `PixelStudio — ${state.name}${state.isDirty ? ' \u2022' : ''}`;
+    const title = `GlyphStudio — ${state.name}${state.isDirty ? ' \u2022' : ''}`;
     document.title = title;
   }, [isDirty]);
 

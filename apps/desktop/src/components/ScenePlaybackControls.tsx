@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import type { ScenePlaybackState, SceneInfo, SceneExportResult, SceneTimelineSummary } from '@pixelstudio/domain';
-import { useScenePlaybackStore } from '@pixelstudio/state';
+import type { ScenePlaybackState, SceneInfo, SceneExportResult, SceneTimelineSummary } from '@glyphstudio/domain';
+import { useScenePlaybackStore } from '@glyphstudio/state';
 
 /**
  * Scene playback transport controls — play/pause, loop, FPS, scrubber, step, tick readout, export.

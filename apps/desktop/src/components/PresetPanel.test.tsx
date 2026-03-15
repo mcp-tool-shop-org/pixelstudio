@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useTimelineStore, useAnchorStore } from '@pixelstudio/state';
+import { useTimelineStore, useAnchorStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
-import type { MotionPresetSummary, PresetCompatibility, PresetPreviewResult } from '@pixelstudio/domain';
+import type { MotionPresetSummary, PresetCompatibility, PresetPreviewResult } from '@glyphstudio/domain';
 
 import { PresetPanel } from '../components/PresetPanel';
 

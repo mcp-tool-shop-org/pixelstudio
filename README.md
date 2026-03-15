@@ -1,12 +1,12 @@
-# PixelStudio
+# GlyphStudio
 
 Craft-first sprite studio for deterministic pixel editing, frame-by-frame animation, and future locomotion assistance.
 
-PixelStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. It is designed around a simple rule: the editor should stay in control of the artwork, and automation should remain subordinate to the artist.
+GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. It is designed around a simple rule: the editor should stay in control of the artwork, and automation should remain subordinate to the artist.
 
 ## Current Status
 
-PixelStudio is already a real working editor with:
+GlyphStudio is already a real working editor with:
 
 - Deterministic pixel canvas with nearest-neighbor rendering
 - Layers with visibility, lock, opacity, rename, reorder, and selection
@@ -25,7 +25,7 @@ This is not a browser toy or prompt-slot machine. It is a native desktop editor 
 
 ## Product Philosophy
 
-PixelStudio is built around four principles:
+GlyphStudio is built around four principles:
 
 1. **Deterministic editing**
    Every pixel mutation should be lawful, inspectable, and reversible.
@@ -62,7 +62,7 @@ PixelStudio is built around four principles:
 ## Monorepo Structure
 
 ```text
-pixelstudio/
+glyphstudio/
   apps/desktop/
     src/
     src-tauri/
@@ -139,7 +139,7 @@ cargo check
 
 ## Export Support
 
-PixelStudio currently supports:
+GlyphStudio currently supports:
 
 - **Current Frame PNG** — single composited image
 - **PNG Sequence** — numbered files (name_0001.png, name_0002.png, ...)
@@ -167,7 +167,7 @@ Near-term priorities:
 
 ## Non-Goals
 
-PixelStudio is not aiming to be:
+GlyphStudio is not aiming to be:
 
 - A generic image editor
 - A browser-first toy app
