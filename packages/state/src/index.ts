@@ -106,3 +106,19 @@ export {
   hasBuildInLibrary,
   getLibraryBuildCount,
 } from './characterBuildLibrary';
+export {
+  describeSceneHistoryOperation,
+  isSceneHistoryChange,
+  createSceneHistoryEntry,
+  captureSceneSnapshot,
+  ALL_SCENE_HISTORY_OPERATION_KINDS,
+} from './sceneHistory';
+export type {
+  SceneHistoryOperationKind,
+  SceneHistorySnapshot,
+  SceneHistoryEntry,
+  SceneHistoryInstanceMeta,
+  SceneHistoryOverrideMeta,
+  SceneHistoryCameraMeta,
+  SceneHistoryOperationMetadata,
+} from './sceneHistory';

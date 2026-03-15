@@ -1,0 +1,195 @@
+import type { SceneAssetInstance } from '@glyphstudio/domain';
+
+// ── Operation kinds ──
+
+/**
+ * Reversible scene edit operation kinds.
+ *
+ * Each kind maps to a specific user action that produces a history entry.
+ * reapply, unlink, and relink are distinct — they must never be collapsed
+ * into a generic "update instance" bucket.
+ */
+export type SceneHistoryOperationKind =
+  | 'add-instance'
+  | 'remove-instance'
+  | 'move-instance'
+  | 'set-instance-visibility'
+  | 'set-instance-opacity'
+  | 'set-instance-layer'
+  | 'set-instance-clip'
+  | 'set-instance-parallax'
+  | 'reapply-character-source'
+  | 'unlink-character-source'
+  | 'relink-character-source'
+  | 'set-character-override'
+  | 'remove-character-override'
+  | 'clear-all-character-overrides'
+  | 'set-scene-camera'
+  | 'set-scene-playback';
+
+// ── Operation metadata ──
+
+/**
+ * Narrow metadata per operation kind.
+ *
+ * Metadata describes *which* thing was edited, not *how*.
+ * The before/after snapshots are the source of truth for state.
+ */
+export interface SceneHistoryInstanceMeta {
+  instanceId: string;
+}
+
+export interface SceneHistoryOverrideMeta {
+  instanceId: string;
+  slotId: string;
+}
+
+export interface SceneHistoryCameraMeta {
+  changedFields?: string[];
+}
+
+export type SceneHistoryOperationMetadata =
+  | SceneHistoryInstanceMeta
+  | SceneHistoryOverrideMeta
+  | SceneHistoryCameraMeta
+  | undefined;
+
+// ── Snapshot ──
+
+/**
+ * A scene history snapshot — the mutable scene state that undo/redo restores.
+ *
+ * Uses the same shape the backend persists (SceneAssetInstance[]).
+ * Includes all character fields: snapshot, overrides, linkMode, source metadata.
+ *
+ * Undo restores the stored snapshot exactly — it does NOT recalculate from
+ * current library/source state. Old characterLinkMode, old overrides, old
+ * slot snapshot all come back verbatim.
+ */
+export interface SceneHistorySnapshot {
+  instances: SceneAssetInstance[];
+}
+
+// ── History entry ──
+
+/**
+ * A single scene history entry.
+ *
+ * Stores both before and after snapshots for bidirectional replay.
+ * No reconstructive wizardry — undo swaps to `before`, redo swaps to `after`.
+ */
+export interface SceneHistoryEntry {
+  /** Which operation produced this entry. */
+  kind: SceneHistoryOperationKind;
+  /** Human-readable label for UI / debug surfaces. */
+  label: string;
+  /** Scene state before the operation. */
+  before: SceneHistorySnapshot;
+  /** Scene state after the operation. */
+  after: SceneHistorySnapshot;
+  /** Narrow metadata identifying what was edited. */
+  metadata?: SceneHistoryOperationMetadata;
+}
+
+// ── Helpers ──
+
+/** Human-readable labels for each operation kind. */
+const OPERATION_LABELS: Record<SceneHistoryOperationKind, string> = {
+  'add-instance': 'Add Instance',
+  'remove-instance': 'Remove Instance',
+  'move-instance': 'Move Instance',
+  'set-instance-visibility': 'Toggle Visibility',
+  'set-instance-opacity': 'Change Opacity',
+  'set-instance-layer': 'Change Layer Order',
+  'set-instance-clip': 'Change Clip',
+  'set-instance-parallax': 'Change Parallax',
+  'reapply-character-source': 'Reapply From Source',
+  'unlink-character-source': 'Unlink From Source',
+  'relink-character-source': 'Relink To Source',
+  'set-character-override': 'Edit Character Override',
+  'remove-character-override': 'Remove Character Override',
+  'clear-all-character-overrides': 'Clear All Overrides',
+  'set-scene-camera': 'Edit Camera',
+  'set-scene-playback': 'Edit Playback',
+};
+
+/**
+ * Get a human-readable label for a scene history operation.
+ */
+export function describeSceneHistoryOperation(kind: SceneHistoryOperationKind): string {
+  return OPERATION_LABELS[kind];
+}
+
+/**
+ * Determine whether two scene snapshots differ materially.
+ *
+ * Returns `true` when the snapshots represent different persisted scene content.
+ * Uses JSON serialization for deep equality — correct for the scene instance shape
+ * which has no functions, symbols, or circular references.
+ *
+ * This prevents ghost history entries from no-op edits or refresh cycles
+ * that re-read the same scene state.
+ */
+export function isSceneHistoryChange(
+  before: SceneHistorySnapshot,
+  after: SceneHistorySnapshot,
+): boolean {
+  return JSON.stringify(before.instances) !== JSON.stringify(after.instances);
+}
+
+/**
+ * Create a scene history entry.
+ *
+ * Returns `undefined` if the before/after snapshots are identical (no-op guard).
+ */
+export function createSceneHistoryEntry(
+  kind: SceneHistoryOperationKind,
+  before: SceneHistorySnapshot,
+  after: SceneHistorySnapshot,
+  metadata?: SceneHistoryOperationMetadata,
+): SceneHistoryEntry | undefined {
+  if (!isSceneHistoryChange(before, after)) {
+    return undefined;
+  }
+  return {
+    kind,
+    label: describeSceneHistoryOperation(kind),
+    before,
+    after,
+    metadata,
+  };
+}
+
+/**
+ * Capture a snapshot of the current scene instances.
+ *
+ * Deep-clones the instance array to prevent aliasing between history entries
+ * and live state.
+ */
+export function captureSceneSnapshot(instances: SceneAssetInstance[]): SceneHistorySnapshot {
+  return {
+    instances: JSON.parse(JSON.stringify(instances)) as SceneAssetInstance[],
+  };
+}
+
+/**
+ * All operation kinds as an array — useful for exhaustiveness checks in tests.
+ */
+export const ALL_SCENE_HISTORY_OPERATION_KINDS: SceneHistoryOperationKind[] = [
+  'add-instance',
+  'remove-instance',
+  'move-instance',
+  'set-instance-visibility',
+  'set-instance-opacity',
+  'set-instance-layer',
+  'set-instance-clip',
+  'set-instance-parallax',
+  'reapply-character-source',
+  'unlink-character-source',
+  'relink-character-source',
+  'set-character-override',
+  'remove-character-override',
+  'clear-all-character-overrides',
+  'set-scene-camera',
+  'set-scene-playback',
+];
