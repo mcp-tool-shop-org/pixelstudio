@@ -1,11 +1,16 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayerStore, useProjectStore } from '@pixelstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
 export function LayerPanel() {
-  const layers = useLayerStore((s) => s.rootLayerIds.map((id) => s.layerById[id]).filter(Boolean));
+  const rootLayerIds = useLayerStore((s) => s.rootLayerIds);
+  const layerById = useLayerStore((s) => s.layerById);
+  const layers = useMemo(
+    () => rootLayerIds.map((id) => layerById[id]).filter(Boolean),
+    [rootLayerIds, layerById],
+  );
   const activeLayerId = useLayerStore((s) => s.activeLayerId);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
