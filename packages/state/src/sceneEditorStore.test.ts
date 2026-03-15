@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 import { useSceneEditorStore } from './sceneEditorStore';
 import { createEmptySceneHistoryState } from './sceneHistoryEngine';
 import { resetProvenanceSequence, peekProvenanceSequence } from './sceneProvenance';
@@ -2489,5 +2489,383 @@ describe('SceneEditorStore — backward compatibility hardening', () => {
     const state = useSceneEditorStore.getState();
     expect(state.provenance).toHaveLength(1);
     expect(state.provenance[0].sequence).toBe(1);
+  });
+});
+
+// ── Stage 21.2 — Authored keyframe edits through the lawful seam ──
+
+describe('SceneEditorStore — keyframe edits through applyEdit', () => {
+  const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+  const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+  const KF_C: SceneCameraKeyframe = { tick: 60, x: 200, y: 100, zoom: 1.5, interpolation: 'linear' };
+
+  beforeEach(() => {
+    useSceneEditorStore.setState({
+      instances: [INST_ASSET],
+      camera: undefined,
+      keyframes: [],
+      history: createEmptySceneHistoryState(),
+      provenance: [],
+      drilldownBySequence: {},
+      canUndo: false,
+      canRedo: false,
+    });
+    resetProvenanceSequence();
+  });
+
+  // ── Operation coverage ──
+
+  it('add-camera-keyframe records history and provenance', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].kind).toBe('add-camera-keyframe');
+    expect(state.keyframes).toEqual([KF_A]);
+  });
+
+  it('remove-camera-keyframe records history and provenance', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    // Remove KF_B
+    applyEdit('remove-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].kind).toBe('remove-camera-keyframe');
+    expect(state.keyframes).toEqual([KF_A]);
+  });
+
+  it('move-camera-keyframe records history and provenance', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyEdit('move-camera-keyframe', [INST_ASSET], { tick: 45, previousTick: 30 }, undefined, [KF_A, movedB]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].kind).toBe('move-camera-keyframe');
+    expect(state.keyframes).toEqual([KF_A, movedB]);
+  });
+
+  it('edit-camera-keyframe records history and provenance', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.0 };
+    applyEdit('edit-camera-keyframe', [INST_ASSET], { tick: 30, changedFields: ['zoom'] }, undefined, [KF_A, editedB]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].kind).toBe('edit-camera-keyframe');
+    expect(state.keyframes).toEqual([KF_A, editedB]);
+  });
+
+  // ── loadKeyframes ──
+
+  it('loadKeyframes sets keyframes without recording history', () => {
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const state = useSceneEditorStore.getState();
+    expect(state.keyframes).toEqual([KF_A, KF_B]);
+    expect(state.canUndo).toBe(false);
+    expect(state.provenance).toHaveLength(0);
+  });
+
+  // ── Undo / redo keyframes ──
+
+  it('undo restores keyframes from history snapshot', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    // Add KF_B
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A, KF_B]);
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    expect(result!.keyframes).toEqual([KF_A]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+  });
+
+  it('redo restores keyframes from history snapshot', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+
+    const result = useSceneEditorStore.getState().redo();
+    expect(result).toBeDefined();
+    expect(result!.keyframes).toEqual([KF_A, KF_B]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A, KF_B]);
+  });
+
+  it('rollback after undo failure restores keyframes to pre-undo state', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    const preUndoKeyframes = useSceneEditorStore.getState().keyframes;
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+
+    // Simulate backend failure — rollback
+    result!.rollback();
+    expect(useSceneEditorStore.getState().keyframes).toEqual(preUndoKeyframes);
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+  });
+
+  // ── Drilldown capture ──
+
+  it('add-camera-keyframe captures drilldown with afterKeyframe', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    expect(source).toBeDefined();
+    expect(source.kind).toBe('add-camera-keyframe');
+    expect(source.afterKeyframe).toEqual(KF_A);
+  });
+
+  it('remove-camera-keyframe captures drilldown with beforeKeyframe', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    applyEdit('remove-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    expect(source).toBeDefined();
+    expect(source.kind).toBe('remove-camera-keyframe');
+    expect(source.beforeKeyframe).toEqual(KF_B);
+  });
+
+  it('edit-camera-keyframe captures drilldown with beforeKeyframe and afterKeyframe', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.0 };
+    applyEdit('edit-camera-keyframe', [INST_ASSET], { tick: 30, changedFields: ['zoom'] }, undefined, [KF_A, editedB]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    expect(source).toBeDefined();
+    expect(source.kind).toBe('edit-camera-keyframe');
+    expect(source.beforeKeyframe).toEqual(KF_B);
+    expect(source.afterKeyframe).toEqual(editedB);
+  });
+
+  it('move-camera-keyframe captures drilldown with beforeKeyframe and afterKeyframe', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyEdit('move-camera-keyframe', [INST_ASSET], { tick: 45, previousTick: 30 }, undefined, [KF_A, movedB]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    expect(source).toBeDefined();
+    expect(source.kind).toBe('move-camera-keyframe');
+    expect(source.beforeKeyframe).toEqual(KF_B);
+    expect(source.afterKeyframe).toEqual(movedB);
+  });
+
+  // ── Keyframe drilldown diff derivation ──
+
+  it('add-camera-keyframe drilldown derives keyframe-added diff', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      source.kind,
+      source.beforeInstance ? [source.beforeInstance] : [],
+      source.afterInstance ? [source.afterInstance] : [],
+      source.metadata,
+      source.beforeCamera,
+      source.afterCamera,
+      source.beforeKeyframe,
+      source.afterKeyframe,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-added');
+  });
+
+  it('remove-camera-keyframe drilldown derives keyframe-removed diff', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    applyEdit('remove-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[state.provenance[0].sequence];
+    const diff = deriveProvenanceDiff(
+      source.kind,
+      source.beforeInstance ? [source.beforeInstance] : [],
+      source.afterInstance ? [source.afterInstance] : [],
+      source.metadata,
+      source.beforeCamera,
+      source.afterCamera,
+      source.beforeKeyframe,
+      source.afterKeyframe,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-removed');
+  });
+
+  // ── No-op guard ──
+
+  it('keyframe edit with identical instances is not a no-op when keyframes differ', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    // Same instances, new keyframes → should record history
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(true);
+    expect(state.provenance).toHaveLength(1);
+  });
+
+  // ── Mixed authored-state: instance + keyframe edits coexist ──
+
+  it('instance edit followed by keyframe edit produces separate provenance entries', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    // Instance edit
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    // Keyframe edit
+    applyEdit('add-camera-keyframe', [moved], { tick: 0 }, undefined, [KF_A]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[0].kind).toBe('move-instance');
+    expect(state.provenance[1].kind).toBe('add-camera-keyframe');
+    expect(state.provenance[1].sequence).toBe(2);
+  });
+
+  it('undo keyframe edit does not affect instances', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    // Instance edit first
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    // Keyframe edit second
+    applyEdit('add-camera-keyframe', [moved], { tick: 0 }, undefined, [KF_A]);
+
+    // Undo keyframe edit
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    // Instances remain at moved position (from before the keyframe add)
+    expect(result!.instances[0].x).toBe(999);
+    // Keyframes go back to empty
+    expect(result!.keyframes).toEqual([]);
+  });
+
+  it('multiple keyframe edits produce correct undo chain', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    // Add KF_A
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    // Add KF_B
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    // Add KF_C
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 60 }, undefined, [KF_A, KF_B, KF_C]);
+
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A, KF_B, KF_C]);
+
+    // Undo last → back to [KF_A, KF_B]
+    const r1 = useSceneEditorStore.getState().undo();
+    expect(r1!.keyframes).toEqual([KF_A, KF_B]);
+
+    // Undo again → back to [KF_A]
+    const r2 = useSceneEditorStore.getState().undo();
+    expect(r2!.keyframes).toEqual([KF_A]);
+
+    // Undo again → back to []
+    const r3 = useSceneEditorStore.getState().undo();
+    expect(r3!.keyframes).toEqual([]);
+  });
+
+  // ── Non-keyframe edits do not pollute keyframe state ──
+
+  it('instance-only edit does not change keyframes in store', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    const state = useSceneEditorStore.getState();
+    expect(state.keyframes).toEqual([KF_A, KF_B]);
+  });
+
+  // ── Provenance label includes tick ──
+
+  it('keyframe provenance entry label includes tick', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_B]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance[0].label).toContain('tick 30');
+  });
+
+  // ── Hydration continuity with keyframe entries ──
+
+  it('persisted keyframe entry + new keyframe edit → correct next sequence', () => {
+    const { loadInstances, loadKeyframes, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+    loadPersistedProvenance(
+      [{ sequence: 5, kind: 'add-camera-keyframe', label: 'Add Keyframe (tick 0)', timestamp: '2026-03-15T12:00:00Z', metadata: { tick: 0 } }],
+      {},
+    );
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[1].sequence).toBe(6);
+    expect(state.provenance[1].kind).toBe('add-camera-keyframe');
   });
 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   useScenePlaybackStore,
+  useSceneEditorStore,
   deriveShotsFromCameraKeyframes,
   deriveCameraTimelineMarkers,
   findCurrentCameraShotAtTick,
@@ -67,6 +68,10 @@ export function CameraTimelineLane() {
         interpolation: 'linear' as CameraInterpolationMode,
       });
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
+      const { instances } = useSceneEditorStore.getState();
+      useSceneEditorStore.getState().applyEdit(
+        'add-camera-keyframe', instances, { tick: currentTick }, undefined, kfs,
+      );
       selectKeyframe(currentTick);
     } catch {
       // ignore — panel will show error if open
@@ -83,6 +88,10 @@ export function CameraTimelineLane() {
         tick: selectedKeyframeTick,
       });
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
+      const { instances } = useSceneEditorStore.getState();
+      useSceneEditorStore.getState().applyEdit(
+        'remove-camera-keyframe', instances, { tick: selectedKeyframeTick }, undefined, kfs,
+      );
       selectKeyframe(null);
     } catch {
       // ignore

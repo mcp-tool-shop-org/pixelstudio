@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneCameraKeyframe, CameraInterpolationMode, SceneCameraShot } from '@glyphstudio/domain';
-import { useScenePlaybackStore, deriveShotsFromCameraKeyframes } from '@glyphstudio/state';
+import { useScenePlaybackStore, useSceneEditorStore, deriveShotsFromCameraKeyframes } from '@glyphstudio/state';
 
 type ViewMode = 'keyframes' | 'shots';
 
@@ -58,6 +58,9 @@ export function CameraKeyframePanel() {
         zoom: cameraZoom,
         interpolation: 'linear' as CameraInterpolationMode,
       });
+      // Route through lawful seam — history, provenance, drilldown
+      const { instances, applyEdit } = useSceneEditorStore.getState();
+      applyEdit('add-camera-keyframe', instances, { tick: currentTick }, undefined, kfs);
       setKeyframes(kfs);
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
       selectKeyframe(currentTick);
@@ -71,6 +74,9 @@ export function CameraKeyframePanel() {
     setError('');
     try {
       const kfs = await invoke<SceneCameraKeyframe[]>('delete_scene_camera_keyframe', { tick });
+      // Route through lawful seam
+      const { instances, applyEdit } = useSceneEditorStore.getState();
+      applyEdit('remove-camera-keyframe', instances, { tick }, undefined, kfs);
       setKeyframes(kfs);
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
     } catch (err) {
@@ -134,6 +140,16 @@ export function CameraKeyframePanel() {
         tick: selectedKf.tick,
         ...updates,
       });
+      // Route through lawful seam — determine which fields changed
+      const changedFields = Object.keys(updates).filter((k) => {
+        const key = k as keyof typeof updates;
+        return updates[key] !== undefined && updates[key] !== selectedKf[key as keyof SceneCameraKeyframe];
+      });
+      const { instances, applyEdit } = useSceneEditorStore.getState();
+      applyEdit('edit-camera-keyframe', instances, {
+        tick: selectedKf.tick,
+        changedFields,
+      }, undefined, kfs);
       setKeyframes(kfs);
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
     } catch (err) {
