@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@glyphstudio/domain';
+import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo, CharacterPartPreset, CharacterSlotId } from '@glyphstudio/domain';
 import {
   useScenePlaybackStore, useProjectStore, useCharacterStore,
   isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById,
   deriveSourceStatus, sourceStatusLabel, instanceBuildName, snapshotSummary, isSnapshotPossiblyStale,
   deriveEffectiveCharacterSlotStates, setSlotOverride, clearSlotOverride, clearAllOverrides,
   overrideSummary, effectiveSlotSummary, hasOverrides,
+  effectiveCompositionAsBuild, classifyAllPresetsForSlot,
 } from '@glyphstudio/state';
 
-export function SceneInstancesPanel() {
+export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: CharacterPartPreset[] }) {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -209,6 +210,7 @@ export function SceneInstancesPanel() {
             instance={inst}
             libraryBuildIds={libraryBuildIds}
             buildLibrary={buildLibrary}
+            partCatalog={partCatalog}
             onReapply={handleReapply}
             onInstanceUpdate={handleInstanceUpdate}
             onOpacityChange={handleOpacity}
@@ -247,6 +249,7 @@ function InstanceDetailPane({
   instance,
   libraryBuildIds,
   buildLibrary,
+  partCatalog,
   onReapply,
   onInstanceUpdate,
   onOpacityChange,
@@ -256,6 +259,7 @@ function InstanceDetailPane({
   instance: SceneAssetInstance;
   libraryBuildIds: string[];
   buildLibrary: { builds: { id: string; name: string; slots: Record<string, unknown> }[] };
+  partCatalog: CharacterPartPreset[];
   onReapply: (instanceId: string) => void;
   onInstanceUpdate: (updated: SceneAssetInstance) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
@@ -264,6 +268,10 @@ function InstanceDetailPane({
 }) {
   const [sourceClips, setSourceClips] = useState<SourceClipInfo[]>([]);
   const [clipsLoaded, setClipsLoaded] = useState(false);
+  const [openPickerSlot, setOpenPickerSlot] = useState<CharacterSlotId | null>(null);
+
+  // Close picker when instance changes
+  useEffect(() => { setOpenPickerSlot(null); }, [instance.instanceId]);
 
   const ps = useScenePlaybackStore((s) => s.playbackState);
   const clipState = ps?.instances.find((c) => c.instanceId === instance.instanceId);
@@ -364,6 +372,7 @@ function InstanceDetailPane({
         const overSummary = overrideSummary(instance);
         const effSummary = effectiveSlotSummary(instance);
         const hasOv = hasOverrides(instance);
+        const syntheticBuild = effectiveCompositionAsBuild(instance);
         return (
           <div className="scene-override-section">
             <div className="scene-override-header">
@@ -372,7 +381,7 @@ function InstanceDetailPane({
                 <button
                   className="scene-override-clear-all-btn"
                   title="Clear all local overrides"
-                  onClick={() => onInstanceUpdate(clearAllOverrides(instance))}
+                  onClick={() => { setOpenPickerSlot(null); onInstanceUpdate(clearAllOverrides(instance)); }}
                 >
                   Clear all
                 </button>
@@ -385,41 +394,123 @@ function InstanceDetailPane({
             </div>
             <div className="scene-override-slot-list">
               {slotStates.map((s) => (
-                <div key={s.slot} className={`scene-override-slot-row ${s.isOverridden ? 'scene-override-slot-overridden' : ''}`}>
-                  <span className="scene-override-slot-name">{slotLabel(s.slot)}</span>
-                  <span className="scene-override-slot-part">
-                    {s.hasPart ? s.effectivePart : '\u2014'}
-                  </span>
-                  <span className={`scene-override-slot-badge ${
-                    s.source === 'inherited' ? 'badge-inherited'
-                    : s.source === 'override_replace' ? 'badge-replace'
-                    : 'badge-remove'
-                  }`}>
-                    {s.source === 'inherited' ? 'Inherited'
-                      : s.source === 'override_replace' ? 'Local Replace'
-                      : 'Local Remove'}
-                  </span>
-                  <span className="scene-override-slot-actions">
-                    {s.isOverridden ? (
+                <div key={s.slot}>
+                  <div className={`scene-override-slot-row ${s.isOverridden ? 'scene-override-slot-overridden' : ''}`}>
+                    <span className="scene-override-slot-name">{slotLabel(s.slot)}</span>
+                    <span className="scene-override-slot-part">
+                      {s.hasPart ? s.effectivePart : '\u2014'}
+                    </span>
+                    <span className={`scene-override-slot-badge ${
+                      s.source === 'inherited' ? 'badge-inherited'
+                      : s.source === 'override_replace' ? 'badge-replace'
+                      : 'badge-remove'
+                    }`}>
+                      {s.source === 'inherited' ? 'Inherited'
+                        : s.source === 'override_replace' ? 'Local Replace'
+                        : 'Local Remove'}
+                    </span>
+                    <span className="scene-override-slot-actions">
                       <button
                         className="scene-override-action-btn"
-                        title="Clear override"
-                        onClick={() => onInstanceUpdate(clearSlotOverride(instance, s.slot))}
-                      >
-                        Clear
-                      </button>
-                    ) : s.hasPart ? (
-                      <button
-                        className="scene-override-action-btn"
-                        title="Remove locally"
-                        onClick={() => onInstanceUpdate(
-                          setSlotOverride(instance, { slot: s.slot, mode: 'remove' })
+                        title="Replace locally"
+                        onClick={() => setOpenPickerSlot(
+                          openPickerSlot === s.slot ? null : s.slot as CharacterSlotId
                         )}
                       >
-                        Remove
+                        Replace
                       </button>
-                    ) : null}
-                  </span>
+                      {s.isOverridden ? (
+                        <button
+                          className="scene-override-action-btn"
+                          title="Clear override"
+                          onClick={() => onInstanceUpdate(clearSlotOverride(instance, s.slot))}
+                        >
+                          Clear
+                        </button>
+                      ) : s.hasPart ? (
+                        <button
+                          className="scene-override-action-btn"
+                          title="Remove locally"
+                          onClick={() => onInstanceUpdate(
+                            setSlotOverride(instance, { slot: s.slot, mode: 'remove' })
+                          )}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </span>
+                  </div>
+                  {openPickerSlot === s.slot && syntheticBuild && (() => {
+                    const classified = classifyAllPresetsForSlot(partCatalog, s.slot as CharacterSlotId, syntheticBuild);
+                    return (
+                      <div className="scene-override-picker">
+                        <div className="scene-override-picker-header">
+                          <span className="scene-override-picker-title">
+                            Replace {slotLabel(s.slot)}
+                          </span>
+                          <button
+                            className="scene-override-picker-close"
+                            title="Close picker"
+                            onClick={() => setOpenPickerSlot(null)}
+                          >
+                            {'\u00D7'}
+                          </button>
+                        </div>
+                        {classified.length === 0 ? (
+                          <div className="scene-override-picker-empty">
+                            No candidates available for this slot.
+                          </div>
+                        ) : (
+                          <div className="scene-override-picker-list">
+                            {classified.map((c) => (
+                              <div
+                                key={c.preset.sourceId}
+                                className={`scene-override-picker-candidate ${c.tier === 'incompatible' ? 'candidate-incompatible' : ''}`}
+                              >
+                                <div className="scene-override-picker-candidate-info">
+                                  <span className="scene-override-picker-candidate-name">
+                                    {c.preset.name}
+                                  </span>
+                                  {c.preset.description && (
+                                    <span className="scene-override-picker-candidate-desc">
+                                      {c.preset.description}
+                                    </span>
+                                  )}
+                                  {c.reasons.length > 0 && (
+                                    <span className="scene-override-picker-candidate-reasons">
+                                      {c.reasons.join('; ')}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`scene-override-picker-tier badge-tier-${c.tier}`}>
+                                  {c.tier === 'compatible' ? 'Compatible'
+                                    : c.tier === 'warning' ? 'Warning'
+                                    : 'Incompatible'}
+                                </span>
+                                <button
+                                  className="scene-override-picker-apply-btn"
+                                  disabled={c.tier === 'incompatible'}
+                                  title={c.tier === 'incompatible' ? 'Cannot equip — incompatible' : `Replace with ${c.preset.name}`}
+                                  onClick={() => {
+                                    onInstanceUpdate(
+                                      setSlotOverride(instance, {
+                                        slot: s.slot,
+                                        mode: 'replace',
+                                        replacementPartId: c.preset.sourceId,
+                                      })
+                                    );
+                                    setOpenPickerSlot(null);
+                                  }}
+                                >
+                                  Apply
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

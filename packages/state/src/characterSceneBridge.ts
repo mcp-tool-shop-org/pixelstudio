@@ -1,5 +1,6 @@
 import type {
   CharacterBuild,
+  CharacterPartRef,
   CharacterValidationIssue,
   SceneAssetInstance,
   CharacterSlotSnapshot,
@@ -478,4 +479,41 @@ export function effectiveSlotSummary(instance: SceneAssetInstance): string {
   if (instance.instanceKind !== 'character') return '';
   const equipped = getEffectiveEquippedCount(instance);
   return `${equipped}/${CHARACTER_SLOT_IDS.length} effective`;
+}
+
+// ── Compatibility bridge ──
+
+/**
+ * Build a synthetic CharacterBuild from a character instance's effective composition.
+ *
+ * This bridges the scene-instance world (snapshots + overrides) to the
+ * character-build world (CharacterBuild) so that compatibility helpers
+ * like `classifyPresetCompatibility` can operate on scene instances.
+ *
+ * The synthetic build contains minimal CharacterPartRef entries (sourceId + slot only).
+ * Socket/anchor data is not available from snapshots, so compatibility checks
+ * will be degraded for those dimensions — slot matching remains fully accurate.
+ *
+ * Returns null for non-character instances.
+ */
+export function effectiveCompositionAsBuild(
+  instance: SceneAssetInstance,
+): CharacterBuild | null {
+  if (instance.instanceKind !== 'character') return null;
+
+  const effective = deriveEffectiveSlots(instance);
+  const slots: Partial<Record<CharacterSlotId, CharacterPartRef>> = {};
+
+  for (const [slotId, sourceId] of Object.entries(effective)) {
+    slots[slotId as CharacterSlotId] = {
+      sourceId,
+      slot: slotId as CharacterSlotId,
+    };
+  }
+
+  return {
+    id: instance.instanceId,
+    name: instance.name,
+    slots,
+  };
 }

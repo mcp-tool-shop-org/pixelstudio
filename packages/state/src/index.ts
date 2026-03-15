@@ -85,6 +85,7 @@ export {
   getReplacedOverrideSlots,
   overrideSummary,
   effectiveSlotSummary,
+  effectiveCompositionAsBuild,
 } from './characterSceneBridge';
 export type { CharacterPlacementOptions, PlaceabilityResult, CharacterSourceStatus, EffectiveSlotComposition, EffectiveCharacterSlotState, EffectiveSlotSource } from './characterSceneBridge';
 export {

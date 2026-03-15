@@ -36,6 +36,7 @@ import {
   getReplacedOverrideSlots,
   overrideSummary,
   effectiveSlotSummary,
+  effectiveCompositionAsBuild,
 } from './characterSceneBridge';
 import { findBuildById } from './characterBuildLibrary';
 
@@ -1308,5 +1309,97 @@ describe('effective derivation after reapply', () => {
     expect(getEffectiveEquippedCount(reapplied)).toBe(2); // head + torso, weapon removed but wasn't in snapshot
     expect(effectiveSlotSummary(reapplied)).toBe('2/12 effective');
     expect(overrideSummary(reapplied)).toBe('1 local override');
+  });
+});
+
+// ── effectiveCompositionAsBuild ──
+
+describe('effectiveCompositionAsBuild', () => {
+  it('returns null for non-character instance', () => {
+    const inst: SceneAssetInstance = {
+      instanceId: 'i1',
+      sourcePath: '/a.pxs',
+      name: 'Asset',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(effectiveCompositionAsBuild(inst)).toBeNull();
+  });
+
+  it('builds a synthetic CharacterBuild from snapshot slots', () => {
+    const inst: SceneAssetInstance = {
+      instanceId: 'ci1',
+      sourcePath: '/c.pxs',
+      name: 'Knight',
+      instanceKind: 'character',
+      sourceCharacterBuildId: 'b1',
+      characterSlotSnapshot: {
+        slots: { head: 'helm-iron', torso: 'plate-steel', weapon: 'sword-long' },
+        equippedCount: 3,
+        totalSlots: 12,
+      },
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    const build = effectiveCompositionAsBuild(inst)!;
+    expect(build).not.toBeNull();
+    expect(build.id).toBe('ci1');
+    expect(build.name).toBe('Knight');
+    expect(Object.keys(build.slots)).toHaveLength(3);
+    expect(build.slots.head).toEqual({ sourceId: 'helm-iron', slot: 'head' });
+    expect(build.slots.torso).toEqual({ sourceId: 'plate-steel', slot: 'torso' });
+    expect(build.slots.weapon).toEqual({ sourceId: 'sword-long', slot: 'weapon' });
+  });
+
+  it('reflects overrides in the synthetic build', () => {
+    const inst: SceneAssetInstance = {
+      instanceId: 'ci2',
+      sourcePath: '/c.pxs',
+      name: 'Knight',
+      instanceKind: 'character',
+      sourceCharacterBuildId: 'b1',
+      characterSlotSnapshot: {
+        slots: { head: 'helm-iron', torso: 'plate-steel' },
+        equippedCount: 2,
+        totalSlots: 12,
+      },
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+        torso: { slot: 'torso', mode: 'remove' },
+      },
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    const build = effectiveCompositionAsBuild(inst)!;
+    expect(Object.keys(build.slots)).toHaveLength(1); // torso removed
+    expect(build.slots.head).toEqual({ sourceId: 'crown-gold', slot: 'head' });
+    expect(build.slots.torso).toBeUndefined();
+  });
+
+  it('handles character instance with no snapshot', () => {
+    const inst: SceneAssetInstance = {
+      instanceId: 'ci3',
+      sourcePath: '/c.pxs',
+      name: 'Empty',
+      instanceKind: 'character',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    const build = effectiveCompositionAsBuild(inst)!;
+    expect(build).not.toBeNull();
+    expect(Object.keys(build.slots)).toHaveLength(0);
+  });
+
+  it('override replace on empty snapshot slot adds it to synthetic build', () => {
+    const inst: SceneAssetInstance = {
+      instanceId: 'ci4',
+      sourcePath: '/c.pxs',
+      name: 'Added',
+      instanceKind: 'character',
+      characterSlotSnapshot: { slots: {}, equippedCount: 0, totalSlots: 12 },
+      characterOverrides: {
+        feet: { slot: 'feet', mode: 'replace', replacementPartId: 'boots-leather' },
+      },
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    const build = effectiveCompositionAsBuild(inst)!;
+    expect(Object.keys(build.slots)).toHaveLength(1);
+    expect(build.slots.feet).toEqual({ sourceId: 'boots-leather', slot: 'feet' });
   });
 });

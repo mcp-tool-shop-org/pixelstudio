@@ -657,12 +657,13 @@ describe('SceneInstancesPanel', () => {
     const slotRows = document.querySelectorAll('.scene-override-slot-row');
     const headRow = slotRows[0];
     expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('helm-iron');
-    // Should have Remove button
-    const removeBtn = headRow.querySelector('.scene-override-action-btn');
-    expect(removeBtn?.textContent).toBe('Remove');
+    // Should have Replace and Remove buttons
+    const btns = headRow.querySelectorAll('.scene-override-action-btn');
+    expect(btns[0]?.textContent).toBe('Replace');
+    expect(btns[1]?.textContent).toBe('Remove');
   });
 
-  it('empty inherited slots show dash and no action button', async () => {
+  it('empty inherited slots show dash and Replace button only', async () => {
     mock.on('get_scene_instances', () => [INST_CHAR]);
     seedStores({ libraryBuildIds: ['build-1'] });
     await act(async () => { render(<SceneInstancesPanel />); });
@@ -672,7 +673,10 @@ describe('SceneInstancesPanel', () => {
     const slotRows = document.querySelectorAll('.scene-override-slot-row');
     const faceRow = slotRows[1];
     expect(faceRow.querySelector('.scene-override-slot-part')?.textContent).toBe('\u2014');
-    expect(faceRow.querySelector('.scene-override-action-btn')).toBeNull();
+    // Should only have Replace button (no Remove since slot is empty)
+    const btns = faceRow.querySelectorAll('.scene-override-action-btn');
+    expect(btns.length).toBe(1);
+    expect(btns[0]?.textContent).toBe('Replace');
   });
 
   it('shows summary counts', async () => {
@@ -701,9 +705,10 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Knight')); });
-    // Find head slot Remove button and click it
+    // Find head slot Remove button (second action btn, after Replace) and click it
     const slotRows = document.querySelectorAll('.scene-override-slot-row');
-    const headRemoveBtn = slotRows[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    const headBtns = slotRows[0].querySelectorAll('.scene-override-action-btn');
+    const headRemoveBtn = headBtns[1] as HTMLElement;
     expect(headRemoveBtn.textContent).toBe('Remove');
     await act(async () => { await userEvent.click(headRemoveBtn); });
     // After remove: head row should show Local Remove badge and Clear button
@@ -711,8 +716,9 @@ describe('SceneInstancesPanel', () => {
     const headRow = updatedRows[0];
     expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Local Remove');
     expect(headRow.querySelector('.scene-override-slot-badge')?.classList.contains('badge-remove')).toBe(true);
-    const clearBtn = headRow.querySelector('.scene-override-action-btn');
-    expect(clearBtn?.textContent).toBe('Clear');
+    const updatedBtns = headRow.querySelectorAll('.scene-override-action-btn');
+    expect(updatedBtns[0]?.textContent).toBe('Replace');
+    expect(updatedBtns[1]?.textContent).toBe('Clear');
     // Part should show dash (removed)
     expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('\u2014');
   });
@@ -723,8 +729,8 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Knight')); });
-    // Remove head slot
-    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    // Remove head slot (second action btn, after Replace)
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelectorAll('.scene-override-action-btn')[1] as HTMLElement;
     await act(async () => { await userEvent.click(headRemoveBtn); });
     expect(screen.getByText('1/12 effective')).toBeInTheDocument();
     expect(screen.getByText('1 local override')).toBeInTheDocument();
@@ -736,11 +742,11 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Knight')); });
-    // Remove head slot
-    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    // Remove head slot (second action btn, after Replace)
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelectorAll('.scene-override-action-btn')[1] as HTMLElement;
     await act(async () => { await userEvent.click(headRemoveBtn); });
-    // Now clear the override
-    const clearBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    // Now clear the override (second btn after Replace)
+    const clearBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelectorAll('.scene-override-action-btn')[1] as HTMLElement;
     expect(clearBtn.textContent).toBe('Clear');
     await act(async () => { await userEvent.click(clearBtn); });
     // Head row should be back to Inherited with part restored
@@ -785,8 +791,10 @@ describe('SceneInstancesPanel', () => {
     expect(headRow.querySelector('.scene-override-slot-badge')?.textContent).toBe('Local Replace');
     expect(headRow.querySelector('.scene-override-slot-badge')?.classList.contains('badge-replace')).toBe(true);
     expect(headRow.querySelector('.scene-override-slot-part')?.textContent).toBe('crown-gold');
-    // Should have Clear button
-    expect(headRow.querySelector('.scene-override-action-btn')?.textContent).toBe('Clear');
+    // Should have Replace and Clear buttons
+    const btns = headRow.querySelectorAll('.scene-override-action-btn');
+    expect(btns[0]?.textContent).toBe('Replace');
+    expect(btns[1]?.textContent).toBe('Clear');
   });
 
   it('Clear all button appears when overrides exist and clears them', async () => {
@@ -828,8 +836,8 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { render(<SceneInstancesPanel />); });
     await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
     await act(async () => { await userEvent.click(screen.getByText('Knight')); });
-    // Remove head locally
-    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelector('.scene-override-action-btn') as HTMLElement;
+    // Remove head locally (second action btn, after Replace)
+    const headRemoveBtn = document.querySelectorAll('.scene-override-slot-row')[0].querySelectorAll('.scene-override-action-btn')[1] as HTMLElement;
     await act(async () => { await userEvent.click(headRemoveBtn); });
     // Build name and snapshot labels should still show original values
     expect(screen.getByText('Knight Build')).toBeInTheDocument();
@@ -846,5 +854,207 @@ describe('SceneInstancesPanel', () => {
     await act(async () => { await userEvent.click(screen.getByText('Hero')); });
     expect(screen.queryByText('Instance Overrides')).toBeNull();
     expect(screen.queryByText(/local override/)).toBeNull();
+  });
+
+  // ── Replace picker ──
+
+  it('every slot row shows a Replace button', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    expect(replaceBtns.length).toBe(12); // one per canonical slot
+  });
+
+  it('clicking Replace opens picker for that slot', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    // Click Replace on first slot (head)
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('Replace Head')).toBeInTheDocument();
+  });
+
+  it('picker shows empty message when no presets available', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('No candidates available for this slot.')).toBeInTheDocument();
+  });
+
+  it('picker shows classified presets with compatibility badges', async () => {
+    const presets = [
+      { sourceId: 'helm-gold', slot: 'head' as const, name: 'Gold Helm' },
+      { sourceId: 'boots-iron', slot: 'feet' as const, name: 'Iron Boots' },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Open picker for head slot
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    // Compatible preset for head
+    expect(screen.getByText('Gold Helm')).toBeInTheDocument();
+    expect(screen.getByText('Compatible')).toBeInTheDocument();
+    // Incompatible preset for feet should also show (classifyAll returns all)
+    expect(screen.getByText('Iron Boots')).toBeInTheDocument();
+    expect(screen.getByText('Incompatible')).toBeInTheDocument();
+  });
+
+  it('applying a preset from picker creates a replace override', async () => {
+    const presets = [
+      { sourceId: 'helm-gold', slot: 'head' as const, name: 'Gold Helm' },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Open picker for head
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    // Click Apply
+    const applyBtn = screen.getByText('Apply');
+    await act(async () => { await userEvent.click(applyBtn); });
+    // Picker should close
+    expect(screen.queryByText('Replace Head')).toBeNull();
+    // Head slot should now show Local Replace badge and the new part
+    expect(screen.getByText('helm-gold')).toBeInTheDocument();
+    expect(screen.getByText('Local Replace')).toBeInTheDocument();
+  });
+
+  it('incompatible candidates have disabled Apply button', async () => {
+    const presets = [
+      { sourceId: 'boots-iron', slot: 'feet' as const, name: 'Iron Boots' },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Open picker for head — boots are incompatible with head slot
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    const applyBtn = screen.getByText('Apply');
+    expect(applyBtn).toBeDisabled();
+  });
+
+  it('clicking Replace again on same slot closes picker', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    // Open
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('Replace Head')).toBeInTheDocument();
+    // Close by clicking same Replace button
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.queryByText('Replace Head')).toBeNull();
+  });
+
+  it('close button closes the picker', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('Replace Head')).toBeInTheDocument();
+    // Close via X button
+    const closeBtn = screen.getByTitle('Close picker');
+    await act(async () => { await userEvent.click(closeBtn); });
+    expect(screen.queryByText('Replace Head')).toBeNull();
+  });
+
+  it('replace on empty snapshot slot adds part via override', async () => {
+    const presets = [
+      { sourceId: 'iron-boots', slot: 'feet' as const, name: 'Iron Boots' },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Feet is the 8th slot (index 7) in canonical order
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[7]); });
+    expect(screen.getByText('Replace Feet')).toBeInTheDocument();
+    // Apply
+    const applyBtn = screen.getByText('Apply');
+    await act(async () => { await userEvent.click(applyBtn); });
+    // Feet should now show the replacement part
+    expect(screen.getByText('iron-boots')).toBeInTheDocument();
+  });
+
+  it('picker shows preset description when available', async () => {
+    const presets = [
+      { sourceId: 'helm-gold', slot: 'head' as const, name: 'Gold Helm', description: 'Shiny golden helmet' },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('Shiny golden helmet')).toBeInTheDocument();
+  });
+
+  it('clear all closes open picker', async () => {
+    const instWithOverride: SceneAssetInstance = {
+      ...INST_CHAR,
+      characterOverrides: {
+        head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      },
+    };
+    mock.on('get_scene_instances', () => [instWithOverride]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Open picker on torso
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[3]); }); // torso is index 3
+    expect(screen.getByText('Replace Torso')).toBeInTheDocument();
+    // Clear all
+    await act(async () => { await userEvent.click(screen.getByText('Clear all')); });
+    // Picker should be closed
+    expect(screen.queryByText('Replace Torso')).toBeNull();
+  });
+
+  it('warning-tier presets show reasons and have enabled Apply', async () => {
+    const presets = [
+      {
+        sourceId: 'helm-magic',
+        slot: 'head' as const,
+        name: 'Magic Helm',
+        requiredSockets: ['mana-crystal'],
+      },
+    ];
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel partCatalog={presets} />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const replaceBtns = screen.getAllByTitle('Replace locally');
+    await act(async () => { await userEvent.click(replaceBtns[0]); });
+    expect(screen.getByText('Warning')).toBeInTheDocument();
+    expect(screen.getByText(/mana-crystal/)).toBeInTheDocument();
+    const applyBtn = screen.getByText('Apply');
+    expect(applyBtn).not.toBeDisabled();
   });
 });

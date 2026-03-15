@@ -4664,6 +4664,134 @@
   border-top: 1px solid var(--border-subtle, #2a2a2a);
 }
 
+/* --- Override Slot Replace Picker --- */
+
+.scene-override-picker {
+  background: var(--bg-inset, #1a1a1a);
+  border: 1px solid var(--border-subtle, #2a2a2a);
+  border-radius: 4px;
+  margin: 2px 0 4px 12px;
+  padding: 6px;
+}
+.scene-override-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.scene-override-picker-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+}
+.scene-override-picker-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #666);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.scene-override-picker-close:hover {
+  color: var(--text-primary, #eee);
+}
+.scene-override-picker-empty {
+  font-size: 8px;
+  color: var(--text-muted, #666);
+  font-style: italic;
+  padding: 4px 0;
+}
+.scene-override-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.scene-override-picker-candidate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  background: var(--bg-surface, #222);
+}
+.scene-override-picker-candidate:hover {
+  background: var(--bg-hover, #2a2a2a);
+}
+.scene-override-picker-candidate.candidate-incompatible {
+  opacity: 0.5;
+}
+.scene-override-picker-candidate-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.scene-override-picker-candidate-name {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-primary, #eee);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-override-picker-candidate-desc {
+  font-size: 8px;
+  color: var(--text-muted, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-override-picker-candidate-reasons {
+  font-size: 8px;
+  color: var(--accent-warning, #e8a838);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-override-picker-tier {
+  font-size: 7px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.badge-tier-compatible {
+  background: var(--accent-success-bg, #1a3a1a);
+  color: var(--accent-success, #4caf50);
+}
+.badge-tier-warning {
+  background: var(--accent-warning-bg, #3a2a1a);
+  color: var(--accent-warning, #e8a838);
+}
+.badge-tier-incompatible {
+  background: var(--accent-error-bg, #3a1a1a);
+  color: var(--accent-error, #e84848);
+}
+.scene-override-picker-apply-btn {
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle, #2a2a2a);
+  background: var(--bg-surface, #222);
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scene-override-picker-apply-btn:hover:not(:disabled) {
+  background: var(--accent-primary, #4a9eff);
+  color: var(--text-primary, #eee);
+  border-color: var(--accent-primary, #4a9eff);
+}
+.scene-override-picker-apply-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {
