@@ -59,12 +59,13 @@ export {
   placeCharacterBuild,
   reapplyCharacterBuild,
   createSlotSnapshot,
+  checkPlaceability,
   isCharacterInstance,
   isSourceBuildAvailable,
   generateCharacterInstanceId,
   CHARACTER_PLACEMENT_DEFAULTS,
 } from './characterSceneBridge';
-export type { CharacterPlacementOptions } from './characterSceneBridge';
+export type { CharacterPlacementOptions, PlaceabilityResult } from './characterSceneBridge';
 export {
   createEmptyLibrary,
   generateSavedBuildId,

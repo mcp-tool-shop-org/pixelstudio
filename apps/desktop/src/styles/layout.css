@@ -5504,6 +5504,24 @@
   white-space: nowrap;
 }
 
+.char-place-btn {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-primary, #64b5f6);
+}
+
+.char-place-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  color: inherit;
+}
+
+.char-place-reason {
+  font-size: 9px;
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
 /* ===== Camera Keyframe Panel ===== */
 
 .camkf-panel {

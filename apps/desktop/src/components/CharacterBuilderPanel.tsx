@@ -14,13 +14,18 @@ import {
   isCharacterValid,
   getCompatiblePresetsForSlot,
   classifyAllPresetsForSlot,
+  checkPlaceability,
+  placeCharacterBuild,
 } from '@glyphstudio/state';
+import type { SceneAssetInstance } from '@glyphstudio/domain';
 
 interface CharacterBuilderPanelProps {
   /** Available part presets for the picker. */
   partCatalog?: CharacterPartPreset[];
   /** Callback when library changes (for storage persistence). */
   onLibraryChange?: (library: import('@glyphstudio/domain').CharacterBuildLibrary) => void;
+  /** Callback when a character build is placed into the scene. */
+  onPlaceInScene?: (instance: SceneAssetInstance) => void;
 }
 
 /** Derive a slot's health status for badge display. */
@@ -53,7 +58,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 
 const TOTAL_SLOTS = CHARACTER_SLOT_IDS.length;
 
-export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: CharacterBuilderPanelProps) {
+export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange, onPlaceInScene }: CharacterBuilderPanelProps) {
   const build = useCharacterStore((s) => s.activeCharacterBuild);
   const selectedSlot = useCharacterStore((s) => s.selectedSlot);
   const validationIssues = useCharacterStore((s) => s.validationIssues);
@@ -92,6 +97,9 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
   // Save is disabled when clean+already saved, or no build
   const saveDisabled = !build || (!isDirty && activeSavedBuildId !== null);
   const canRevert = isDirty && activeSavedBuildId !== null;
+
+  // Placeability
+  const placeability = checkPlaceability(build, validationIssues);
 
   const handleStartRename = useCallback(() => {
     if (!build) return;
@@ -173,6 +181,12 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
   const handleRevert = useCallback(() => {
     revertToSaved();
   }, [revertToSaved]);
+
+  const handlePlaceInScene = useCallback(() => {
+    if (!build || !placeability.placeable) return;
+    const instance = placeCharacterBuild(build);
+    if (onPlaceInScene) onPlaceInScene(instance);
+  }, [build, placeability.placeable, onPlaceInScene]);
 
   // ── Library section (shared between empty and active states) ──
   const librarySection = (
@@ -393,6 +407,20 @@ export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: Cha
             >
               Revert
             </button>
+          )}
+          <button
+            className="char-builder-action-btn char-place-btn"
+            title={placeability.placeable ? 'Place in scene' : placeability.reason ?? 'Cannot place'}
+            onClick={handlePlaceInScene}
+            disabled={!placeability.placeable}
+            data-testid="char-place-btn"
+          >
+            Place in Scene
+          </button>
+          {!placeability.placeable && placeability.reason && build && (
+            <span className="char-place-reason" data-testid="char-place-reason">
+              {placeability.reason}
+            </span>
           )}
           <button
             className="char-builder-action-btn"

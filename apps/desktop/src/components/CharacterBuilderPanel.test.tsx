@@ -1806,3 +1806,121 @@ describe('smart duplicate naming', () => {
     expect(builds[0].name).toBe('Hero Copy 2');
   });
 });
+
+// ── Place in Scene ──
+
+describe('place in scene', () => {
+  it('shows Place in Scene button when build is active', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-place-btn')).toBeInTheDocument();
+  });
+
+  it('Place in Scene button is enabled for valid build', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const btn = screen.getByTestId('char-place-btn');
+    expect(btn).not.toBeDisabled();
+  });
+
+  it('Place in Scene button is disabled for invalid build (missing required slots)', async () => {
+    // Build with only head — missing torso, arms, legs
+    const incompleteBuild: CharacterBuild = {
+      id: 'inc-1',
+      name: 'Incomplete',
+      slots: { head: HEAD },
+    };
+    useCharacterStore.getState().loadCharacterBuild(incompleteBuild);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const btn = screen.getByTestId('char-place-btn');
+    expect(btn).toBeDisabled();
+  });
+
+  it('shows placement blocked reason for invalid build', async () => {
+    const incompleteBuild: CharacterBuild = {
+      id: 'inc-2',
+      name: 'Incomplete',
+      slots: { head: HEAD },
+    };
+    useCharacterStore.getState().loadCharacterBuild(incompleteBuild);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const reason = screen.getByTestId('char-place-reason');
+    expect(reason.textContent).toContain('error');
+  });
+
+  it('calls onPlaceInScene with character instance when clicked', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const onPlace = vi.fn();
+    const { rerender } = render(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    rerender(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-place-btn'));
+    });
+    expect(onPlace).toHaveBeenCalledTimes(1);
+    const instance = onPlace.mock.calls[0][0];
+    expect(instance.instanceKind).toBe('character');
+    expect(instance.sourceCharacterBuildId).toBe('v1');
+    expect(instance.name).toBe('Warrior');
+    expect(instance.characterSlotSnapshot.equippedCount).toBe(4);
+  });
+
+  it('repeated placement creates distinct instance IDs', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const onPlace = vi.fn();
+    const { rerender } = render(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    rerender(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-place-btn'));
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-place-btn'));
+    });
+    expect(onPlace).toHaveBeenCalledTimes(2);
+    const id1 = onPlace.mock.calls[0][0].instanceId;
+    const id2 = onPlace.mock.calls[1][0].instanceId;
+    expect(id1).not.toBe(id2);
+    // Same source build
+    expect(onPlace.mock.calls[0][0].sourceCharacterBuildId).toBe(onPlace.mock.calls[1][0].sourceCharacterBuildId);
+  });
+
+  it('does not mutate active build after placement', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const buildBefore = useCharacterStore.getState().activeCharacterBuild;
+    const onPlace = vi.fn();
+    const { rerender } = render(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    rerender(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-place-btn'));
+    });
+    const buildAfter = useCharacterStore.getState().activeCharacterBuild;
+    expect(buildAfter).toEqual(buildBefore);
+  });
+
+  it('allows placement with warnings (only errors block)', async () => {
+    // Valid build + weapon with unmet socket requirement = warning but no error
+    const buildWithWarning: CharacterBuild = {
+      id: 'w1',
+      name: 'With Warning',
+      slots: { head: HEAD, torso: TORSO, arms: ARMS, legs: LEGS, weapon: WEAPON },
+    };
+    useCharacterStore.getState().loadCharacterBuild(buildWithWarning);
+    const onPlace = vi.fn();
+    const { rerender } = render(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    rerender(<CharacterBuilderPanel onPlaceInScene={onPlace} />);
+    const btn = screen.getByTestId('char-place-btn');
+    expect(btn).not.toBeDisabled();
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+    expect(onPlace).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show Place in Scene button when no build is active', async () => {
+    render(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-place-btn')).not.toBeInTheDocument();
+  });
+});

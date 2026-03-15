@@ -5,9 +5,11 @@ import type {
   SceneAssetInstance,
 } from '@glyphstudio/domain';
 import { CHARACTER_SLOT_IDS } from '@glyphstudio/domain';
+import type { CharacterValidationIssue } from '@glyphstudio/domain';
 import {
   createSlotSnapshot,
   placeCharacterBuild,
+  checkPlaceability,
   isCharacterInstance,
   isSourceBuildAvailable,
   reapplyCharacterBuild,
@@ -348,5 +350,97 @@ describe('placement → reapply round-trip', () => {
     expect(inst.characterSlotSnapshot!.equippedCount).toBe(5);
     expect(inst.sourceCharacterBuildId).toBe('build-warrior');
     expect(inst.sourceCharacterBuildName).toBe('Warrior');
+  });
+});
+
+// ── checkPlaceability ──
+
+describe('checkPlaceability', () => {
+  const NO_ISSUES: CharacterValidationIssue[] = [];
+
+  const ERROR_ISSUE: CharacterValidationIssue = {
+    kind: 'missing_required_slot',
+    slot: 'head',
+    message: 'Head is required',
+    severity: 'error',
+  };
+
+  const WARNING_ISSUE: CharacterValidationIssue = {
+    kind: 'missing_required_socket',
+    slot: 'weapon',
+    message: 'Weapon requires hand socket',
+    severity: 'warning',
+  };
+
+  it('returns placeable for valid build with equipped parts', () => {
+    const result = checkPlaceability(WARRIOR, NO_ISSUES);
+    expect(result.placeable).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it('returns not placeable when build is null', () => {
+    const result = checkPlaceability(null, NO_ISSUES);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toBe('No active build');
+  });
+
+  it('returns not placeable for empty build (no equipped slots)', () => {
+    const result = checkPlaceability(EMPTY_BUILD, NO_ISSUES);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toBe('Build has no equipped parts');
+  });
+
+  it('returns not placeable when build has validation errors', () => {
+    const result = checkPlaceability(MINIMAL_BUILD, [ERROR_ISSUE]);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toContain('1 error');
+    expect(result.reason).toContain('resolve before placing');
+  });
+
+  it('returns not placeable with multiple errors and correct pluralization', () => {
+    const result = checkPlaceability(MINIMAL_BUILD, [ERROR_ISSUE, ERROR_ISSUE]);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toContain('2 errors');
+  });
+
+  it('returns placeable when build has only warnings (no errors)', () => {
+    const result = checkPlaceability(WARRIOR, [WARNING_ISSUE]);
+    expect(result.placeable).toBe(true);
+  });
+
+  it('returns placeable when build has warnings mixed with no errors', () => {
+    const result = checkPlaceability(WARRIOR, [WARNING_ISSUE, WARNING_ISSUE]);
+    expect(result.placeable).toBe(true);
+  });
+
+  it('returns not placeable when build has errors even with warnings', () => {
+    const result = checkPlaceability(WARRIOR, [ERROR_ISSUE, WARNING_ISSUE]);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toContain('1 error');
+  });
+
+  it('checks empty slots before errors (empty build short-circuits)', () => {
+    const result = checkPlaceability(EMPTY_BUILD, [ERROR_ISSUE]);
+    expect(result.placeable).toBe(false);
+    expect(result.reason).toBe('Build has no equipped parts');
+  });
+});
+
+// ── Integration: placeability → placement ──
+
+describe('placeability → placement integration', () => {
+  it('placeable build creates valid instance', () => {
+    const result = checkPlaceability(WARRIOR, []);
+    expect(result.placeable).toBe(true);
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(inst.instanceKind).toBe('character');
+    expect(inst.sourceCharacterBuildId).toBe('build-warrior');
+  });
+
+  it('repeated placement creates distinct instances with same source', () => {
+    const a = placeCharacterBuild(WARRIOR);
+    const b = placeCharacterBuild(WARRIOR);
+    expect(a.instanceId).not.toBe(b.instanceId);
+    expect(a.sourceCharacterBuildId).toBe(b.sourceCharacterBuildId);
   });
 });

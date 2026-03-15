@@ -1,5 +1,6 @@
 import type {
   CharacterBuild,
+  CharacterValidationIssue,
   SceneAssetInstance,
   CharacterSlotSnapshot,
   CharacterSlotId,
@@ -33,6 +34,48 @@ let nextCharacterInstanceId = 1;
 /** Generate a unique scene instance ID for a character placement. */
 export function generateCharacterInstanceId(): string {
   return `char-inst-${Date.now()}-${nextCharacterInstanceId++}`;
+}
+
+// ── Placeability ──
+
+/** Result of checking whether a build can be placed into a scene. */
+export interface PlaceabilityResult {
+  /** Whether the build is placeable. */
+  placeable: boolean;
+  /** Reason placement is blocked (only when placeable is false). */
+  reason?: string;
+}
+
+/**
+ * Check whether a character build can be placed into a scene.
+ *
+ * Placement rules (v1):
+ * - Build must exist
+ * - Build must have at least one equipped slot
+ * - Build must have zero validation errors (warnings are allowed)
+ */
+export function checkPlaceability(
+  build: CharacterBuild | null,
+  validationIssues: CharacterValidationIssue[],
+): PlaceabilityResult {
+  if (!build) {
+    return { placeable: false, reason: 'No active build' };
+  }
+
+  const equippedCount = Object.keys(build.slots).length;
+  if (equippedCount === 0) {
+    return { placeable: false, reason: 'Build has no equipped parts' };
+  }
+
+  const errors = validationIssues.filter((i) => i.severity === 'error');
+  if (errors.length > 0) {
+    return {
+      placeable: false,
+      reason: `Build has ${errors.length} error${errors.length !== 1 ? 's' : ''} — resolve before placing`,
+    };
+  }
+
+  return { placeable: true };
 }
 
 // ── Placement defaults ──
