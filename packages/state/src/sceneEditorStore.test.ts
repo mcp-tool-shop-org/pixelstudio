@@ -748,6 +748,266 @@ describe('SceneEditorStore — provenance vs undo/redo', () => {
   });
 });
 
+// ── Provenance operation coverage ──
+
+describe('SceneEditorStore — provenance operation coverage', () => {
+  it('add-instance appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([]);
+    applyEdit('add-instance', [INST_ASSET], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('add-instance');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('remove-instance appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('remove-instance', [], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('remove-instance');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('move-instance appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('move-instance');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('set-instance-visibility appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, visible: false }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-instance-visibility');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('set-instance-opacity appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-opacity', [{ ...INST_ASSET, opacity: 0.5 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-instance-opacity');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('set-instance-layer appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-layer', [{ ...INST_ASSET, zOrder: 5 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-instance-layer');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('set-instance-clip appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-clip', [{ ...INST_ASSET, clipId: 'walk' }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-instance-clip');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('set-instance-parallax appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-parallax', [{ ...INST_ASSET, parallax: 0.5 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-instance-parallax');
+    expect(entry.metadata).toEqual({ instanceId: 'i1' });
+  });
+
+  it('unlink-character-source appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('unlink-character-source');
+    expect(entry.metadata).toEqual({ instanceId: 'i2' });
+  });
+
+  it('relink-character-source appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_UNLINKED]);
+    applyEdit('relink-character-source', [{ ...INST_CHAR_UNLINKED, characterLinkMode: undefined }], { instanceId: 'i3' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('relink-character-source');
+    expect(entry.metadata).toEqual({ instanceId: 'i3' });
+  });
+
+  it('reapply-character-source appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    const reapplied = { ...INST_CHAR, characterSlotSnapshot: { slots: { head: 'helm-v2' }, equippedCount: 1, totalSlots: 12 } };
+    applyEdit('reapply-character-source', [reapplied], { instanceId: 'i2' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('reapply-character-source');
+    expect(entry.metadata).toEqual({ instanceId: 'i2' });
+  });
+
+  it('set-character-override appends correct kind + instanceId + slotId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES], { instanceId: 'i2', slotId: 'head' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-character-override');
+    expect(entry.metadata).toEqual({ instanceId: 'i2', slotId: 'head' });
+  });
+
+  it('remove-character-override appends correct kind + instanceId + slotId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const cleared = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: { torso: INST_CHAR_WITH_OVERRIDES.characterOverrides!.torso } };
+    applyEdit('remove-character-override', [cleared], { instanceId: 'i4', slotId: 'head' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('remove-character-override');
+    expect(entry.metadata).toEqual({ instanceId: 'i4', slotId: 'head' });
+  });
+
+  it('clear-all-character-overrides appends correct kind + instanceId', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const noOverrides = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('clear-all-character-overrides');
+    expect(entry.metadata).toEqual({ instanceId: 'i4' });
+  });
+
+  it('set-scene-camera appends correct kind + changedFields', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-scene-camera', [{ ...INST_ASSET, x: 10 }], { changedFields: ['x', 'zoom'] });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('set-scene-camera');
+    expect(entry.metadata).toEqual({ changedFields: ['x', 'zoom'] });
+  });
+});
+
+// ── Provenance distinctness ──
+
+describe('SceneEditorStore — provenance distinctness', () => {
+  it('unlink/relink/reapply produce different provenance labels', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    applyEdit('relink-character-source', [{ ...INST_CHAR, characterLinkMode: undefined }], { instanceId: 'i2' });
+    const reapplied = { ...INST_CHAR, characterSlotSnapshot: { slots: { head: 'helm-v2' }, equippedCount: 1, totalSlots: 12 } };
+    applyEdit('reapply-character-source', [reapplied], { instanceId: 'i2' });
+    const { provenance } = useSceneEditorStore.getState();
+    const labels = new Set(provenance.map((e) => e.label));
+    expect(labels.size).toBe(3);
+  });
+
+  it('set/remove override produce different provenance labels', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES], { instanceId: 'i2', slotId: 'head' });
+    const cleared = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyEdit('remove-character-override', [cleared], { instanceId: 'i4', slotId: 'head' });
+    const { provenance } = useSceneEditorStore.getState();
+    expect(provenance[0].label).not.toBe(provenance[1].label);
+  });
+
+  it('move-instance is not mislabeled as generic update', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('move-instance');
+    expect(entry.label).toContain('Move');
+  });
+
+  it('remove-instance is not mislabeled as property change', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('remove-instance', [], { instanceId: 'i1' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect(entry.kind).toBe('remove-instance');
+    expect(entry.label).toContain('Remove');
+  });
+});
+
+// ── Provenance metadata integrity ──
+
+describe('SceneEditorStore — provenance metadata integrity', () => {
+  it('slotId preserved for override entries', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES], { instanceId: 'i2', slotId: 'head' });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect((entry.metadata as { slotId: string }).slotId).toBe('head');
+  });
+
+  it('changedFields preserved for camera entries', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-scene-camera', [{ ...INST_ASSET, x: 10 }], { changedFields: ['x', 'zoom'] });
+    const entry = useSceneEditorStore.getState().provenance[0];
+    expect((entry.metadata as { changedFields: string[] }).changedFields).toEqual(['x', 'zoom']);
+  });
+
+  it('instanceId preserved across all instance-targeted entries', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }], { instanceId: 'i1' });
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, x: 100, visible: false }], { instanceId: 'i1' });
+    applyEdit('set-instance-opacity', [{ ...INST_ASSET, x: 100, visible: false, opacity: 0.5 }], { instanceId: 'i1' });
+    const { provenance } = useSceneEditorStore.getState();
+    for (const entry of provenance) {
+      expect((entry.metadata as { instanceId: string }).instanceId).toBe('i1');
+    }
+  });
+});
+
+// ── Provenance guard coverage per operation family ──
+
+describe('SceneEditorStore — provenance guards per family', () => {
+  it('no-op move appends nothing', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [INST_ASSET], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('no-op visibility change appends nothing', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('set-instance-visibility', [INST_ASSET], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('no-op override change appends nothing', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('set-character-override', [INST_CHAR], { instanceId: 'i2', slotId: 'head' });
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('no-op unlink appends nothing', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR_UNLINKED]);
+    applyEdit('unlink-character-source', [INST_CHAR_UNLINKED], { instanceId: 'i3' });
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(0);
+  });
+
+  it('successful edit then refresh cycle still has exactly one entry', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    // Simulate periodic refresh — loadInstances, not applyEdit
+    loadInstances([{ ...INST_ASSET, x: 200 }]);
+    loadInstances([{ ...INST_ASSET, x: 200 }]);
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+  });
+});
+
 // ── Provenance reset ──
 
 describe('SceneEditorStore — provenance reset', () => {

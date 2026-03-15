@@ -132,9 +132,19 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     applyEdit('reapply-character-source', nextInstances, { instanceId });
   }, [instances, buildLibrary, libraryBuildIds, applyEdit]);
 
-  const handleInstanceUpdate = useCallback((updated: SceneAssetInstance) => {
+  const handleSetOverride = useCallback((updated: SceneAssetInstance, slotId: string) => {
     const nextInstances = instances.map((i) => i.instanceId === updated.instanceId ? updated : i);
-    applyEdit('set-character-override', nextInstances, { instanceId: updated.instanceId });
+    applyEdit('set-character-override', nextInstances, { instanceId: updated.instanceId, slotId });
+  }, [instances, applyEdit]);
+
+  const handleRemoveOverride = useCallback((updated: SceneAssetInstance, slotId: string) => {
+    const nextInstances = instances.map((i) => i.instanceId === updated.instanceId ? updated : i);
+    applyEdit('remove-character-override', nextInstances, { instanceId: updated.instanceId, slotId });
+  }, [instances, applyEdit]);
+
+  const handleClearAllOverrides = useCallback((updated: SceneAssetInstance) => {
+    const nextInstances = instances.map((i) => i.instanceId === updated.instanceId ? updated : i);
+    applyEdit('clear-all-character-overrides', nextInstances, { instanceId: updated.instanceId });
   }, [instances, applyEdit]);
 
   const handleUnlink = useCallback(async (instanceId: string) => {
@@ -251,7 +261,9 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
             onReapply={handleReapply}
             onUnlink={handleUnlink}
             onRelink={handleRelink}
-            onInstanceUpdate={handleInstanceUpdate}
+            onSetOverride={handleSetOverride}
+            onRemoveOverride={handleRemoveOverride}
+            onClearAllOverrides={handleClearAllOverrides}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
               try {
@@ -292,7 +304,9 @@ function InstanceDetailPane({
   onReapply,
   onUnlink,
   onRelink,
-  onInstanceUpdate,
+  onSetOverride,
+  onRemoveOverride,
+  onClearAllOverrides,
   onOpacityChange,
   onParallaxChange,
   onClipChange,
@@ -304,7 +318,9 @@ function InstanceDetailPane({
   onReapply: (instanceId: string) => void;
   onUnlink: (instanceId: string) => void;
   onRelink: (instanceId: string) => void;
-  onInstanceUpdate: (updated: SceneAssetInstance) => void;
+  onSetOverride: (updated: SceneAssetInstance, slotId: string) => void;
+  onRemoveOverride: (updated: SceneAssetInstance, slotId: string) => void;
+  onClearAllOverrides: (updated: SceneAssetInstance) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
   onClipChange: (instanceId: string, clipId: string | null) => void;
@@ -459,7 +475,7 @@ function InstanceDetailPane({
                 <button
                   className="scene-override-clear-all-btn"
                   title="Clear all local overrides"
-                  onClick={() => { setOpenPickerSlot(null); onInstanceUpdate(clearAllOverrides(instance)); }}
+                  onClick={() => { setOpenPickerSlot(null); onClearAllOverrides(clearAllOverrides(instance)); }}
                 >
                   Clear all
                 </button>
@@ -501,7 +517,7 @@ function InstanceDetailPane({
                         <button
                           className="scene-override-action-btn"
                           title="Clear override"
-                          onClick={() => onInstanceUpdate(clearSlotOverride(instance, s.slot))}
+                          onClick={() => onRemoveOverride(clearSlotOverride(instance, s.slot), s.slot)}
                         >
                           Clear
                         </button>
@@ -509,8 +525,9 @@ function InstanceDetailPane({
                         <button
                           className="scene-override-action-btn"
                           title="Remove locally"
-                          onClick={() => onInstanceUpdate(
-                            setSlotOverride(instance, { slot: s.slot, mode: 'remove' })
+                          onClick={() => onSetOverride(
+                            setSlotOverride(instance, { slot: s.slot, mode: 'remove' }),
+                            s.slot,
                           )}
                         >
                           Remove
@@ -570,12 +587,13 @@ function InstanceDetailPane({
                                   disabled={c.tier === 'incompatible'}
                                   title={c.tier === 'incompatible' ? 'Cannot equip — incompatible' : `Replace with ${c.preset.name}`}
                                   onClick={() => {
-                                    onInstanceUpdate(
+                                    onSetOverride(
                                       setSlotOverride(instance, {
                                         slot: s.slot,
                                         mode: 'replace',
                                         replacementPartId: c.preset.sourceId,
-                                      })
+                                      }),
+                                      s.slot,
                                     );
                                     setOpenPickerSlot(null);
                                   }}
