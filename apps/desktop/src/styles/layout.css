@@ -4850,13 +4850,36 @@
   text-align: center;
   line-height: 1.6;
 }
+.scene-provenance-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
 .scene-provenance-list {
   flex: 1;
+  overflow-y: auto;
+  min-height: 60px;
+}
+.scene-provenance-drilldown {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  max-height: 45%;
   overflow-y: auto;
 }
 .scene-provenance-row {
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.scene-provenance-row:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+.scene-provenance-row.selected {
+  background: var(--bg-selected, rgba(100, 149, 237, 0.15));
+  border-left: 2px solid var(--accent, #6495ed);
+  padding-left: 6px;
 }
 .scene-provenance-row-primary {
   display: flex;
@@ -4892,6 +4915,64 @@
   text-align: center;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+/* --- Provenance Drilldown Pane --- */
+.provenance-drilldown-pane {
+  padding: 6px 8px;
+}
+.provenance-drilldown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.provenance-drilldown-label {
+  font-size: 10px;
+  font-weight: 600;
+}
+.provenance-drilldown-time {
+  font-size: 8px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.provenance-drilldown-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.provenance-drilldown-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 9px;
+}
+.provenance-drilldown-field-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 50px;
+}
+.provenance-drilldown-field-value {
+  font-family: monospace;
+  font-size: 9px;
+}
+.provenance-drilldown-description {
+  font-size: 9px;
+  color: var(--text-secondary, #ccc);
+  margin-top: 2px;
+}
+.provenance-drilldown-slots {
+  margin-top: 2px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+.provenance-drilldown-placeholder,
+.provenance-drilldown-fallback {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 4px;
 }
 
 /* --- Scene Playback Controls --- */

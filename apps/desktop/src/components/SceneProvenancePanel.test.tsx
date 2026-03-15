@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import type { SceneAssetInstance } from '@glyphstudio/domain';
 import { useSceneEditorStore, createEmptySceneHistoryState, resetProvenanceSequence } from '@glyphstudio/state';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
@@ -63,6 +63,7 @@ beforeEach(() => {
     instances: [],
     history: createEmptySceneHistoryState(),
     provenance: [],
+    drilldownBySequence: {},
     canUndo: false,
     canRedo: false,
   });
@@ -294,5 +295,243 @@ describe('SceneProvenancePanel — UI sanity', () => {
     const meta = document.querySelector('.scene-provenance-row-meta');
     expect(meta).not.toBeNull();
     expect(meta!.getAttribute('title')).toContain('very-long-instance-id');
+  });
+});
+
+// ── Selection tests ──
+
+describe('SceneProvenancePanel — selection', () => {
+  it('clicking a row selects it', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row')!;
+    fireEvent.click(row);
+    expect(row.classList.contains('selected')).toBe(true);
+  });
+
+  it('selected row styling updates correctly', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, x: 200, visible: false }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    expect(rows[0].classList.contains('selected')).toBe(true);
+    expect(rows[1].classList.contains('selected')).toBe(false);
+  });
+
+  it('clicking a different row replaces the selection', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, x: 200, visible: false }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    expect(rows[0].classList.contains('selected')).toBe(true);
+    fireEvent.click(rows[1]);
+    expect(rows[0].classList.contains('selected')).toBe(false);
+    expect(rows[1].classList.contains('selected')).toBe(true);
+  });
+
+  it('selection persists when a new unrelated entry is appended', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const { rerender } = render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row')!;
+    fireEvent.click(row);
+    const seq = row.getAttribute('data-sequence');
+
+    // Add another entry
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, x: 200, visible: false }], { instanceId: 'i1' });
+    rerender(<SceneProvenancePanel />);
+
+    // Original selection still active (find by data-sequence)
+    const selectedRow = document.querySelector(`[data-sequence="${seq}"]`);
+    expect(selectedRow!.classList.contains('selected')).toBe(true);
+  });
+
+  it('selection clears when reset removes the selected entry', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const { rerender } = render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+
+    // Verify drilldown pane is showing
+    expect(document.querySelector('.provenance-drilldown-header')).not.toBeNull();
+
+    // Reset
+    useSceneEditorStore.getState().resetHistory();
+    rerender(<SceneProvenancePanel />);
+
+    // Should be back to empty state
+    expect(screen.getByText(/No scene changes/)).toBeDefined();
+  });
+});
+
+// ── Empty / fallback tests ──
+
+describe('SceneProvenancePanel — drilldown empty/fallback', () => {
+  it('empty provenance renders empty timeline state', () => {
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/No scene changes/)).toBeDefined();
+  });
+
+  it('no selected row renders empty drilldown placeholder', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Select an activity entry/)).toBeDefined();
+  });
+
+  it('selected row with missing drilldown source renders fallback', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    // Manually clear drilldown data to simulate missing source
+    useSceneEditorStore.setState({ drilldownBySequence: {} });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    expect(screen.getByText(/Details for this activity entry are not available/)).toBeDefined();
+  });
+});
+
+// ── Detail rendering tests ──
+
+describe('SceneProvenancePanel — drilldown detail rendering', () => {
+  it('selected entry shows label and timestamp in detail pane', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const header = document.querySelector('.provenance-drilldown-header');
+    expect(header).not.toBeNull();
+    expect(document.querySelector('.provenance-drilldown-label')!.textContent).toContain('Move');
+    expect(document.querySelector('.provenance-drilldown-time')!.textContent!.length).toBeGreaterThan(0);
+  });
+
+  it('move entry shows before/after position', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200, y: 300 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('.provenance-drilldown-detail');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('(50, 100)');
+    expect(detail!.textContent).toContain('(200, 300)');
+  });
+
+  it('unlink entry shows source relationship summary', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR]);
+    applyTestEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }], { instanceId: 'i2' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('.provenance-drilldown-detail');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('i2');
+    expect(detail!.textContent).toContain('Unlinked');
+  });
+
+  it('set override entry shows slot-aware summary', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR]);
+    const withOverride = {
+      ...INST_CHAR,
+      characterOverrides: { head: { slot: 'head', mode: 'replace' as const, replacementPartId: 'helm-gold' } },
+    };
+    applyTestEdit('set-character-override', [withOverride], { instanceId: 'i2', slotId: 'head' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('.provenance-drilldown-detail');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('head');
+    expect(detail!.textContent).toContain('i2');
+  });
+
+  it('clear-all overrides entry shows its own summary', () => {
+    useSceneEditorStore.getState().loadInstances([INST_CHAR_WITH_OVERRIDES]);
+    const noOverrides = { ...INST_CHAR_WITH_OVERRIDES, characterOverrides: undefined };
+    applyTestEdit('clear-all-character-overrides', [noOverrides], { instanceId: 'i4' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const desc = document.querySelector('.provenance-drilldown-description');
+    expect(desc).not.toBeNull();
+    expect(desc!.textContent).toContain('Cleared');
+    expect(desc!.textContent).toContain('2');
+  });
+});
+
+// ── Stability tests ──
+
+describe('SceneProvenancePanel — selection stability', () => {
+  it('adding a new activity entry does not auto-switch selection', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const { rerender } = render(<SceneProvenancePanel />);
+    // Select the first (and only) row
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const selectedSeq = document.querySelector('.scene-provenance-row.selected')!.getAttribute('data-sequence');
+
+    // Add a new entry
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    rerender(<SceneProvenancePanel />);
+
+    // Selection stays on the original sequence
+    const stillSelected = document.querySelector('.scene-provenance-row.selected');
+    expect(stillSelected).not.toBeNull();
+    expect(stillSelected!.getAttribute('data-sequence')).toBe(selectedSeq);
+  });
+
+  it('selection uses provenance sequence not array index', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    // List is newest-first: second row is sequence 1 (first edit)
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[1]); // click the older one
+    const selectedSeq = rows[1].getAttribute('data-sequence');
+    expect(selectedSeq).toBe('1');
+    expect(rows[1].classList.contains('selected')).toBe(true);
+    expect(rows[0].classList.contains('selected')).toBe(false);
+  });
+
+  it('newest-first ordering does not break drilldown lookup', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, x: 100, visible: false }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    // Click the newest entry (visibility, rendered first)
+    fireEvent.click(document.querySelectorAll('.scene-provenance-row')[0]);
+    const desc = document.querySelector('.provenance-drilldown-description');
+    expect(desc).not.toBeNull();
+    expect(desc!.textContent).toContain('hidden');
+  });
+});
+
+// ── Read-only tests ──
+
+describe('SceneProvenancePanel — read-only drilldown', () => {
+  it('detail pane has no action buttons', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const pane = document.querySelector('.provenance-drilldown-pane');
+    expect(pane).not.toBeNull();
+    expect(pane!.querySelectorAll('button').length).toBe(0);
+  });
+
+  it('undo/redo still do not generate entries while panel is rendered', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const { rerender } = render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+
+    useSceneEditorStore.getState().undo();
+    rerender(<SceneProvenancePanel />);
+    expect(document.querySelectorAll('.scene-provenance-label').length).toBe(1);
+
+    useSceneEditorStore.getState().redo();
+    rerender(<SceneProvenancePanel />);
+    expect(document.querySelectorAll('.scene-provenance-label').length).toBe(1);
   });
 });
