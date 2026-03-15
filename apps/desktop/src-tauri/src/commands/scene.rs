@@ -2,9 +2,10 @@ use std::path::Path;
 use tauri::{command, State};
 
 use crate::engine::scene::{
-    CameraInterpolationMode, ManagedSceneState, SceneAssetInstance, SceneCamera,
-    SceneCameraKeyframe, SceneDocument, SceneExportResult, SceneInfo, ScenePlaybackState,
-    SceneState, SceneTimelineSummary, SourceAssetFrames, SourceClipInfo,
+    CameraInterpolationMode, ManagedSceneState, PersistedSceneProvenanceDrilldownSource,
+    PersistedSceneProvenanceEntry, SceneAssetInstance, SceneCamera, SceneCameraKeyframe,
+    SceneDocument, SceneExportResult, SceneInfo, ScenePlaybackState, SceneState,
+    SceneTimelineSummary, SourceAssetFrames, SourceClipInfo,
 };
 use crate::errors::AppError;
 use crate::persistence::scene_io;
@@ -783,4 +784,45 @@ pub fn relink_scene_instance_to_source(
     let result = inst.clone();
     scene.dirty = true;
     Ok(result)
+}
+
+// ── Provenance persistence ──
+
+/// Response payload for get_scene_provenance.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneProvenancePayload {
+    pub provenance: Vec<PersistedSceneProvenanceEntry>,
+    pub provenance_drilldown: std::collections::HashMap<String, PersistedSceneProvenanceDrilldownSource>,
+}
+
+/// Get persisted provenance and drilldown data from the current scene.
+#[command]
+pub fn get_scene_provenance(
+    state: State<'_, ManagedSceneState>,
+) -> Result<SceneProvenancePayload, AppError> {
+    let guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+    Ok(SceneProvenancePayload {
+        provenance: scene.document.provenance.clone(),
+        provenance_drilldown: scene.document.provenance_drilldown.clone(),
+    })
+}
+
+/// Sync frontend provenance state back to the in-memory scene document (called before save).
+#[command]
+pub fn sync_scene_provenance(
+    provenance: Vec<PersistedSceneProvenanceEntry>,
+    provenance_drilldown: std::collections::HashMap<String, PersistedSceneProvenanceDrilldownSource>,
+    state: State<'_, ManagedSceneState>,
+) -> Result<(), AppError> {
+    let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_mut()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+    scene.document.provenance = provenance;
+    scene.document.provenance_drilldown = provenance_drilldown;
+    Ok(())
 }

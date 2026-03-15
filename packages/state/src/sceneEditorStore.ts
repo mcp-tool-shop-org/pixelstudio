@@ -18,6 +18,7 @@ import type { SceneProvenanceEntry } from './sceneProvenance';
 import {
   createSceneProvenanceEntry,
   resetProvenanceSequence,
+  setProvenanceSequence,
 } from './sceneProvenance';
 import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 import { captureProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
@@ -114,6 +115,18 @@ export interface SceneEditorState {
    * pre-redo state and history.
    */
   redo: () => SceneUndoRedoResult | undefined;
+
+  // ── Persistence hydration ──
+
+  /**
+   * Hydrate provenance and drilldown from persisted scene data.
+   * Does NOT create history entries or append provenance — this is pure state restoration.
+   * Sets the sequence counter to max(persisted sequences) + 1 so new edits don't collide.
+   */
+  loadPersistedProvenance: (
+    provenance: SceneProvenanceEntry[],
+    drilldownBySequence: Record<number, SceneProvenanceDrilldownSource>,
+  ) => void;
 
   // ── Lifecycle ──
 
@@ -222,6 +235,13 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
         });
       },
     };
+  },
+
+  loadPersistedProvenance: (provenance, drilldownBySequence) => {
+    // Compute next sequence from persisted entries
+    const maxSeq = provenance.reduce((max, e) => Math.max(max, e.sequence), 0);
+    setProvenanceSequence(maxSeq + 1);
+    set({ provenance, drilldownBySequence });
   },
 
   resetHistory: () => {

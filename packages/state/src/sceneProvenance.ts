@@ -39,6 +39,14 @@ export function resetProvenanceSequence(): number {
 }
 
 /**
+ * Set the sequence counter to a specific value.
+ * Used when hydrating persisted provenance so new edits continue from the right number.
+ */
+export function setProvenanceSequence(value: number): void {
+  _nextSequence = value;
+}
+
+/**
  * Get the current next sequence value without incrementing.
  * For testing only.
  */

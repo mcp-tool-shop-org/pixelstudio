@@ -191,6 +191,8 @@ pub fn run() {
             scene::restore_scene_instances,
             scene::unlink_scene_instance_from_source,
             scene::relink_scene_instance_to_source,
+            scene::get_scene_provenance,
+            scene::sync_scene_provenance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GlyphStudio");

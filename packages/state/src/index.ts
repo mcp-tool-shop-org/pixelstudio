@@ -144,6 +144,7 @@ export {
   createSceneProvenanceEntry,
   describeSceneProvenanceEntry,
   resetProvenanceSequence,
+  setProvenanceSequence,
 } from './sceneProvenance';
 export type { SceneProvenanceEntry } from './sceneProvenance';
 export {

@@ -1,7 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@glyphstudio/domain';
+import type {
+  SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames,
+  PersistedSceneProvenanceEntry, PersistedSceneProvenanceDrilldownSource,
+} from '@glyphstudio/domain';
 import { useScenePlaybackStore, useProjectStore, useSceneEditorStore } from '@glyphstudio/state';
+import type { SceneProvenanceEntry, SceneProvenanceDrilldownSource } from '@glyphstudio/state';
+
+/** Response shape from get_scene_provenance IPC command. */
+interface SceneProvenancePayload {
+  provenance: PersistedSceneProvenanceEntry[];
+  provenanceDrilldown: Record<string, PersistedSceneProvenanceDrilldownSource>;
+}
+
+/** Convert persisted provenance payload to runtime store types. */
+function hydrateProvenancePayload(payload: SceneProvenancePayload): {
+  provenance: SceneProvenanceEntry[];
+  drilldownBySequence: Record<number, SceneProvenanceDrilldownSource>;
+} {
+  // Persisted entries are structurally identical to runtime entries (same shape, same kind strings)
+  const provenance = payload.provenance as unknown as SceneProvenanceEntry[];
+  // Convert string-keyed drilldown map to number-keyed
+  const drilldownBySequence: Record<number, SceneProvenanceDrilldownSource> = {};
+  for (const [key, value] of Object.entries(payload.provenanceDrilldown)) {
+    const seq = Number(key);
+    if (!isNaN(seq)) {
+      drilldownBySequence[seq] = value as unknown as SceneProvenanceDrilldownSource;
+    }
+  }
+  return { provenance, drilldownBySequence };
+}
 
 /** Cached frame images for a source asset + clip combination. */
 interface CachedFrames {
@@ -64,11 +92,12 @@ export function SceneCanvas() {
   const refresh = useCallback(async () => {
     try {
       const info = await invoke<SceneInfo>('get_scene_info');
-      // If scene changed (different ID), clear caches and reset playback
+      // If scene changed (different ID), clear caches, reset playback, and clear history/provenance
       if (sceneInfo && info.sceneId !== sceneInfo.sceneId) {
         clearFrameCache();
         useScenePlaybackStore.getState().resetClock();
         useScenePlaybackStore.getState().setPlaying(false);
+        useSceneEditorStore.getState().resetHistory();
       }
       setSceneInfo(info);
       // Sync base camera from backend → store
@@ -80,6 +109,14 @@ export function SceneCanvas() {
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
       const insts = await invoke<SceneAssetInstance[]>('get_scene_instances');
       loadInstances(insts);
+      // Hydrate persisted provenance after instances are loaded
+      try {
+        const payload = await invoke<SceneProvenancePayload>('get_scene_provenance');
+        const { provenance, drilldownBySequence } = hydrateProvenancePayload(payload);
+        useSceneEditorStore.getState().loadPersistedProvenance(provenance, drilldownBySequence);
+      } catch {
+        // Scene may not have provenance (legacy) — leave empty
+      }
     } catch {
       setSceneInfo(null);
       loadInstances([]);

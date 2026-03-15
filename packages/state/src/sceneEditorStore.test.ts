@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
 import { useSceneEditorStore } from './sceneEditorStore';
 import { createEmptySceneHistoryState } from './sceneHistoryEngine';
-import { resetProvenanceSequence } from './sceneProvenance';
+import { resetProvenanceSequence, peekProvenanceSequence } from './sceneProvenance';
 import { deriveProvenanceDiff } from './sceneProvenanceDrilldown';
 import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 
@@ -1889,6 +1889,202 @@ describe('SceneEditorStore — 19.5 hardening', () => {
       expect(diff!.before).toEqual(CAM_ORIGIN);
       expect(diff!.after).toEqual(CAM_ZOOMED);
       expect(diff!.changedFields).toEqual(['zoom']);
+    }
+  });
+});
+
+// ── Stage 20.2 — Provenance hydration tests ──
+
+describe('SceneEditorStore — loadPersistedProvenance', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 120, y: 80, zoom: 1.0 };
+
+  beforeEach(() => {
+    useSceneEditorStore.setState({
+      instances: [INST_ASSET],
+      history: createEmptySceneHistoryState(),
+      provenance: [],
+      drilldownBySequence: {},
+      canUndo: false,
+      canRedo: false,
+      camera: undefined,
+    });
+    resetProvenanceSequence();
+  });
+
+  it('hydrates provenance entries exactly', () => {
+    const entries = [
+      { sequence: 1, kind: 'add-instance' as const, label: 'Added Tree', timestamp: '2026-03-15T12:00:00Z' },
+      { sequence: 2, kind: 'move-instance' as const, label: 'Moved Tree', timestamp: '2026-03-15T12:01:00Z', metadata: { instanceId: 'i1' } },
+    ];
+    useSceneEditorStore.getState().loadPersistedProvenance(entries, {});
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[0].sequence).toBe(1);
+    expect(state.provenance[0].label).toBe('Added Tree');
+    expect(state.provenance[1].sequence).toBe(2);
+  });
+
+  it('hydrates drilldown sources exactly', () => {
+    const source: SceneProvenanceDrilldownSource = {
+      kind: 'move-instance',
+      metadata: { instanceId: 'i1' },
+      beforeInstance: { ...INST_ASSET },
+      afterInstance: { ...INST_ASSET, x: 200, y: 300 },
+    };
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 5, kind: 'move-instance', label: 'Moved Tree', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      { 5: source },
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.drilldownBySequence[5]).toBeDefined();
+    expect(state.drilldownBySequence[5].beforeInstance?.x).toBe(50);
+    expect(state.drilldownBySequence[5].afterInstance?.x).toBe(200);
+  });
+
+  it('hydrates camera drilldown sources with before/after values', () => {
+    const source: SceneProvenanceDrilldownSource = {
+      kind: 'set-scene-camera',
+      metadata: { changedFields: ['x', 'y'] },
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    };
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 3, kind: 'set-scene-camera', label: 'Camera pan', timestamp: '2026-03-15T12:00:00Z' }],
+      { 3: source },
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.drilldownBySequence[3].beforeCamera).toEqual(CAM_A);
+    expect(state.drilldownBySequence[3].afterCamera).toEqual(CAM_B);
+  });
+
+  it('sets sequence counter to max(persisted) + 1', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [
+        { sequence: 10, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' },
+        { sequence: 42, kind: 'move-instance', label: 'B', timestamp: '2026-03-15T12:01:00Z' },
+      ],
+      {},
+    );
+    expect(peekProvenanceSequence()).toBe(43);
+  });
+
+  it('does not create history entries', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.canUndo).toBe(false);
+    expect(state.canRedo).toBe(false);
+  });
+
+  it('does not append new provenance entries', () => {
+    // Pre-load some entries then hydrate — should replace, not append
+    const { applyEdit, loadInstances } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+
+    // Hydrate with different entries — replaces entirely
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 5, kind: 'add-instance', label: 'Loaded', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].sequence).toBe(5);
+    expect(state.provenance[0].label).toBe('Loaded');
+  });
+
+  it('loading scene B replaces scene A provenance', () => {
+    // Scene A provenance
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'Scene A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance', afterInstance: { ...INST_ASSET } } },
+    );
+    expect(useSceneEditorStore.getState().provenance[0].label).toBe('Scene A');
+
+    // Scene B provenance replaces
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Scene B', timestamp: '2026-03-15T13:00:00Z' }],
+      {},
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].label).toBe('Scene B');
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('loading empty provenance clears prior state', () => {
+    // Load some provenance first
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-instance', label: 'A', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-instance', afterInstance: { ...INST_ASSET } } },
+    );
+    expect(useSceneEditorStore.getState().provenance).toHaveLength(1);
+
+    // Load empty — clears
+    useSceneEditorStore.getState().loadPersistedProvenance([], {});
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(0);
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('loaded instance provenance entry still derives valid drilldown', () => {
+    const before = { ...INST_ASSET, x: 50, y: 100 };
+    const after = { ...INST_ASSET, x: 200, y: 300 };
+    const source: SceneProvenanceDrilldownSource = {
+      kind: 'move-instance',
+      metadata: { instanceId: 'i1' },
+      beforeInstance: before,
+      afterInstance: after,
+    };
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Moved Tree', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      { 1: source },
+    );
+    const loaded = useSceneEditorStore.getState().drilldownBySequence[1];
+    const diff = deriveProvenanceDiff(
+      loaded.kind,
+      loaded.beforeInstance ? [loaded.beforeInstance] : [],
+      loaded.afterInstance ? [loaded.afterInstance] : [],
+      loaded.metadata,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('move');
+    if (diff!.type === 'move') {
+      expect(diff!.before).toEqual({ x: 50, y: 100 });
+      expect(diff!.after).toEqual({ x: 200, y: 300 });
+    }
+  });
+
+  it('loaded camera provenance entry still derives valid drilldown', () => {
+    const source: SceneProvenanceDrilldownSource = {
+      kind: 'set-scene-camera',
+      metadata: { changedFields: ['x', 'y'], beforeCamera: CAM_A, afterCamera: CAM_B },
+      beforeCamera: CAM_A,
+      afterCamera: CAM_B,
+    };
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'set-scene-camera', label: 'Camera pan', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: source },
+    );
+    const loaded = useSceneEditorStore.getState().drilldownBySequence[1];
+    const diff = deriveProvenanceDiff(
+      loaded.kind,
+      loaded.beforeInstance ? [loaded.beforeInstance] : [],
+      loaded.afterInstance ? [loaded.afterInstance] : [],
+      loaded.metadata,
+      loaded.beforeCamera,
+      loaded.afterCamera,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('camera');
+    if (diff!.type === 'camera') {
+      expect(diff!.before).toEqual(CAM_A);
+      expect(diff!.after).toEqual(CAM_B);
     }
   });
 });
