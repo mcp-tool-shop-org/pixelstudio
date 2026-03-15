@@ -54,6 +54,17 @@ export {
   getEquippedSlotsInDisplayOrder,
 } from './characterStore';
 export type { CharacterBuildLibrary, SavedCharacterBuild } from '@glyphstudio/domain';
+export type { SceneInstanceKind, CharacterSlotSnapshot } from '@glyphstudio/domain';
+export {
+  placeCharacterBuild,
+  reapplyCharacterBuild,
+  createSlotSnapshot,
+  isCharacterInstance,
+  isSourceBuildAvailable,
+  generateCharacterInstanceId,
+  CHARACTER_PLACEMENT_DEFAULTS,
+} from './characterSceneBridge';
+export type { CharacterPlacementOptions } from './characterSceneBridge';
 export {
   createEmptyLibrary,
   generateSavedBuildId,

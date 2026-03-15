@@ -1,6 +1,9 @@
 /** Unique scene identifier. */
 export type SceneId = string;
 
+/** Instance kind — distinguishes generic assets from character-derived instances. */
+export type SceneInstanceKind = 'asset' | 'character';
+
 /** A placed asset instance within a scene. */
 export interface SceneAssetInstance {
   instanceId: string;
@@ -8,8 +11,14 @@ export interface SceneAssetInstance {
   sourcePath: string;
   /** Optional asset catalog ID. */
   assetId?: string;
-  /** Optional character build ID this instance was derived from (future bridge). */
+  /** Instance kind — 'asset' (default) or 'character'. */
+  instanceKind?: SceneInstanceKind;
+  /** Source character build ID this instance was derived from (character instances only). */
   sourceCharacterBuildId?: string;
+  /** Snapshot of the character build's name at placement time (character instances only). */
+  sourceCharacterBuildName?: string;
+  /** Snapshot of equipped slots at placement time (character instances only). */
+  characterSlotSnapshot?: CharacterSlotSnapshot;
   /** Display name for the instance. */
   name: string;
   /** Which clip to play (undefined = first clip or static). */
@@ -25,6 +34,20 @@ export interface SceneAssetInstance {
   opacity: number;
   /** Parallax factor: 1.0 = normal, <1.0 = background, >1.0 = foreground. */
   parallax: number;
+}
+
+/**
+ * Snapshot of a character build's equipped slots at placement time.
+ * Stored on scene instances so the scene can render the character
+ * even if the source build is later modified or deleted.
+ */
+export interface CharacterSlotSnapshot {
+  /** Equipped slot entries — slot ID → source part ID. */
+  slots: Record<string, string>;
+  /** Number of equipped slots at time of snapshot. */
+  equippedCount: number;
+  /** Total slots in the vocabulary at time of snapshot. */
+  totalSlots: number;
 }
 
 /** Scene camera — defines the viewport into the scene stage. */
