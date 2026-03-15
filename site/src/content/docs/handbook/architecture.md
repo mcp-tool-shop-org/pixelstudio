@@ -56,7 +56,7 @@ The frontend never holds pixel truth. Every pixel mutation goes through Rust and
 
 ## State model
 
-The frontend uses 16 Zustand stores organized by domain, plus a canvas frame store for rendering:
+The frontend uses 17 Zustand stores organized by domain, plus a canvas frame store for rendering:
 
 | Store | Responsibility |
 |-------|---------------|
@@ -76,6 +76,7 @@ The frontend uses 16 Zustand stores organized by domain, plus a canvas frame sto
 | export | Preset selection, readiness, preview state |
 | character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
+| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -90,7 +91,7 @@ The frontend uses 16 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-163 implemented Tauri commands across:
+164 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
 - **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
@@ -105,7 +106,7 @@ The frontend uses 16 Zustand stores organized by domain, plus a canvas frame sto
 - **Asset Catalog** (6): list assets, get/upsert/remove catalog entry, refresh catalog, generate thumbnail (file-backed index separate from projects)
 - **Bundle Packaging** (4): preview/export asset bundle, preview/export catalog bundle (multi-asset with per-asset subfolders)
 - **Package Metadata** (2): get/set asset package metadata (name, version, author, description, tags — persisted with project)
-- **Scene** (32): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick
+- **Scene** (34): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick, unlink/relink instance, restore instances (undo/redo backend sync)
 - Plus stubs for palette, validation, AI, locomotion analysis, and provenance
 
 ## Camera timeline lane
@@ -135,6 +136,101 @@ The scene timeline includes a dedicated camera lane (`CameraTimelineLane`) that 
 | Delete selected | Removes keyframe at `selectedKeyframeTick` |
 | Previous / Next key | Navigates to adjacent keyframe in sorted order |
 | Jump to selected | Seeks playhead to `selectedKeyframeTick` |
+
+## Scene undo/redo history
+
+GlyphStudio has two separate undo/redo systems that coexist without interference:
+
+- **Canvas undo/redo** — stroke-level, backend-owned in Rust, operates on pixel patches
+- **Scene undo/redo** — snapshot-level, frontend-owned in TypeScript state, operates on scene instance arrays
+
+These are intentionally distinct mechanisms. Canvas undo reverses pixel strokes; scene undo reverses document-level scene edits (instance placement, transforms, character operations). They do not share stacks or interact.
+
+### Architecture
+
+Scene history uses a three-layer architecture in `@glyphstudio/state`:
+
+| Layer | Module | Responsibility |
+|-------|--------|---------------|
+| Contract | `sceneHistory.ts` | Operation kinds, snapshot types, entry creation, no-op detection |
+| Engine | `sceneHistoryEngine.ts` | Pure-function stack mechanics (push, undo, redo, max-entries) |
+| Store | `sceneEditorStore.ts` | Zustand store binding engine to mutable state + rollback actions |
+
+All three layers are pure TypeScript with no framework dependency except the store layer (Zustand).
+
+### History model
+
+Scene history uses **full-snapshot** storage. Each history entry records:
+
+- `before`: complete `SceneAssetInstance[]` at the moment before the edit
+- `after`: complete `SceneAssetInstance[]` after the edit
+- `kind`: which operation produced the edit
+- `metadata`: optional instance ID, camera data, or override details
+- `timestamp`: when the edit occurred
+
+Undo restores the stored `before` snapshot exactly. Redo restores the stored `after` snapshot exactly. No recomputation or re-derivation occurs.
+
+### Operations that produce history
+
+These scene edits are routed through `applyEdit` and create history entries:
+
+| Operation kind | Description |
+|----------------|-------------|
+| `add-instance` | Place a new asset or character instance |
+| `remove-instance` | Delete an instance from the scene |
+| `move-instance` | Change instance position (x, y) |
+| `set-instance-visibility` | Toggle instance visible/hidden |
+| `set-instance-opacity` | Change instance opacity |
+| `set-instance-layer` | Change instance z-order |
+| `set-instance-clip` | Assign or clear clip |
+| `set-instance-parallax` | Change parallax depth factor |
+| `reapply-character-source` | Refresh character snapshot from source build |
+| `unlink-character-source` | Sever source relationship |
+| `relink-character-source` | Restore source relationship |
+| `set-character-override` | Set a per-slot local override |
+| `remove-character-override` | Clear a single slot override |
+| `clear-all-character-overrides` | Clear all overrides on an instance |
+| `set-scene-camera` | Change scene camera position/zoom |
+| `set-scene-playback` | Change playback settings (FPS, loop) |
+
+Identical (no-op) edits are automatically detected and skipped — no history entry is created.
+
+### What does NOT create history
+
+- Backend load/refresh (`loadInstances`) — periodic sync from backend
+- Selection changes — component-local `useState`, not scene state
+- Panel open/close — workspace layout state
+- Typing/focus/hover — transient UI state
+- Playback state — clock tick, play/pause
+- Error state changes — ephemeral notifications
+
+Non-scene UI state is not part of scene history.
+
+### Undo/redo semantics
+
+- Undo restores the stored `before` snapshot; redo restores the stored `after` snapshot
+- A new forward edit after undo clears the redo stack
+- Undo/redo requires successful backend sync via `restore_scene_instances`
+- On backend sync failure, the local store and history stacks roll back to their exact prior state
+- The rollback closure captures pre-undo/redo instances and history by reference, ensuring perfect restoration
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl/Cmd+Z | Undo |
+| Ctrl/Cmd+Shift+Z | Redo |
+| Ctrl/Cmd+Y | Redo (alternative) |
+
+Shortcuts are suppressed when focus is in an `<input>`, `<textarea>`, or `contentEditable` element.
+
+### Current limitations
+
+- Scene history is session-local — it resets on scene change or app restart
+- No scene provenance/audit timeline yet
+- No metadata-bearing scene export/import yet
+- History is scene-instance-based, not a generalized project-wide undo system
+- Canvas and scene editors use different undo mechanisms by design
 
 ## Character workflow
 
@@ -357,7 +453,7 @@ Persistence contract:
 - Explicit `'unlinked'` is serialized and restored exactly
 - Snapshot, overrides, and `sourceCharacterBuildId` are preserved through the unlinked state across save/load
 - Unlink and relink operations set the backend dirty flag, ensuring the change is included in the next save
-- Undo/redo for scene operations is not yet implemented; unlink/relink will participate when it is
+- Undo/redo for scene operations is implemented via `sceneEditorStore` with full-snapshot history; unlink/relink participate in the history stack
 
 #### Source status derivation
 

@@ -911,6 +911,7 @@ If all metadata fields are at defaults (empty name, version `0.1.0`, no author/d
 | `seek_scene_tick` | `tick: number` | `SceneTimelineSummary` | Validate seek target against timeline |
 | `unlink_scene_instance_from_source` | `instanceId: string` | `SceneAssetInstance` | Sever source relationship — sets `characterLinkMode` to `'unlinked'`. Rejects non-character or already-unlinked instances |
 | `relink_scene_instance_to_source` | `instanceId: string` | `SceneAssetInstance` | Restore source relationship — clears `characterLinkMode`. Rejects non-character or not-currently-unlinked instances |
+| `restore_scene_instances` | `instances: SceneAssetInstance[]` | `SceneAssetInstance[]` | Replace all scene instances atomically (used by undo/redo backend sync). Sets scene dirty flag. |
 
 ### SceneAssetInstance
 
@@ -1034,6 +1035,56 @@ Pure functions exported from `@glyphstudio/state` for the character scene bridge
 
 All helpers are pure functions exported from `@glyphstudio/state`. The camera timeline lane uses these to project `cameraKeyframes[]` into visual elements without maintaining a separate data model.
 
+### Scene history helpers
+
+Pure functions and types exported from `@glyphstudio/state` for the scene undo/redo system.
+
+#### Contract layer (`sceneHistory`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `SceneHistoryOperationKind` | type | Union of 16 operation kind strings |
+| `SceneHistorySnapshot` | type | `{ instances: SceneAssetInstance[] }` |
+| `SceneHistoryEntry` | type | Before/after snapshots + kind + metadata + timestamp |
+| `SceneHistoryOperationMetadata` | type | Optional instanceId, camera, override metadata |
+| `ALL_SCENE_HISTORY_OPERATION_KINDS` | const | Array of all 16 operation kind strings |
+| `describeSceneHistoryOperation` | fn | Human-readable label for an operation kind |
+| `isSceneHistoryChange` | fn | Detect no-op (identical before/after instances) |
+| `createSceneHistoryEntry` | fn | Build a history entry from before/after + kind + metadata |
+| `captureSceneSnapshot` | fn | Create a snapshot from an instance array |
+
+#### Engine layer (`sceneHistoryEngine`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `SceneHistoryState` | type | Past/future stacks + maxEntries + isApplyingHistory |
+| `createEmptySceneHistoryState` | fn | Fresh state with empty stacks |
+| `canUndoScene` | fn | Whether undo is available |
+| `canRedoScene` | fn | Whether redo is available |
+| `recordSceneHistoryEntry` | fn | Push entry onto past, clear future |
+| `undoSceneHistory` | fn | Pop past → return snapshot + push to future |
+| `redoSceneHistory` | fn | Pop future → return snapshot + push to past |
+| `finishApplyingHistory` | fn | Clear `isApplyingHistory` flag |
+| `applySceneEditWithHistory` | fn | Detect no-op, record entry, return new state |
+
+#### Store layer (`sceneEditorStore`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `useSceneEditorStore` | Zustand store | Centralized scene instances + history |
+| `SceneEditorState` | type | Store shape (instances, history, actions) |
+| `SceneUndoRedoResult` | type | `{ instances: SceneAssetInstance[], rollback: () => void }` |
+
+Store actions:
+
+| Action | Signature | Description |
+|--------|-----------|-------------|
+| `loadInstances` | `(instances) → void` | Load from backend without history (refresh, initial load) |
+| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history (captures before/after) |
+| `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
+| `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
+| `resetHistory` | `() → void` | Clear history stacks (scene change / new scene) |
+
 ### SceneTimelineSummary
 
 ```typescript
@@ -1123,6 +1174,7 @@ Scene files use the `.pscn` extension and are stored separately from `.pxs` spri
 - Global scene clock first; per-instance offsets deferred
 - Scene transforms in 10A: move, visibility, opacity, z-order only
 - Scene export starts with current composited frame (PNG)
+- Scene undo/redo uses full-snapshot history in TypeScript state, separate from canvas stroke undo in Rust
 - Scene operations do not corrupt sprite project undo history
 - Missing source assets render as placeholder boxes (no crash)
 - Adding missing/non-loadable assets is rejected at command level
@@ -1140,6 +1192,7 @@ The Scene tab in the top bar activates a dedicated workspace:
 - **Add Asset** — dropdown populated from asset catalog (missing assets filtered out)
 - **Instances panel** — right dock shows all instances sorted by z-order with visibility toggle, bring forward/send backward, remove, opacity slider, clip picker, parallax depth control with BG/MG/FG presets
 - **Camera controls** — pan (middle-click drag), zoom (scroll wheel or +/−/reset buttons), camera state persists in scene file
+- **Undo/redo** — toolbar buttons and keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y); full-snapshot scene history with backend sync via `restore_scene_instances`; rollback on sync failure
 - **Parallax depth** — per-instance parallax factor (0.1–3.0); camera movement reveals depth separation between layers
 - **Playback controls** — stop/step-back/play-pause/step-forward/loop, FPS input, scrubber, tick/time readout
 - **Scene scrubber** — draggable timeline scrubber with jump-to-start/end; scrubbing pauses playback, play resumes from scrubbed position
