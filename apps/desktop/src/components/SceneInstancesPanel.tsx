@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@glyphstudio/domain';
-import { useScenePlaybackStore, useProjectStore, useCharacterStore, isCharacterInstance, isSourceBuildAvailable } from '@glyphstudio/state';
+import { useScenePlaybackStore, useProjectStore, useCharacterStore, isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById } from '@glyphstudio/state';
 
 export function SceneInstancesPanel() {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
@@ -9,8 +9,11 @@ export function SceneInstancesPanel() {
   const [error, setError] = useState('');
 
   const setPlaybackState = useScenePlaybackStore((s) => s.setPlaybackState);
-  const libraryBuilds = useCharacterStore((s) => s.library.builds);
-  const libraryBuildIds = useMemo(() => Object.keys(libraryBuilds), [libraryBuilds]);
+  const buildLibrary = useCharacterStore((s) => s.buildLibrary);
+  const libraryBuildIds = useMemo(
+    () => buildLibrary.builds.map((b) => b.id),
+    [buildLibrary],
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -95,6 +98,17 @@ export function SceneInstancesPanel() {
       setError(String(err));
     }
   }, [selectedId, refresh, notifyDirty]);
+
+  const handleReapply = useCallback((instanceId: string) => {
+    const inst = instances.find((i) => i.instanceId === instanceId);
+    if (!inst || inst.instanceKind !== 'character' || !inst.sourceCharacterBuildId) return;
+    const sourceBuild = findBuildById(buildLibrary, inst.sourceCharacterBuildId);
+    if (!sourceBuild) return;
+    const updated = reapplyCharacterBuild(inst, sourceBuild);
+    if (!updated) return;
+    // Update local instances state — selection stays stable
+    setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
+  }, [instances, buildLibrary]);
 
   // Sort by z-order descending (top items first in list)
   const sorted = [...instances].sort((a, b) => b.zOrder - a.zOrder);
@@ -185,6 +199,7 @@ export function SceneInstancesPanel() {
           <InstanceDetailPane
             instance={inst}
             libraryBuildIds={libraryBuildIds}
+            onReapply={handleReapply}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
               try {
@@ -215,12 +230,14 @@ export function SceneInstancesPanel() {
 function InstanceDetailPane({
   instance,
   libraryBuildIds,
+  onReapply,
   onOpacityChange,
   onParallaxChange,
   onClipChange,
 }: {
   instance: SceneAssetInstance;
   libraryBuildIds: string[];
+  onReapply: (instanceId: string) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
   onClipChange: (instanceId: string, clipId: string | null) => void;
@@ -296,6 +313,22 @@ function InstanceDetailPane({
             }`}>
               {isSourceBuildAvailable(instance, libraryBuildIds) ? 'Linked' : 'Source missing'}
             </span>
+          </div>
+          <div className="scene-instance-detail-row">
+            <span className="scene-instance-detail-label" />
+            <button
+              className="scene-instance-reapply-btn"
+              disabled={!isSourceBuildAvailable(instance, libraryBuildIds)}
+              title={isSourceBuildAvailable(instance, libraryBuildIds)
+                ? 'Refresh snapshot from saved source build'
+                : 'Source build not found in library'}
+              onClick={() => onReapply(instance.instanceId)}
+            >
+              Reapply from Source
+            </button>
+            {!isSourceBuildAvailable(instance, libraryBuildIds) && (
+              <span className="scene-instance-reapply-reason">Build not in library</span>
+            )}
           </div>
         </>
       )}

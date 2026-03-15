@@ -15,6 +15,7 @@ import {
   reapplyCharacterBuild,
   CHARACTER_PLACEMENT_DEFAULTS,
 } from './characterSceneBridge';
+import { findBuildById } from './characterBuildLibrary';
 
 // ── Fixtures ──
 
@@ -350,6 +351,48 @@ describe('placement → reapply round-trip', () => {
     expect(inst.characterSlotSnapshot!.equippedCount).toBe(5);
     expect(inst.sourceCharacterBuildId).toBe('build-warrior');
     expect(inst.sourceCharacterBuildName).toBe('Warrior');
+  });
+});
+
+// ── Integration: reapply with library lookup ──
+
+describe('reapply with library lookup', () => {
+  const library = {
+    schemaVersion: 1,
+    builds: [
+      { id: 'build-warrior', name: 'Warrior Renamed', slots: { head: HEAD, torso: TORSO }, createdAt: '', updatedAt: '' },
+    ],
+  };
+
+  it('resolves source build from library and reapplies', () => {
+    const inst = placeCharacterBuild(WARRIOR, { x: 50, y: 75 });
+    const source = findBuildById(library, inst.sourceCharacterBuildId!);
+    expect(source).toBeDefined();
+    const updated = reapplyCharacterBuild(inst, source!);
+    expect(updated).not.toBeNull();
+    expect(updated!.sourceCharacterBuildName).toBe('Warrior Renamed');
+    expect(updated!.characterSlotSnapshot!.equippedCount).toBe(2);
+    expect(updated!.x).toBe(50);
+    expect(updated!.y).toBe(75);
+    expect(updated!.instanceId).toBe(inst.instanceId);
+  });
+
+  it('missing build returns undefined from findBuildById — blocks reapply', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const source = findBuildById(library, 'nonexistent-id');
+    expect(source).toBeUndefined();
+    // Cannot reapply without source — instance stays unchanged
+    expect(inst.characterSlotSnapshot!.equippedCount).toBe(5);
+  });
+
+  it('reapply is idempotent when source has not changed', () => {
+    const inst = placeCharacterBuild(WARRIOR, { x: 10 });
+    const source = findBuildById(library, inst.sourceCharacterBuildId!);
+    const first = reapplyCharacterBuild(inst, source!);
+    const second = reapplyCharacterBuild(first!, source!);
+    expect(second!.sourceCharacterBuildName).toBe(first!.sourceCharacterBuildName);
+    expect(second!.characterSlotSnapshot).toEqual(first!.characterSlotSnapshot);
+    expect(second!.x).toBe(10);
   });
 });
 

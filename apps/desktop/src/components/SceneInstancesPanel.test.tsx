@@ -96,19 +96,24 @@ const PLAYBACK_STATE = {
   ],
 };
 
-function seedStores(opts?: { libraryBuildIds?: string[] }) {
+interface SeedBuild {
+  id: string;
+  name: string;
+  slots: Record<string, unknown>;
+}
+
+function seedStores(opts?: { libraryBuildIds?: string[]; libraryBuilds?: SeedBuild[] }) {
   useProjectStore.setState({
     projectId: 'p1', name: 'Test', filePath: null, isDirty: false,
     saveStatus: 'idle', colorMode: 'rgb', canvasSize: { width: 64, height: 64 },
   });
   useScenePlaybackStore.setState({ playbackState: PLAYBACK_STATE });
-  // Seed character library with build IDs (for source availability checks)
-  const builds: Record<string, unknown> = {};
-  for (const id of opts?.libraryBuildIds ?? []) {
-    builds[id] = { id, name: `Build ${id}`, slots: {}, createdAt: '', updatedAt: '' };
-  }
+  // Seed character build library (array-based, matches real CharacterBuildLibrary)
+  const builds = (opts?.libraryBuilds ?? (opts?.libraryBuildIds ?? []).map((id) => ({
+    id, name: `Build ${id}`, slots: {}, createdAt: '', updatedAt: '',
+  }))) as never[];
   useCharacterStore.setState({
-    library: { builds: builds as Record<string, never>, order: Object.keys(builds) },
+    buildLibrary: { schemaVersion: 1, builds },
   });
 }
 
@@ -379,5 +384,123 @@ describe('SceneInstancesPanel', () => {
     const statusEl = document.querySelector('.scene-instance-source-status');
     expect(statusEl?.textContent).toBe('Source missing');
     expect(statusEl?.className).toContain('source-missing');
+  });
+
+  // ── Reapply from Source ──
+
+  it('shows "Reapply from Source" button for linked character instance', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    const btn = screen.getByText('Reapply from Source');
+    expect(btn).toBeInTheDocument();
+    expect(btn).not.toBeDisabled();
+  });
+
+  it('does not show reapply button for plain asset instances', async () => {
+    mock.on('get_scene_instances', () => [INST_A]);
+    seedStores();
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Hero')); });
+    expect(screen.queryByText('Reapply from Source')).toBeNull();
+  });
+
+  it('disables reapply button when source build is missing', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_ORPHAN]);
+    seedStores({ libraryBuildIds: [] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Deleted Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
+    const btn = screen.getByText('Reapply from Source');
+    expect(btn).toBeDisabled();
+    expect(screen.getByText('Build not in library')).toBeInTheDocument();
+  });
+
+  it('clicking reapply updates displayed build name and snapshot', async () => {
+    // Source build in library has updated name and different slots
+    const updatedBuild = {
+      id: 'build-1', name: 'Knight v2', slots: { head: { sourceId: 'helm-gold', layerId: 'head' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [updatedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Before reapply — shows original snapshot data
+    expect(screen.getByText('Knight Build')).toBeInTheDocument();
+    expect(screen.getByText('2/12 equipped')).toBeInTheDocument();
+    // Click reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // After reapply — shows updated data
+    expect(screen.getByText('Knight v2')).toBeInTheDocument();
+    expect(screen.getByText('1/12 equipped')).toBeInTheDocument();
+  });
+
+  it('selected instance remains selected after reapply', async () => {
+    const updatedBuild = {
+      id: 'build-1', name: 'Knight v2', slots: { head: { sourceId: 'helm-gold', layerId: 'head' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_A, INST_CHAR]);
+    seedStores({ libraryBuilds: [updatedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Detail pane still visible (instance still selected)
+    expect(screen.getByText('Knight v2')).toBeInTheDocument();
+    expect(screen.getByText('Linked')).toBeInTheDocument();
+  });
+
+  it('reapply does not affect unrelated instances', async () => {
+    const updatedBuild = {
+      id: 'build-1', name: 'Knight v2', slots: { head: { sourceId: 'helm-gold', layerId: 'head' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_A, INST_CHAR]);
+    seedStores({ libraryBuilds: [updatedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Hero (plain asset) is still rendered with original data
+    expect(screen.getByText('Hero')).toBeInTheDocument();
+  });
+
+  it('missing source reapply click does nothing destructive', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_ORPHAN]);
+    seedStores({ libraryBuildIds: [] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Deleted Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
+    // Button is disabled — clicking it should not change anything
+    const btn = screen.getByText('Reapply from Source');
+    expect(btn).toBeDisabled();
+    // Original data still shown
+    expect(screen.getByText('Old Build')).toBeInTheDocument();
+    expect(screen.getByText('1/12 equipped')).toBeInTheDocument();
+  });
+
+  it('source build rename is reflected after reapply', async () => {
+    const renamedBuild = {
+      id: 'build-1', name: 'Paladin', slots: { head: { sourceId: 'helm-iron', layerId: 'head' }, torso: { sourceId: 'plate-steel', layerId: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [renamedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Row still shows old source name
+    expect(screen.getByText('Knight Build')).toBeInTheDocument();
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // After reapply — build name updated to renamed version
+    expect(screen.getByText('Paladin')).toBeInTheDocument();
+    expect(screen.queryByText('Knight Build')).toBeNull();
   });
 });

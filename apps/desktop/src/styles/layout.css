@@ -4487,6 +4487,35 @@
   color: #ffaa44;
 }
 
+.scene-instance-reapply-btn {
+  font-size: 9px;
+  padding: 2px 8px;
+  border: 1px solid var(--accent, #4a9eff);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--accent, #4a9eff);
+  cursor: pointer;
+}
+
+.scene-instance-reapply-btn:hover:not(:disabled) {
+  background: var(--accent, #4a9eff);
+  color: #fff;
+}
+
+.scene-instance-reapply-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.scene-instance-reapply-reason {
+  font-size: 8px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: 4px;
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {
