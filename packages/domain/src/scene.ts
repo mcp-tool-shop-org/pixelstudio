@@ -144,6 +144,85 @@ export interface ScenePlaybackConfig {
   looping: boolean;
 }
 
+// ── Persisted provenance types ──
+
+/**
+ * Operation kind for persisted provenance entries.
+ * Mirrors SceneHistoryOperationKind from state layer, but defined in domain
+ * so persistence does not depend on state internals.
+ */
+export type PersistedSceneOperationKind =
+  | 'add-instance'
+  | 'remove-instance'
+  | 'move-instance'
+  | 'set-instance-visibility'
+  | 'set-instance-opacity'
+  | 'set-instance-layer'
+  | 'set-instance-clip'
+  | 'set-instance-parallax'
+  | 'reapply-character-source'
+  | 'unlink-character-source'
+  | 'relink-character-source'
+  | 'set-character-override'
+  | 'remove-character-override'
+  | 'clear-all-character-overrides'
+  | 'set-scene-camera'
+  | 'set-scene-playback';
+
+/**
+ * Persisted provenance metadata — serializable subset of SceneHistoryOperationMetadata.
+ * Each variant is a plain JSON-safe object with no functions or store references.
+ */
+export type PersistedSceneProvenanceMetadata =
+  | { instanceId: string }
+  | { instanceId: string; slotId: string }
+  | { changedFields?: string[]; beforeCamera?: SceneCamera; afterCamera?: SceneCamera };
+
+/**
+ * A single persisted provenance entry.
+ * Captures edit truth at the time it happened — never recomputed from later state.
+ */
+export interface PersistedSceneProvenanceEntry {
+  /** Monotonically increasing 1-based sequence (persists exactly, never renumbered). */
+  sequence: number;
+  /** Operation kind string. */
+  kind: PersistedSceneOperationKind;
+  /** Human-readable label. */
+  label: string;
+  /** ISO 8601 timestamp. */
+  timestamp: string;
+  /** Optional metadata identifying the edit target. */
+  metadata?: PersistedSceneProvenanceMetadata;
+}
+
+/**
+ * A persisted drilldown source — the captured before/after slices for one provenance entry.
+ * Stores exact edit truth; never recomputed from current scene state.
+ */
+export interface PersistedSceneProvenanceDrilldownSource {
+  /** Operation kind (matches the paired provenance entry). */
+  kind: PersistedSceneOperationKind;
+  /** Optional metadata. */
+  metadata?: PersistedSceneProvenanceMetadata;
+  /** Instance state before the edit (instance-targeted operations only). */
+  beforeInstance?: SceneAssetInstance;
+  /** Instance state after the edit (instance-targeted operations only). */
+  afterInstance?: SceneAssetInstance;
+  /** Camera state before the edit (camera operations only). */
+  beforeCamera?: SceneCamera;
+  /** Camera state after the edit (camera operations only). */
+  afterCamera?: SceneCamera;
+}
+
+/**
+ * Persisted drilldown map — keyed by provenance sequence number (string keys for JSON compat).
+ * Each entry holds the captured before/after slices for that provenance entry.
+ */
+export type PersistedSceneProvenanceDrilldownMap = Record<
+  string,
+  PersistedSceneProvenanceDrilldownSource
+>;
+
 /** The core scene document. */
 export interface SceneDocument {
   sceneId: SceneId;
@@ -154,6 +233,10 @@ export interface SceneDocument {
   playback: ScenePlaybackConfig;
   createdAt: string;
   updatedAt: string;
+  /** Persisted provenance entries — absent in legacy scenes. */
+  provenance?: PersistedSceneProvenanceEntry[];
+  /** Persisted drilldown source slices keyed by provenance sequence — absent in legacy scenes. */
+  provenanceDrilldown?: PersistedSceneProvenanceDrilldownMap;
 }
 
 /** Frontend-facing scene info summary. */

@@ -57,6 +57,10 @@ mod tests {
         CharacterSlotOverride, CharacterSlotOverrideMode, CharacterSlotSnapshot,
         CharacterSourceLinkMode, SceneAssetInstance, SceneInstanceKind,
     };
+    use crate::engine::scene::{
+        PersistedSceneProvenanceEntry, PersistedSceneProvenanceMetadata,
+        PersistedSceneProvenanceDrilldownSource, SceneCamera,
+    };
     use std::collections::HashMap;
 
     /// Helper: create a minimal scene document.
@@ -323,5 +327,159 @@ mod tests {
         let torso_ovr = ovr.get("torso").unwrap();
         assert_eq!(torso_ovr.mode, CharacterSlotOverrideMode::Remove);
         assert!(torso_ovr.replacement_part_id.is_none());
+    }
+
+    // ── Provenance persistence ──
+
+    fn make_provenance_entry(seq: u32, kind: &str, label: &str) -> PersistedSceneProvenanceEntry {
+        PersistedSceneProvenanceEntry {
+            sequence: seq,
+            kind: kind.into(),
+            label: label.into(),
+            timestamp: "2026-03-15T12:00:00Z".into(),
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn absent_provenance_loads_as_empty() {
+        let doc = make_doc();
+        let loaded = round_trip(&doc);
+        assert!(loaded.provenance.is_empty());
+        assert!(loaded.provenance_drilldown.is_empty());
+    }
+
+    #[test]
+    fn provenance_entries_survive_round_trip() {
+        let mut doc = make_doc();
+        doc.provenance.push(make_provenance_entry(1, "add-instance", "Added Tree"));
+        doc.provenance.push(make_provenance_entry(2, "move-instance", "Moved Tree"));
+        let loaded = round_trip(&doc);
+        assert_eq!(loaded.provenance.len(), 2);
+        assert_eq!(loaded.provenance[0].sequence, 1);
+        assert_eq!(loaded.provenance[0].kind, "add-instance");
+        assert_eq!(loaded.provenance[0].label, "Added Tree");
+        assert_eq!(loaded.provenance[1].sequence, 2);
+    }
+
+    #[test]
+    fn provenance_sequence_and_timestamp_survive_exactly() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(42, "set-scene-camera", "Camera pan");
+        entry.timestamp = "2026-03-15T08:30:45.123Z".into();
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        assert_eq!(loaded.provenance[0].sequence, 42);
+        assert_eq!(loaded.provenance[0].timestamp, "2026-03-15T08:30:45.123Z");
+    }
+
+    #[test]
+    fn provenance_metadata_with_instance_id_survives() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(1, "move-instance", "Moved Tree");
+        entry.metadata = Some(PersistedSceneProvenanceMetadata {
+            instance_id: Some("i1".into()),
+            slot_id: None,
+            changed_fields: None,
+            before_camera: None,
+            after_camera: None,
+        });
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        let meta = loaded.provenance[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.instance_id.as_deref(), Some("i1"));
+    }
+
+    #[test]
+    fn provenance_metadata_with_camera_survives() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(1, "set-scene-camera", "Camera zoom");
+        entry.metadata = Some(PersistedSceneProvenanceMetadata {
+            instance_id: None,
+            slot_id: None,
+            changed_fields: Some(vec!["zoom".into()]),
+            before_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 1.0, name: None }),
+            after_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 2.5, name: None }),
+        });
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        let meta = loaded.provenance[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.changed_fields.as_ref().unwrap(), &vec!["zoom".to_string()]);
+        assert_eq!(meta.before_camera.as_ref().unwrap().zoom, 1.0);
+        assert_eq!(meta.after_camera.as_ref().unwrap().zoom, 2.5);
+    }
+
+    #[test]
+    fn drilldown_source_survives_round_trip() {
+        let mut doc = make_doc();
+        doc.provenance.push(make_provenance_entry(1, "move-instance", "Moved Tree"));
+        let inst = SceneAssetInstance::new("tree.pxs".into(), "Tree".into(), 0);
+        let mut after_inst = inst.clone();
+        after_inst.x = 200;
+        after_inst.y = 300;
+        doc.provenance_drilldown.insert("1".into(), PersistedSceneProvenanceDrilldownSource {
+            kind: "move-instance".into(),
+            metadata: Some(PersistedSceneProvenanceMetadata {
+                instance_id: Some(inst.instance_id.clone()),
+                slot_id: None,
+                changed_fields: None,
+                before_camera: None,
+                after_camera: None,
+            }),
+            before_instance: Some(inst),
+            after_instance: Some(after_inst),
+            before_camera: None,
+            after_camera: None,
+        });
+        let loaded = round_trip(&doc);
+        assert_eq!(loaded.provenance_drilldown.len(), 1);
+        let source = loaded.provenance_drilldown.get("1").unwrap();
+        assert_eq!(source.kind, "move-instance");
+        assert_eq!(source.before_instance.as_ref().unwrap().x, 0);
+        assert_eq!(source.after_instance.as_ref().unwrap().x, 200);
+    }
+
+    #[test]
+    fn camera_drilldown_source_survives_round_trip() {
+        let mut doc = make_doc();
+        doc.provenance.push(make_provenance_entry(1, "set-scene-camera", "Camera pan"));
+        doc.provenance_drilldown.insert("1".into(), PersistedSceneProvenanceDrilldownSource {
+            kind: "set-scene-camera".into(),
+            metadata: Some(PersistedSceneProvenanceMetadata {
+                instance_id: None,
+                slot_id: None,
+                changed_fields: Some(vec!["x".into(), "y".into()]),
+                before_camera: None,
+                after_camera: None,
+            }),
+            before_instance: None,
+            after_instance: None,
+            before_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 1.0, name: None }),
+            after_camera: Some(SceneCamera { x: 120.0, y: 80.0, zoom: 1.0, name: None }),
+        });
+        let loaded = round_trip(&doc);
+        let source = loaded.provenance_drilldown.get("1").unwrap();
+        assert_eq!(source.before_camera.as_ref().unwrap().x, 0.0);
+        assert_eq!(source.after_camera.as_ref().unwrap().x, 120.0);
+        assert_eq!(source.after_camera.as_ref().unwrap().y, 80.0);
+    }
+
+    #[test]
+    fn legacy_json_without_provenance_loads_cleanly() {
+        let json = r#"{
+            "schemaVersion": 1,
+            "sceneId": "s1",
+            "name": "Legacy",
+            "canvasWidth": 64,
+            "canvasHeight": 64,
+            "instances": [],
+            "playback": { "fps": 12, "looping": true },
+            "camera": { "x": 0.0, "y": 0.0, "zoom": 1.0 },
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T00:00:00Z"
+        }"#;
+        let file: SceneFile = serde_json::from_str(json).unwrap();
+        assert!(file.document.provenance.is_empty());
+        assert!(file.document.provenance_drilldown.is_empty());
     }
 }

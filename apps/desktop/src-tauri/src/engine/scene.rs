@@ -29,6 +29,12 @@ pub struct SceneDocument {
     pub camera_keyframes: Vec<SceneCameraKeyframe>,
     pub created_at: String,
     pub updated_at: String,
+    /// Persisted provenance entries — absent in legacy scenes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provenance: Vec<PersistedSceneProvenanceEntry>,
+    /// Persisted drilldown source slices keyed by provenance sequence (string keys for JSON compat) — absent in legacy scenes.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub provenance_drilldown: std::collections::HashMap<String, PersistedSceneProvenanceDrilldownSource>,
 }
 
 /// Instance kind — distinguishes generic assets from character-derived instances.
@@ -224,6 +230,65 @@ impl Default for ScenePlaybackConfig {
     }
 }
 
+// ── Persisted provenance types ──
+
+/// Persisted provenance metadata — identifies the edit target.
+/// Flattened to a single struct with optional fields for JSON simplicity.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSceneProvenanceMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slot_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changed_fields: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_camera: Option<SceneCamera>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_camera: Option<SceneCamera>,
+}
+
+/// A single persisted provenance entry — captured edit truth.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSceneProvenanceEntry {
+    /// Monotonically increasing 1-based sequence.
+    pub sequence: u32,
+    /// Operation kind string.
+    pub kind: String,
+    /// Human-readable label.
+    pub label: String,
+    /// ISO 8601 timestamp.
+    pub timestamp: String,
+    /// Optional metadata identifying the edit target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<PersistedSceneProvenanceMetadata>,
+}
+
+/// A persisted drilldown source — captured before/after slices for one provenance entry.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSceneProvenanceDrilldownSource {
+    /// Operation kind (matches the paired provenance entry).
+    pub kind: String,
+    /// Optional metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<PersistedSceneProvenanceMetadata>,
+    /// Instance state before the edit (instance-targeted operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_instance: Option<SceneAssetInstance>,
+    /// Instance state after the edit (instance-targeted operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_instance: Option<SceneAssetInstance>,
+    /// Camera state before the edit (camera operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_camera: Option<SceneCamera>,
+    /// Camera state after the edit (camera operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_camera: Option<SceneCamera>,
+}
+
 impl SceneDocument {
     pub fn new(name: String, width: u32, height: u32) -> Self {
         let now = chrono::Utc::now().to_rfc3339();
@@ -238,6 +303,8 @@ impl SceneDocument {
             camera_keyframes: Vec::new(),
             created_at: now.clone(),
             updated_at: now,
+            provenance: Vec::new(),
+            provenance_drilldown: std::collections::HashMap::new(),
         }
     }
 
@@ -1018,6 +1085,8 @@ mod tests {
             camera_keyframes: keyframes,
             created_at: "2026-01-01T00:00:00Z".into(),
             updated_at: "2026-01-01T00:00:00Z".into(),
+            provenance: Vec::new(),
+            provenance_drilldown: std::collections::HashMap::new(),
         }
     }
 
