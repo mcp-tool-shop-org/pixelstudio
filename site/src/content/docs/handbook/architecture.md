@@ -281,15 +281,58 @@ Each `SceneProvenanceEntry` contains:
 
 ### UI surface
 
-The **Activity** tab in the scene mode RightDock renders provenance entries newest-first. Each row shows the label, formatted timestamp, and metadata summary. The panel is read-only — no jump-to-state, no revert, no diff viewer.
+The **Activity** tab in the scene mode RightDock renders provenance entries newest-first. Each row shows the label, formatted timestamp, and metadata summary. Clicking a row opens the **drilldown pane** showing the captured change for that entry.
+
+### Provenance drilldown
+
+Drilldown is a read-only inspection view for a selected provenance entry. It shows what changed in one specific edit using data captured at the time of the edit — not derived from current scene state.
+
+#### Three-layer separation
+
+| System | Purpose | Mutates state? |
+|--------|---------|----------------|
+| **History** | Reversible before/after snapshots for undo/redo | Yes (stack navigation) |
+| **Provenance** | Append-only record of successful forward edits | No (read-only log) |
+| **Drilldown** | Focused inspection of one provenance entry's captured change | No (derived view) |
+
+History reverses edits. Provenance records edits. Drilldown explains one edit. The three systems share type definitions but never share state.
+
+#### Capture architecture
+
+Drilldown is built on three layers in `@glyphstudio/state`:
+
+| Layer | Module | Responsibility |
+|-------|--------|---------------|
+| Contract | `sceneProvenanceDrilldown.ts` | Diff types (16 discriminated union variants), derivation, description |
+| Capture | `sceneProvenanceDrilldown.ts` | `captureProvenanceDrilldownSource` — extract focused before/after slices at edit seam |
+| Store | `sceneEditorStore.ts` | Store captured slices in `drilldownBySequence`, keyed by provenance sequence |
+
+The capture step runs inside `applyEdit` at the same seam as provenance append. It extracts only the targeted instance (by metadata `instanceId`) from the before and after instance arrays — not the full scene. Camera and playback operations capture metadata only (no instance slices).
+
+#### Diff derivation
+
+`deriveProvenanceDiff` takes a captured source and produces a typed diff:
+
+- **Lifecycle** — instance added/removed with name and position
+- **Move** — before/after position coordinates
+- **Property** — visibility (Visible/Hidden), opacity (percentage), layer, clip path, parallax
+- **Source relationship** — unlink/relink/reapply with link mode transitions and slot-level changes
+- **Override** — set/remove/clear-all with slot, mode, and replacement details
+- **Camera/playback** — changed fields list or settings-changed note
+
+Each diff type is a discriminated union variant keyed by `type`, enabling type-safe rendering in specialized family components.
+
+#### Selection model
+
+Selection is keyed by provenance `sequence` number (stable, monotonically increasing), not array index (which shifts with newest-first rendering). Selection survives appended entries. Selection clears automatically when the selected entry is removed by `resetHistory`.
 
 ### Current limitations
 
-- Provenance is session-local only — no persisted audit log
-- No diff viewer or before/after comparison
-- No jump-to-state from provenance entries
+- Provenance and drilldown are session-local only — no persisted audit log
+- No restore-from-entry or jump-to-state action
+- No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
-- Camera and playback edits are not currently routed through `applyEdit`, so they do not produce provenance entries
+- Camera and playback drilldown shows metadata only (changed fields), not before/after values
 
 ## Character workflow
 

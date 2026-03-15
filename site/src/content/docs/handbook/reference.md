@@ -1077,6 +1077,18 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 | `resetProvenanceSequence` | fn | Reset sequence counter (called on scene change) |
 | `peekProvenanceSequence` | fn | Current next sequence value (testing only) |
 
+#### Drilldown layer (`sceneProvenanceDrilldown`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `SceneProvenanceDiff` | type | Discriminated union — 16 diff variants keyed by `type` |
+| `SceneProvenanceDrilldown` | type | Diff + entry metadata (label, timestamp, sequence) |
+| `SceneProvenanceDrilldownSource` | type | Captured before/after instance slices + kind + metadata |
+| `captureProvenanceDrilldownSource` | fn | Extract focused before/after slices at edit seam (by metadata instanceId) |
+| `deriveProvenanceDiff` | fn | Derive typed diff from captured source slices |
+| `deriveProvenanceDrilldown` | fn | Wrap diff with provenance entry metadata |
+| `describeProvenanceDiff` | fn | Human-readable one-line description of a diff |
+
 #### Store layer (`sceneEditorStore`)
 
 | Export | Type | Purpose |
@@ -1092,6 +1104,7 @@ Store state:
 | `instances` | `SceneAssetInstance[]` | Current authoritative frontend scene state |
 | `history` | `SceneHistoryState` | Undo/redo stacks |
 | `provenance` | `SceneProvenanceEntry[]` | Session-local append-only activity log |
+| `drilldownBySequence` | `Record<number, SceneProvenanceDrilldownSource>` | Captured before/after slices keyed by provenance sequence |
 | `canUndo` | `boolean` | Whether undo is available |
 | `canRedo` | `boolean` | Whether redo is available |
 
@@ -1100,10 +1113,10 @@ Store actions:
 | Action | Signature | Description |
 |--------|-----------|-------------|
 | `loadInstances` | `(instances) → void` | Load from backend without history or provenance (refresh, initial load) |
-| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history and provenance (captures before/after, appends provenance) |
+| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history, provenance, and drilldown capture (captures before/after slices) |
 | `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
 | `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
-| `resetHistory` | `() → void` | Clear history stacks, provenance log, and sequence counter (scene change / new scene) |
+| `resetHistory` | `() → void` | Clear history stacks, provenance log, drilldown captures, and sequence counter (scene change / new scene) |
 
 ### SceneTimelineSummary
 
@@ -1213,7 +1226,7 @@ The Scene tab in the top bar activates a dedicated workspace:
 - **Instances panel** — right dock shows all instances sorted by z-order with visibility toggle, bring forward/send backward, remove, opacity slider, clip picker, parallax depth control with BG/MG/FG presets
 - **Camera controls** — pan (middle-click drag), zoom (scroll wheel or +/−/reset buttons), camera state persists in scene file
 - **Undo/redo** — toolbar buttons and keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y); full-snapshot scene history with backend sync via `restore_scene_instances`; rollback on sync failure
-- **Activity panel** — read-only scene provenance timeline in the Activity tab; shows successful forward edits with labels, timestamps, and metadata; newest-first ordering; session-local scope
+- **Activity panel** — read-only scene provenance timeline in the Activity tab; shows successful forward edits with labels, timestamps, and metadata; newest-first ordering; session-local scope; click any entry to open drilldown pane showing the captured change with operation-aware before/after rendering
 - **Parallax depth** — per-instance parallax factor (0.1–3.0); camera movement reveals depth separation between layers
 - **Playback controls** — stop/step-back/play-pause/step-forward/loop, FPS input, scrubber, tick/time readout
 - **Scene scrubber** — draggable timeline scrubber with jump-to-start/end; scrubbing pauses playback, play resumes from scrubbed position

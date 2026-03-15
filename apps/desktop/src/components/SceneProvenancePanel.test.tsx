@@ -742,4 +742,72 @@ describe('SceneProvenancePanel — read-only drilldown', () => {
     rerender(<SceneProvenancePanel />);
     expect(document.querySelectorAll('.scene-provenance-label').length).toBe(1);
   });
+
+  it('undo/redo do not generate drilldown captures', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const drilldownCountBefore = Object.keys(useSceneEditorStore.getState().drilldownBySequence).length;
+    expect(drilldownCountBefore).toBe(1);
+
+    useSceneEditorStore.getState().undo();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(1);
+
+    useSceneEditorStore.getState().redo();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(1);
+  });
+});
+
+// ── Hardening tests ──
+
+describe('SceneProvenancePanel — hardening', () => {
+  it('missing drilldown source fallback remains stable after list changes', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    // Clear drilldown data to simulate missing source
+    useSceneEditorStore.setState({ drilldownBySequence: {} });
+    const { rerender } = render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    expect(screen.getByText(/Details for this activity entry are not available/)).toBeDefined();
+
+    // Append another entry — fallback for the selected entry should remain
+    applyTestEdit('set-instance-visibility', [{ ...INST_A, x: 200, visible: false }], { instanceId: 'i1' });
+    rerender(<SceneProvenancePanel />);
+    expect(screen.getByText(/Details for this activity entry are not available/)).toBeDefined();
+  });
+
+  it('long activity list with selected entry remains stable after append', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    for (let i = 1; i <= 20; i++) {
+      applyTestEdit('move-instance', [{ ...INST_A, x: i }], { instanceId: 'i1' });
+    }
+    const { rerender } = render(<SceneProvenancePanel />);
+
+    // Select the 10th row (somewhere in the middle)
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[9]);
+    const selectedSeq = rows[9].getAttribute('data-sequence');
+
+    // Append 5 more entries
+    for (let i = 21; i <= 25; i++) {
+      applyTestEdit('move-instance', [{ ...INST_A, x: i }], { instanceId: 'i1' });
+    }
+    rerender(<SceneProvenancePanel />);
+
+    // Selection should still be on the same sequence
+    const stillSelected = document.querySelector('.scene-provenance-row.selected');
+    expect(stillSelected).not.toBeNull();
+    expect(stillSelected!.getAttribute('data-sequence')).toBe(selectedSeq);
+    // Drilldown should still be visible
+    expect(document.querySelector('.provenance-drilldown-header')).not.toBeNull();
+  });
+
+  it('reset clears drilldown captures alongside provenance', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(1);
+
+    useSceneEditorStore.getState().resetHistory();
+    expect(Object.keys(useSceneEditorStore.getState().drilldownBySequence).length).toBe(0);
+    expect(useSceneEditorStore.getState().provenance.length).toBe(0);
+  });
 });
