@@ -63,6 +63,15 @@ export function AnchorPanel() {
   const [conflictPolicy, setConflictPolicy] = useState<AnchorConflictPolicy>('skip');
   const frames = useTimelineStore((s) => s.frames);
 
+  const canvasSize = useProjectStore((s) => s.canvasSize);
+  const markDirty = useProjectStore((s) => s.markDirty);
+
+  /** Mark project dirty on both frontend store and backend. */
+  const notifyDirty = useCallback(() => {
+    markDirty();
+    invoke('mark_dirty').catch(() => {});
+  }, [markDirty]);
+
   // Refresh anchors when frame changes
   useEffect(() => {
     invoke<AnchorResult[]>('list_anchors')
@@ -244,15 +253,6 @@ export function AnchorPanel() {
       setError(String(err));
     }
   }, [notifyDirty]);
-
-  const canvasSize = useProjectStore((s) => s.canvasSize);
-  const markDirty = useProjectStore((s) => s.markDirty);
-
-  /** Mark project dirty on both frontend store and backend. */
-  const notifyDirty = useCallback(() => {
-    markDirty();
-    invoke('mark_dirty').catch(() => {});
-  }, [markDirty]);
 
   const [savePresetMsg, setSavePresetMsg] = useState<string | null>(null);
 
