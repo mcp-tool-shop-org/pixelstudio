@@ -76,7 +76,7 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 | export | Preset selection, readiness, preview state |
 | character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
-| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, session-local provenance log |
+| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, persisted provenance log + drilldown captures |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -91,7 +91,7 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-164 implemented Tauri commands across:
+166 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
 - **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW
@@ -106,8 +106,8 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 - **Asset Catalog** (6): list assets, get/upsert/remove catalog entry, refresh catalog, generate thumbnail (file-backed index separate from projects)
 - **Bundle Packaging** (4): preview/export asset bundle, preview/export catalog bundle (multi-asset with per-asset subfolders)
 - **Package Metadata** (2): get/set asset package metadata (name, version, author, description, tags — persisted with project)
-- **Scene** (34): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick, unlink/relink instance, restore instances (undo/redo backend sync)
-- Plus stubs for palette, validation, AI, locomotion analysis, and provenance
+- **Scene** (36): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick, unlink/relink instance, restore instances (undo/redo backend sync), get/sync scene provenance
+- Plus stubs for palette, validation, AI, locomotion analysis
 
 ## Camera timeline lane
 
@@ -251,14 +251,24 @@ Shortcuts are suppressed when focus is in an `<input>`, `<textarea>`, or `conten
 
 ### Current limitations
 
-- Scene history is session-local — it resets on scene change or app restart
+- Scene history is session-local — it resets on scene change or app restart (provenance persists separately)
 - No metadata-bearing scene export/import yet
 - History is scene-instance-based, not a generalized project-wide undo system
 - Canvas and scene editors use different undo mechanisms by design
 
-## Scene provenance
+## Scene provenance (persisted)
 
-Scene provenance is a session-local, append-only activity log that records successful forward scene edits. It exists alongside scene history but serves a fundamentally different purpose.
+Scene provenance is an append-only activity log that records successful forward scene edits. It persists with the scene document, surviving save/load cycles. It exists alongside scene history but serves a fundamentally different purpose.
+
+### Three systems
+
+| System | Purpose | Persists? | Mutates state? |
+|--------|---------|-----------|----------------|
+| **History** | Reversible session-local undo/redo snapshots | No | Yes (stack navigation) |
+| **Provenance** | Persisted scene activity log | Yes | No (read-only log) |
+| **Drilldown** | Focused inspection of one persisted or live provenance entry | Yes | No (derived view) |
+
+History reverses edits. Provenance records edits. Drilldown explains one edit. The three systems share type definitions but never share state.
 
 ### History vs provenance
 
@@ -266,6 +276,7 @@ Scene provenance is a session-local, append-only activity log that records succe
 |--------|--------------|-----------------|
 | **Purpose** | Reversal (undo/redo) | Inspection (what happened) |
 | **Model** | Before/after snapshot pairs | Ordered entry log with label + metadata |
+| **Persistence** | Session-local only | Persists with scene document |
 | **Mutability** | Entries move between past/future stacks | Append-only, never modified |
 | **Trigger** | Forward edits via `applyEdit` | Same — appended at the same seam |
 | **Undo/redo** | Navigates stacks | Does not create entries |
@@ -285,6 +296,40 @@ Provenance is built on two layers in `@glyphstudio/state`:
 
 Provenance reuses the same `SceneHistoryOperationKind` and `SceneHistoryOperationMetadata` types from the history contract. The two systems share type definitions but never share state.
 
+### Persistence model
+
+Provenance and drilldown persist as optional fields on `SceneDocument`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provenance` | `PersistedSceneProvenanceEntry[]` | Ordered activity entries — absent in legacy scenes |
+| `provenanceDrilldown` | `PersistedSceneProvenanceDrilldownMap` | Captured before/after slices keyed by sequence (string keys for JSON) — absent in legacy scenes |
+
+Persisted types are defined in `@glyphstudio/domain` and mirror the state-layer types. The persistence layer never depends on state internals.
+
+#### Save path
+
+`sync_scene_provenance` IPC writes frontend provenance and drilldown to the in-memory `SceneDocument` before `save_scene` serializes to `.pscn`.
+
+#### Load path
+
+`get_scene_provenance` IPC returns the persisted payload. The frontend calls `hydrateProvenancePayload()` to convert string-keyed drilldown map to numeric sequence keys, then `loadPersistedProvenance()` to hydrate the store and set the sequence counter to `max(persisted sequences) + 1`.
+
+#### Sequence continuity
+
+After load, new edits continue from where the persisted sequence left off. Restored and newly created entries share one coherent Activity timeline.
+
+### Backward compatibility
+
+Scenes with missing provenance fields load cleanly:
+
+- Absent `provenance` → empty Activity panel, sequence starts at 1
+- Absent `provenanceDrilldown` → timeline rows render, drilldown shows honest fallback
+- Partial camera metadata → fallback to metadata-only display
+- String-keyed drilldown maps → converted to numeric keys during hydration
+
+**Pinned law:** Absence of provenance is not an error. Absence of drilldown data is not permission to invent fake detail.
+
 ### Append mechanics
 
 Provenance entries are appended inside `applyEdit` in `sceneEditorStore`, using history reference identity to detect whether a real edit occurred:
@@ -298,7 +343,7 @@ This ensures provenance only records actual forward edits without duplicating th
 
 Each `SceneProvenanceEntry` contains:
 
-- `sequence` — monotonically increasing 1-based counter (reset on scene change)
+- `sequence` — monotonically increasing 1-based counter (continues from persisted max after load)
 - `kind` — the `SceneHistoryOperationKind` that produced the entry
 - `label` — human-readable description, enriched with metadata (instance ID, slot ID, changed fields)
 - `timestamp` — ISO 8601 timestamp
@@ -306,21 +351,11 @@ Each `SceneProvenanceEntry` contains:
 
 ### UI surface
 
-The **Activity** tab in the scene mode RightDock renders provenance entries newest-first. Each row shows the label, formatted timestamp, and metadata summary. Clicking a row opens the **drilldown pane** showing the captured change for that entry.
+The **Activity** tab in the scene mode RightDock renders provenance entries newest-first. Each row shows the label, formatted timestamp, and metadata summary. Restored and newly created entries appear as one unified timeline. Clicking a row opens the **drilldown pane** showing the captured change for that entry.
 
 ### Provenance drilldown
 
-Drilldown is a read-only inspection view for a selected provenance entry. It shows what changed in one specific edit using data captured at the time of the edit — not derived from current scene state.
-
-#### Three-layer separation
-
-| System | Purpose | Mutates state? |
-|--------|---------|----------------|
-| **History** | Reversible before/after snapshots for undo/redo | Yes (stack navigation) |
-| **Provenance** | Append-only record of successful forward edits | No (read-only log) |
-| **Drilldown** | Focused inspection of one provenance entry's captured change | No (derived view) |
-
-History reverses edits. Provenance records edits. Drilldown explains one edit. The three systems share type definitions but never share state.
+Drilldown is a read-only inspection view for a selected provenance entry. It shows what changed in one specific edit using data captured at the time of the edit — not derived from current scene state. Drilldown source slices persist alongside provenance entries.
 
 #### Capture architecture
 
@@ -352,14 +387,26 @@ Each diff type is a discriminated union variant keyed by `type`, enabling type-s
 
 Selection is keyed by provenance `sequence` number (stable, monotonically increasing), not array index (which shifts with newest-first rendering). Selection survives appended entries. Selection clears automatically when the selected entry is removed by `resetHistory`.
 
+### Durability boundaries
+
+| Concern | Persists? | Notes |
+|---------|-----------|-------|
+| Provenance entries | Yes | Saved with scene document |
+| Drilldown source slices | Yes | Saved with scene document |
+| Undo/redo history | No | Session-local, resets on scene change or app restart |
+| Playback state | No | Not included in provenance, history, or drilldown |
+| Restore-from-entry | No | Does not exist — drilldown is read-only inspection |
+| Generic raw diff | No | Does not exist — drilldown shows operation-aware focused diffs only |
+| Camera keyframe provenance | No | Keyframe add/update/delete do not produce provenance entries |
+
 ### Current limitations
 
-- Provenance and drilldown are session-local only — no persisted audit log
 - No restore-from-entry or jump-to-state action
 - No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
 - Camera drilldown shows exact before/after values for pan, zoom, and reset; playback drilldown shows metadata only
 - Camera keyframe edits (add/update/delete) do not yet produce history or provenance entries
+- Undo/redo history does not persist — it resets on scene change or app restart
 
 ## Character workflow
 

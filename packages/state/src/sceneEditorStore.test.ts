@@ -2382,3 +2382,112 @@ describe('SceneEditorStore — sequence continuity after load', () => {
     expect(state.drilldownBySequence[21].kind).toBe('move-instance');
   });
 });
+
+// ── Backward compatibility hardening (Stage 20 closeout) ──
+
+describe('SceneEditorStore — backward compatibility hardening', () => {
+  beforeEach(() => {
+    useSceneEditorStore.getState().resetHistory();
+  });
+
+  it('persisted provenance without drilldown map shows timeline rows with empty drilldown', () => {
+    const { loadInstances, loadPersistedProvenance } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    // Load provenance entries but NO drilldown data (partial persistence)
+    loadPersistedProvenance(
+      [
+        { sequence: 1, kind: 'add-instance', label: 'Added Tree', timestamp: '2026-03-15T12:00:00Z' },
+        { sequence: 2, kind: 'move-instance', label: 'Moved Tree', timestamp: '2026-03-15T12:01:00Z', metadata: { instanceId: 'i1' } },
+      ],
+      {},
+    );
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(state.provenance[0].label).toBe('Added Tree');
+    expect(state.provenance[1].label).toBe('Moved Tree');
+    // Drilldown map is empty — no fake data invented
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(0);
+  });
+
+  it('persisted camera entry with partial metadata (missing beforeCamera) degrades without crash', () => {
+    const { loadInstances, loadPersistedProvenance } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    // Camera drilldown with afterCamera but no beforeCamera — simulates partial data
+    loadPersistedProvenance(
+      [{ sequence: 5, kind: 'set-scene-camera', label: 'Camera pan', timestamp: '2026-03-15T12:00:00Z' }],
+      {
+        5: {
+          kind: 'set-scene-camera',
+          metadata: { changedFields: ['x', 'y'] },
+          afterCamera: { x: 100, y: 200, zoom: 1.0 },
+          // beforeCamera intentionally absent
+        },
+      },
+    );
+    const state = useSceneEditorStore.getState();
+    const source = state.drilldownBySequence[5];
+    expect(source).toBeDefined();
+    expect(source.afterCamera).toEqual({ x: 100, y: 200, zoom: 1.0 });
+    expect(source.beforeCamera).toBeUndefined();
+  });
+
+  it('repeated loadPersistedProvenance with same data is idempotent', () => {
+    const { loadInstances, loadPersistedProvenance } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    const entries = [
+      { sequence: 1, kind: 'add-instance' as const, label: 'A', timestamp: '2026-03-15T12:00:00Z' },
+      { sequence: 2, kind: 'move-instance' as const, label: 'B', timestamp: '2026-03-15T12:01:00Z', metadata: { instanceId: 'i1' } as const },
+    ];
+    const drilldown = {
+      1: { kind: 'add-instance' as const, afterInstance: { ...INST_ASSET } },
+      2: { kind: 'move-instance' as const, metadata: { instanceId: 'i1' } as const, beforeInstance: { ...INST_ASSET }, afterInstance: { ...INST_ASSET, x: 200 } },
+    };
+    loadPersistedProvenance(entries, drilldown);
+    loadPersistedProvenance(entries, drilldown);
+    loadPersistedProvenance(entries, drilldown);
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(2);
+    expect(Object.keys(state.drilldownBySequence)).toHaveLength(2);
+    expect(peekProvenanceSequence()).toBe(3);
+  });
+
+  it('persisted entry remains truthful after later live edit to same instance', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    // Load a persisted move entry with captured before/after
+    loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Moved Tree', timestamp: '2026-03-15T12:00:00Z', metadata: { instanceId: 'i1' } }],
+      {
+        1: {
+          kind: 'move-instance',
+          metadata: { instanceId: 'i1' },
+          beforeInstance: { ...INST_ASSET, x: 10, y: 20 },
+          afterInstance: { ...INST_ASSET, x: 50, y: 100 },
+        },
+      },
+    );
+    // Now make a new live edit to the same instance
+    const moved = { ...INST_ASSET, x: 999, y: 888 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    // The persisted entry's captured slices must be unchanged
+    const state = useSceneEditorStore.getState();
+    const persistedSource = state.drilldownBySequence[1];
+    expect(persistedSource.beforeInstance?.x).toBe(10);
+    expect(persistedSource.afterInstance?.x).toBe(50);
+    // The new edit has its own drilldown
+    const liveSource = state.drilldownBySequence[2];
+    expect(liveSource.beforeInstance?.x).toBe(50); // store had INST_ASSET loaded, but edit was from that
+    expect(liveSource.afterInstance?.x).toBe(999);
+  });
+
+  it('first new edit after loading empty provenance uses sequence 1', () => {
+    const { loadInstances, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadPersistedProvenance([], {});
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(1);
+    expect(state.provenance[0].sequence).toBe(1);
+  });
+});

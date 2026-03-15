@@ -43,7 +43,7 @@ export interface SceneEditorState {
   camera: SceneCamera | undefined;
   /** Undo/redo history stacks. */
   history: SceneHistoryState;
-  /** Append-only provenance log for this editing session. */
+  /** Append-only provenance log — persists with the scene document. */
   provenance: SceneProvenanceEntry[];
   /** Captured before/after slices keyed by provenance sequence. */
   drilldownBySequence: Record<number, SceneProvenanceDrilldownSource>;

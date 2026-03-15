@@ -912,6 +912,8 @@ If all metadata fields are at defaults (empty name, version `0.1.0`, no author/d
 | `unlink_scene_instance_from_source` | `instanceId: string` | `SceneAssetInstance` | Sever source relationship — sets `characterLinkMode` to `'unlinked'`. Rejects non-character or already-unlinked instances |
 | `relink_scene_instance_to_source` | `instanceId: string` | `SceneAssetInstance` | Restore source relationship — clears `characterLinkMode`. Rejects non-character or not-currently-unlinked instances |
 | `restore_scene_instances` | `instances: SceneAssetInstance[]` | `SceneAssetInstance[]` | Replace all scene instances atomically (used by undo/redo backend sync). Sets scene dirty flag. |
+| `get_scene_provenance` | — | `SceneProvenancePayload` | Get persisted provenance entries and drilldown map from current scene |
+| `sync_scene_provenance` | `provenance: PersistedSceneProvenanceEntry[], provenance_drilldown: HashMap<String, ...>` | `()` | Write frontend provenance state to in-memory SceneDocument before save |
 
 ### SceneAssetInstance
 
@@ -1075,6 +1077,7 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 | `createSceneProvenanceEntry` | fn | Build a provenance entry from kind + metadata (auto-sequences) |
 | `describeSceneProvenanceEntry` | fn | Label enrichment with instanceId, slotId, changedFields |
 | `resetProvenanceSequence` | fn | Reset sequence counter (called on scene change) |
+| `setProvenanceSequence` | fn | Set sequence counter to a specific value (used during hydration to continue from persisted max) |
 | `peekProvenanceSequence` | fn | Current next sequence value (testing only) |
 
 #### Drilldown layer (`sceneProvenanceDrilldown`)
@@ -1103,7 +1106,7 @@ Store state:
 |-------|------|-------------|
 | `instances` | `SceneAssetInstance[]` | Current authoritative frontend scene state |
 | `history` | `SceneHistoryState` | Undo/redo stacks |
-| `provenance` | `SceneProvenanceEntry[]` | Session-local append-only activity log |
+| `provenance` | `SceneProvenanceEntry[]` | Persisted append-only activity log (restored on scene load) |
 | `drilldownBySequence` | `Record<number, SceneProvenanceDrilldownSource>` | Captured before/after slices keyed by provenance sequence |
 | `canUndo` | `boolean` | Whether undo is available |
 | `canRedo` | `boolean` | Whether redo is available |
@@ -1118,6 +1121,7 @@ Store actions:
 | `applyEdit` | `(kind, nextInstances, metadata?, nextCamera?) → void` | Record edit with history, provenance, and drilldown capture. Camera edits pass `nextCamera` for snapshot + drilldown. |
 | `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
 | `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
+| `loadPersistedProvenance` | `(provenance, drilldownBySequence) → void` | Hydrate persisted provenance and drilldown into the store; sets sequence counter to max(persisted) + 1 |
 | `resetHistory` | `() → void` | Clear history stacks, provenance log, drilldown captures, and sequence counter (scene change / new scene) |
 
 ### SceneTimelineSummary
@@ -1228,7 +1232,7 @@ The Scene tab in the top bar activates a dedicated workspace:
 - **Instances panel** — right dock shows all instances sorted by z-order with visibility toggle, bring forward/send backward, remove, opacity slider, clip picker, parallax depth control with BG/MG/FG presets
 - **Camera controls** — pan (middle-click drag), zoom (scroll wheel or +/−/reset buttons), camera state persists in scene file
 - **Undo/redo** — toolbar buttons and keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y); full-snapshot scene history with backend sync via `restore_scene_instances`; rollback on sync failure
-- **Activity panel** — read-only scene provenance timeline in the Activity tab; shows successful forward edits with labels, timestamps, and metadata; newest-first ordering; session-local scope; click any entry to open drilldown pane showing the captured change with operation-aware before/after rendering
+- **Activity panel** — read-only scene provenance timeline in the Activity tab; shows successful forward edits with labels, timestamps, and metadata; newest-first ordering; persisted with scene document (restored and new entries share one unified timeline); click any entry to open drilldown pane showing the captured change with operation-aware before/after rendering
 - **Parallax depth** — per-instance parallax factor (0.1–3.0); camera movement reveals depth separation between layers
 - **Playback controls** — stop/step-back/play-pause/step-forward/loop, FPS input, scrubber, tick/time readout
 - **Scene scrubber** — draggable timeline scrubber with jump-to-start/end; scrubbing pauses playback, play resumes from scrubbed position
