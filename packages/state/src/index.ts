@@ -53,6 +53,7 @@ export {
   isCharacterValid,
   getEquippedSlotsInDisplayOrder,
 } from './characterStore';
+export type { CharacterBuildLibrary, SavedCharacterBuild } from '@glyphstudio/domain';
 export {
   createEmptyLibrary,
   generateSavedBuildId,

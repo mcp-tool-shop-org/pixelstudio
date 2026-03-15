@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useCharacterStore } from '@glyphstudio/state';
+import { useCharacterStore, createEmptyLibrary, saveBuildToLibrary, toSavedBuild } from '@glyphstudio/state';
 import { CHARACTER_SLOT_IDS } from '@glyphstudio/domain';
-import type { CharacterBuild, CharacterPartRef, CharacterPartPreset } from '@glyphstudio/domain';
+import type { CharacterBuild, CharacterPartRef, CharacterPartPreset, CharacterBuildLibrary } from '@glyphstudio/domain';
 
 import { CharacterBuilderPanel } from '../components/CharacterBuilderPanel';
 
@@ -68,6 +68,8 @@ const CATALOG: CharacterPartPreset[] = [
 
 beforeEach(() => {
   useCharacterStore.getState().clearCharacterBuild();
+  useCharacterStore.getState().setLibrary(createEmptyLibrary());
+  useCharacterStore.getState().selectLibraryBuild(null);
 });
 
 afterEach(cleanup);
@@ -793,5 +795,467 @@ describe('docs-linked semantics', () => {
     expect(screen.getByTestId('char-tier-badge-dagger-iron').textContent).toBe('Compatible');
     // Warning tier
     expect(screen.getByTestId('char-tier-badge-sword-steel').textContent).toBe('Warning');
+  });
+});
+
+// ── Build Library: empty state ──
+
+describe('library empty state', () => {
+  it('library section renders when no build active', () => {
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library')).toBeInTheDocument();
+  });
+
+  it('empty library shows informational message when no build active', () => {
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library-empty')).toBeInTheDocument();
+    expect(screen.getByText(/Saved builds will appear here/)).toBeInTheDocument();
+  });
+
+  it('empty library shows save CTA when build is active', () => {
+    useCharacterStore.getState().createCharacterBuild('Test');
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('char-library-save-cta')).toBeInTheDocument();
+    expect(screen.getByText('Save Current Build')).toBeInTheDocument();
+  });
+
+  it('library count shows 0 when empty', () => {
+    useCharacterStore.getState().createCharacterBuild();
+    render(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library-count').textContent).toBe('0');
+  });
+});
+
+// ── Build Library: save flow ──
+
+describe('library save flow', () => {
+  it('save button creates library entry', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds).toHaveLength(1);
+    expect(lib.builds[0].name).toBe('Warrior');
+  });
+
+  it('saved entry appears in the library list', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library-list')).toBeInTheDocument();
+    expect(screen.getByTestId('char-library-count').textContent).toBe('1');
+  });
+
+  it('save preserves active build content', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds[0].slots.head?.sourceId).toBe('head-basic');
+    expect(lib.builds[0].slots.torso?.sourceId).toBe('torso-plate');
+  });
+
+  it('overwrite updates existing entry on re-save', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    // First save
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    // Modify name
+    act(() => {
+      useCharacterStore.getState().setCharacterName('Warrior V2');
+    });
+    // Second save
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds).toHaveLength(1);
+    expect(lib.builds[0].name).toBe('Warrior V2');
+  });
+
+  it('save CTA in empty library creates entry', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-library-save-cta'));
+    });
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(1);
+  });
+
+  it('onLibraryChange callback fires on save', async () => {
+    const onChange = vi.fn();
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    render(<CharacterBuilderPanel onLibraryChange={onChange} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].builds).toHaveLength(1);
+  });
+});
+
+// ── Build Library: load flow ──
+
+describe('library load flow', () => {
+  function seedLibrary(): string {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    useCharacterStore.getState().clearCharacterBuild();
+    return id;
+  }
+
+  it('clicking load populates active build', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    const build = useCharacterStore.getState().activeCharacterBuild;
+    expect(build).not.toBeNull();
+    expect(build!.name).toBe('Warrior');
+  });
+
+  it('validation updates after load', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-validation-summary').textContent).toContain('Valid build');
+  });
+
+  it('slot list reflects loaded build', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-slot-head').dataset.status).toBe('ready');
+  });
+
+  it('slot selection clears on load', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    useCharacterStore.getState().selectSlot('head');
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-load-${id}`));
+    });
+    expect(useCharacterStore.getState().selectedSlot).toBeNull();
+  });
+});
+
+// ── Build Library: duplicate flow ──
+
+describe('library duplicate flow', () => {
+  function seedLibrary(): string {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    return useCharacterStore.getState().buildLibrary.builds[0].id;
+  }
+
+  it('duplicate creates new entry', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(2);
+  });
+
+  it('duplicate uses "Name Copy" naming', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds[0].name).toBe('Warrior Copy');
+  });
+
+  it('duplicate does not mutate source entry', async () => {
+    const id = seedLibrary();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    const source = lib.builds.find((b) => b.id === id)!;
+    expect(source.name).toBe('Warrior');
+  });
+
+  it('duplicate appears first in list (newest-first)', async () => {
+    const id = seedLibrary();
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds[0].name).toBe('Warrior Copy');
+    expect(lib.builds[1].name).toBe('Warrior');
+  });
+
+  it('onLibraryChange fires on duplicate', async () => {
+    const id = seedLibrary();
+    const onChange = vi.fn();
+    render(<CharacterBuilderPanel onLibraryChange={onChange} />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Build Library: delete flow ──
+
+describe('library delete flow', () => {
+  function seedLibrary(): string {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    return useCharacterStore.getState().buildLibrary.builds[0].id;
+  }
+
+  it('delete requires confirmation click', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    // First click shows confirm
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(1);
+    expect(delBtn.textContent).toBe('Confirm?');
+  });
+
+  it('second click deletes the entry', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(0);
+  });
+
+  it('deleting one row leaves others intact', async () => {
+    const id = seedLibrary();
+    // Add a second build
+    useCharacterStore.getState().createCharacterBuild('Second Build');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(2);
+
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    // Confirm delete
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    const lib = useCharacterStore.getState().buildLibrary;
+    expect(lib.builds).toHaveLength(1);
+    expect(lib.builds[0].name).toBe('Second Build');
+  });
+
+  it('active editor build remains stable after library delete', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    // Active build should still be loaded
+    expect(useCharacterStore.getState().activeCharacterBuild).not.toBeNull();
+    expect(useCharacterStore.getState().activeCharacterBuild!.name).toBe('Warrior');
+  });
+
+  it('onLibraryChange fires on delete', async () => {
+    const id = seedLibrary();
+    const onChange = vi.fn();
+    const { rerender } = render(<CharacterBuilderPanel onLibraryChange={onChange} />);
+    rerender(<CharacterBuilderPanel onLibraryChange={onChange} />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Build Library: selection state ──
+
+describe('library selection', () => {
+  function seedLibrary(): string {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    return useCharacterStore.getState().buildLibrary.builds[0].id;
+  }
+
+  it('clicking library row updates selected row state', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-row-${id}`));
+    });
+    expect(useCharacterStore.getState().selectedLibraryBuildId).toBe(id);
+  });
+
+  it('library selection is independent from selected slot', async () => {
+    const id = seedLibrary();
+    useCharacterStore.getState().selectSlot('head');
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-row-${id}`));
+    });
+    expect(useCharacterStore.getState().selectedLibraryBuildId).toBe(id);
+    expect(useCharacterStore.getState().selectedSlot).toBe('head');
+  });
+
+  it('selected library row has selected class', async () => {
+    const id = seedLibrary();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-row-${id}`));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId(`char-library-row-${id}`).dataset.selected).toBe('true');
+  });
+
+  it('deleting selected build clears library selection', async () => {
+    const id = seedLibrary();
+    useCharacterStore.getState().selectLibraryBuild(id);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    expect(useCharacterStore.getState().selectedLibraryBuildId).toBeNull();
+  });
+});
+
+// ── Build Library: metadata display ──
+
+describe('library metadata', () => {
+  it('shows build name in library row', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId(`char-library-name-${id}`).textContent).toBe('Warrior');
+  });
+
+  it('shows equipped slot count', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toBe('4/12 slots');
+  });
+
+  it('empty build shows 0/12 slots', async () => {
+    useCharacterStore.getState().createCharacterBuild('Empty');
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId(`char-library-meta-${id}`).textContent).toBe('0/12 slots');
+  });
+});
+
+// ── Build Library: store integration ──
+
+describe('library store integration', () => {
+  it('save writes through and reflects in UI', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    const { rerender } = render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('char-save-btn'));
+    });
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.queryByTestId('char-library-empty')).toBeNull();
+    expect(screen.getByTestId('char-library-list')).toBeInTheDocument();
+  });
+
+  it('delete persists removal in store', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    const delBtn = screen.getByTestId(`char-library-del-${id}`);
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    await act(async () => {
+      await userEvent.click(delBtn);
+    });
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(0);
+  });
+
+  it('duplicate persists new entry in store', async () => {
+    useCharacterStore.getState().loadCharacterBuild(VALID_BUILD);
+    useCharacterStore.getState().saveActiveBuildToLibrary();
+    const id = useCharacterStore.getState().buildLibrary.builds[0].id;
+    render(<CharacterBuilderPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId(`char-library-dup-${id}`));
+    });
+    expect(useCharacterStore.getState().buildLibrary.builds).toHaveLength(2);
+  });
+
+  it('setLibrary preloads builds into the panel', () => {
+    // Simulate loading from storage
+    let lib = createEmptyLibrary();
+    lib = saveBuildToLibrary(lib, VALID_BUILD);
+    useCharacterStore.getState().setLibrary(lib);
+    useCharacterStore.getState().createCharacterBuild();
+    const { rerender } = render(<CharacterBuilderPanel />);
+    rerender(<CharacterBuilderPanel />);
+    expect(screen.getByTestId('char-library-list')).toBeInTheDocument();
+    expect(screen.getByTestId('char-library-count').textContent).toBe('1');
   });
 });

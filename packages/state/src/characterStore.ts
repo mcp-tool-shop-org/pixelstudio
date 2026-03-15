@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   CharacterBuild,
+  CharacterBuildLibrary,
   CharacterPartRef,
   CharacterSlotId,
   CharacterValidationIssue,
@@ -13,6 +14,14 @@ import {
   deriveMissingRequiredSlots,
   deriveEquippedParts,
 } from './characterHelpers';
+import {
+  createEmptyLibrary,
+  saveBuildToLibrary,
+  deleteBuildFromLibrary,
+  duplicateBuildInLibrary,
+  toCharacterBuild,
+  findBuildById,
+} from './characterBuildLibrary';
 
 // ── State shape ──
 
@@ -25,6 +34,10 @@ interface CharacterState {
   validationIssues: CharacterValidationIssue[];
   /** Whether the build has been modified since last save/load. */
   isDirty: boolean;
+  /** In-memory build library. */
+  buildLibrary: CharacterBuildLibrary;
+  /** Currently selected library row ID (independent of slot selection). */
+  selectedLibraryBuildId: string | null;
 
   // ── Actions ──
 
@@ -46,6 +59,21 @@ interface CharacterState {
   clearCharacterBuild: () => void;
   /** Force re-derive validation from current build state. */
   revalidateCharacterBuild: () => void;
+
+  // ── Library actions ──
+
+  /** Set the in-memory library (e.g. after loading from storage). */
+  setLibrary: (library: CharacterBuildLibrary) => void;
+  /** Save the current active build into the library. Returns updated library. */
+  saveActiveBuildToLibrary: () => CharacterBuildLibrary | null;
+  /** Load a saved build from the library into the active editor. */
+  loadLibraryBuildIntoActive: (buildId: string) => void;
+  /** Duplicate a build in the library. Returns updated library. */
+  duplicateLibraryBuild: (buildId: string) => CharacterBuildLibrary | null;
+  /** Delete a build from the library. Returns updated library. */
+  deleteLibraryBuild: (buildId: string) => CharacterBuildLibrary | null;
+  /** Select a library row (independent from slot selection). */
+  selectLibraryBuild: (buildId: string | null) => void;
 }
 
 // ── Initial state ──
@@ -55,6 +83,8 @@ const initialState = {
   selectedSlot: null as CharacterSlotId | null,
   validationIssues: [] as CharacterValidationIssue[],
   isDirty: false,
+  buildLibrary: createEmptyLibrary() as CharacterBuildLibrary,
+  selectedLibraryBuildId: null as string | null,
 };
 
 // ── Helpers ──
@@ -151,12 +181,64 @@ export const useCharacterStore = create<CharacterState>((set) => ({
       };
     }),
 
-  clearCharacterBuild: () => set(initialState),
+  clearCharacterBuild: () =>
+    set((s) => ({
+      ...initialState,
+      buildLibrary: s.buildLibrary,
+      selectedLibraryBuildId: s.selectedLibraryBuildId,
+    })),
 
   revalidateCharacterBuild: () =>
     set((s) => ({
       validationIssues: revalidate(s.activeCharacterBuild),
     })),
+
+  // ── Library actions ──
+
+  setLibrary: (library) => set({ buildLibrary: library }),
+
+  saveActiveBuildToLibrary: () => {
+    const s = useCharacterStore.getState();
+    if (!s.activeCharacterBuild) return null;
+    const updated = saveBuildToLibrary(s.buildLibrary, s.activeCharacterBuild);
+    useCharacterStore.setState({ buildLibrary: updated, isDirty: false });
+    return updated;
+  },
+
+  loadLibraryBuildIntoActive: (buildId) => {
+    const s = useCharacterStore.getState();
+    const saved = findBuildById(s.buildLibrary, buildId);
+    if (!saved) return;
+    const build = toCharacterBuild(saved);
+    useCharacterStore.setState({
+      activeCharacterBuild: build,
+      selectedSlot: null,
+      validationIssues: revalidate(build),
+      isDirty: false,
+      selectedLibraryBuildId: buildId,
+    });
+  },
+
+  duplicateLibraryBuild: (buildId) => {
+    const s = useCharacterStore.getState();
+    const result = duplicateBuildInLibrary(s.buildLibrary, buildId);
+    if (!result.newBuildId) return null;
+    useCharacterStore.setState({ buildLibrary: result.library });
+    return result.library;
+  },
+
+  deleteLibraryBuild: (buildId) => {
+    const s = useCharacterStore.getState();
+    const updated = deleteBuildFromLibrary(s.buildLibrary, buildId);
+    const newSelected = s.selectedLibraryBuildId === buildId ? null : s.selectedLibraryBuildId;
+    useCharacterStore.setState({
+      buildLibrary: updated,
+      selectedLibraryBuildId: newSelected,
+    });
+    return updated;
+  },
+
+  selectLibraryBuild: (buildId) => set({ selectedLibraryBuildId: buildId }),
 }));
 
 // ── Derived selectors ──

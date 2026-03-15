@@ -19,6 +19,8 @@ import {
 interface CharacterBuilderPanelProps {
   /** Available part presets for the picker. */
   partCatalog?: CharacterPartPreset[];
+  /** Callback when library changes (for storage persistence). */
+  onLibraryChange?: (library: import('@glyphstudio/domain').CharacterBuildLibrary) => void;
 }
 
 /** Derive a slot's health status for badge display. */
@@ -36,6 +38,11 @@ function deriveSlotStatus(
   return 'empty';
 }
 
+/** Count how many slots have equipped parts. */
+function countEquippedSlots(slots: Partial<Record<string, unknown>>): number {
+  return Object.keys(slots).length;
+}
+
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   missing: { label: 'Missing', cls: 'char-status-missing' },
   error: { label: 'Error', cls: 'char-status-error' },
@@ -44,7 +51,9 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   empty: { label: '', cls: '' },
 };
 
-export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPanelProps) {
+const TOTAL_SLOTS = CHARACTER_SLOT_IDS.length;
+
+export function CharacterBuilderPanel({ partCatalog = [], onLibraryChange }: CharacterBuilderPanelProps) {
   const build = useCharacterStore((s) => s.activeCharacterBuild);
   const selectedSlot = useCharacterStore((s) => s.selectedSlot);
   const validationIssues = useCharacterStore((s) => s.validationIssues);
@@ -54,12 +63,20 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
   const selectSlot = useCharacterStore((s) => s.selectSlot);
   const unequipSlot = useCharacterStore((s) => s.unequipCharacterSlot);
   const equipPart = useCharacterStore((s) => s.equipCharacterPart);
+  const library = useCharacterStore((s) => s.buildLibrary);
+  const selectedLibraryBuildId = useCharacterStore((s) => s.selectedLibraryBuildId);
+  const selectLibraryBuild = useCharacterStore((s) => s.selectLibraryBuild);
+  const saveActiveBuild = useCharacterStore((s) => s.saveActiveBuildToLibrary);
+  const loadLibraryBuild = useCharacterStore((s) => s.loadLibraryBuildIntoActive);
+  const duplicateLibraryBuild = useCharacterStore((s) => s.duplicateLibraryBuild);
+  const deleteLibraryBuild = useCharacterStore((s) => s.deleteLibraryBuild);
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [showingPicker, setShowingPicker] = useState(false);
   const [showIncompatible, setShowIncompatible] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const state = useCharacterStore.getState();
   const errors = getCharacterErrors(state);
@@ -105,6 +122,116 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
     setConfirmingClear(false);
   }, [confirmingClear, clearBuild]);
 
+  const handleSaveToLibrary = useCallback(() => {
+    const updated = saveActiveBuild();
+    if (updated && onLibraryChange) onLibraryChange(updated);
+  }, [saveActiveBuild, onLibraryChange]);
+
+  const handleLoadFromLibrary = useCallback((buildId: string) => {
+    loadLibraryBuild(buildId);
+    setConfirmingDeleteId(null);
+  }, [loadLibraryBuild]);
+
+  const handleDuplicate = useCallback((buildId: string) => {
+    const updated = duplicateLibraryBuild(buildId);
+    if (updated && onLibraryChange) onLibraryChange(updated);
+  }, [duplicateLibraryBuild, onLibraryChange]);
+
+  const handleDelete = useCallback((buildId: string) => {
+    if (confirmingDeleteId !== buildId) {
+      setConfirmingDeleteId(buildId);
+      return;
+    }
+    const updated = deleteLibraryBuild(buildId);
+    if (updated && onLibraryChange) onLibraryChange(updated);
+    setConfirmingDeleteId(null);
+  }, [confirmingDeleteId, deleteLibraryBuild, onLibraryChange]);
+
+  // ── Library section (shared between empty and active states) ──
+  const librarySection = (
+    <div className="char-library" data-testid="char-library">
+      <div className="char-library-header">
+        <span className="char-library-title">Saved Builds</span>
+        <span className="char-library-count" data-testid="char-library-count">
+          {library.builds.length}
+        </span>
+      </div>
+      {library.builds.length === 0 ? (
+        <div className="char-library-empty" data-testid="char-library-empty">
+          {build ? (
+            <>
+              <p className="char-library-empty-msg">No saved builds yet.</p>
+              <button
+                className="char-builder-action-btn char-library-save-cta"
+                onClick={handleSaveToLibrary}
+                data-testid="char-library-save-cta"
+              >
+                Save Current Build
+              </button>
+            </>
+          ) : (
+            <p className="char-library-empty-msg">
+              Saved builds will appear here after you create and save a character.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="char-library-list" data-testid="char-library-list">
+          {library.builds.map((saved) => {
+            const isSelected = selectedLibraryBuildId === saved.id;
+            const equipped = countEquippedSlots(saved.slots);
+            const isConfirmingDelete = confirmingDeleteId === saved.id;
+            return (
+              <div
+                key={saved.id}
+                className={`char-library-row${isSelected ? ' selected' : ''}`}
+                onClick={() => selectLibraryBuild(saved.id)}
+                data-testid={`char-library-row-${saved.id}`}
+                data-selected={isSelected ? 'true' : 'false'}
+              >
+                <div className="char-library-row-info">
+                  <span className="char-library-row-name" data-testid={`char-library-name-${saved.id}`}>
+                    {saved.name}
+                  </span>
+                  <span className="char-library-row-meta" data-testid={`char-library-meta-${saved.id}`}>
+                    {equipped}/{TOTAL_SLOTS} slots
+                  </span>
+                </div>
+                <div className="char-library-row-actions">
+                  <button
+                    className="char-builder-action-btn char-library-load-btn"
+                    title="Load into editor"
+                    onClick={(e) => { e.stopPropagation(); handleLoadFromLibrary(saved.id); }}
+                    data-testid={`char-library-load-${saved.id}`}
+                  >
+                    Load
+                  </button>
+                  <button
+                    className="char-builder-action-btn char-library-dup-btn"
+                    title="Duplicate"
+                    onClick={(e) => { e.stopPropagation(); handleDuplicate(saved.id); }}
+                    data-testid={`char-library-dup-${saved.id}`}
+                  >
+                    Dup
+                  </button>
+                  <button
+                    className={`char-builder-action-btn char-library-del-btn${isConfirmingDelete ? ' char-btn-confirm' : ''}`}
+                    title={isConfirmingDelete ? 'Click again to confirm' : 'Delete'}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(saved.id); }}
+                    onBlur={() => setConfirmingDeleteId(null)}
+                    data-testid={`char-library-del-${saved.id}`}
+                  >
+                    {isConfirmingDelete ? 'Confirm?' : 'Del'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   // ── Empty state ──
   if (!build) {
     return (
@@ -121,6 +248,7 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
             Create Character Build
           </button>
         </div>
+        {librarySection}
       </div>
     );
   }
@@ -175,6 +303,14 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
           )}
         </div>
         <div className="char-builder-header-actions">
+          <button
+            className="char-builder-action-btn char-save-btn"
+            title="Save to library"
+            onClick={handleSaveToLibrary}
+            data-testid="char-save-btn"
+          >
+            Save
+          </button>
           <button
             className="char-builder-action-btn"
             title="New build"
@@ -507,6 +643,9 @@ export function CharacterBuilderPanel({ partCatalog = [] }: CharacterBuilderPane
           )}
         </div>
       )}
+
+      {/* ── Build Library ── */}
+      {librarySection}
     </div>
   );
 }
