@@ -39,3 +39,12 @@ export {
   deriveEquippedParts,
   isCharacterBuildValid,
 } from './characterHelpers';
+export {
+  useCharacterStore,
+  getEquippedPartForSlot,
+  getMissingRequiredSlots,
+  getCharacterErrors,
+  getCharacterWarnings,
+  isCharacterValid,
+  getEquippedSlotsInDisplayOrder,
+} from './characterStore';
