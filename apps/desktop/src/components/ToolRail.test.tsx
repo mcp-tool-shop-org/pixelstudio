@@ -9,7 +9,6 @@ function seed() {
     activeTool: 'pencil',
     primaryColor: { r: 255, g: 0, b: 0, a: 255 },
     secondaryColor: { r: 0, g: 0, b: 255, a: 255 },
-    brushSize: 1,
   });
 }
 

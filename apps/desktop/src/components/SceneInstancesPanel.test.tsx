@@ -30,7 +30,7 @@ const INST_B: SceneAssetInstance = {
   visible: false,
   opacity: 0.5,
   parallax: 0.5,
-  clipId: null,
+  clipId: undefined,
 };
 
 const INST_C: SceneAssetInstance = {
@@ -43,23 +43,23 @@ const INST_C: SceneAssetInstance = {
   visible: true,
   opacity: 1.0,
   parallax: 1.5,
-  clipId: null,
+  clipId: undefined,
 };
 
 const PLAYBACK_STATE = {
   fps: 12,
   looping: true,
   instances: [
-    { instanceId: 'i1', status: 'resolved' as const, clipName: 'idle', frameIndex: 0, totalFrames: 4 },
-    { instanceId: 'i2', status: 'no_clip' as const, clipName: null, frameIndex: 0, totalFrames: 0 },
-    { instanceId: 'i3', status: 'no_clip' as const, clipName: null, frameIndex: 0, totalFrames: 0 },
+    { instanceId: 'i1', clipId: 'c1', clipName: 'idle', frameCount: 4, clipFps: null, clipLoop: false, status: 'resolved' as const, frameIndex: 0, totalFrames: 4 },
+    { instanceId: 'i2', clipId: null, clipName: null, frameCount: 0, clipFps: null, clipLoop: false, status: 'no_clip' as const, frameIndex: 0, totalFrames: 0 },
+    { instanceId: 'i3', clipId: null, clipName: null, frameCount: 0, clipFps: null, clipLoop: false, status: 'no_clip' as const, frameIndex: 0, totalFrames: 0 },
   ],
 };
 
 function seedStores() {
   useProjectStore.setState({
     projectId: 'p1', name: 'Test', filePath: null, isDirty: false,
-    saveStatus: 'idle', colorMode: 'rgb', canvasWidth: 64, canvasHeight: 64,
+    saveStatus: 'idle', colorMode: 'rgb', canvasSize: { width: 64, height: 64 },
   });
   useScenePlaybackStore.setState({ playbackState: PLAYBACK_STATE });
 }

@@ -8,12 +8,13 @@ import { useSelectionStore } from '@pixelstudio/state';
 import { useTimelineStore } from '@pixelstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import { getMockInvoke } from '../test/helpers';
+import type { ToolId } from '@pixelstudio/domain';
 
 // ── Helpers ────────────────────────────────────────────────────
 function seedStores(overrides?: {
   canvasSize?: { width: number; height: number };
   zoom?: number;
-  activeTool?: string;
+  activeTool?: ToolId;
   primaryColor?: { r: number; g: number; b: number; a: number };
   hasSelection?: boolean;
   isTransforming?: boolean;

@@ -1105,6 +1105,15 @@ The Scene tab in the top bar activates a dedicated workspace:
 - **Scene scrubber** — draggable timeline scrubber with jump-to-start/end; scrubbing pauses playback, play resumes from scrubbed position
 - **Missing-source survivability** — missing sources render as warning placeholder with dashed border; missing clips show orange warning border with fallback frame
 - **Scene export** — camera-aware composition at current tick; export reflects camera pan, zoom, parallax, and current animation frame
+- **Camera timeline lane** — dedicated lane in the scene timeline showing keyframe markers and shot span bars:
+  - Keyframe markers rendered at exact tick positions (diamond for linear, square for hold interpolation)
+  - Shot bars span from keyframe to next keyframe (last shot extends to End)
+  - Click marker or shot bar to select source keyframe and seek playhead
+  - Lane header shows current shot name at playhead
+  - Lane toolbar: add key at playhead, delete selected, previous/next key, jump to selected
+  - Empty state shows placeholder message when no camera keyframes exist
+  - All lane visuals derive from `deriveCameraTimelineMarkers()`, `deriveShotsFromCameraKeyframes()`, and `findCurrentCameraShotAtTick()` — no separate lane data model
+  - Selection syncs bidirectionally with the Camera Keyframe Panel via shared `selectedKeyframeTick` state
 
 ### Defaults
 

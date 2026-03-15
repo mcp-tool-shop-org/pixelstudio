@@ -53,7 +53,9 @@ function seedFrames(count: number) {
   useTimelineStore.setState({
     frames: Array.from({ length: count }, (_, i) => ({
       id: `f${i}`,
-      layerCels: [],
+      name: `Frame ${i + 1}`,
+      index: i,
+      durationMs: null,
     })),
   });
 }

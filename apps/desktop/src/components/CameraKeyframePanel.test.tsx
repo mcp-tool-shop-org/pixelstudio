@@ -9,7 +9,7 @@ import { CameraKeyframePanel } from '../components/CameraKeyframePanel';
 
 const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear', name: 'Start' };
 const KF_B: SceneCameraKeyframe = { tick: 24, x: 100, y: 50, zoom: 2.0, interpolation: 'hold', name: 'Mid' };
-const KF_C: SceneCameraKeyframe = { tick: 48, x: 200, y: 100, zoom: 1.5, interpolation: 'linear', name: null };
+const KF_C: SceneCameraKeyframe = { tick: 48, x: 200, y: 100, zoom: 1.5, interpolation: 'linear', name: undefined };
 
 function seedStore(overrides: Partial<ReturnType<typeof useScenePlaybackStore.getState>> = {}) {
   useScenePlaybackStore.setState({

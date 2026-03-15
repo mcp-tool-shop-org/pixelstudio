@@ -12,8 +12,7 @@ function seed(overrides: Partial<ReturnType<typeof useProjectStore.getState>> = 
     isDirty: false,
     saveStatus: 'idle',
     colorMode: 'rgb',
-    canvasWidth: 64,
-    canvasHeight: 64,
+    canvasSize: { width: 64, height: 64 },
     ...overrides,
   });
 }

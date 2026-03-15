@@ -74,7 +74,7 @@ The frontend uses 15 Zustand stores organized by domain, plus a canvas frame sto
 | validation | Reports, issues, repair previews |
 | provenance | Operation log with deterministic/probabilistic badges |
 | export | Preset selection, readiness, preview state |
-| scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, timeline lane state |
+| scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -106,3 +106,31 @@ The frontend uses 15 Zustand stores organized by domain, plus a canvas frame sto
 - **Package Metadata** (2): get/set asset package metadata (name, version, author, description, tags — persisted with project)
 - **Scene** (32): new/open/save/save_as/get_info/get_instances + add/remove/move instance, set layer/visibility/opacity/clip/parallax, set playback fps/loop, get playback state, list source clips, get source asset frames, export scene frame, get/set/reset camera (position/zoom), get timeline summary, seek tick, camera keyframe CRUD (list/add/update/delete), get camera at tick
 - Plus stubs for palette, validation, AI, locomotion analysis, and provenance
+
+## Camera timeline lane
+
+The scene timeline includes a dedicated camera lane (`CameraTimelineLane`) that projects camera keyframe and shot data as a visual editing surface.
+
+### Architecture rules
+
+- The lane is a **projection surface**, not a separate data model. All visuals derive from `cameraKeyframes[]` and `deriveShotsFromCameraKeyframes()` — the same source of truth used by the Camera Keyframe Panel.
+- No `deriveCameraTimelineSpans` helper exists because `deriveShotsFromCameraKeyframes()` already provides shot span data. One derivation path, no duplicates.
+- Selection state is shared: `selectedKeyframeTick` in `scenePlaybackStore` is the single selection for both the lane and the dock panel.
+
+### Lane components
+
+| Element | Source | Behavior |
+|---------|--------|----------|
+| Keyframe markers | `deriveCameraTimelineMarkers(keyframes)` | Diamond (linear) or square (hold) at tick position; click selects + seeks |
+| Shot bars | `deriveShotsFromCameraKeyframes(keyframes, totalTicks)` | Span from keyframe to next keyframe (or End); click selects source keyframe + seeks |
+| Playhead | `currentTick` from store | Red vertical line at current position |
+| Current shot | `findCurrentCameraShotAtTick(shots, tick)` | Displayed in lane header |
+
+### Lane actions
+
+| Action | Behavior |
+|--------|----------|
+| Add key at playhead | Inserts keyframe at `currentTick` with current camera position |
+| Delete selected | Removes keyframe at `selectedKeyframeTick` |
+| Previous / Next key | Navigates to adjacent keyframe in sorted order |
+| Jump to selected | Seeks playhead to `selectedKeyframeTick` |

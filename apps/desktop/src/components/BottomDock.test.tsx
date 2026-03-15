@@ -70,7 +70,7 @@ function seedTimeline(frameCount = 3) {
   });
   useProjectStore.setState({
     projectId: 'p1', name: 'Test', filePath: null, isDirty: false,
-    saveStatus: 'idle', colorMode: 'rgb', canvasWidth: 32, canvasHeight: 32,
+    saveStatus: 'idle', colorMode: 'rgb', canvasSize: { width: 32, height: 32 },
   });
   useSelectionStore.setState({
     hasSelection: false, isTransforming: false, selectionBounds: null,

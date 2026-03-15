@@ -5,13 +5,20 @@ import { LayerPanel } from '../components/LayerPanel';
 import { useLayerStore, useProjectStore } from '@pixelstudio/state';
 import { getMockInvoke } from '../test/helpers';
 
+function mkLayer(id: string, name: string, overrides?: Record<string, unknown>) {
+  return {
+    id, name, type: 'raster' as const, parentId: null, childIds: [],
+    visible: true, locked: false, opacity: 255, blendMode: 'normal',
+    pixelRefId: null, maskLayerId: null, socketIds: [], origin: 'manual' as const,
+    acceptedFromCandidateId: null, createdAt: '', updatedAt: '', metadata: {},
+    ...overrides,
+  };
+}
+
 const MOCK_FRAME = {
   width: 32,
   height: 32,
-  layers: [
-    { id: 'L1', name: 'Background', visible: true, locked: false, opacity: 255 },
-    { id: 'L2', name: 'Foreground', visible: true, locked: false, opacity: 255 },
-  ],
+  layers: [mkLayer('L1', 'Background'), mkLayer('L2', 'Foreground')],
   layerOrder: ['L1', 'L2'],
   composited: new Array(32 * 32 * 4).fill(0),
   palette: null,
@@ -22,8 +29,8 @@ function seedLayers() {
     rootLayerIds: ['L1', 'L2'],
     activeLayerId: 'L1',
     layerById: {
-      L1: { id: 'L1', name: 'Background', visible: true, locked: false, opacity: 255 },
-      L2: { id: 'L2', name: 'Foreground', visible: true, locked: false, opacity: 255 },
+      L1: mkLayer('L1', 'Background'),
+      L2: mkLayer('L2', 'Foreground'),
     },
   });
   useProjectStore.setState({
@@ -33,8 +40,7 @@ function seedLayers() {
     isDirty: false,
     saveStatus: 'idle',
     colorMode: 'rgb',
-    canvasWidth: 32,
-    canvasHeight: 32,
+    canvasSize: { width: 32, height: 32 },
   });
 }
 
@@ -111,9 +117,9 @@ describe('LayerPanel', () => {
       useLayerStore.setState({
         rootLayerIds: ['L1'],
         activeLayerId: 'L1',
-        layerById: { L1: { id: 'L1', name: 'Solo', visible: true, locked: false, opacity: 255 } },
+        layerById: { L1: mkLayer('L1', 'Solo') },
       });
-      useProjectStore.setState({ projectId: 'p', name: 'T', filePath: null, isDirty: false, saveStatus: 'idle', colorMode: 'rgb', canvasWidth: 32, canvasHeight: 32 });
+      useProjectStore.setState({ projectId: 'p', name: 'T', filePath: null, isDirty: false, saveStatus: 'idle', colorMode: 'rgb', canvasSize: { width: 32, height: 32 } });
       render(<LayerPanel />);
       expect(screen.queryByTitle('Delete layer')).toBeNull();
     });

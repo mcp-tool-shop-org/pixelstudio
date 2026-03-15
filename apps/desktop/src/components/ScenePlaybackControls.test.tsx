@@ -32,7 +32,7 @@ const PLAYBACK_STATE_WITH_INSTANCES = {
   fps: 12,
   looping: true,
   instances: [
-    { instanceId: 'i1', status: 'resolved' as const, clipName: 'idle', frameIndex: 0, totalFrames: 4 },
+    { instanceId: 'i1', clipId: 'c1', clipName: 'idle', frameCount: 4, clipFps: null, clipLoop: false, status: 'resolved' as const, frameIndex: 0, totalFrames: 4 },
   ],
 };
 
