@@ -983,6 +983,24 @@ interface CameraTimelineMarker {
 
 Derived via `deriveCameraTimelineMarkers(keyframes)` — sorted marker positions for the camera timeline lane.
 
+### Character → scene bridge helpers
+
+Pure functions exported from `@glyphstudio/state` for the character scene bridge.
+
+| Helper | Signature | Purpose |
+|--------|-----------|---------|
+| `placeCharacterBuild` | `(build, options?) → SceneAssetInstance` | Create a character scene instance from a build (snapshot-first) |
+| `reapplyCharacterBuild` | `(instance, build) → SceneAssetInstance \| null` | Refresh character snapshot while preserving scene-local state |
+| `checkPlaceability` | `(build, issues) → PlaceabilityResult` | Check if a build can be placed (errors block, warnings allowed) |
+| `isCharacterInstance` | `(instance) → boolean` | Check if a scene instance is character-derived |
+| `isSourceBuildAvailable` | `(instance, buildIds) → boolean` | Check if source build exists in library |
+| `deriveSourceStatus` | `(instance, buildIds) → CharacterSourceStatus` | Classify as `'linked'`, `'missing-source'`, or `'not-character'` |
+| `sourceStatusLabel` | `(status) → string` | Human-readable status label |
+| `instanceBuildName` | `(instance) → string` | Build name with "Unknown build" fallback |
+| `snapshotSummary` | `(instance) → string` | Snapshot text (e.g. "4/12 equipped") |
+| `isSnapshotPossiblyStale` | `(instance, sourceBuild?) → boolean` | Lightweight staleness check (count + name heuristic) |
+| `createSlotSnapshot` | `(build) → CharacterSlotSnapshot` | Create a frozen slot snapshot from a build |
+
 ### Camera timeline lane helpers
 
 | Helper | Signature | Purpose |

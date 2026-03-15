@@ -287,6 +287,75 @@ Format: { schemaVersion, builds: SavedCharacterBuild[] }
 
 Version mismatches or parse failures fall back to an empty library.
 
-### Future bridge: character → scene
+### Character → scene bridge
 
-Scene asset instances (`SceneAssetInstance`) carry an optional `sourceCharacterBuildId` field. This is a clean seam for future character→scene integration — when a character build is placed into a scene, the instance records which build it came from, enabling round-trip editing and build-aware rendering.
+Character Builds can be placed into scenes as **Character Instances** — scene-level objects that carry a snapshot of their source build.
+
+#### Core concepts
+
+| Term | Meaning |
+|---|---|
+| **Character Build** | Reusable authoring artifact — slots mapped to equipped parts |
+| **Character Instance** | Scene-level snapshot created from a build via placement |
+| **Source Build** | The saved library build the instance was created from |
+| **Snapshot** | Frozen record of slot assignments at placement time |
+
+#### Placement law
+
+Placement creates an independent copy. The scene instance records:
+
+- `instanceKind: 'character'` — marks it as character-derived
+- `sourceCharacterBuildId` — which saved build it came from
+- `sourceCharacterBuildName` — build name at placement time
+- `characterSlotSnapshot` — frozen slot→part mapping with equipped count
+
+Future edits to the source build do **not** automatically propagate. The snapshot is independent.
+
+#### Reapply law
+
+Users can manually refresh a placed instance from its source build:
+
+- **Reapply from Source** updates: build name, slot snapshot
+- **Preserved**: position (x/y), z-order, visibility, opacity, parallax, instance ID
+- Source lookup uses `sourceCharacterBuildId` against the saved build library
+- If the source build no longer exists, reapply is blocked (not silently skipped)
+
+There is no automatic live sync. Reapply is always manual and explicit.
+
+#### Missing-source law
+
+If a source build is deleted from the library after placement:
+
+- The instance retains its `sourceCharacterBuildId` and existing snapshot
+- The instance still works as scene content (it has its own snapshot data)
+- Source status shows "Source missing"
+- Reapply is disabled until the source is available again
+- The source ID is never silently cleared
+
+#### Placeability rules
+
+A build can be placed into a scene only when:
+
+1. The build exists (is not null)
+2. At least one slot is equipped
+3. There are zero validation errors (warnings are allowed)
+
+#### Scene-local state
+
+These fields belong to the scene instance, not the source build:
+
+`x`, `y`, `zOrder`, `visible`, `opacity`, `parallax`, `clipId`, `name`
+
+Reapply never touches scene-local state.
+
+#### Current limitations
+
+The bridge does not currently support:
+
+- Automatic live sync between builds and instances
+- Per-slot overrides on placed instances
+- Unlink-from-source action
+- Source/instance diff viewer
+- Scene-side slot editing
+
+These are potential future extensions. The `sourceCharacterBuildId` and `instanceKind` fields provide clean seams for attaching them.

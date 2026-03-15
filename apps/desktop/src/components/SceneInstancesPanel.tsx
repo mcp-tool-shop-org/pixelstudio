@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@glyphstudio/domain';
-import { useScenePlaybackStore, useProjectStore, useCharacterStore, isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById } from '@glyphstudio/state';
+import {
+  useScenePlaybackStore, useProjectStore, useCharacterStore,
+  isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById,
+  deriveSourceStatus, sourceStatusLabel, instanceBuildName, snapshotSummary, isSnapshotPossiblyStale,
+} from '@glyphstudio/state';
 
 export function SceneInstancesPanel() {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
@@ -151,8 +155,8 @@ export function SceneInstancesPanel() {
                     <span className="scene-instance-kind-badge">Character</span>
                   )}
                 </span>
-                {isCharacterInstance(inst) && inst.sourceCharacterBuildName && (
-                  <span className="scene-instance-row-source">from: {inst.sourceCharacterBuildName}</span>
+                {isCharacterInstance(inst) && (
+                  <span className="scene-instance-row-source">from: {instanceBuildName(inst)}</span>
                 )}
                 <span className="scene-instance-row-pos">({inst.x}, {inst.y}) z{inst.zOrder}</span>
               </div>
@@ -199,6 +203,7 @@ export function SceneInstancesPanel() {
           <InstanceDetailPane
             instance={inst}
             libraryBuildIds={libraryBuildIds}
+            buildLibrary={buildLibrary}
             onReapply={handleReapply}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
@@ -230,6 +235,7 @@ export function SceneInstancesPanel() {
 function InstanceDetailPane({
   instance,
   libraryBuildIds,
+  buildLibrary,
   onReapply,
   onOpacityChange,
   onParallaxChange,
@@ -237,6 +243,7 @@ function InstanceDetailPane({
 }: {
   instance: SceneAssetInstance;
   libraryBuildIds: string[];
+  buildLibrary: { builds: { id: string; name: string; slots: Record<string, unknown> }[] };
   onReapply: (instanceId: string) => void;
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
@@ -286,52 +293,58 @@ function InstanceDetailPane({
         </span>
       </div>
 
-      {isCharacterInstance(instance) && (
-        <>
-          <div className="scene-instance-detail-row">
-            <span className="scene-instance-detail-label">Kind</span>
-            <span className="scene-instance-kind-badge">Character</span>
-          </div>
-          {instance.sourceCharacterBuildName && (
+      {isCharacterInstance(instance) && (() => {
+        const srcStatus = deriveSourceStatus(instance, libraryBuildIds);
+        const srcLabel = sourceStatusLabel(srcStatus);
+        const buildName = instanceBuildName(instance);
+        const snapshot = snapshotSummary(instance);
+        const isLinked = srcStatus === 'linked';
+        const sourceBuild = instance.sourceCharacterBuildId
+          ? buildLibrary.builds.find((b) => b.id === instance.sourceCharacterBuildId)
+          : undefined;
+        const stale = isSnapshotPossiblyStale(instance, sourceBuild);
+        return (
+          <>
+            <div className="scene-instance-detail-row">
+              <span className="scene-instance-detail-label">Kind</span>
+              <span className="scene-instance-kind-badge">Character</span>
+            </div>
             <div className="scene-instance-detail-row">
               <span className="scene-instance-detail-label">Build</span>
-              <span className="scene-instance-detail-value">{instance.sourceCharacterBuildName}</span>
+              <span className="scene-instance-detail-value">{buildName}</span>
             </div>
-          )}
-          {instance.characterSlotSnapshot && (
             <div className="scene-instance-detail-row">
-              <span className="scene-instance-detail-label">Slots</span>
-              <span className="scene-instance-detail-value">
-                {instance.characterSlotSnapshot.equippedCount}/{instance.characterSlotSnapshot.totalSlots} equipped
+              <span className="scene-instance-detail-label">Snapshot</span>
+              <span className="scene-instance-detail-value">{snapshot}</span>
+              {stale && isLinked && (
+                <span className="scene-instance-stale-hint">Out of date</span>
+              )}
+            </div>
+            <div className="scene-instance-detail-row">
+              <span className="scene-instance-detail-label">Source</span>
+              <span className={`scene-instance-source-status ${isLinked ? 'source-linked' : 'source-missing'}`}>
+                {srcLabel}
               </span>
             </div>
-          )}
-          <div className="scene-instance-detail-row">
-            <span className="scene-instance-detail-label">Source</span>
-            <span className={`scene-instance-source-status ${
-              isSourceBuildAvailable(instance, libraryBuildIds) ? 'source-linked' : 'source-missing'
-            }`}>
-              {isSourceBuildAvailable(instance, libraryBuildIds) ? 'Linked' : 'Source missing'}
-            </span>
-          </div>
-          <div className="scene-instance-detail-row">
-            <span className="scene-instance-detail-label" />
-            <button
-              className="scene-instance-reapply-btn"
-              disabled={!isSourceBuildAvailable(instance, libraryBuildIds)}
-              title={isSourceBuildAvailable(instance, libraryBuildIds)
-                ? 'Refresh snapshot from saved source build'
-                : 'Source build not found in library'}
-              onClick={() => onReapply(instance.instanceId)}
-            >
-              Reapply from Source
-            </button>
-            {!isSourceBuildAvailable(instance, libraryBuildIds) && (
-              <span className="scene-instance-reapply-reason">Build not in library</span>
-            )}
-          </div>
-        </>
-      )}
+            <div className="scene-instance-detail-row">
+              <span className="scene-instance-detail-label" />
+              <button
+                className="scene-instance-reapply-btn"
+                disabled={!isLinked}
+                title={isLinked
+                  ? 'Refresh snapshot from saved source build'
+                  : 'Source build not found in library'}
+                onClick={() => onReapply(instance.instanceId)}
+              >
+                Reapply from Source
+              </button>
+              {!isLinked && (
+                <span className="scene-instance-reapply-reason">Build not in library</span>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       <div className="scene-instance-detail-row">
         <span className="scene-instance-detail-label">Clip</span>

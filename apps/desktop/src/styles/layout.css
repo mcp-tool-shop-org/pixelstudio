@@ -4516,6 +4516,13 @@
   margin-left: 4px;
 }
 
+.scene-instance-stale-hint {
+  font-size: 8px;
+  color: #ffaa44;
+  font-style: italic;
+  margin-left: 6px;
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {

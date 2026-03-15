@@ -62,10 +62,15 @@ export {
   checkPlaceability,
   isCharacterInstance,
   isSourceBuildAvailable,
+  deriveSourceStatus,
+  sourceStatusLabel,
+  instanceBuildName,
+  snapshotSummary,
+  isSnapshotPossiblyStale,
   generateCharacterInstanceId,
   CHARACTER_PLACEMENT_DEFAULTS,
 } from './characterSceneBridge';
-export type { CharacterPlacementOptions, PlaceabilityResult } from './characterSceneBridge';
+export type { CharacterPlacementOptions, PlaceabilityResult, CharacterSourceStatus } from './characterSceneBridge';
 export {
   createEmptyLibrary,
   generateSavedBuildId,

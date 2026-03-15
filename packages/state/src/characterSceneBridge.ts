@@ -156,6 +156,64 @@ export function isSourceBuildAvailable(
   return libraryBuildIds.includes(instance.sourceCharacterBuildId);
 }
 
+// ── Instance summary helpers ──
+
+/** Source linkage status for a character scene instance. */
+export type CharacterSourceStatus = 'linked' | 'missing-source' | 'not-character';
+
+/** Derive the source linkage status for a scene instance. */
+export function deriveSourceStatus(
+  instance: SceneAssetInstance,
+  libraryBuildIds: string[],
+): CharacterSourceStatus {
+  if (instance.instanceKind !== 'character') return 'not-character';
+  return isSourceBuildAvailable(instance, libraryBuildIds) ? 'linked' : 'missing-source';
+}
+
+/** Human-readable source status label. */
+export function sourceStatusLabel(status: CharacterSourceStatus): string {
+  switch (status) {
+    case 'linked': return 'Linked';
+    case 'missing-source': return 'Source missing';
+    case 'not-character': return '';
+  }
+}
+
+/** Build name with fallback for missing data. */
+export function instanceBuildName(instance: SceneAssetInstance): string {
+  if (instance.instanceKind !== 'character') return '';
+  return instance.sourceCharacterBuildName || 'Unknown build';
+}
+
+/** Snapshot summary text (e.g. "4/12 equipped"). */
+export function snapshotSummary(instance: SceneAssetInstance): string {
+  if (!instance.characterSlotSnapshot) return '0/0 equipped';
+  const { equippedCount, totalSlots } = instance.characterSlotSnapshot;
+  return `${equippedCount}/${totalSlots} equipped`;
+}
+
+/**
+ * Check if a character instance's snapshot may be stale relative to the
+ * current source build in the library.
+ *
+ * Compares equipped slot count and build name — a lightweight heuristic
+ * that avoids deep slot-by-slot diffing. Returns false for non-character
+ * instances or when the source is missing.
+ */
+export function isSnapshotPossiblyStale(
+  instance: SceneAssetInstance,
+  sourceBuild: { name: string; slots: Record<string, unknown> } | undefined,
+): boolean {
+  if (instance.instanceKind !== 'character' || !sourceBuild) return false;
+  if (!instance.characterSlotSnapshot) return true;
+  const sourceEquipped = Object.keys(sourceBuild.slots).length;
+  if (instance.characterSlotSnapshot.equippedCount !== sourceEquipped) return true;
+  if (instance.sourceCharacterBuildName !== sourceBuild.name) return true;
+  return false;
+}
+
+// ── Reapply ──
+
 /**
  * Reapply a character build onto an existing scene instance.
  *

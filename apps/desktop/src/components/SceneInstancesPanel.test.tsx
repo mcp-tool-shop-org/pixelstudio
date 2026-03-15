@@ -503,4 +503,100 @@ describe('SceneInstancesPanel', () => {
     expect(screen.getByText('Paladin')).toBeInTheDocument();
     expect(screen.queryByText('Knight Build')).toBeNull();
   });
+
+  // ── Edge cases + terminology consistency ──
+
+  it('character row shows "Unknown build" when source name is missing', async () => {
+    const noNameChar: SceneAssetInstance = {
+      ...INST_CHAR,
+      instanceId: 'i6',
+      sourceCharacterBuildName: undefined,
+    };
+    mock.on('get_scene_instances', () => [noNameChar]);
+    seedStores();
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    expect(screen.getByText(/from: Unknown build/)).toBeInTheDocument();
+  });
+
+  it('detail pane shows "Unknown build" for empty source name', async () => {
+    const emptyNameChar: SceneAssetInstance = {
+      ...INST_CHAR,
+      instanceId: 'i7',
+      sourceCharacterBuildName: '',
+    };
+    mock.on('get_scene_instances', () => [emptyNameChar]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Unknown build')).toBeInTheDocument();
+  });
+
+  it('detail pane uses "Snapshot" label for slot summary', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuildIds: ['build-1'] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Snapshot')).toBeInTheDocument();
+  });
+
+  it('shows "Out of date" stale hint when source differs from snapshot', async () => {
+    // Source build has 3 slots (different from INST_CHAR's 2-slot snapshot)
+    const changedBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', layerId: 'head' }, torso: { sourceId: 'plate-steel', layerId: 'torso' }, legs: { sourceId: 'greaves', layerId: 'legs' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [changedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.getByText('Out of date')).toBeInTheDocument();
+  });
+
+  it('does not show stale hint when snapshot matches source', async () => {
+    // Source build matches INST_CHAR's 2-slot snapshot exactly
+    const matchingBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', layerId: 'head' }, torso: { sourceId: 'plate-steel', layerId: 'torso' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [matchingBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    expect(screen.queryByText('Out of date')).toBeNull();
+  });
+
+  it('does not show stale hint when source is missing', async () => {
+    mock.on('get_scene_instances', () => [INST_CHAR_ORPHAN]);
+    seedStores({ libraryBuildIds: [] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Deleted Hero')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Deleted Hero')); });
+    expect(screen.queryByText('Out of date')).toBeNull();
+  });
+
+  it('stale hint clears after reapply', async () => {
+    const changedBuild = {
+      id: 'build-1', name: 'Knight Build',
+      slots: { head: { sourceId: 'helm-iron', layerId: 'head' }, torso: { sourceId: 'plate-steel', layerId: 'torso' }, legs: { sourceId: 'greaves', layerId: 'legs' } },
+      createdAt: '', updatedAt: '',
+    };
+    mock.on('get_scene_instances', () => [INST_CHAR]);
+    seedStores({ libraryBuilds: [changedBuild as never] });
+    await act(async () => { render(<SceneInstancesPanel />); });
+    await waitFor(() => { expect(screen.getByText('Knight')).toBeInTheDocument(); });
+    await act(async () => { await userEvent.click(screen.getByText('Knight')); });
+    // Stale before reapply
+    expect(screen.getByText('Out of date')).toBeInTheDocument();
+    // Reapply
+    await act(async () => { await userEvent.click(screen.getByText('Reapply from Source')); });
+    // Stale hint should be gone after reapply
+    expect(screen.queryByText('Out of date')).toBeNull();
+  });
 });

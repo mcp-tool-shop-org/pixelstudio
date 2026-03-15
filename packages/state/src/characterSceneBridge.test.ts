@@ -13,6 +13,11 @@ import {
   isCharacterInstance,
   isSourceBuildAvailable,
   reapplyCharacterBuild,
+  deriveSourceStatus,
+  sourceStatusLabel,
+  instanceBuildName,
+  snapshotSummary,
+  isSnapshotPossiblyStale,
   CHARACTER_PLACEMENT_DEFAULTS,
 } from './characterSceneBridge';
 import { findBuildById } from './characterBuildLibrary';
@@ -485,5 +490,128 @@ describe('placeability → placement integration', () => {
     const b = placeCharacterBuild(WARRIOR);
     expect(a.instanceId).not.toBe(b.instanceId);
     expect(a.sourceCharacterBuildId).toBe(b.sourceCharacterBuildId);
+  });
+});
+
+// ── Instance summary helpers ──
+
+describe('deriveSourceStatus', () => {
+  it('returns "linked" when source build ID is in library', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(deriveSourceStatus(inst, ['build-warrior'])).toBe('linked');
+  });
+
+  it('returns "missing-source" when source build ID is not in library', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(deriveSourceStatus(inst, [])).toBe('missing-source');
+  });
+
+  it('returns "not-character" for plain asset instances', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(deriveSourceStatus(asset, [])).toBe('not-character');
+  });
+});
+
+describe('sourceStatusLabel', () => {
+  it('returns "Linked" for linked status', () => {
+    expect(sourceStatusLabel('linked')).toBe('Linked');
+  });
+
+  it('returns "Source missing" for missing-source status', () => {
+    expect(sourceStatusLabel('missing-source')).toBe('Source missing');
+  });
+
+  it('returns empty string for not-character status', () => {
+    expect(sourceStatusLabel('not-character')).toBe('');
+  });
+});
+
+describe('instanceBuildName', () => {
+  it('returns source build name when present', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(instanceBuildName(inst)).toBe('Warrior');
+  });
+
+  it('returns "Unknown build" when name is empty', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.sourceCharacterBuildName = '';
+    expect(instanceBuildName(inst)).toBe('Unknown build');
+  });
+
+  it('returns "Unknown build" when name is undefined', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.sourceCharacterBuildName = undefined;
+    expect(instanceBuildName(inst)).toBe('Unknown build');
+  });
+
+  it('returns empty string for non-character instances', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(instanceBuildName(asset)).toBe('');
+  });
+});
+
+describe('snapshotSummary', () => {
+  it('formats equipped/total for normal snapshot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(snapshotSummary(inst)).toBe('5/12 equipped');
+  });
+
+  it('formats single equipped slot', () => {
+    const inst = placeCharacterBuild(MINIMAL_BUILD);
+    expect(snapshotSummary(inst)).toBe('1/12 equipped');
+  });
+
+  it('returns "0/0 equipped" when snapshot is missing', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterSlotSnapshot = undefined;
+    expect(snapshotSummary(inst)).toBe('0/0 equipped');
+  });
+});
+
+describe('isSnapshotPossiblyStale', () => {
+  it('returns false when source matches snapshot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(isSnapshotPossiblyStale(inst, {
+      name: 'Warrior', slots: { head: 'h', torso: 't', arms: 'a', legs: 'l', weapon: 'w' },
+    })).toBe(false);
+  });
+
+  it('returns true when slot count differs', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(isSnapshotPossiblyStale(inst, {
+      name: 'Warrior', slots: { head: 'h', torso: 't' }, // only 2 slots
+    })).toBe(true);
+  });
+
+  it('returns true when build name changed', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(isSnapshotPossiblyStale(inst, {
+      name: 'Warrior v2', slots: { head: 'h', torso: 't', arms: 'a', legs: 'l', weapon: 'w' },
+    })).toBe(true);
+  });
+
+  it('returns false for non-character instances', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(isSnapshotPossiblyStale(asset, { name: 'x', slots: {} })).toBe(false);
+  });
+
+  it('returns false when source build is undefined', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(isSnapshotPossiblyStale(inst, undefined)).toBe(false);
+  });
+
+  it('returns true when snapshot is missing but source exists', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterSlotSnapshot = undefined;
+    expect(isSnapshotPossiblyStale(inst, { name: 'Warrior', slots: {} })).toBe(true);
   });
 });
