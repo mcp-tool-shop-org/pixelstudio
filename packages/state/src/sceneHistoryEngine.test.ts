@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SceneAssetInstance } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCameraKeyframe } from '@glyphstudio/domain';
 import type { SceneHistoryState } from './sceneHistoryEngine';
 import {
   createEmptySceneHistoryState,
@@ -485,5 +485,85 @@ describe('SceneHistoryEngine — maxEntries', () => {
   it('defaults to 100 max entries', () => {
     const h = createEmptySceneHistoryState();
     expect(h.maxEntries).toBe(100);
+  });
+});
+
+// ── Keyframe support in applySceneEditWithHistory ──
+
+const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+
+describe('SceneHistoryEngine — keyframe support', () => {
+  it('records keyframe-only change via applySceneEditWithHistory', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'add-camera-keyframe', [INST_ASSET],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    expect(result.history.past).toHaveLength(1);
+    expect(result.history.past[0].kind).toBe('add-camera-keyframe');
+    expect(result.keyframes).toEqual([KF_A, KF_B]);
+  });
+
+  it('returns keyframes in result', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'add-camera-keyframe', [INST_ASSET],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    expect(result.keyframes).toHaveLength(2);
+  });
+
+  it('no-op keyframe edit skips recording', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'edit-camera-keyframe', [INST_ASSET],
+      { tick: 0 },
+      undefined, undefined,
+      [KF_A], [{ ...KF_A }],
+    );
+    expect(result.history.past).toHaveLength(0);
+  });
+
+  it('mid-undo keyframe edit is not recorded', () => {
+    let h = createEmptySceneHistoryState();
+    // Record a keyframe add
+    const r1 = applySceneEditWithHistory(
+      [INST_ASSET], h, 'add-camera-keyframe', [INST_ASSET],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    // Undo
+    const { history: afterUndo } = undoSceneHistory(r1.history);
+    expect(afterUndo.isApplyingHistory).toBe(true);
+    // Apply restored state while mid-undo
+    const r2 = applySceneEditWithHistory(
+      [INST_ASSET], afterUndo, 'add-camera-keyframe', [INST_ASSET],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A, KF_B], [KF_A],
+    );
+    expect(r2.history.past).toHaveLength(0);
+    expect(r2.history.future).toHaveLength(1);
+  });
+
+  it('undo/redo restores keyframes from snapshot', () => {
+    let h = createEmptySceneHistoryState();
+    const r1 = applySceneEditWithHistory(
+      [INST_ASSET], h, 'add-camera-keyframe', [INST_ASSET],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    // Undo should restore before keyframes
+    const { snapshot: undoSnap } = undoSceneHistory(r1.history);
+    expect(undoSnap).toBeDefined();
+    expect(undoSnap!.keyframes).toHaveLength(1);
+    expect(undoSnap!.keyframes![0].tick).toBe(0);
   });
 });

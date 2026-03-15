@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 import {
   describeSceneHistoryOperation,
   isSceneHistoryChange,
@@ -464,5 +464,181 @@ describe('SceneHistory — camera history entry creation', () => {
     const meta = entry!.metadata as { beforeCamera?: SceneCamera; afterCamera?: SceneCamera };
     expect(meta.beforeCamera).toEqual(CAM_DEFAULT);
     expect(meta.afterCamera).toEqual(CAM_ZOOMED);
+  });
+});
+
+// ── Keyframe operation kinds ──
+
+const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold', name: 'Shot B' };
+const KF_C: SceneCameraKeyframe = { tick: 60, x: 200, y: 100, zoom: 1.5, interpolation: 'linear' };
+
+describe('SceneHistory — keyframe operation kinds', () => {
+  it('ALL_SCENE_HISTORY_OPERATION_KINDS includes all 4 keyframe kinds', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('add-camera-keyframe');
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('remove-camera-keyframe');
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('move-camera-keyframe');
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('edit-camera-keyframe');
+  });
+
+  it('total operation kinds is 20', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(20);
+  });
+
+  it('keyframe kinds have distinct labels', () => {
+    const labels = new Set([
+      describeSceneHistoryOperation('add-camera-keyframe'),
+      describeSceneHistoryOperation('remove-camera-keyframe'),
+      describeSceneHistoryOperation('move-camera-keyframe'),
+      describeSceneHistoryOperation('edit-camera-keyframe'),
+    ]);
+    expect(labels.size).toBe(4);
+  });
+
+  it('keyframe labels are operator-clear', () => {
+    expect(describeSceneHistoryOperation('add-camera-keyframe')).toBe('Add Camera Keyframe');
+    expect(describeSceneHistoryOperation('remove-camera-keyframe')).toBe('Remove Camera Keyframe');
+    expect(describeSceneHistoryOperation('move-camera-keyframe')).toBe('Move Camera Keyframe');
+    expect(describeSceneHistoryOperation('edit-camera-keyframe')).toBe('Edit Camera Keyframe');
+  });
+});
+
+// ── Keyframe metadata shape ──
+
+describe('SceneHistory — keyframe metadata', () => {
+  it('keyframe metadata is narrow (tick required)', () => {
+    const meta = { tick: 30 };
+    expect(Object.keys(meta)).toEqual(['tick']);
+  });
+
+  it('keyframe metadata supports changedFields', () => {
+    const meta = { tick: 30, changedFields: ['x', 'zoom'] };
+    expect(meta.changedFields).toEqual(['x', 'zoom']);
+  });
+
+  it('keyframe metadata supports previousTick for moves', () => {
+    const meta = { tick: 60, previousTick: 30 };
+    expect(meta.previousTick).toBe(30);
+  });
+});
+
+// ── Keyframe snapshot change detection ──
+
+describe('SceneHistory — keyframe change detection', () => {
+  it('identical keyframes are not a change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A, KF_B] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [{ ...KF_A }, { ...KF_B }] };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('keyframe added is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A, KF_B] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('keyframe removed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A, KF_B] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('keyframe property change is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [{ ...KF_A, zoom: 3.0 }] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('keyframe-only change with same instances is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [], keyframes: [KF_B] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('no keyframes on either side falls back to instance-only comparison', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('keyframes added where none existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('keyframes removed where some existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+});
+
+// ── Keyframe snapshot capture ──
+
+describe('SceneHistory — keyframe snapshot capture', () => {
+  it('captures keyframes when provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET], undefined, [KF_A, KF_B]);
+    expect(snapshot.keyframes).toHaveLength(2);
+    expect(snapshot.keyframes![0].tick).toBe(0);
+    expect(snapshot.keyframes![1].tick).toBe(30);
+  });
+
+  it('omits keyframes when not provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET]);
+    expect(snapshot.keyframes).toBeUndefined();
+  });
+
+  it('deep-clones keyframes (no aliasing)', () => {
+    const keyframes = [{ ...KF_A }];
+    const snapshot = captureSceneSnapshot([], undefined, keyframes);
+    keyframes[0].x = 9999;
+    expect(snapshot.keyframes![0].x).toBe(0);
+  });
+
+  it('captures both camera and keyframes together', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET], CAM_DEFAULT, [KF_A]);
+    expect(snapshot.camera).toEqual(CAM_DEFAULT);
+    expect(snapshot.keyframes).toHaveLength(1);
+  });
+});
+
+// ── Keyframe history entry creation ──
+
+describe('SceneHistory — keyframe history entry creation', () => {
+  it('creates entry for keyframe-only change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A, KF_B] };
+    const entry = createSceneHistoryEntry('add-camera-keyframe', before, after, { tick: 30 });
+    expect(entry).toBeDefined();
+    expect(entry!.kind).toBe('add-camera-keyframe');
+    expect(entry!.label).toBe('Add Camera Keyframe');
+  });
+
+  it('returns undefined for no-op keyframe edit', () => {
+    const s: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const entry = createSceneHistoryEntry('edit-camera-keyframe', s, { ...s, keyframes: [{ ...KF_A }] });
+    expect(entry).toBeUndefined();
+  });
+
+  it('keyframe metadata carries tick', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], keyframes: [KF_A, KF_B] };
+    const entry = createSceneHistoryEntry('add-camera-keyframe', before, after, { tick: 30 });
+    const meta = entry!.metadata as { tick: number };
+    expect(meta.tick).toBe(30);
+  });
+
+  it('move keyframe metadata carries previousTick', () => {
+    const before: SceneHistorySnapshot = { instances: [], keyframes: [KF_A, KF_B] };
+    const movedKf = { ...KF_B, tick: 45 };
+    const after: SceneHistorySnapshot = { instances: [], keyframes: [KF_A, movedKf] };
+    const entry = createSceneHistoryEntry('move-camera-keyframe', before, after, {
+      tick: 45,
+      previousTick: 30,
+    });
+    const meta = entry!.metadata as { tick: number; previousTick: number };
+    expect(meta.tick).toBe(45);
+    expect(meta.previousTick).toBe(30);
   });
 });

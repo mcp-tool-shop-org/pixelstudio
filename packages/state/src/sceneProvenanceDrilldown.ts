@@ -1,4 +1,4 @@
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 import type { SceneHistoryOperationKind, SceneHistoryOperationMetadata } from './sceneHistory';
 import type { SceneProvenanceEntry } from './sceneProvenance';
 
@@ -27,7 +27,11 @@ export type SceneProvenanceDiff =
   | RemoveOverrideDiff
   | ClearAllOverridesDiff
   | CameraDiff
-  | PlaybackDiff;
+  | PlaybackDiff
+  | KeyframeAddedDiff
+  | KeyframeRemovedDiff
+  | KeyframeMovedDiff
+  | KeyframeEditedDiff;
 
 export interface InstanceAddedDiff {
   type: 'instance-added';
@@ -137,6 +141,33 @@ export interface PlaybackDiff {
   type: 'playback';
 }
 
+export interface KeyframeAddedDiff {
+  type: 'keyframe-added';
+  tick: number;
+  keyframe: SceneCameraKeyframe;
+}
+
+export interface KeyframeRemovedDiff {
+  type: 'keyframe-removed';
+  tick: number;
+  keyframe: SceneCameraKeyframe;
+}
+
+export interface KeyframeMovedDiff {
+  type: 'keyframe-moved';
+  previousTick: number;
+  newTick: number;
+  keyframe: SceneCameraKeyframe;
+}
+
+export interface KeyframeEditedDiff {
+  type: 'keyframe-edited';
+  tick: number;
+  changedFields: string[];
+  before: SceneCameraKeyframe;
+  after: SceneCameraKeyframe;
+}
+
 // ── Drilldown source (captured at edit seam) ──
 
 /**
@@ -154,6 +185,10 @@ export interface SceneProvenanceDrilldownSource {
   beforeCamera?: SceneCamera;
   /** Camera state after a camera-targeted operation. */
   afterCamera?: SceneCamera;
+  /** Keyframe state before a keyframe-targeted operation. */
+  beforeKeyframe?: SceneCameraKeyframe;
+  /** Keyframe state after a keyframe-targeted operation. */
+  afterKeyframe?: SceneCameraKeyframe;
 }
 
 /**
@@ -170,6 +205,8 @@ export function captureProvenanceDrilldownSource(
   metadata?: SceneHistoryOperationMetadata,
   currentCamera?: SceneCamera,
   nextCamera?: SceneCamera,
+  currentKeyframes?: SceneCameraKeyframe[],
+  nextKeyframes?: SceneCameraKeyframe[],
 ): SceneProvenanceDrilldownSource {
   const instanceId = metaInstanceId(metadata);
 
@@ -217,6 +254,45 @@ export function captureProvenanceDrilldownSource(
 
     case 'set-scene-playback':
       return { kind, metadata };
+
+    case 'add-camera-keyframe': {
+      const tick = metaKeyframeTick(metadata);
+      return {
+        kind,
+        metadata,
+        afterKeyframe: tick !== undefined ? findKeyframe(nextKeyframes, tick) : undefined,
+      };
+    }
+
+    case 'remove-camera-keyframe': {
+      const tick = metaKeyframeTick(metadata);
+      return {
+        kind,
+        metadata,
+        beforeKeyframe: tick !== undefined ? findKeyframe(currentKeyframes, tick) : undefined,
+      };
+    }
+
+    case 'move-camera-keyframe': {
+      const previousTick = metaKeyframePreviousTick(metadata);
+      const tick = metaKeyframeTick(metadata);
+      return {
+        kind,
+        metadata,
+        beforeKeyframe: previousTick !== undefined ? findKeyframe(currentKeyframes, previousTick) : undefined,
+        afterKeyframe: tick !== undefined ? findKeyframe(nextKeyframes, tick) : undefined,
+      };
+    }
+
+    case 'edit-camera-keyframe': {
+      const tick = metaKeyframeTick(metadata);
+      return {
+        kind,
+        metadata,
+        beforeKeyframe: tick !== undefined ? findKeyframe(currentKeyframes, tick) : undefined,
+        afterKeyframe: tick !== undefined ? findKeyframe(nextKeyframes, tick) : undefined,
+      };
+    }
   }
 }
 
@@ -260,6 +336,26 @@ function metaSlotId(metadata?: SceneHistoryOperationMetadata): string | undefine
   return undefined;
 }
 
+/** Get keyframe tick from metadata, if present. */
+function metaKeyframeTick(metadata?: SceneHistoryOperationMetadata): number | undefined {
+  if (metadata && 'tick' in metadata) return metadata.tick;
+  return undefined;
+}
+
+/** Get keyframe previous tick from metadata, if present. */
+function metaKeyframePreviousTick(metadata?: SceneHistoryOperationMetadata): number | undefined {
+  if (metadata && 'previousTick' in metadata) return metadata.previousTick;
+  return undefined;
+}
+
+/** Find a keyframe by tick in an array. */
+function findKeyframe(
+  keyframes: SceneCameraKeyframe[] | undefined,
+  tick: number,
+): SceneCameraKeyframe | undefined {
+  return keyframes?.find((k) => k.tick === tick);
+}
+
 /**
  * Derive a focused drilldown diff from before/after scene snapshots and
  * a provenance entry.
@@ -277,6 +373,8 @@ export function deriveProvenanceDiff(
   metadata?: SceneHistoryOperationMetadata,
   beforeCamera?: SceneCamera,
   afterCamera?: SceneCamera,
+  beforeKeyframe?: SceneCameraKeyframe,
+  afterKeyframe?: SceneCameraKeyframe,
 ): SceneProvenanceDiff | undefined {
   const instanceId = metaInstanceId(metadata);
 
@@ -483,6 +581,48 @@ export function deriveProvenanceDiff(
     case 'set-scene-playback': {
       return { type: 'playback' };
     }
+
+    case 'add-camera-keyframe': {
+      if (!afterKeyframe) return undefined;
+      return {
+        type: 'keyframe-added',
+        tick: afterKeyframe.tick,
+        keyframe: afterKeyframe,
+      };
+    }
+
+    case 'remove-camera-keyframe': {
+      if (!beforeKeyframe) return undefined;
+      return {
+        type: 'keyframe-removed',
+        tick: beforeKeyframe.tick,
+        keyframe: beforeKeyframe,
+      };
+    }
+
+    case 'move-camera-keyframe': {
+      if (!beforeKeyframe || !afterKeyframe) return undefined;
+      return {
+        type: 'keyframe-moved',
+        previousTick: beforeKeyframe.tick,
+        newTick: afterKeyframe.tick,
+        keyframe: afterKeyframe,
+      };
+    }
+
+    case 'edit-camera-keyframe': {
+      if (!beforeKeyframe || !afterKeyframe) return undefined;
+      const changedFields = metadata && 'changedFields' in metadata
+        ? metadata.changedFields ?? []
+        : [];
+      return {
+        type: 'keyframe-edited',
+        tick: afterKeyframe.tick,
+        changedFields,
+        before: beforeKeyframe,
+        after: afterKeyframe,
+      };
+    }
   }
 }
 
@@ -497,6 +637,8 @@ export function deriveProvenanceDrilldown(
   afterInstances: SceneAssetInstance[],
   beforeCamera?: SceneCamera,
   afterCamera?: SceneCamera,
+  beforeKeyframe?: SceneCameraKeyframe,
+  afterKeyframe?: SceneCameraKeyframe,
 ): SceneProvenanceDrilldown | undefined {
   const diff = deriveProvenanceDiff(
     entry.kind,
@@ -505,6 +647,8 @@ export function deriveProvenanceDrilldown(
     entry.metadata,
     beforeCamera,
     afterCamera,
+    beforeKeyframe,
+    afterKeyframe,
   );
   if (!diff) return undefined;
   return {
@@ -600,6 +744,20 @@ export function describeProvenanceDiff(diff: SceneProvenanceDiff): string {
 
     case 'playback':
       return 'Playback settings changed';
+
+    case 'keyframe-added':
+      return `Added keyframe at tick ${diff.tick}`;
+
+    case 'keyframe-removed':
+      return `Removed keyframe at tick ${diff.tick}`;
+
+    case 'keyframe-moved':
+      return `Moved keyframe from tick ${diff.previousTick} to tick ${diff.newTick}`;
+
+    case 'keyframe-edited': {
+      if (diff.changedFields.length === 0) return `Edited keyframe at tick ${diff.tick}`;
+      return `Edited keyframe at tick ${diff.tick}: ${diff.changedFields.join(', ')}`;
+    }
   }
 }
 

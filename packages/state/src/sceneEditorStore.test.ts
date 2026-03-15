@@ -1733,7 +1733,7 @@ describe('SceneEditorStore — 19.5 hardening', () => {
     loadInstances([INST_ASSET]);
     // Playback edits change FPS/loop — use different instances to avoid no-op guard
     const inst2 = { ...INST_ASSET, x: 999 };
-    applyEdit('set-scene-playback', [inst2], { fps: 24 });
+    applyEdit('set-scene-playback', [inst2]);
     const state = useSceneEditorStore.getState();
     expect(state.provenance).toHaveLength(1);
     expect(state.provenance[0].kind).toBe('set-scene-playback');

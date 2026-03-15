@@ -167,7 +167,11 @@ export type PersistedSceneOperationKind =
   | 'remove-character-override'
   | 'clear-all-character-overrides'
   | 'set-scene-camera'
-  | 'set-scene-playback';
+  | 'set-scene-playback'
+  | 'add-camera-keyframe'
+  | 'remove-camera-keyframe'
+  | 'move-camera-keyframe'
+  | 'edit-camera-keyframe';
 
 /**
  * Persisted provenance metadata — serializable subset of SceneHistoryOperationMetadata.
@@ -176,7 +180,8 @@ export type PersistedSceneOperationKind =
 export type PersistedSceneProvenanceMetadata =
   | { instanceId: string }
   | { instanceId: string; slotId: string }
-  | { changedFields?: string[]; beforeCamera?: SceneCamera; afterCamera?: SceneCamera };
+  | { changedFields?: string[]; beforeCamera?: SceneCamera; afterCamera?: SceneCamera }
+  | { tick: number; changedFields?: string[]; previousTick?: number };
 
 /**
  * A single persisted provenance entry.
@@ -212,6 +217,10 @@ export interface PersistedSceneProvenanceDrilldownSource {
   beforeCamera?: SceneCamera;
   /** Camera state after the edit (camera operations only). */
   afterCamera?: SceneCamera;
+  /** Keyframe state before the edit (keyframe operations only). */
+  beforeKeyframe?: SceneCameraKeyframe;
+  /** Keyframe state after the edit (keyframe operations only). */
+  afterKeyframe?: SceneCameraKeyframe;
 }
 
 /**

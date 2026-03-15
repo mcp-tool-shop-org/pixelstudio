@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 import {
   deriveProvenanceDiff,
   deriveProvenanceDrilldown,
@@ -598,5 +598,201 @@ describe('deriveProvenanceDiff — camera with values', () => {
       { instanceId: 'i1' }, CAM_A, CAM_B,
     );
     expect(diff!.type).toBe('move');
+  });
+});
+
+// ── Keyframe drilldown ──
+
+const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold', name: 'Shot B' };
+const KF_C: SceneCameraKeyframe = { tick: 60, x: 200, y: 100, zoom: 1.5, interpolation: 'linear' };
+
+describe('ProvenanceDrilldown — keyframe diffs', () => {
+  it('add-camera-keyframe derives keyframe-added diff', () => {
+    const diff = deriveProvenanceDiff(
+      'add-camera-keyframe', [], [], { tick: 30 },
+      undefined, undefined, undefined, KF_B,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-added');
+    if (diff!.type === 'keyframe-added') {
+      expect(diff!.tick).toBe(30);
+      expect(diff!.keyframe).toEqual(KF_B);
+    }
+  });
+
+  it('remove-camera-keyframe derives keyframe-removed diff', () => {
+    const diff = deriveProvenanceDiff(
+      'remove-camera-keyframe', [], [], { tick: 30 },
+      undefined, undefined, KF_B, undefined,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-removed');
+    if (diff!.type === 'keyframe-removed') {
+      expect(diff!.tick).toBe(30);
+      expect(diff!.keyframe).toEqual(KF_B);
+    }
+  });
+
+  it('move-camera-keyframe derives keyframe-moved diff', () => {
+    const movedKf = { ...KF_B, tick: 45 };
+    const diff = deriveProvenanceDiff(
+      'move-camera-keyframe', [], [], { tick: 45, previousTick: 30 },
+      undefined, undefined, KF_B, movedKf,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-moved');
+    if (diff!.type === 'keyframe-moved') {
+      expect(diff!.previousTick).toBe(30);
+      expect(diff!.newTick).toBe(45);
+      expect(diff!.keyframe).toEqual(movedKf);
+    }
+  });
+
+  it('edit-camera-keyframe derives keyframe-edited diff', () => {
+    const editedKf = { ...KF_B, zoom: 3.0 };
+    const diff = deriveProvenanceDiff(
+      'edit-camera-keyframe', [], [], { tick: 30, changedFields: ['zoom'] },
+      undefined, undefined, KF_B, editedKf,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('keyframe-edited');
+    if (diff!.type === 'keyframe-edited') {
+      expect(diff!.tick).toBe(30);
+      expect(diff!.changedFields).toEqual(['zoom']);
+      expect(diff!.before).toEqual(KF_B);
+      expect(diff!.after).toEqual(editedKf);
+    }
+  });
+
+  it('keyframe diffs are all distinct types', () => {
+    const types = new Set<string>();
+    types.add(deriveProvenanceDiff('add-camera-keyframe', [], [], { tick: 30 }, undefined, undefined, undefined, KF_B)!.type);
+    types.add(deriveProvenanceDiff('remove-camera-keyframe', [], [], { tick: 30 }, undefined, undefined, KF_B, undefined)!.type);
+    const movedKf = { ...KF_B, tick: 45 };
+    types.add(deriveProvenanceDiff('move-camera-keyframe', [], [], { tick: 45, previousTick: 30 }, undefined, undefined, KF_B, movedKf)!.type);
+    types.add(deriveProvenanceDiff('edit-camera-keyframe', [], [], { tick: 30, changedFields: ['zoom'] }, undefined, undefined, KF_B, { ...KF_B, zoom: 3.0 })!.type);
+    expect(types.size).toBe(4);
+  });
+
+  it('add returns undefined without afterKeyframe', () => {
+    const diff = deriveProvenanceDiff('add-camera-keyframe', [], [], { tick: 30 });
+    expect(diff).toBeUndefined();
+  });
+
+  it('remove returns undefined without beforeKeyframe', () => {
+    const diff = deriveProvenanceDiff('remove-camera-keyframe', [], [], { tick: 30 });
+    expect(diff).toBeUndefined();
+  });
+
+  it('move returns undefined without both keyframes', () => {
+    const diff = deriveProvenanceDiff('move-camera-keyframe', [], [], { tick: 45, previousTick: 30 });
+    expect(diff).toBeUndefined();
+  });
+
+  it('edit returns undefined without both keyframes', () => {
+    const diff = deriveProvenanceDiff('edit-camera-keyframe', [], [], { tick: 30, changedFields: ['zoom'] });
+    expect(diff).toBeUndefined();
+  });
+});
+
+describe('ProvenanceDrilldown — keyframe describe diff', () => {
+  it('describes keyframe-added', () => {
+    const desc = describeProvenanceDiff({ type: 'keyframe-added', tick: 30, keyframe: KF_B });
+    expect(desc).toContain('Added');
+    expect(desc).toContain('tick 30');
+  });
+
+  it('describes keyframe-removed', () => {
+    const desc = describeProvenanceDiff({ type: 'keyframe-removed', tick: 30, keyframe: KF_B });
+    expect(desc).toContain('Removed');
+    expect(desc).toContain('tick 30');
+  });
+
+  it('describes keyframe-moved', () => {
+    const desc = describeProvenanceDiff({
+      type: 'keyframe-moved', previousTick: 30, newTick: 45, keyframe: { ...KF_B, tick: 45 },
+    });
+    expect(desc).toContain('tick 30');
+    expect(desc).toContain('tick 45');
+  });
+
+  it('describes keyframe-edited with fields', () => {
+    const desc = describeProvenanceDiff({
+      type: 'keyframe-edited', tick: 30, changedFields: ['zoom', 'x'],
+      before: KF_B, after: { ...KF_B, zoom: 3.0 },
+    });
+    expect(desc).toContain('tick 30');
+    expect(desc).toContain('zoom');
+    expect(desc).toContain('x');
+  });
+
+  it('describes keyframe-edited without fields', () => {
+    const desc = describeProvenanceDiff({
+      type: 'keyframe-edited', tick: 30, changedFields: [],
+      before: KF_B, after: { ...KF_B, zoom: 3.0 },
+    });
+    expect(desc).toContain('tick 30');
+  });
+});
+
+describe('captureProvenanceDrilldownSource — keyframes', () => {
+  it('add-camera-keyframe captures afterKeyframe', () => {
+    const src = captureProvenanceDrilldownSource(
+      'add-camera-keyframe', [], [],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    expect(src.kind).toBe('add-camera-keyframe');
+    expect(src.afterKeyframe).toEqual(KF_B);
+    expect(src.beforeKeyframe).toBeUndefined();
+  });
+
+  it('remove-camera-keyframe captures beforeKeyframe', () => {
+    const src = captureProvenanceDrilldownSource(
+      'remove-camera-keyframe', [], [],
+      { tick: 30 },
+      undefined, undefined,
+      [KF_A, KF_B], [KF_A],
+    );
+    expect(src.kind).toBe('remove-camera-keyframe');
+    expect(src.beforeKeyframe).toEqual(KF_B);
+    expect(src.afterKeyframe).toBeUndefined();
+  });
+
+  it('move-camera-keyframe captures both keyframes', () => {
+    const movedKf = { ...KF_B, tick: 45 };
+    const src = captureProvenanceDrilldownSource(
+      'move-camera-keyframe', [], [],
+      { tick: 45, previousTick: 30 },
+      undefined, undefined,
+      [KF_A, KF_B], [KF_A, movedKf],
+    );
+    expect(src.beforeKeyframe).toEqual(KF_B);
+    expect(src.afterKeyframe).toEqual(movedKf);
+  });
+
+  it('edit-camera-keyframe captures both keyframes at same tick', () => {
+    const editedKf = { ...KF_B, zoom: 3.0 };
+    const src = captureProvenanceDrilldownSource(
+      'edit-camera-keyframe', [], [],
+      { tick: 30, changedFields: ['zoom'] },
+      undefined, undefined,
+      [KF_A, KF_B], [KF_A, editedKf],
+    );
+    expect(src.beforeKeyframe).toEqual(KF_B);
+    expect(src.afterKeyframe).toEqual(editedKf);
+  });
+
+  it('instance ops do not capture keyframe fields', () => {
+    const src = captureProvenanceDrilldownSource(
+      'move-instance', [INST_A], [{ ...INST_A, x: 200 }],
+      { instanceId: 'i1' },
+      undefined, undefined,
+      [KF_A], [KF_A, KF_B],
+    );
+    expect(src.beforeKeyframe).toBeUndefined();
+    expect(src.afterKeyframe).toBeUndefined();
   });
 });

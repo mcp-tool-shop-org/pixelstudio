@@ -120,6 +120,7 @@ export type {
   SceneHistoryInstanceMeta,
   SceneHistoryOverrideMeta,
   SceneHistoryCameraMeta,
+  SceneHistoryKeyframeMeta,
   SceneHistoryOperationMetadata,
 } from './sceneHistory';
 export {

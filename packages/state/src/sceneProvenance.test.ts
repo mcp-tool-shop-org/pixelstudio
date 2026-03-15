@@ -115,6 +115,34 @@ describe('SceneProvenance — labels', () => {
     expect(describeSceneProvenanceEntry('add-instance'))
       .not.toBe(describeSceneProvenanceEntry('remove-instance'));
   });
+
+  it('label includes tick for keyframe metadata', () => {
+    const label = describeSceneProvenanceEntry('add-camera-keyframe', { tick: 30 });
+    expect(label).toContain('tick 30');
+  });
+
+  it('label includes previousTick for move keyframe', () => {
+    const label = describeSceneProvenanceEntry('move-camera-keyframe', { tick: 60, previousTick: 30 });
+    expect(label).toContain('tick 60');
+    expect(label).toContain('tick 30');
+  });
+
+  it('label includes changedFields for edit keyframe', () => {
+    const label = describeSceneProvenanceEntry('edit-camera-keyframe', { tick: 30, changedFields: ['zoom', 'x'] });
+    expect(label).toContain('tick 30');
+    expect(label).toContain('zoom');
+    expect(label).toContain('x');
+  });
+
+  it('keyframe kinds have distinct labels', () => {
+    const labels = new Set([
+      describeSceneProvenanceEntry('add-camera-keyframe', { tick: 0 }),
+      describeSceneProvenanceEntry('remove-camera-keyframe', { tick: 0 }),
+      describeSceneProvenanceEntry('move-camera-keyframe', { tick: 0, previousTick: 10 }),
+      describeSceneProvenanceEntry('edit-camera-keyframe', { tick: 0 }),
+    ]);
+    expect(labels.size).toBe(4);
+  });
 });
 
 // ── Sequence mechanics ──
@@ -163,8 +191,8 @@ describe('SceneProvenance — exhaustiveness', () => {
     }
   });
 
-  it('all 16 operation kinds are covered', () => {
-    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(16);
+  it('all 20 operation kinds are covered', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(20);
   });
 });
 

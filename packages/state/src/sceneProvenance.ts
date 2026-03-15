@@ -91,6 +91,16 @@ export function describeSceneProvenanceEntry(
   if ('instanceId' in metadata) {
     return `${base} (${metadata.instanceId})`;
   }
+  if ('tick' in metadata) {
+    const tickLabel = `tick ${metadata.tick}`;
+    if ('previousTick' in metadata && metadata.previousTick !== undefined) {
+      return `${base} (${tickLabel}, from tick ${metadata.previousTick})`;
+    }
+    if ('changedFields' in metadata && metadata.changedFields?.length) {
+      return `${base} (${tickLabel}: ${metadata.changedFields.join(', ')})`;
+    }
+    return `${base} (${tickLabel})`;
+  }
   if ('changedFields' in metadata && metadata.changedFields?.length) {
     return `${base} (${metadata.changedFields.join(', ')})`;
   }

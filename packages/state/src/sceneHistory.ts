@@ -1,4 +1,4 @@
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 
 // ── Operation kinds ──
 
@@ -25,7 +25,11 @@ export type SceneHistoryOperationKind =
   | 'remove-character-override'
   | 'clear-all-character-overrides'
   | 'set-scene-camera'
-  | 'set-scene-playback';
+  | 'set-scene-playback'
+  | 'add-camera-keyframe'
+  | 'remove-camera-keyframe'
+  | 'move-camera-keyframe'
+  | 'edit-camera-keyframe';
 
 // ── Operation metadata ──
 
@@ -52,10 +56,20 @@ export interface SceneHistoryCameraMeta {
   afterCamera?: SceneCamera;
 }
 
+export interface SceneHistoryKeyframeMeta {
+  /** Tick position identifying the target keyframe. */
+  tick: number;
+  /** Which fields changed (for edit operations). */
+  changedFields?: string[];
+  /** Previous tick position (for move operations). */
+  previousTick?: number;
+}
+
 export type SceneHistoryOperationMetadata =
   | SceneHistoryInstanceMeta
   | SceneHistoryOverrideMeta
   | SceneHistoryCameraMeta
+  | SceneHistoryKeyframeMeta
   | undefined;
 
 // ── Snapshot ──
@@ -79,6 +93,8 @@ export interface SceneHistorySnapshot {
   instances: SceneAssetInstance[];
   /** Camera state at this point in time. Present for camera-aware edits. */
   camera?: SceneCamera;
+  /** Authored camera keyframes at this point in time. Present for keyframe-aware edits. */
+  keyframes?: SceneCameraKeyframe[];
 }
 
 // ── History entry ──
@@ -122,6 +138,10 @@ const OPERATION_LABELS: Record<SceneHistoryOperationKind, string> = {
   'clear-all-character-overrides': 'Clear All Overrides',
   'set-scene-camera': 'Edit Camera',
   'set-scene-playback': 'Edit Playback',
+  'add-camera-keyframe': 'Add Camera Keyframe',
+  'remove-camera-keyframe': 'Remove Camera Keyframe',
+  'move-camera-keyframe': 'Move Camera Keyframe',
+  'edit-camera-keyframe': 'Edit Camera Keyframe',
 };
 
 /**
@@ -150,7 +170,15 @@ export function isSceneHistoryChange(
   }
   // Camera change detection — only when at least one snapshot carries camera
   if (before.camera || after.camera) {
-    return JSON.stringify(before.camera) !== JSON.stringify(after.camera);
+    if (JSON.stringify(before.camera) !== JSON.stringify(after.camera)) {
+      return true;
+    }
+  }
+  // Keyframe change detection — only when at least one snapshot carries keyframes
+  if (before.keyframes || after.keyframes) {
+    if (JSON.stringify(before.keyframes) !== JSON.stringify(after.keyframes)) {
+      return true;
+    }
   }
   return false;
 }
@@ -187,12 +215,16 @@ export function createSceneHistoryEntry(
 export function captureSceneSnapshot(
   instances: SceneAssetInstance[],
   camera?: SceneCamera,
+  keyframes?: SceneCameraKeyframe[],
 ): SceneHistorySnapshot {
   const snapshot: SceneHistorySnapshot = {
     instances: JSON.parse(JSON.stringify(instances)) as SceneAssetInstance[],
   };
   if (camera !== undefined) {
     snapshot.camera = { ...camera };
+  }
+  if (keyframes !== undefined) {
+    snapshot.keyframes = JSON.parse(JSON.stringify(keyframes)) as SceneCameraKeyframe[];
   }
   return snapshot;
 }
@@ -217,4 +249,8 @@ export const ALL_SCENE_HISTORY_OPERATION_KINDS: SceneHistoryOperationKind[] = [
   'clear-all-character-overrides',
   'set-scene-camera',
   'set-scene-playback',
+  'add-camera-keyframe',
+  'remove-camera-keyframe',
+  'move-camera-keyframe',
+  'edit-camera-keyframe',
 ];
