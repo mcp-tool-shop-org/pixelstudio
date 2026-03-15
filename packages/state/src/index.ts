@@ -140,3 +140,9 @@ export type {
 } from './sceneHistoryEngine';
 export { useSceneEditorStore } from './sceneEditorStore';
 export type { SceneEditorState, SceneUndoRedoResult } from './sceneEditorStore';
+export {
+  createSceneProvenanceEntry,
+  describeSceneProvenanceEntry,
+  resetProvenanceSequence,
+} from './sceneProvenance';
+export type { SceneProvenanceEntry } from './sceneProvenance';
