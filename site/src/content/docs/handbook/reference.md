@@ -1067,23 +1067,43 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 | `finishApplyingHistory` | fn | Clear `isApplyingHistory` flag |
 | `applySceneEditWithHistory` | fn | Detect no-op, record entry, return new state |
 
+#### Provenance layer (`sceneProvenance`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `SceneProvenanceEntry` | type | Append-only entry: sequence, kind, label, timestamp, metadata |
+| `createSceneProvenanceEntry` | fn | Build a provenance entry from kind + metadata (auto-sequences) |
+| `describeSceneProvenanceEntry` | fn | Label enrichment with instanceId, slotId, changedFields |
+| `resetProvenanceSequence` | fn | Reset sequence counter (called on scene change) |
+| `peekProvenanceSequence` | fn | Current next sequence value (testing only) |
+
 #### Store layer (`sceneEditorStore`)
 
 | Export | Type | Purpose |
 |--------|------|---------|
-| `useSceneEditorStore` | Zustand store | Centralized scene instances + history |
-| `SceneEditorState` | type | Store shape (instances, history, actions) |
+| `useSceneEditorStore` | Zustand store | Centralized scene instances + history + provenance |
+| `SceneEditorState` | type | Store shape (instances, history, provenance, actions) |
 | `SceneUndoRedoResult` | type | `{ instances: SceneAssetInstance[], rollback: () => void }` |
+
+Store state:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `instances` | `SceneAssetInstance[]` | Current authoritative frontend scene state |
+| `history` | `SceneHistoryState` | Undo/redo stacks |
+| `provenance` | `SceneProvenanceEntry[]` | Session-local append-only activity log |
+| `canUndo` | `boolean` | Whether undo is available |
+| `canRedo` | `boolean` | Whether redo is available |
 
 Store actions:
 
 | Action | Signature | Description |
 |--------|-----------|-------------|
-| `loadInstances` | `(instances) → void` | Load from backend without history (refresh, initial load) |
-| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history (captures before/after) |
+| `loadInstances` | `(instances) → void` | Load from backend without history or provenance (refresh, initial load) |
+| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history and provenance (captures before/after, appends provenance) |
 | `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
 | `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
-| `resetHistory` | `() → void` | Clear history stacks (scene change / new scene) |
+| `resetHistory` | `() → void` | Clear history stacks, provenance log, and sequence counter (scene change / new scene) |
 
 ### SceneTimelineSummary
 
@@ -1193,6 +1213,7 @@ The Scene tab in the top bar activates a dedicated workspace:
 - **Instances panel** — right dock shows all instances sorted by z-order with visibility toggle, bring forward/send backward, remove, opacity slider, clip picker, parallax depth control with BG/MG/FG presets
 - **Camera controls** — pan (middle-click drag), zoom (scroll wheel or +/−/reset buttons), camera state persists in scene file
 - **Undo/redo** — toolbar buttons and keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y); full-snapshot scene history with backend sync via `restore_scene_instances`; rollback on sync failure
+- **Activity panel** — read-only scene provenance timeline in the Activity tab; shows successful forward edits with labels, timestamps, and metadata; newest-first ordering; session-local scope
 - **Parallax depth** — per-instance parallax factor (0.1–3.0); camera movement reveals depth separation between layers
 - **Playback controls** — stop/step-back/play-pause/step-forward/loop, FPS input, scrubber, tick/time readout
 - **Scene scrubber** — draggable timeline scrubber with jump-to-start/end; scrubbing pauses playback, play resumes from scrubbed position

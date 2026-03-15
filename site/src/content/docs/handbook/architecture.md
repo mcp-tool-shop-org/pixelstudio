@@ -76,7 +76,7 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 | export | Preset selection, readiness, preview state |
 | character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
-| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions |
+| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, session-local provenance log |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -227,10 +227,69 @@ Shortcuts are suppressed when focus is in an `<input>`, `<textarea>`, or `conten
 ### Current limitations
 
 - Scene history is session-local — it resets on scene change or app restart
-- No scene provenance/audit timeline yet
 - No metadata-bearing scene export/import yet
 - History is scene-instance-based, not a generalized project-wide undo system
 - Canvas and scene editors use different undo mechanisms by design
+
+## Scene provenance
+
+Scene provenance is a session-local, append-only activity log that records successful forward scene edits. It exists alongside scene history but serves a fundamentally different purpose.
+
+### History vs provenance
+
+| Aspect | Scene history | Scene provenance |
+|--------|--------------|-----------------|
+| **Purpose** | Reversal (undo/redo) | Inspection (what happened) |
+| **Model** | Before/after snapshot pairs | Ordered entry log with label + metadata |
+| **Mutability** | Entries move between past/future stacks | Append-only, never modified |
+| **Trigger** | Forward edits via `applyEdit` | Same — appended at the same seam |
+| **Undo/redo** | Navigates stacks | Does not create entries |
+| **Load/refresh** | Does not create entries | Does not create entries |
+| **No-op edits** | Skipped (identical instances) | Skipped (same guard) |
+| **Failed edits** | Never recorded | Never recorded |
+| **Reset** | `resetHistory` clears stacks | `resetHistory` clears provenance and resets sequence |
+
+### Architecture
+
+Provenance is built on two layers in `@glyphstudio/state`:
+
+| Layer | Module | Responsibility |
+|-------|--------|---------------|
+| Contract | `sceneProvenance.ts` | Entry type, label enrichment, sequence counter |
+| Store | `sceneEditorStore.ts` | Append provenance at the `applyEdit` seam, store in `provenance[]` |
+
+Provenance reuses the same `SceneHistoryOperationKind` and `SceneHistoryOperationMetadata` types from the history contract. The two systems share type definitions but never share state.
+
+### Append mechanics
+
+Provenance entries are appended inside `applyEdit` in `sceneEditorStore`, using history reference identity to detect whether a real edit occurred:
+
+- If `result.history !== history` (reference changed), a history entry was recorded → append provenance
+- If references are identical, the edit was a no-op or occurred during undo/redo replay → skip provenance
+
+This ensures provenance only records actual forward edits without duplicating the no-op detection logic.
+
+### Entry model
+
+Each `SceneProvenanceEntry` contains:
+
+- `sequence` — monotonically increasing 1-based counter (reset on scene change)
+- `kind` — the `SceneHistoryOperationKind` that produced the entry
+- `label` — human-readable description, enriched with metadata (instance ID, slot ID, changed fields)
+- `timestamp` — ISO 8601 timestamp
+- `metadata` — optional `SceneHistoryOperationMetadata` identifying the edit target
+
+### UI surface
+
+The **Activity** tab in the scene mode RightDock renders provenance entries newest-first. Each row shows the label, formatted timestamp, and metadata summary. The panel is read-only — no jump-to-state, no revert, no diff viewer.
+
+### Current limitations
+
+- Provenance is session-local only — no persisted audit log
+- No diff viewer or before/after comparison
+- No jump-to-state from provenance entries
+- Provenance is scene-only, not project-wide
+- Camera and playback edits are not currently routed through `applyEdit`, so they do not produce provenance entries
 
 ## Character workflow
 
