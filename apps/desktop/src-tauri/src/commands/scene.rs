@@ -674,6 +674,26 @@ pub fn export_scene_frame(
     })
 }
 
+// --- History restore command ---
+
+/// Replace all scene instances with a provided snapshot.
+///
+/// Used by the frontend undo/redo engine to push restored scene state
+/// back to the backend. Marks the scene as dirty.
+#[command]
+pub fn restore_scene_instances(
+    instances: Vec<SceneAssetInstance>,
+    state: State<'_, ManagedSceneState>,
+) -> Result<Vec<SceneAssetInstance>, AppError> {
+    let mut guard = state.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let scene = guard
+        .as_mut()
+        .ok_or_else(|| AppError::Internal("No scene is open".into()))?;
+    scene.document.instances = instances;
+    scene.dirty = true;
+    Ok(scene.document.instances.clone())
+}
+
 // --- Character link mode commands ---
 
 /// Unlink a character instance from its source build.

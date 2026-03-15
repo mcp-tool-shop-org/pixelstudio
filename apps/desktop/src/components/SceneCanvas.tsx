@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, SceneInfo, SourceAssetFrames } from '@glyphstudio/domain';
-import { useScenePlaybackStore, useProjectStore } from '@glyphstudio/state';
+import { useScenePlaybackStore, useProjectStore, useSceneEditorStore } from '@glyphstudio/state';
 
 /** Cached frame images for a source asset + clip combination. */
 interface CachedFrames {
@@ -18,7 +18,9 @@ function frameCacheKey(sourcePath: string, clipId: string | null | undefined): s
 
 export function SceneCanvas() {
   const [sceneInfo, setSceneInfo] = useState<SceneInfo | null>(null);
-  const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
+  const instances = useSceneEditorStore((s) => s.instances);
+  const loadInstances = useSceneEditorStore((s) => s.loadInstances);
+  const applyEdit = useSceneEditorStore((s) => s.applyEdit);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState<{
@@ -75,10 +77,10 @@ export function SceneCanvas() {
       const kfs = await invoke<SceneCameraKeyframe[]>('list_scene_camera_keyframes');
       useScenePlaybackStore.getState().setCameraKeyframes(kfs);
       const insts = await invoke<SceneAssetInstance[]>('get_scene_instances');
-      setInstances(insts);
+      loadInstances(insts);
     } catch {
       setSceneInfo(null);
-      setInstances([]);
+      loadInstances([]);
     }
   }, [sceneInfo, clearFrameCache]);
 
@@ -152,7 +154,7 @@ export function SceneCanvas() {
   // Add asset to scene
   const handleAddAsset = useCallback(async (sourcePath: string, assetId?: string, name?: string) => {
     try {
-      await invoke<SceneAssetInstance>('add_scene_instance', {
+      const added = await invoke<SceneAssetInstance>('add_scene_instance', {
         sourcePath,
         assetId: assetId ?? null,
         name: name ?? null,
@@ -160,11 +162,16 @@ export function SceneCanvas() {
         y: null,
         clipId: null,
       });
-      refresh();
+      // Refresh and record history
+      const refreshed = await invoke<SceneAssetInstance[]>('get_scene_instances');
+      applyEdit('add-instance', refreshed, { instanceId: added.instanceId });
+      // Refresh scene info (instance count etc)
+      const info = await invoke<SceneInfo>('get_scene_info');
+      setSceneInfo(info);
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh]);
+  }, [applyEdit]);
 
   // Drag handlers — allowed during playback
   const handleMouseDown = useCallback((e: React.MouseEvent, instanceId: string) => {
@@ -195,14 +202,16 @@ export function SceneCanvas() {
     const zoom = useScenePlaybackStore.getState().cameraZoom;
     const dx = (e.clientX - dragging.startX) / zoom;
     const dy = (e.clientY - dragging.startY) / zoom;
-    setInstances((prev) =>
-      prev.map((inst) =>
+    const newX = Math.round(dragging.origX + dx);
+    const newY = Math.round(dragging.origY + dy);
+    loadInstances(
+      instances.map((inst) =>
         inst.instanceId === dragging.instanceId
-          ? { ...inst, x: Math.round(dragging.origX + dx), y: Math.round(dragging.origY + dy) }
+          ? { ...inst, x: newX, y: newY }
           : inst,
       ),
     );
-  }, [dragging, panning, setCameraPosition]);
+  }, [dragging, panning, setCameraPosition, instances, loadInstances]);
 
   const handleMouseUp = useCallback(async () => {
     if (panning) {
@@ -218,7 +227,7 @@ export function SceneCanvas() {
     }
     if (!dragging) return;
     const inst = instances.find((i) => i.instanceId === dragging.instanceId);
-    if (inst) {
+    if (inst && (inst.x !== dragging.origX || inst.y !== dragging.origY)) {
       try {
         await invoke('move_scene_instance', {
           instanceId: dragging.instanceId,
@@ -227,12 +236,23 @@ export function SceneCanvas() {
         });
         useProjectStore.getState().markDirty();
         invoke('mark_dirty').catch(() => {});
+        // Record history: build before snapshot with original position
+        const beforeInstances = instances.map((i) =>
+          i.instanceId === dragging.instanceId
+            ? { ...i, x: dragging.origX, y: dragging.origY }
+            : i,
+        );
+        // Temporarily load before snapshot so applyEdit captures it
+        loadInstances(beforeInstances);
+        // Now record the edit with the current (moved) instances as after
+        const refreshed = await invoke<SceneAssetInstance[]>('get_scene_instances');
+        applyEdit('move-instance', refreshed, { instanceId: dragging.instanceId });
       } catch (err) {
         setError(String(err));
       }
     }
     setDragging(null);
-  }, [dragging, panning, instances]);
+  }, [dragging, panning, instances, loadInstances, applyEdit]);
 
   const handleCanvasClick = useCallback(() => {
     if (!dragging && !panning) setSelectedId(null);
@@ -273,6 +293,38 @@ export function SceneCanvas() {
       // ignore
     }
   }, [resetCamera]);
+
+  // Scene undo/redo keyboard shortcuts
+  const sceneUndo = useSceneEditorStore((s) => s.undo);
+  const sceneRedo = useSceneEditorStore((s) => s.redo);
+  const sceneCanUndo = useSceneEditorStore((s) => s.canUndo);
+  const sceneCanRedo = useSceneEditorStore((s) => s.canRedo);
+
+  useEffect(() => {
+    const handler = async (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const restored = sceneUndo();
+        if (restored) {
+          await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
+          useProjectStore.getState().markDirty();
+          invoke('mark_dirty').catch(() => {});
+        }
+      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+        e.preventDefault();
+        const restored = sceneRedo();
+        if (restored) {
+          await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
+          useProjectStore.getState().markDirty();
+          invoke('mark_dirty').catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [sceneUndo, sceneRedo]);
 
   // Sort instances by z-order for rendering
   const sortedInstances = [...instances].sort((a, b) => a.zOrder - b.zOrder);
@@ -417,9 +469,37 @@ export function SceneCanvas() {
         </div>
       </div>
 
-      {/* Toolbar: add asset + camera controls */}
+      {/* Toolbar: add asset + undo/redo + camera controls */}
       <div className="scene-canvas-toolbar">
         <SceneAddAssetButton onAdd={handleAddAsset} />
+        <div className="scene-history-controls">
+          <button
+            className="scene-history-btn"
+            title="Undo (Ctrl+Z)"
+            disabled={!sceneCanUndo}
+            onClick={async () => {
+              const restored = sceneUndo();
+              if (restored) {
+                await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
+                useProjectStore.getState().markDirty();
+                invoke('mark_dirty').catch(() => {});
+              }
+            }}
+          >{'\u21A9'}</button>
+          <button
+            className="scene-history-btn"
+            title="Redo (Ctrl+Shift+Z)"
+            disabled={!sceneCanRedo}
+            onClick={async () => {
+              const restored = sceneRedo();
+              if (restored) {
+                await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
+                useProjectStore.getState().markDirty();
+                invoke('mark_dirty').catch(() => {});
+              }
+            }}
+          >{'\u21AA'}</button>
+        </div>
         <div className="scene-camera-controls">
           <span className="scene-camera-label">{Math.round(cameraZoom * 100)}%</span>
           <button

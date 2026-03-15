@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo, CharacterPartPreset, CharacterSlotId } from '@glyphstudio/domain';
 import {
-  useScenePlaybackStore, useProjectStore, useCharacterStore,
+  useScenePlaybackStore, useProjectStore, useCharacterStore, useSceneEditorStore,
   isCharacterInstance, isSourceBuildAvailable, reapplyCharacterBuild, findBuildById,
   deriveSourceStatus, sourceStatusLabel, instanceBuildName, snapshotSummary, isSnapshotPossiblyStale,
   deriveEffectiveCharacterSlotStates, setSlotOverride, clearSlotOverride, clearAllOverrides,
@@ -12,7 +12,9 @@ import {
 } from '@glyphstudio/state';
 
 export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: CharacterPartPreset[] }) {
-  const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
+  const instances = useSceneEditorStore((s) => s.instances);
+  const applyEdit = useSceneEditorStore((s) => s.applyEdit);
+  const loadInstances = useSceneEditorStore((s) => s.loadInstances);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -26,14 +28,14 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
   const refresh = useCallback(async () => {
     try {
       const result = await invoke<SceneAssetInstance[]>('get_scene_instances');
-      setInstances(result);
+      loadInstances(result);
       // Also refresh playback state for clip resolution
       const ps = await invoke<ScenePlaybackState>('get_scene_playback_state');
       setPlaybackState(ps);
     } catch {
-      setInstances([]);
+      loadInstances([]);
     }
-  }, [setPlaybackState]);
+  }, [setPlaybackState, loadInstances]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -48,25 +50,37 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     invoke('mark_dirty').catch(() => {});
   }, []);
 
+  /** Refresh instances from backend and record a history entry. */
+  const refreshAndRecord = useCallback(async (
+    kind: Parameters<typeof applyEdit>[0],
+    metadata?: Parameters<typeof applyEdit>[2],
+  ) => {
+    const result = await invoke<SceneAssetInstance[]>('get_scene_instances');
+    applyEdit(kind, result, metadata);
+    // Also refresh playback state for clip resolution
+    const ps = await invoke<ScenePlaybackState>('get_scene_playback_state');
+    setPlaybackState(ps);
+  }, [applyEdit, setPlaybackState]);
+
   const handleVisibility = useCallback(async (instanceId: string, visible: boolean) => {
     try {
       await invoke('set_scene_instance_visibility', { instanceId, visible });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('set-instance-visibility', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh, notifyDirty]);
+  }, [refreshAndRecord, notifyDirty]);
 
   const handleOpacity = useCallback(async (instanceId: string, opacity: number) => {
     try {
       await invoke('set_scene_instance_opacity', { instanceId, opacity });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('set-instance-opacity', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh, notifyDirty]);
+  }, [refreshAndRecord, notifyDirty]);
 
   const handleBringForward = useCallback(async (instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
@@ -76,11 +90,11 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     try {
       await invoke('set_scene_instance_layer', { instanceId, zOrder: inst.zOrder + 1 });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('set-instance-layer', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [instances, refresh, notifyDirty]);
+  }, [instances, refreshAndRecord, notifyDirty]);
 
   const handleSendBackward = useCallback(async (instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
@@ -90,22 +104,22 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     try {
       await invoke('set_scene_instance_layer', { instanceId, zOrder: inst.zOrder - 1 });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('set-instance-layer', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [instances, refresh, notifyDirty]);
+  }, [instances, refreshAndRecord, notifyDirty]);
 
   const handleRemove = useCallback(async (instanceId: string) => {
     try {
       await invoke('remove_scene_instance', { instanceId });
       if (selectedId === instanceId) setSelectedId(null);
       notifyDirty();
-      refresh();
+      await refreshAndRecord('remove-instance', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [selectedId, refresh, notifyDirty]);
+  }, [selectedId, refreshAndRecord, notifyDirty]);
 
   const handleReapply = useCallback((instanceId: string) => {
     const inst = instances.find((i) => i.instanceId === instanceId);
@@ -114,34 +128,34 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
     if (!sourceBuild) return;
     const updated = reapplyCharacterBuild(inst, sourceBuild);
     if (!updated) return;
-    setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
-  }, [instances, buildLibrary, libraryBuildIds]);
+    const nextInstances = instances.map((i) => i.instanceId === instanceId ? updated : i);
+    applyEdit('reapply-character-source', nextInstances, { instanceId });
+  }, [instances, buildLibrary, libraryBuildIds, applyEdit]);
 
   const handleInstanceUpdate = useCallback((updated: SceneAssetInstance) => {
-    setInstances((prev) => prev.map((i) => i.instanceId === updated.instanceId ? updated : i));
-  }, []);
+    const nextInstances = instances.map((i) => i.instanceId === updated.instanceId ? updated : i);
+    applyEdit('set-character-override', nextInstances, { instanceId: updated.instanceId });
+  }, [instances, applyEdit]);
 
   const handleUnlink = useCallback(async (instanceId: string) => {
     try {
-      const updated = await invoke<SceneAssetInstance>('unlink_scene_instance_from_source', { instanceId });
-      setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
+      await invoke('unlink_scene_instance_from_source', { instanceId });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('unlink-character-source', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh, notifyDirty]);
+  }, [refreshAndRecord, notifyDirty]);
 
   const handleRelink = useCallback(async (instanceId: string) => {
     try {
-      const updated = await invoke<SceneAssetInstance>('relink_scene_instance_to_source', { instanceId });
-      setInstances((prev) => prev.map((i) => i.instanceId === instanceId ? updated : i));
+      await invoke('relink_scene_instance_to_source', { instanceId });
       notifyDirty();
-      refresh();
+      await refreshAndRecord('relink-character-source', { instanceId });
     } catch (err) {
       setError(String(err));
     }
-  }, [refresh, notifyDirty]);
+  }, [refreshAndRecord, notifyDirty]);
 
   // Sort by z-order descending (top items first in list)
   const sorted = [...instances].sort((a, b) => b.zOrder - a.zOrder);
@@ -243,7 +257,7 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
               try {
                 await invoke('set_scene_instance_parallax', { instanceId, parallax });
                 notifyDirty();
-                refresh();
+                await refreshAndRecord('set-instance-parallax', { instanceId });
               } catch (err) {
                 setError(String(err));
               }
@@ -252,7 +266,7 @@ export function SceneInstancesPanel({ partCatalog = [] }: { partCatalog?: Charac
               try {
                 await invoke('set_scene_instance_clip', { instanceId, clipId });
                 notifyDirty();
-                refresh();
+                await refreshAndRecord('set-instance-clip', { instanceId });
               } catch (err) {
                 setError(String(err));
               }

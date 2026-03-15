@@ -188,6 +188,7 @@ pub fn run() {
             scene::add_scene_camera_keyframe,
             scene::update_scene_camera_keyframe,
             scene::delete_scene_camera_keyframe,
+            scene::restore_scene_instances,
             scene::unlink_scene_instance_from_source,
             scene::relink_scene_instance_to_source,
         ])

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useScenePlaybackStore, useProjectStore, useCharacterStore } from '@glyphstudio/state';
+import { useScenePlaybackStore, useProjectStore, useCharacterStore, useSceneEditorStore, createEmptySceneHistoryState } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 import type { SceneAssetInstance } from '@glyphstudio/domain';
 
@@ -171,6 +171,12 @@ describe('SceneInstancesPanel', () => {
 
   afterEach(() => {
     cleanup();
+    useSceneEditorStore.setState({
+      instances: [],
+      history: createEmptySceneHistoryState(),
+      canUndo: false,
+      canRedo: false,
+    });
   });
 
   // ── Empty state ──
