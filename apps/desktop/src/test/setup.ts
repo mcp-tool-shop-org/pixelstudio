@@ -14,6 +14,7 @@ const invokeMock = vi.fn(async (cmd: string, args?: unknown) => {
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+  convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
 }));
 
 // ── Mock @tauri-apps/plugin-dialog ─────────────────────────────
