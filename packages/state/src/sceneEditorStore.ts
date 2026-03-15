@@ -15,6 +15,15 @@ import {
   finishApplyingHistory,
 } from './sceneHistoryEngine';
 
+// ── Undo/redo result with rollback ──
+
+export interface SceneUndoRedoResult {
+  /** The restored instances to sync to backend. */
+  instances: SceneAssetInstance[];
+  /** Call this if backend sync fails to restore pre-undo/redo state. */
+  rollback: () => void;
+}
+
 // ── Store shape ──
 
 export interface SceneEditorState {
@@ -59,17 +68,25 @@ export interface SceneEditorState {
 
   /**
    * Undo the most recent edit.
-   * Returns the restored instances array, or undefined if nothing to undo.
-   * The caller is responsible for syncing the restored state to the backend.
+   *
+   * Returns a result with the restored instances and a rollback function,
+   * or undefined if nothing to undo.
+   *
+   * The caller MUST sync restored instances to the backend. On failure,
+   * call `rollback()` to restore the pre-undo state and history.
    */
-  undo: () => SceneAssetInstance[] | undefined;
+  undo: () => SceneUndoRedoResult | undefined;
 
   /**
    * Redo the most recently undone edit.
-   * Returns the restored instances array, or undefined if nothing to redo.
-   * The caller is responsible for syncing the restored state to the backend.
+   *
+   * Returns a result with the restored instances and a rollback function,
+   * or undefined if nothing to redo.
+   *
+   * The caller MUST sync restored instances to the backend. On failure,
+   * call `rollback()` to restore the pre-redo state and history.
    */
-  redo: () => SceneAssetInstance[] | undefined;
+  redo: () => SceneUndoRedoResult | undefined;
 
   // ── Lifecycle ──
 
@@ -101,7 +118,8 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
 
   undo: () => {
-    const { history } = get();
+    const { history, instances: prevInstances } = get();
+    const prevHistory = history;
     const result = undoSceneHistory(history);
     if (!result.snapshot) return undefined;
     const finished = finishApplyingHistory(result.history);
@@ -111,11 +129,22 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       canUndo: canUndoScene(finished),
       canRedo: canRedoScene(finished),
     });
-    return result.snapshot.instances;
+    return {
+      instances: result.snapshot.instances,
+      rollback: () => {
+        set({
+          instances: prevInstances,
+          history: prevHistory,
+          canUndo: canUndoScene(prevHistory),
+          canRedo: canRedoScene(prevHistory),
+        });
+      },
+    };
   },
 
   redo: () => {
-    const { history } = get();
+    const { history, instances: prevInstances } = get();
+    const prevHistory = history;
     const result = redoSceneHistory(history);
     if (!result.snapshot) return undefined;
     const finished = finishApplyingHistory(result.history);
@@ -125,7 +154,17 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       canUndo: canUndoScene(finished),
       canRedo: canRedoScene(finished),
     });
-    return result.snapshot.instances;
+    return {
+      instances: result.snapshot.instances,
+      rollback: () => {
+        set({
+          instances: prevInstances,
+          history: prevHistory,
+          canUndo: canUndoScene(prevHistory),
+          canRedo: canRedoScene(prevHistory),
+        });
+      },
+    };
   },
 
   resetHistory: () => {

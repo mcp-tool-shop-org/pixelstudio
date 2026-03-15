@@ -187,8 +187,8 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }]);
     const restored = undo();
     expect(restored).toBeDefined();
-    expect(restored![0].characterLinkMode).toBeUndefined();
-    expect(restored![0].sourceCharacterBuildId).toBe('build-1');
+    expect(restored!.instances[0].characterLinkMode).toBeUndefined();
+    expect(restored!.instances[0].sourceCharacterBuildId).toBe('build-1');
   });
 
   it('relink then undo restores unlinked exactly', () => {
@@ -197,7 +197,7 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     applyEdit('relink-character-source', [{ ...INST_CHAR_UNLINKED, characterLinkMode: undefined }]);
     const restored = undo();
     expect(restored).toBeDefined();
-    expect(restored![0].characterLinkMode).toBe('unlinked');
+    expect(restored!.instances[0].characterLinkMode).toBe('unlinked');
   });
 
   it('reapply then undo restores prior snapshot exactly', () => {
@@ -213,8 +213,8 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     };
     applyEdit('reapply-character-source', [reapplied]);
     const restored = undo();
-    expect(restored![0].characterSlotSnapshot!.equippedCount).toBe(2);
-    expect(restored![0].characterSlotSnapshot!.slots.head).toBe('helm-iron');
+    expect(restored!.instances[0].characterSlotSnapshot!.equippedCount).toBe(2);
+    expect(restored!.instances[0].characterSlotSnapshot!.slots.head).toBe('helm-iron');
   });
 
   it('override edit then undo restores prior override exactly', () => {
@@ -222,7 +222,7 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     loadInstances([INST_CHAR]);
     applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES]);
     const restored = undo();
-    expect(restored![0].characterOverrides).toBeUndefined();
+    expect(restored!.instances[0].characterOverrides).toBeUndefined();
   });
 
   it('remove-mode override survives full undo/redo cycle', () => {
@@ -231,9 +231,9 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES]);
     undo();
     const redone = redo();
-    expect(redone![0].characterOverrides!.torso.mode).toBe('remove');
-    expect(redone![0].characterOverrides!.head.mode).toBe('replace');
-    expect(redone![0].characterOverrides!.head.replacementPartId).toBe('helm-gold');
+    expect(redone!.instances[0].characterOverrides!.torso.mode).toBe('remove');
+    expect(redone!.instances[0].characterOverrides!.head.mode).toBe('replace');
+    expect(redone!.instances[0].characterOverrides!.head.replacementPartId).toBe('helm-gold');
   });
 
   it('parallax survives undo/redo', () => {
@@ -241,9 +241,9 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     loadInstances([INST_ASSET]);
     applyEdit('set-instance-parallax', [{ ...INST_ASSET, parallax: 0.5 }]);
     const undone = undo();
-    expect(undone![0].parallax).toBe(1.0);
+    expect(undone!.instances[0].parallax).toBe(1.0);
     const redone = redo();
-    expect(redone![0].parallax).toBe(0.5);
+    expect(redone!.instances[0].parallax).toBe(0.5);
   });
 
   it('instance transform survives undo/redo', () => {
@@ -251,11 +251,11 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     loadInstances([INST_ASSET]);
     applyEdit('move-instance', [{ ...INST_ASSET, x: 200, y: 300 }]);
     const undone = undo();
-    expect(undone![0].x).toBe(50);
-    expect(undone![0].y).toBe(100);
+    expect(undone!.instances[0].x).toBe(50);
+    expect(undone!.instances[0].y).toBe(100);
     const redone = redo();
-    expect(redone![0].x).toBe(200);
-    expect(redone![0].y).toBe(300);
+    expect(redone!.instances[0].x).toBe(200);
+    expect(redone!.instances[0].y).toBe(300);
   });
 
   it('source build id survives undo/redo', () => {
@@ -263,10 +263,10 @@ describe('SceneEditorStore — undo/redo integrity', () => {
     loadInstances([INST_CHAR]);
     applyEdit('unlink-character-source', [{ ...INST_CHAR, characterLinkMode: 'unlinked' }]);
     const undone = undo();
-    expect(undone![0].sourceCharacterBuildId).toBe('build-1');
-    expect(undone![0].sourceCharacterBuildName).toBe('Knight Build');
+    expect(undone!.instances[0].sourceCharacterBuildId).toBe('build-1');
+    expect(undone!.instances[0].sourceCharacterBuildName).toBe('Knight Build');
     const redone = redo();
-    expect(redone![0].sourceCharacterBuildId).toBe('build-1');
+    expect(redone!.instances[0].sourceCharacterBuildId).toBe('build-1');
   });
 });
 
@@ -325,7 +325,7 @@ describe('SceneEditorStore — undo/redo returns', () => {
     applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
     const restored = undo();
     expect(restored).toBeDefined();
-    expect(restored![0].x).toBe(50);
+    expect(restored!.instances[0].x).toBe(50);
   });
 
   it('redo returns restored instances', () => {
@@ -335,7 +335,7 @@ describe('SceneEditorStore — undo/redo returns', () => {
     undo();
     const restored = redo();
     expect(restored).toBeDefined();
-    expect(restored![0].x).toBe(999);
+    expect(restored!.instances[0].x).toBe(999);
   });
 
   it('undo updates store instances', () => {
@@ -381,9 +381,9 @@ describe('SceneEditorStore — multi-step undo/redo', () => {
     applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
     applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
     const first = undo();
-    expect(first![0].x).toBe(100);
+    expect(first!.instances[0].x).toBe(100);
     const second = undo();
-    expect(second![0].x).toBe(50);
+    expect(second!.instances[0].x).toBe(50);
   });
 
   it('undo+redo+undo returns to correct state', () => {
@@ -394,6 +394,213 @@ describe('SceneEditorStore — multi-step undo/redo', () => {
     undo(); // → x=100
     redo(); // → x=200
     const result = undo(); // → x=100
-    expect(result![0].x).toBe(100);
+    expect(result!.instances[0].x).toBe(100);
+  });
+});
+
+// ── Rollback tests ──
+
+describe('SceneEditorStore — rollback', () => {
+  it('undo returns rollback function', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    const result = undo();
+    expect(result).toBeDefined();
+    expect(typeof result!.rollback).toBe('function');
+  });
+
+  it('redo returns rollback function', () => {
+    const { loadInstances, applyEdit, undo, redo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    undo();
+    const result = redo();
+    expect(result).toBeDefined();
+    expect(typeof result!.rollback).toBe('function');
+  });
+
+  it('undo rollback restores pre-undo instances', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    const result = undo();
+    // After undo, store is at x=50
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(50);
+    // Rollback restores to x=999 (pre-undo state)
+    result!.rollback();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(999);
+  });
+
+  it('redo rollback restores pre-redo instances', () => {
+    const { loadInstances, applyEdit, undo, redo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    undo();
+    const result = redo();
+    // After redo, store is at x=999
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(999);
+    // Rollback restores to x=50 (pre-redo state)
+    result!.rollback();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(50);
+  });
+
+  it('undo rollback restores canUndo/canRedo', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+    const result = undo();
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+    result!.rollback();
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+  });
+
+  it('redo rollback restores canUndo/canRedo', () => {
+    const { loadInstances, applyEdit, undo, redo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 999 }]);
+    undo();
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+    const result = redo();
+    expect(useSceneEditorStore.getState().canUndo).toBe(true);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+    result!.rollback();
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+  });
+
+  it('undo rollback restores history stacks', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }]);
+    const histBefore = useSceneEditorStore.getState().history;
+    const result = undo();
+    // History changed after undo
+    expect(useSceneEditorStore.getState().history).not.toBe(histBefore);
+    result!.rollback();
+    // History restored to exact pre-undo reference
+    expect(useSceneEditorStore.getState().history).toBe(histBefore);
+  });
+});
+
+// ── Mixed-chain reversibility ──
+
+describe('SceneEditorStore — mixed-chain reversibility', () => {
+  it('add → move → visibility → full undo chain restores original', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([]);
+    // Add instance
+    applyEdit('add-instance', [INST_ASSET], { instanceId: 'i1' });
+    // Move it
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 200, y: 300 }], { instanceId: 'i1' });
+    // Hide it
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, x: 200, y: 300, visible: false }], { instanceId: 'i1' });
+
+    // Undo visibility → visible again at (200, 300)
+    const r1 = undo();
+    expect(r1!.instances[0].visible).toBe(true);
+    expect(r1!.instances[0].x).toBe(200);
+
+    // Undo move → back at (50, 100)
+    const r2 = undo();
+    expect(r2!.instances[0].x).toBe(50);
+    expect(r2!.instances[0].y).toBe(100);
+
+    // Undo add → empty scene
+    const r3 = undo();
+    expect(r3!.instances).toHaveLength(0);
+  });
+
+  it('mixed operations undo then redo restores forward state', () => {
+    const { loadInstances, applyEdit, undo, redo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    applyEdit('set-instance-parallax', [{ ...INST_ASSET, x: 100, parallax: 0.5 }]);
+    applyEdit('set-instance-visibility', [{ ...INST_ASSET, x: 100, parallax: 0.5, visible: false }]);
+
+    // Undo all three
+    undo();
+    undo();
+    undo();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(50);
+    expect(useSceneEditorStore.getState().instances[0].parallax).toBe(1.0);
+    expect(useSceneEditorStore.getState().instances[0].visible).toBe(true);
+
+    // Redo all three
+    redo();
+    redo();
+    const r = redo();
+    expect(r!.instances[0].x).toBe(100);
+    expect(r!.instances[0].parallax).toBe(0.5);
+    expect(r!.instances[0].visible).toBe(false);
+  });
+
+  it('character override then move then undo both restores cleanly', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_CHAR]);
+    applyEdit('set-character-override', [INST_CHAR_WITH_OVERRIDES]);
+    applyEdit('move-instance', [{ ...INST_CHAR_WITH_OVERRIDES, x: 500 }]);
+
+    const r1 = undo();
+    expect(r1!.instances[0].x).toBe(30); // original x from INST_CHAR_WITH_OVERRIDES
+    expect(r1!.instances[0].characterOverrides).toBeDefined();
+
+    const r2 = undo();
+    expect(r2!.instances[0].characterOverrides).toBeUndefined();
+    expect(r2!.instances[0].x).toBe(30);
+  });
+});
+
+// ── History pollution tests ──
+
+describe('SceneEditorStore — history pollution', () => {
+  it('loadInstances after edits does not affect history', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    // Simulate periodic refresh — should not create history
+    loadInstances([{ ...INST_ASSET, x: 100 }]);
+    loadInstances([{ ...INST_ASSET, x: 100 }]);
+    const { history } = useSceneEditorStore.getState();
+    expect(history.past).toHaveLength(1);
+    expect(history.future).toHaveLength(0);
+  });
+
+  it('loadInstances does not clear redo stack', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    undo();
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+    // Simulate periodic refresh
+    loadInstances([INST_ASSET]);
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+  });
+
+  it('resetHistory after loadInstances clears stacks but keeps instances', () => {
+    const { loadInstances, applyEdit, resetHistory } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    loadInstances([{ ...INST_ASSET, x: 200 }]);
+    resetHistory();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(200);
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+  });
+
+  it('identical applyEdit after undo does not create entry', () => {
+    const { loadInstances, applyEdit, undo } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    applyEdit('move-instance', [{ ...INST_ASSET, x: 100 }]);
+    undo();
+    // Re-apply same state as current — should be no-op
+    applyEdit('move-instance', [INST_ASSET]);
+    expect(useSceneEditorStore.getState().history.past).toHaveLength(0);
   });
 });

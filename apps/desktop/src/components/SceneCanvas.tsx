@@ -302,23 +302,39 @@ export function SceneCanvas() {
 
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
+      // Skip when focus is in a text input
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      ) return;
+
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       if (e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        const restored = sceneUndo();
-        if (restored) {
-          await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
-          useProjectStore.getState().markDirty();
-          invoke('mark_dirty').catch(() => {});
+        const result = sceneUndo();
+        if (result) {
+          try {
+            await invoke('restore_scene_instances', { instances: result.instances });
+            useProjectStore.getState().markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch {
+            result.rollback();
+          }
         }
       } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
         e.preventDefault();
-        const restored = sceneRedo();
-        if (restored) {
-          await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
-          useProjectStore.getState().markDirty();
-          invoke('mark_dirty').catch(() => {});
+        const result = sceneRedo();
+        if (result) {
+          try {
+            await invoke('restore_scene_instances', { instances: result.instances });
+            useProjectStore.getState().markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch {
+            result.rollback();
+          }
         }
       }
     };
@@ -478,11 +494,15 @@ export function SceneCanvas() {
             title="Undo (Ctrl+Z)"
             disabled={!sceneCanUndo}
             onClick={async () => {
-              const restored = sceneUndo();
-              if (restored) {
-                await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
-                useProjectStore.getState().markDirty();
-                invoke('mark_dirty').catch(() => {});
+              const result = sceneUndo();
+              if (result) {
+                try {
+                  await invoke('restore_scene_instances', { instances: result.instances });
+                  useProjectStore.getState().markDirty();
+                  invoke('mark_dirty').catch(() => {});
+                } catch {
+                  result.rollback();
+                }
               }
             }}
           >{'\u21A9'}</button>
@@ -491,11 +511,15 @@ export function SceneCanvas() {
             title="Redo (Ctrl+Shift+Z)"
             disabled={!sceneCanRedo}
             onClick={async () => {
-              const restored = sceneRedo();
-              if (restored) {
-                await invoke('restore_scene_instances', { instances: restored }).catch(() => {});
-                useProjectStore.getState().markDirty();
-                invoke('mark_dirty').catch(() => {});
+              const result = sceneRedo();
+              if (result) {
+                try {
+                  await invoke('restore_scene_instances', { instances: result.instances });
+                  useProjectStore.getState().markDirty();
+                  invoke('mark_dirty').catch(() => {});
+                } catch {
+                  result.rollback();
+                }
               }
             }}
           >{'\u21AA'}</button>

@@ -139,4 +139,4 @@ export type {
   ApplySceneEditResult,
 } from './sceneHistoryEngine';
 export { useSceneEditorStore } from './sceneEditorStore';
-export type { SceneEditorState } from './sceneEditorStore';
+export type { SceneEditorState, SceneUndoRedoResult } from './sceneEditorStore';
