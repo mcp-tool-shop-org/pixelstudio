@@ -351,6 +351,14 @@ Key truths:
 - Unlinked is **not** the same as missing. Missing is an error state; unlinked is an intentional operator decision.
 - An unlinked instance still stores its `sourceCharacterBuildId` — the memory is preserved, only the behavior changes.
 
+Persistence contract:
+- `characterLinkMode` survives save/load round-trips via the `.pscn` scene file format
+- Absent field on load means linked (backward compatible with older scene files)
+- Explicit `'unlinked'` is serialized and restored exactly
+- Snapshot, overrides, and `sourceCharacterBuildId` are preserved through the unlinked state across save/load
+- Unlink and relink operations set the backend dirty flag, ensuring the change is included in the next save
+- Undo/redo for scene operations is not yet implemented; unlink/relink will participate when it is
+
 #### Source status derivation
 
 Source status (`CharacterSourceStatus`) is derived at runtime from link mode + library lookup:
