@@ -4850,6 +4850,44 @@
   pointer-events: none;
 }
 
+/* Hover cards for markers and shots */
+.cam-hover-card {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--panel-bg, #1e1e2e);
+  border: 1px solid var(--border, #444);
+  border-radius: 4px;
+  padding: 6px 8px;
+  min-width: 120px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.cam-hover-card-title {
+  font-weight: 600;
+  color: var(--text-bright, #e0e0e0);
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--border, #444);
+  padding-bottom: 3px;
+}
+
+.cam-hover-card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text, #ccc);
+}
+
+.cam-hover-card-label {
+  color: var(--text-muted, #888);
+}
+
 /* ===== Camera Keyframe Panel ===== */
 
 .camkf-panel {

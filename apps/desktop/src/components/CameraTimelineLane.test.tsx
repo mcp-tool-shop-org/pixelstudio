@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useScenePlaybackStore } from '@pixelstudio/state';
 import { getMockInvoke } from '../test/helpers';
@@ -298,6 +298,156 @@ describe('CameraTimelineLane', () => {
       // Should NOT navigate
       expect(useScenePlaybackStore.getState().currentTick).toBe(5);
       document.body.removeChild(input);
+    });
+  });
+
+  // ── Hover cards ──
+
+  describe('marker hover cards', () => {
+    it('shows hover card on mouseenter', () => {
+      seedStore({ cameraKeyframes: [KF_A], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      expect(marker).not.toBeNull();
+      fireEvent.mouseEnter(marker);
+      const card = screen.getByTestId('marker-card-0');
+      expect(card).toBeInTheDocument();
+      expect(card.querySelector('.cam-hover-card-title')!.textContent).toBe('Start');
+    });
+
+    it('hides hover card on mouseleave', () => {
+      seedStore({ cameraKeyframes: [KF_A], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      fireEvent.mouseEnter(marker);
+      expect(screen.getByTestId('marker-card-0')).toBeInTheDocument();
+      fireEvent.mouseLeave(marker);
+      expect(screen.queryByTestId('marker-card-0')).not.toBeInTheDocument();
+    });
+
+    it('shows hover card on focus', () => {
+      seedStore({ cameraKeyframes: [KF_A], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      fireEvent.focus(marker);
+      expect(screen.getByTestId('marker-card-0')).toBeInTheDocument();
+    });
+
+    it('hides hover card on blur', () => {
+      seedStore({ cameraKeyframes: [KF_A], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      fireEvent.focus(marker);
+      expect(screen.getByTestId('marker-card-0')).toBeInTheDocument();
+      fireEvent.blur(marker);
+      expect(screen.queryByTestId('marker-card-0')).not.toBeInTheDocument();
+    });
+
+    it('displays fallback name when keyframe has no name', () => {
+      const KF_NONAME: SceneCameraKeyframe = { tick: 10, x: 50, y: 25, zoom: 1.5, interpolation: 'linear' };
+      seedStore({ cameraKeyframes: [KF_NONAME], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      fireEvent.mouseEnter(marker);
+      const card = screen.getByTestId('marker-card-10');
+      expect(card.querySelector('.cam-hover-card-title')!.textContent).toBe('Key @ 10');
+    });
+
+    it('displays position, zoom, tick, and interpolation', () => {
+      seedStore({ cameraKeyframes: [KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const marker = document.querySelector('.cam-lane-marker')!;
+      fireEvent.mouseEnter(marker);
+      const card = screen.getByTestId('marker-card-24');
+      const rows = card.querySelectorAll('.cam-hover-card-row');
+      // Tick, X, Y, Zoom, Interp = 5 rows
+      expect(rows.length).toBe(5);
+      expect(card.textContent).toContain('24');   // tick
+      expect(card.textContent).toContain('100');  // x
+      expect(card.textContent).toContain('50');   // y
+      expect(card.textContent).toContain('2.0');  // zoom
+      expect(card.textContent).toContain('hold'); // interpolation
+    });
+
+    it('click still works with hover card visible', async () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60, selectedKeyframeTick: null });
+      render(<CameraTimelineLane />);
+      const markers = document.querySelectorAll('.cam-lane-marker');
+      const secondMarker = markers[1]!;
+      fireEvent.mouseEnter(secondMarker);
+      expect(screen.getByTestId('marker-card-24')).toBeInTheDocument();
+      await act(async () => {
+        await userEvent.click(secondMarker);
+      });
+      expect(useScenePlaybackStore.getState().selectedKeyframeTick).toBe(24);
+      expect(useScenePlaybackStore.getState().currentTick).toBe(24);
+    });
+  });
+
+  describe('shot hover cards', () => {
+    it('shows hover card on mouseenter', () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      fireEvent.mouseEnter(shots[0]!);
+      const card = screen.getByTestId('shot-card-0');
+      expect(card).toBeInTheDocument();
+      expect(card.querySelector('.cam-hover-card-title')!.textContent).toBe('Start');
+    });
+
+    it('hides hover card on mouseleave', () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      fireEvent.mouseEnter(shots[0]!);
+      expect(screen.getByTestId('shot-card-0')).toBeInTheDocument();
+      fireEvent.mouseLeave(shots[0]!);
+      expect(screen.queryByTestId('shot-card-0')).not.toBeInTheDocument();
+    });
+
+    it('shows hover card on focus', () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      fireEvent.focus(shots[0]!);
+      expect(screen.getByTestId('shot-card-0')).toBeInTheDocument();
+    });
+
+    it('displays start, end, duration, and interpolation', () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      fireEvent.mouseEnter(shots[0]!);
+      const card = screen.getByTestId('shot-card-0');
+      const rows = card.querySelectorAll('.cam-hover-card-row');
+      // Start, End, Duration, Interp = 4 rows
+      expect(rows.length).toBe(4);
+      expect(card.textContent).toContain('0');      // start
+      expect(card.textContent).toContain('23');     // end (24-1)
+      expect(card.textContent).toContain('linear'); // interpolation
+    });
+
+    it('final shot shows End label for end tick', () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60 });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      // Last shot is the second one (KF_B → end)
+      fireEvent.mouseEnter(shots[1]!);
+      const card = screen.getByTestId('shot-card-24');
+      // The end tick label should show "End" for the final shot
+      expect(card.textContent).toContain('End');
+    });
+
+    it('click still works with hover card visible', async () => {
+      seedStore({ cameraKeyframes: [KF_A, KF_B], totalTicks: 60, selectedKeyframeTick: null });
+      render(<CameraTimelineLane />);
+      const shots = document.querySelectorAll('.cam-lane-shot');
+      fireEvent.mouseEnter(shots[1]!);
+      expect(screen.getByTestId('shot-card-24')).toBeInTheDocument();
+      await act(async () => {
+        await userEvent.click(shots[1]!);
+      });
+      expect(useScenePlaybackStore.getState().selectedKeyframeTick).toBe(24);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   useScenePlaybackStore,
@@ -293,14 +293,16 @@ function CamShotBar({
   isLast: boolean;
   onClick: (shot: SceneCameraShot) => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const showCard = hovered || focused;
+
   const max = Math.max(1, totalTicks - 1);
   const left = (shot.startTick / max) * 100;
   const rawWidth = ((shot.endTick - shot.startTick) / max) * 100;
   const width = Math.min(rawWidth, 100 - left);
 
   const interpBadge = shot.interpolation === 'hold' ? 'H' : 'L';
-  const durationLabel = `${shot.durationTicks}t`;
-  const rangeLabel = `${shot.startTick}–${shot.endTick - 1}`;
   const endLabel = isLast ? '\u2192 End' : '';
 
   const cls = [
@@ -310,17 +312,32 @@ function CamShotBar({
     shot.interpolation === 'hold' ? 'hold' : 'linear',
   ].filter(Boolean).join(' ');
 
+  const endTickLabel = isLast ? 'End' : String(shot.endTick - 1);
+
   return (
     <div
       className={cls}
       style={{ left: `${left}%`, width: `${width}%` }}
-      title={`${shot.name} (${rangeLabel}, ${durationLabel}, ${shot.interpolation})`}
       onClick={() => onClick(shot)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      tabIndex={-1}
     >
       <span className="cam-lane-shot-badge">{interpBadge}</span>
       <span className="cam-lane-shot-label">{shot.name}</span>
       {isLast && endLabel && (
         <span className="cam-lane-shot-end">{endLabel}</span>
+      )}
+      {showCard && (
+        <div className="cam-hover-card" role="tooltip" data-testid={`shot-card-${shot.startTick}`}>
+          <div className="cam-hover-card-title">{shot.name}</div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Start</span><span>{shot.startTick}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">End</span><span>{endTickLabel}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Duration</span><span>{shot.durationTicks}t</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Interp</span><span>{shot.interpolation}</span></div>
+        </div>
       )}
     </div>
   );
@@ -339,6 +356,10 @@ function CamMarker({
   isSelected: boolean;
   onClick: (tick: number) => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const showCard = hovered || focused;
+
   const max = Math.max(1, totalTicks - 1);
   const left = (marker.tick / max) * 100;
 
@@ -350,14 +371,28 @@ function CamMarker({
   ].filter(Boolean).join(' ');
 
   const label = marker.name ?? `Key @ ${marker.tick}`;
-  const detail = `${label} | tick ${marker.tick} | (${marker.x.toFixed(0)}, ${marker.y.toFixed(0)}) z${marker.zoom.toFixed(1)} | ${marker.interpolation}`;
 
   return (
     <div
       className={cls}
       style={{ left: `${left}%` }}
-      title={detail}
       onClick={() => onClick(marker.tick)}
-    />
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      tabIndex={-1}
+    >
+      {showCard && (
+        <div className="cam-hover-card" role="tooltip" data-testid={`marker-card-${marker.tick}`}>
+          <div className="cam-hover-card-title">{label}</div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Tick</span><span>{marker.tick}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">X</span><span>{marker.x.toFixed(0)}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Y</span><span>{marker.y.toFixed(0)}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Zoom</span><span>{marker.zoom.toFixed(1)}</span></div>
+          <div className="cam-hover-card-row"><span className="cam-hover-card-label">Interp</span><span>{marker.interpolation}</span></div>
+        </div>
+      )}
+    </div>
   );
 }
