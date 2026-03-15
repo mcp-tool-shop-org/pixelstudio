@@ -4449,6 +4449,44 @@
   font-style: italic;
 }
 
+/* Character instance badge + detail styling */
+.scene-instance-kind-badge {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 600;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 3px;
+  background: var(--accent, #4a9eff);
+  color: #fff;
+  vertical-align: middle;
+  line-height: 14px;
+}
+
+.scene-instance-row-source {
+  font-size: 8px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.scene-instance-detail-value {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.scene-instance-source-status {
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.scene-instance-source-status.source-linked {
+  color: #4aff7a;
+}
+
+.scene-instance-source-status.source-missing {
+  color: #ffaa44;
+}
+
 /* --- Scene Playback Controls --- */
 
 .scene-playback-controls {

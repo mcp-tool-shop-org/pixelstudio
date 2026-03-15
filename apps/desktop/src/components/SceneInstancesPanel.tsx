@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SceneAssetInstance, ScenePlaybackState, SourceClipInfo } from '@glyphstudio/domain';
-import { useScenePlaybackStore, useProjectStore } from '@glyphstudio/state';
+import { useScenePlaybackStore, useProjectStore, useCharacterStore, isCharacterInstance, isSourceBuildAvailable } from '@glyphstudio/state';
 
 export function SceneInstancesPanel() {
   const [instances, setInstances] = useState<SceneAssetInstance[]>([]);
@@ -9,6 +9,8 @@ export function SceneInstancesPanel() {
   const [error, setError] = useState('');
 
   const setPlaybackState = useScenePlaybackStore((s) => s.setPlaybackState);
+  const libraryBuilds = useCharacterStore((s) => s.library.builds);
+  const libraryBuildIds = useMemo(() => Object.keys(libraryBuilds), [libraryBuilds]);
 
   const refresh = useCallback(async () => {
     try {
@@ -129,7 +131,15 @@ export function SceneInstancesPanel() {
               onClick={() => setSelectedId(inst.instanceId)}
             >
               <div className="scene-instance-row-info">
-                <span className="scene-instance-row-name">{inst.name}</span>
+                <span className="scene-instance-row-name">
+                  {inst.name}
+                  {isCharacterInstance(inst) && (
+                    <span className="scene-instance-kind-badge">Character</span>
+                  )}
+                </span>
+                {isCharacterInstance(inst) && inst.sourceCharacterBuildName && (
+                  <span className="scene-instance-row-source">from: {inst.sourceCharacterBuildName}</span>
+                )}
                 <span className="scene-instance-row-pos">({inst.x}, {inst.y}) z{inst.zOrder}</span>
               </div>
               <div className="scene-instance-row-controls">
@@ -174,6 +184,7 @@ export function SceneInstancesPanel() {
         return (
           <InstanceDetailPane
             instance={inst}
+            libraryBuildIds={libraryBuildIds}
             onOpacityChange={handleOpacity}
             onParallaxChange={async (instanceId, parallax) => {
               try {
@@ -203,11 +214,13 @@ export function SceneInstancesPanel() {
 /** Detail pane for the selected instance — includes clip picker. */
 function InstanceDetailPane({
   instance,
+  libraryBuildIds,
   onOpacityChange,
   onParallaxChange,
   onClipChange,
 }: {
   instance: SceneAssetInstance;
+  libraryBuildIds: string[];
   onOpacityChange: (instanceId: string, opacity: number) => void;
   onParallaxChange: (instanceId: string, parallax: number) => void;
   onClipChange: (instanceId: string, clipId: string | null) => void;
@@ -255,6 +268,37 @@ function InstanceDetailPane({
           {instance.sourcePath.split(/[\\/]/).pop()}
         </span>
       </div>
+
+      {isCharacterInstance(instance) && (
+        <>
+          <div className="scene-instance-detail-row">
+            <span className="scene-instance-detail-label">Kind</span>
+            <span className="scene-instance-kind-badge">Character</span>
+          </div>
+          {instance.sourceCharacterBuildName && (
+            <div className="scene-instance-detail-row">
+              <span className="scene-instance-detail-label">Build</span>
+              <span className="scene-instance-detail-value">{instance.sourceCharacterBuildName}</span>
+            </div>
+          )}
+          {instance.characterSlotSnapshot && (
+            <div className="scene-instance-detail-row">
+              <span className="scene-instance-detail-label">Slots</span>
+              <span className="scene-instance-detail-value">
+                {instance.characterSlotSnapshot.equippedCount}/{instance.characterSlotSnapshot.totalSlots} equipped
+              </span>
+            </div>
+          )}
+          <div className="scene-instance-detail-row">
+            <span className="scene-instance-detail-label">Source</span>
+            <span className={`scene-instance-source-status ${
+              isSourceBuildAvailable(instance, libraryBuildIds) ? 'source-linked' : 'source-missing'
+            }`}>
+              {isSourceBuildAvailable(instance, libraryBuildIds) ? 'Linked' : 'Source missing'}
+            </span>
+          </div>
+        </>
+      )}
 
       <div className="scene-instance-detail-row">
         <span className="scene-instance-detail-label">Clip</span>
