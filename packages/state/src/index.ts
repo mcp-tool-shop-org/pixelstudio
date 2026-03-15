@@ -78,8 +78,15 @@ export {
   setSlotOverride,
   clearSlotOverride,
   clearAllOverrides,
+  deriveEffectiveCharacterSlotStates,
+  getOverrideCount,
+  getEffectiveEquippedCount,
+  getRemovedOverrideSlots,
+  getReplacedOverrideSlots,
+  overrideSummary,
+  effectiveSlotSummary,
 } from './characterSceneBridge';
-export type { CharacterPlacementOptions, PlaceabilityResult, CharacterSourceStatus, EffectiveSlotComposition } from './characterSceneBridge';
+export type { CharacterPlacementOptions, PlaceabilityResult, CharacterSourceStatus, EffectiveSlotComposition, EffectiveCharacterSlotState, EffectiveSlotSource } from './characterSceneBridge';
 export {
   createEmptyLibrary,
   generateSavedBuildId,

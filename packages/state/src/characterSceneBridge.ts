@@ -6,6 +6,7 @@ import type {
   CharacterSlotId,
   CharacterInstanceOverrides,
   CharacterSlotOverride,
+  CharacterSlotOverrideMode,
 } from '@glyphstudio/domain';
 import { CHARACTER_SLOT_IDS } from '@glyphstudio/domain';
 
@@ -364,4 +365,117 @@ export function clearSlotOverride(
 export function clearAllOverrides(instance: SceneAssetInstance): SceneAssetInstance {
   if (!instance.characterOverrides) return instance;
   return { ...instance, characterOverrides: undefined };
+}
+
+// ── Effective slot state derivation ──
+
+/** Source of a slot's effective value in the three-layer model. */
+export type EffectiveSlotSource = 'inherited' | 'override_replace' | 'override_remove';
+
+/** Per-slot derivation result — UI-ready representation of a single slot's state. */
+export interface EffectiveCharacterSlotState {
+  /** Slot ID. */
+  slot: CharacterSlotId;
+  /** Effective part source ID (undefined if slot is empty or removed). */
+  effectivePart: string | undefined;
+  /** Where this slot's value comes from. */
+  source: EffectiveSlotSource;
+  /** Whether this slot has a local override. */
+  isOverridden: boolean;
+  /** Override mode if overridden, undefined otherwise. */
+  overrideMode: CharacterSlotOverrideMode | undefined;
+  /** Whether the slot has a part in the effective composition. */
+  hasPart: boolean;
+}
+
+/**
+ * Derive per-slot effective state for all canonical slots on a character instance.
+ *
+ * Returns one entry per slot in CHARACTER_SLOT_IDS canonical order.
+ * Non-character instances return an empty array.
+ */
+export function deriveEffectiveCharacterSlotStates(
+  instance: SceneAssetInstance,
+): EffectiveCharacterSlotState[] {
+  if (instance.instanceKind !== 'character') return [];
+
+  const effective = applyOverridesToSnapshot(
+    instance.characterSlotSnapshot,
+    instance.characterOverrides,
+  );
+
+  return CHARACTER_SLOT_IDS.map((slotId): EffectiveCharacterSlotState => {
+    const override = instance.characterOverrides?.[slotId];
+    const effectivePart = effective[slotId];
+
+    if (override) {
+      return {
+        slot: slotId,
+        effectivePart,
+        source: override.mode === 'remove' ? 'override_remove' : 'override_replace',
+        isOverridden: true,
+        overrideMode: override.mode,
+        hasPart: effectivePart !== undefined,
+      };
+    }
+
+    return {
+      slot: slotId,
+      effectivePart,
+      source: 'inherited',
+      isOverridden: false,
+      overrideMode: undefined,
+      hasPart: effectivePart !== undefined,
+    };
+  });
+}
+
+// ── Higher-level override status helpers ──
+
+/** Count of local overrides on a character instance. */
+export function getOverrideCount(instance: SceneAssetInstance): number {
+  if (!instance.characterOverrides) return 0;
+  return Object.keys(instance.characterOverrides).length;
+}
+
+/** Count of equipped slots in the effective composition (after overrides). */
+export function getEffectiveEquippedCount(instance: SceneAssetInstance): number {
+  if (instance.instanceKind !== 'character') return 0;
+  const effective = applyOverridesToSnapshot(
+    instance.characterSlotSnapshot,
+    instance.characterOverrides,
+  );
+  return Object.keys(effective).length;
+}
+
+/** Get slot IDs that have 'remove' overrides. */
+export function getRemovedOverrideSlots(instance: SceneAssetInstance): string[] {
+  if (!instance.characterOverrides) return [];
+  return Object.entries(instance.characterOverrides)
+    .filter(([, ov]) => ov.mode === 'remove')
+    .map(([slotId]) => slotId);
+}
+
+/** Get slot IDs that have 'replace' overrides. */
+export function getReplacedOverrideSlots(instance: SceneAssetInstance): string[] {
+  if (!instance.characterOverrides) return [];
+  return Object.entries(instance.characterOverrides)
+    .filter(([, ov]) => ov.mode === 'replace')
+    .map(([slotId]) => slotId);
+}
+
+// ── Summary helpers ──
+
+/** Compact override summary text (e.g. "2 local overrides"). */
+export function overrideSummary(instance: SceneAssetInstance): string {
+  const count = getOverrideCount(instance);
+  if (count === 0) return 'No local overrides';
+  return `${count} local override${count !== 1 ? 's' : ''}`;
+}
+
+/** Effective slot summary text (e.g. "4/12 effective"). */
+export function effectiveSlotSummary(instance: SceneAssetInstance): string {
+  if (instance.instanceKind !== 'character') return '';
+  const equipped = getEffectiveEquippedCount(instance);
+  return `${equipped}/${CHARACTER_SLOT_IDS.length} effective`;
 }

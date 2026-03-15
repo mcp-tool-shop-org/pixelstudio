@@ -29,6 +29,13 @@ import {
   clearSlotOverride,
   clearAllOverrides,
   CHARACTER_PLACEMENT_DEFAULTS,
+  deriveEffectiveCharacterSlotStates,
+  getOverrideCount,
+  getEffectiveEquippedCount,
+  getRemovedOverrideSlots,
+  getReplacedOverrideSlots,
+  overrideSummary,
+  effectiveSlotSummary,
 } from './characterSceneBridge';
 import { findBuildById } from './characterBuildLibrary';
 
@@ -977,5 +984,329 @@ describe('reapply preserves overrides', () => {
     // After clearing: head inherits from new snapshot
     const cleared = clearSlotOverride(reapplied, 'head');
     expect(deriveEffectiveSlots(cleared).head).toBe(HEAD.sourceId);
+  });
+});
+
+// ── deriveEffectiveCharacterSlotStates ──
+
+describe('deriveEffectiveCharacterSlotStates', () => {
+  it('returns empty array for non-character instance', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(deriveEffectiveCharacterSlotStates(asset)).toEqual([]);
+  });
+
+  it('returns one entry per canonical slot in CHARACTER_SLOT_IDS order', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    expect(states.length).toBe(CHARACTER_SLOT_IDS.length);
+    expect(states.map((s) => s.slot)).toEqual([...CHARACTER_SLOT_IDS]);
+  });
+
+  it('marks equipped inherited slots correctly', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    const headState = states.find((s) => s.slot === 'head')!;
+    expect(headState.effectivePart).toBe('head-basic');
+    expect(headState.source).toBe('inherited');
+    expect(headState.isOverridden).toBe(false);
+    expect(headState.overrideMode).toBeUndefined();
+    expect(headState.hasPart).toBe(true);
+  });
+
+  it('marks empty inherited slots correctly', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    const faceState = states.find((s) => s.slot === 'face')!;
+    expect(faceState.effectivePart).toBeUndefined();
+    expect(faceState.source).toBe('inherited');
+    expect(faceState.isOverridden).toBe(false);
+    expect(faceState.hasPart).toBe(false);
+  });
+
+  it('marks remove-overridden slots correctly', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      weapon: { slot: 'weapon', mode: 'remove' },
+    };
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    const weaponState = states.find((s) => s.slot === 'weapon')!;
+    expect(weaponState.effectivePart).toBeUndefined();
+    expect(weaponState.source).toBe('override_remove');
+    expect(weaponState.isOverridden).toBe(true);
+    expect(weaponState.overrideMode).toBe('remove');
+    expect(weaponState.hasPart).toBe(false);
+  });
+
+  it('marks replace-overridden slots correctly', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+    };
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    const headState = states.find((s) => s.slot === 'head')!;
+    expect(headState.effectivePart).toBe('crown-gold');
+    expect(headState.source).toBe('override_replace');
+    expect(headState.isOverridden).toBe(true);
+    expect(headState.overrideMode).toBe('replace');
+    expect(headState.hasPart).toBe(true);
+  });
+
+  it('mixed overrides and inherited slots', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'replace', replacementPartId: 'crown-gold' },
+      weapon: { slot: 'weapon', mode: 'remove' },
+    };
+    const states = deriveEffectiveCharacterSlotStates(inst);
+
+    // Overridden
+    expect(states.find((s) => s.slot === 'head')!.isOverridden).toBe(true);
+    expect(states.find((s) => s.slot === 'weapon')!.isOverridden).toBe(true);
+
+    // Inherited
+    expect(states.find((s) => s.slot === 'torso')!.isOverridden).toBe(false);
+    expect(states.find((s) => s.slot === 'torso')!.effectivePart).toBe('torso-plate');
+
+    // Total overridden count
+    expect(states.filter((s) => s.isOverridden).length).toBe(2);
+    // Total with parts
+    expect(states.filter((s) => s.hasPart).length).toBe(4); // head(replaced), torso, arms, legs — weapon removed
+  });
+
+  it('empty build returns all slots as inherited with no parts', () => {
+    const inst = placeCharacterBuild(EMPTY_BUILD);
+    const states = deriveEffectiveCharacterSlotStates(inst);
+    expect(states.length).toBe(CHARACTER_SLOT_IDS.length);
+    expect(states.every((s) => s.source === 'inherited')).toBe(true);
+    expect(states.every((s) => !s.hasPart)).toBe(true);
+  });
+});
+
+// ── getOverrideCount ──
+
+describe('getOverrideCount', () => {
+  it('returns 0 when no overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(getOverrideCount(inst)).toBe(0);
+  });
+
+  it('returns 0 when characterOverrides is undefined', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = undefined;
+    expect(getOverrideCount(inst)).toBe(0);
+  });
+
+  it('counts overrides correctly', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'remove' },
+      weapon: { slot: 'weapon', mode: 'replace', replacementPartId: 'axe' },
+    };
+    expect(getOverrideCount(inst)).toBe(2);
+  });
+});
+
+// ── getEffectiveEquippedCount ──
+
+describe('getEffectiveEquippedCount', () => {
+  it('returns snapshot count when no overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(getEffectiveEquippedCount(inst)).toBe(5);
+  });
+
+  it('returns 0 for non-character instances', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(getEffectiveEquippedCount(asset)).toBe(0);
+  });
+
+  it('accounts for remove overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      weapon: { slot: 'weapon', mode: 'remove' },
+    };
+    expect(getEffectiveEquippedCount(inst)).toBe(4);
+  });
+
+  it('accounts for replace overrides (count stays same)', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'replace', replacementPartId: 'crown' },
+    };
+    expect(getEffectiveEquippedCount(inst)).toBe(5); // replaced, not removed
+  });
+
+  it('accounts for replace adding new slot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      face: { slot: 'face', mode: 'replace', replacementPartId: 'mask' },
+    };
+    expect(getEffectiveEquippedCount(inst)).toBe(6); // 5 + face added
+  });
+});
+
+// ── getRemovedOverrideSlots / getReplacedOverrideSlots ──
+
+describe('getRemovedOverrideSlots', () => {
+  it('returns empty array when no overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(getRemovedOverrideSlots(inst)).toEqual([]);
+  });
+
+  it('returns only slots with remove mode', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'remove' },
+      weapon: { slot: 'weapon', mode: 'replace', replacementPartId: 'axe' },
+      torso: { slot: 'torso', mode: 'remove' },
+    };
+    const removed = getRemovedOverrideSlots(inst);
+    expect(removed).toContain('head');
+    expect(removed).toContain('torso');
+    expect(removed).not.toContain('weapon');
+    expect(removed.length).toBe(2);
+  });
+});
+
+describe('getReplacedOverrideSlots', () => {
+  it('returns empty array when no overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(getReplacedOverrideSlots(inst)).toEqual([]);
+  });
+
+  it('returns only slots with replace mode', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'remove' },
+      weapon: { slot: 'weapon', mode: 'replace', replacementPartId: 'axe' },
+      torso: { slot: 'torso', mode: 'replace', replacementPartId: 'robe' },
+    };
+    const replaced = getReplacedOverrideSlots(inst);
+    expect(replaced).toContain('weapon');
+    expect(replaced).toContain('torso');
+    expect(replaced).not.toContain('head');
+    expect(replaced.length).toBe(2);
+  });
+});
+
+// ── overrideSummary ──
+
+describe('overrideSummary', () => {
+  it('returns "No local overrides" when none', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(overrideSummary(inst)).toBe('No local overrides');
+  });
+
+  it('returns singular form for 1 override', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'remove' },
+    };
+    expect(overrideSummary(inst)).toBe('1 local override');
+  });
+
+  it('returns plural form for multiple overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      head: { slot: 'head', mode: 'remove' },
+      weapon: { slot: 'weapon', mode: 'remove' },
+      torso: { slot: 'torso', mode: 'replace', replacementPartId: 'robe' },
+    };
+    expect(overrideSummary(inst)).toBe('3 local overrides');
+  });
+});
+
+// ── effectiveSlotSummary ──
+
+describe('effectiveSlotSummary', () => {
+  it('returns empty string for non-character instance', () => {
+    const asset: SceneAssetInstance = {
+      instanceId: 'a1', sourcePath: '/a.pxs', name: 'A',
+      x: 0, y: 0, zOrder: 0, visible: true, opacity: 1, parallax: 1,
+    };
+    expect(effectiveSlotSummary(asset)).toBe('');
+  });
+
+  it('returns effective count without overrides', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    expect(effectiveSlotSummary(inst)).toBe('5/12 effective');
+  });
+
+  it('reflects overrides in effective count', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      weapon: { slot: 'weapon', mode: 'remove' },
+    };
+    expect(effectiveSlotSummary(inst)).toBe('4/12 effective');
+  });
+
+  it('reflects replace adding new slot', () => {
+    const inst = placeCharacterBuild(WARRIOR);
+    inst.characterOverrides = {
+      face: { slot: 'face', mode: 'replace', replacementPartId: 'mask' },
+    };
+    expect(effectiveSlotSummary(inst)).toBe('6/12 effective');
+  });
+});
+
+// ── Integration: derivation + reapply ──
+
+describe('effective derivation after reapply', () => {
+  it('deriveEffectiveCharacterSlotStates reflects new snapshot + preserved overrides', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'head', mode: 'replace', replacementPartId: 'crown' });
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+
+    const editedBuild: CharacterBuild = {
+      id: 'build-warrior',
+      name: 'Warrior v2',
+      slots: { head: HEAD, torso: TORSO, arms: ARMS },
+    };
+
+    const reapplied = reapplyCharacterBuild(inst, editedBuild)!;
+    const states = deriveEffectiveCharacterSlotStates(reapplied);
+
+    // head: overridden to crown
+    const headState = states.find((s) => s.slot === 'head')!;
+    expect(headState.effectivePart).toBe('crown');
+    expect(headState.source).toBe('override_replace');
+
+    // weapon: override_remove (weapon not in new snapshot anyway)
+    const weaponState = states.find((s) => s.slot === 'weapon')!;
+    expect(weaponState.effectivePart).toBeUndefined();
+    expect(weaponState.source).toBe('override_remove');
+
+    // torso: inherited from new snapshot
+    const torsoState = states.find((s) => s.slot === 'torso')!;
+    expect(torsoState.effectivePart).toBe('torso-plate');
+    expect(torsoState.source).toBe('inherited');
+
+    // legs: not in new snapshot, not overridden
+    const legsState = states.find((s) => s.slot === 'legs')!;
+    expect(legsState.effectivePart).toBeUndefined();
+    expect(legsState.source).toBe('inherited');
+    expect(legsState.hasPart).toBe(false);
+  });
+
+  it('counts align after reapply with overrides', () => {
+    let inst = placeCharacterBuild(WARRIOR);
+    inst = setSlotOverride(inst, { slot: 'weapon', mode: 'remove' });
+
+    const editedBuild: CharacterBuild = {
+      id: 'build-warrior',
+      name: 'Warrior v2',
+      slots: { head: HEAD, torso: TORSO },
+    };
+
+    const reapplied = reapplyCharacterBuild(inst, editedBuild)!;
+    expect(getOverrideCount(reapplied)).toBe(1);
+    expect(getEffectiveEquippedCount(reapplied)).toBe(2); // head + torso, weapon removed but wasn't in snapshot
+    expect(effectiveSlotSummary(reapplied)).toBe('2/12 effective');
+    expect(overrideSummary(reapplied)).toBe('1 local override');
   });
 });
