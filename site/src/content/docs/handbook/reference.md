@@ -1044,7 +1044,7 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 | Export | Type | Purpose |
 |--------|------|---------|
 | `SceneHistoryOperationKind` | type | Union of 16 operation kind strings |
-| `SceneHistorySnapshot` | type | `{ instances: SceneAssetInstance[] }` |
+| `SceneHistorySnapshot` | type | `{ instances: SceneAssetInstance[], camera?: SceneCamera }` |
 | `SceneHistoryEntry` | type | Before/after snapshots + kind + metadata + timestamp |
 | `SceneHistoryOperationMetadata` | type | Optional instanceId, camera, override metadata |
 | `ALL_SCENE_HISTORY_OPERATION_KINDS` | const | Array of all 16 operation kind strings |
@@ -1083,7 +1083,7 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 |--------|------|---------|
 | `SceneProvenanceDiff` | type | Discriminated union — 16 diff variants keyed by `type` |
 | `SceneProvenanceDrilldown` | type | Diff + entry metadata (label, timestamp, sequence) |
-| `SceneProvenanceDrilldownSource` | type | Captured before/after instance slices + kind + metadata |
+| `SceneProvenanceDrilldownSource` | type | Captured before/after instance slices + kind + metadata + optional `beforeCamera`/`afterCamera` |
 | `captureProvenanceDrilldownSource` | fn | Extract focused before/after slices at edit seam (by metadata instanceId) |
 | `deriveProvenanceDiff` | fn | Derive typed diff from captured source slices |
 | `deriveProvenanceDrilldown` | fn | Wrap diff with provenance entry metadata |
@@ -1095,7 +1095,7 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 |--------|------|---------|
 | `useSceneEditorStore` | Zustand store | Centralized scene instances + history + provenance |
 | `SceneEditorState` | type | Store shape (instances, history, provenance, actions) |
-| `SceneUndoRedoResult` | type | `{ instances: SceneAssetInstance[], rollback: () => void }` |
+| `SceneUndoRedoResult` | type | `{ instances: SceneAssetInstance[], rollback: () => void, camera?: SceneCamera }` |
 
 Store state:
 
@@ -1107,13 +1107,15 @@ Store state:
 | `drilldownBySequence` | `Record<number, SceneProvenanceDrilldownSource>` | Captured before/after slices keyed by provenance sequence |
 | `canUndo` | `boolean` | Whether undo is available |
 | `canRedo` | `boolean` | Whether redo is available |
+| `camera` | `SceneCamera \| undefined` | Last committed camera state (for history snapshots) |
 
 Store actions:
 
 | Action | Signature | Description |
 |--------|-----------|-------------|
 | `loadInstances` | `(instances) → void` | Load from backend without history or provenance (refresh, initial load) |
-| `applyEdit` | `(kind, nextInstances, metadata?) → void` | Record edit with history, provenance, and drilldown capture (captures before/after slices) |
+| `loadCamera` | `(camera) → void` | Load camera state without history (initial load, backend sync) |
+| `applyEdit` | `(kind, nextInstances, metadata?, nextCamera?) → void` | Record edit with history, provenance, and drilldown capture. Camera edits pass `nextCamera` for snapshot + drilldown. |
 | `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
 | `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
 | `resetHistory` | `() → void` | Clear history stacks, provenance log, drilldown captures, and sequence counter (scene change / new scene) |

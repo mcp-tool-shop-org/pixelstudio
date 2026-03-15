@@ -167,8 +167,33 @@ Scene history uses **full-snapshot** storage. Each history entry records:
 - `kind`: which operation produced the edit
 - `metadata`: optional instance ID, camera data, or override details
 - `timestamp`: when the edit occurred
+- `camera` (optional): `SceneCamera` snapshot when the edit is a camera operation
 
 Undo restores the stored `before` snapshot exactly. Redo restores the stored `after` snapshot exactly. No recomputation or re-derivation occurs.
+
+### Camera authoring parity
+
+Camera edits (pan, zoom, reset) enter the same lawful seam as instance edits. Every persisted camera mutation routes through `applyEdit` so that history, provenance, and drilldown all fire in a single atomic step.
+
+| Concern | Camera path | Instance path |
+|---------|-------------|---------------|
+| Entry point | `applyEdit(kind, instances, metadata, nextCamera)` | `applyEdit(kind, nextInstances, metadata)` |
+| History | Snapshot includes `camera` field | Snapshot includes `instances` only |
+| Provenance | Entry appended with `set-scene-camera` kind | Entry appended with instance kind |
+| Drilldown | `beforeCamera` / `afterCamera` captured from exact edit values | `beforeInstance` / `afterInstance` extracted by `instanceId` |
+| Undo/redo | Result includes `camera` for caller to restore to backend + playback | Result includes `instances` for caller to restore |
+| No-op guard | Same reference-identity check applies | Same reference-identity check applies |
+
+#### Camera vs playback boundary
+
+Camera state lives in two stores that serve different purposes:
+
+| Store | Owns | Purpose |
+|-------|------|---------|
+| `scenePlaybackStore` | Live camera (cameraX, cameraY, cameraZoom) | Real-time rendering — updated during drag, wheel, tick interpolation |
+| `sceneEditorStore` | Camera history snapshots | Persistence — stores before/after camera for undo/redo/drilldown |
+
+During a pan drag, `scenePlaybackStore` updates on every mousemove (transient). On mouseup, `sceneEditorStore.applyEdit` commits the final position (one history entry). Undo restores the camera from the history snapshot back to both the backend and `scenePlaybackStore`.
 
 ### Operations that produce history
 
@@ -307,7 +332,7 @@ Drilldown is built on three layers in `@glyphstudio/state`:
 | Capture | `sceneProvenanceDrilldown.ts` | `captureProvenanceDrilldownSource` — extract focused before/after slices at edit seam |
 | Store | `sceneEditorStore.ts` | Store captured slices in `drilldownBySequence`, keyed by provenance sequence |
 
-The capture step runs inside `applyEdit` at the same seam as provenance append. It extracts only the targeted instance (by metadata `instanceId`) from the before and after instance arrays — not the full scene. Camera and playback operations capture metadata only (no instance slices).
+The capture step runs inside `applyEdit` at the same seam as provenance append. It extracts only the targeted instance (by metadata `instanceId`) from the before and after instance arrays — not the full scene. Camera operations capture exact `beforeCamera` and `afterCamera` values from the edit seam. Playback operations capture metadata only.
 
 #### Diff derivation
 
@@ -318,7 +343,8 @@ The capture step runs inside `applyEdit` at the same seam as provenance append. 
 - **Property** — visibility (Visible/Hidden), opacity (percentage), layer, clip path, parallax
 - **Source relationship** — unlink/relink/reapply with link mode transitions and slot-level changes
 - **Override** — set/remove/clear-all with slot, mode, and replacement details
-- **Camera/playback** — changed fields list or settings-changed note
+- **Camera** — changed fields list with exact before/after camera coordinates (pan, zoom, reset)
+- **Playback** — settings-changed note
 
 Each diff type is a discriminated union variant keyed by `type`, enabling type-safe rendering in specialized family components.
 
@@ -332,7 +358,8 @@ Selection is keyed by provenance `sequence` number (stable, monotonically increa
 - No restore-from-entry or jump-to-state action
 - No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
-- Camera and playback drilldown shows metadata only (changed fields), not before/after values
+- Camera drilldown shows exact before/after values for pan, zoom, and reset; playback drilldown shows metadata only
+- Camera keyframe edits (add/update/delete) do not yet produce history or provenance entries
 
 ## Character workflow
 
