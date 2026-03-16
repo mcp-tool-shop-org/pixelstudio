@@ -232,6 +232,8 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       current, history, kind, nextInstances, metadata, currentCamera, nextCamera,
       currentKeyframes.length > 0 || nextKeyframes ? currentKeyframes : undefined,
       nextKeyframes,
+      currentPlaybackConfig,
+      nextPlaybackConfig,
     );
     // Provenance + drilldown capture only when history actually recorded an entry (not no-op, not mid-undo)
     const historyChanged = result.history !== history;
@@ -333,17 +335,19 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
 
   undo: () => {
-    const { history, instances: prevInstances, camera: prevCamera, keyframes: prevKeyframes } = get();
+    const { history, instances: prevInstances, camera: prevCamera, keyframes: prevKeyframes, playbackConfig: prevPlaybackConfig } = get();
     const prevHistory = history;
     const result = undoSceneHistory(history);
     if (!result.snapshot) return undefined;
     const finished = finishApplyingHistory(result.history);
     const restoredCamera = result.snapshot.camera;
     const restoredKeyframes = result.snapshot.keyframes;
+    const restoredPlaybackConfig = result.snapshot.playbackConfig;
     set({
       instances: result.snapshot.instances,
       camera: restoredCamera ?? prevCamera,
       keyframes: restoredKeyframes ?? prevKeyframes,
+      playbackConfig: restoredPlaybackConfig ?? prevPlaybackConfig,
       history: finished,
       canUndo: canUndoScene(finished),
       canRedo: canRedoScene(finished),
@@ -357,6 +361,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
           instances: prevInstances,
           camera: prevCamera,
           keyframes: prevKeyframes,
+          playbackConfig: prevPlaybackConfig,
           history: prevHistory,
           canUndo: canUndoScene(prevHistory),
           canRedo: canRedoScene(prevHistory),
@@ -366,17 +371,19 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
 
   redo: () => {
-    const { history, instances: prevInstances, camera: prevCamera, keyframes: prevKeyframes } = get();
+    const { history, instances: prevInstances, camera: prevCamera, keyframes: prevKeyframes, playbackConfig: prevPlaybackConfig } = get();
     const prevHistory = history;
     const result = redoSceneHistory(history);
     if (!result.snapshot) return undefined;
     const finished = finishApplyingHistory(result.history);
     const restoredCamera = result.snapshot.camera;
     const restoredKeyframes = result.snapshot.keyframes;
+    const restoredPlaybackConfig = result.snapshot.playbackConfig;
     set({
       instances: result.snapshot.instances,
       camera: restoredCamera ?? prevCamera,
       keyframes: restoredKeyframes ?? prevKeyframes,
+      playbackConfig: restoredPlaybackConfig ?? prevPlaybackConfig,
       history: finished,
       canUndo: canUndoScene(finished),
       canRedo: canRedoScene(finished),
@@ -390,6 +397,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
           instances: prevInstances,
           camera: prevCamera,
           keyframes: prevKeyframes,
+          playbackConfig: prevPlaybackConfig,
           history: prevHistory,
           canUndo: canUndoScene(prevHistory),
           canRedo: canRedoScene(prevHistory),

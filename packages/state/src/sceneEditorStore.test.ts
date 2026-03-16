@@ -4325,3 +4325,103 @@ describe('SceneEditorStore — scoped restore', () => {
     expect(result.status).toBe('unavailable');
   });
 });
+
+// ── Playback-config-only edits via lawful seam ──
+
+describe('SceneEditorStore — playback-config seam wiring', () => {
+  const PB_A: ScenePlaybackConfig = { fps: 12, looping: false };
+  const PB_B: ScenePlaybackConfig = { fps: 60, looping: true };
+
+  it('playback-config-only edit creates history entry', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    const prevHist = useSceneEditorStore.getState().history.past.length;
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    expect(useSceneEditorStore.getState().history.past.length).toBe(prevHist + 1);
+    expect(useSceneEditorStore.getState().history.past[prevHist].kind).toBe('set-scene-playback');
+  });
+
+  it('playback-config-only edit creates provenance entry', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    const prevLen = useSceneEditorStore.getState().provenance.length;
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    expect(useSceneEditorStore.getState().provenance.length).toBe(prevLen + 1);
+    const lastEntry = useSceneEditorStore.getState().provenance.at(-1)!;
+    expect(lastEntry.kind).toBe('set-scene-playback');
+  });
+
+  it('playback-config-only edit creates drilldown capture', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    const lastEntry = useSceneEditorStore.getState().provenance.at(-1)!;
+    const drilldown = useSceneEditorStore.getState().drilldownBySequence[lastEntry.sequence];
+    expect(drilldown).toBeDefined();
+    expect(drilldown.beforePlayback).toEqual(PB_A);
+    expect(drilldown.afterPlayback).toEqual(PB_B);
+  });
+
+  it('playback-config-only edit history snapshot contains playbackConfig', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    const entry = useSceneEditorStore.getState().history.past.at(-1)!;
+    expect(entry.before.playbackConfig).toEqual(PB_A);
+    expect(entry.after.playbackConfig).toEqual(PB_B);
+  });
+
+  it('no-op playback-config edit creates nothing', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    const prevHist = useSceneEditorStore.getState().history.past.length;
+    const prevProv = useSceneEditorStore.getState().provenance.length;
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_A);
+    expect(useSceneEditorStore.getState().history.past.length).toBe(prevHist);
+    expect(useSceneEditorStore.getState().provenance.length).toBe(prevProv);
+  });
+
+  it('fps-only edit creates one entry', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, { ...PB_A, fps: 30 });
+    const entry = useSceneEditorStore.getState().history.past.at(-1)!;
+    expect(entry.before.playbackConfig?.fps).toBe(12);
+    expect(entry.after.playbackConfig?.fps).toBe(30);
+  });
+
+  it('looping-only edit creates one entry', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, { ...PB_A, looping: true });
+    const entry = useSceneEditorStore.getState().history.past.at(-1)!;
+    expect(entry.before.playbackConfig?.looping).toBe(false);
+    expect(entry.after.playbackConfig?.looping).toBe(true);
+  });
+
+  it('transient playback state unchanged after authored config edit', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    // sceneEditorStore does not contain isPlaying or currentTick
+    const state = useSceneEditorStore.getState();
+    expect('isPlaying' in state).toBe(false);
+    expect('currentTick' in state).toBe(false);
+  });
+
+  it('playbackConfig updates in store after edit', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+  });
+});
