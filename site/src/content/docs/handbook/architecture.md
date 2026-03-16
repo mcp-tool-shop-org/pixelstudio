@@ -76,7 +76,7 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 | export | Preset selection, readiness, preview state |
 | character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
-| sceneEditor | Scene instances (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, persisted provenance log + drilldown captures |
+| sceneEditor | Scene instances + camera keyframes (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, persisted provenance log + drilldown captures |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -253,7 +253,7 @@ Shortcuts are suppressed when focus is in an `<input>`, `<textarea>`, or `conten
 
 - Scene history is session-local — it resets on scene change or app restart (provenance persists separately)
 - No metadata-bearing scene export/import yet
-- History is scene-instance-based, not a generalized project-wide undo system
+- History covers instances, camera, and keyframes — not a generalized project-wide undo system
 - Canvas and scene editors use different undo mechanisms by design
 
 ## Scene provenance (persisted)
@@ -397,15 +397,27 @@ Selection is keyed by provenance `sequence` number (stable, monotonically increa
 | Playback state | No | Not included in provenance, history, or drilldown |
 | Restore-from-entry | No | Does not exist — drilldown is read-only inspection |
 | Generic raw diff | No | Does not exist — drilldown shows operation-aware focused diffs only |
-| Camera keyframe provenance | No | Keyframe add/update/delete do not produce provenance entries |
+| Camera keyframe provenance | Yes | Keyframe add/remove/move/edit produce provenance entries with drilldown sources |
+
+### Authored timeline parity
+
+All authored scene state participates equally in history, provenance, and drilldown:
+
+| Domain | History (undo/redo) | Provenance | Drilldown | Persists |
+|--------|-------------------|------------|-----------|----------|
+| Instances | Yes | Yes | Yes | Yes |
+| Camera | Yes | Yes | Yes (pan/zoom/reset) | Yes |
+| Keyframes | Yes | Yes | Yes (add/remove/move/edit) | Yes |
+| Playback | No (transient) | No | No | No |
+
+Keyframe drilldown sources include `beforeKeyframe` and `afterKeyframe` slices containing `tick`, `x`, `y`, `zoom`, `interpolation`, and optional `name`.
 
 ### Current limitations
 
 - No restore-from-entry or jump-to-state action
 - No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
-- Camera drilldown shows exact before/after values for pan, zoom, and reset; playback drilldown shows metadata only
-- Camera keyframe edits (add/update/delete) do not yet produce history or provenance entries
+- Camera drilldown shows exact before/after values for pan, zoom, and reset; keyframe drilldown shows tick, position, zoom, and interpolation; playback drilldown shows metadata only
 - Undo/redo history does not persist — it resets on scene change or app restart
 
 ## Character workflow

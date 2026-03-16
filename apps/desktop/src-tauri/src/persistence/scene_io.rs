@@ -383,6 +383,8 @@ mod tests {
             changed_fields: None,
             before_camera: None,
             after_camera: None,
+            tick: None,
+            previous_tick: None,
         });
         doc.provenance.push(entry);
         let loaded = round_trip(&doc);
@@ -400,6 +402,8 @@ mod tests {
             changed_fields: Some(vec!["zoom".into()]),
             before_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 1.0, name: None }),
             after_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 2.5, name: None }),
+            tick: None,
+            previous_tick: None,
         });
         doc.provenance.push(entry);
         let loaded = round_trip(&doc);
@@ -425,11 +429,15 @@ mod tests {
                 changed_fields: None,
                 before_camera: None,
                 after_camera: None,
+                tick: None,
+                previous_tick: None,
             }),
             before_instance: Some(inst),
             after_instance: Some(after_inst),
             before_camera: None,
             after_camera: None,
+            before_keyframe: None,
+            after_keyframe: None,
         });
         let loaded = round_trip(&doc);
         assert_eq!(loaded.provenance_drilldown.len(), 1);
@@ -451,17 +459,204 @@ mod tests {
                 changed_fields: Some(vec!["x".into(), "y".into()]),
                 before_camera: None,
                 after_camera: None,
+                tick: None,
+                previous_tick: None,
             }),
             before_instance: None,
             after_instance: None,
             before_camera: Some(SceneCamera { x: 0.0, y: 0.0, zoom: 1.0, name: None }),
             after_camera: Some(SceneCamera { x: 120.0, y: 80.0, zoom: 1.0, name: None }),
+            before_keyframe: None,
+            after_keyframe: None,
         });
         let loaded = round_trip(&doc);
         let source = loaded.provenance_drilldown.get("1").unwrap();
         assert_eq!(source.before_camera.as_ref().unwrap().x, 0.0);
         assert_eq!(source.after_camera.as_ref().unwrap().x, 120.0);
         assert_eq!(source.after_camera.as_ref().unwrap().y, 80.0);
+    }
+
+    #[test]
+    fn keyframe_provenance_metadata_with_tick_survives() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(1, "add-camera-keyframe", "Add Camera Keyframe (tick 30)");
+        entry.metadata = Some(PersistedSceneProvenanceMetadata {
+            instance_id: None,
+            slot_id: None,
+            changed_fields: None,
+            before_camera: None,
+            after_camera: None,
+            tick: Some(30),
+            previous_tick: None,
+        });
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        let meta = loaded.provenance[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.tick, Some(30));
+        assert_eq!(meta.previous_tick, None);
+    }
+
+    #[test]
+    fn keyframe_move_metadata_with_previous_tick_survives() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(1, "move-camera-keyframe", "Move Camera Keyframe (tick 45, from tick 30)");
+        entry.metadata = Some(PersistedSceneProvenanceMetadata {
+            instance_id: None,
+            slot_id: None,
+            changed_fields: None,
+            before_camera: None,
+            after_camera: None,
+            tick: Some(45),
+            previous_tick: Some(30),
+        });
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        let meta = loaded.provenance[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.tick, Some(45));
+        assert_eq!(meta.previous_tick, Some(30));
+    }
+
+    #[test]
+    fn keyframe_edit_metadata_with_tick_and_changed_fields_survives() {
+        let mut doc = make_doc();
+        let mut entry = make_provenance_entry(1, "edit-camera-keyframe", "Edit Camera Keyframe (tick 30: zoom)");
+        entry.metadata = Some(PersistedSceneProvenanceMetadata {
+            instance_id: None,
+            slot_id: None,
+            changed_fields: Some(vec!["zoom".into()]),
+            before_camera: None,
+            after_camera: None,
+            tick: Some(30),
+            previous_tick: None,
+        });
+        doc.provenance.push(entry);
+        let loaded = round_trip(&doc);
+        let meta = loaded.provenance[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.tick, Some(30));
+        assert_eq!(meta.changed_fields.as_ref().unwrap(), &vec!["zoom".to_string()]);
+    }
+
+    #[test]
+    fn keyframe_drilldown_source_survives_round_trip() {
+        use crate::engine::scene::{SceneCameraKeyframe, CameraInterpolationMode};
+        let mut doc = make_doc();
+        doc.provenance.push(make_provenance_entry(1, "add-camera-keyframe", "Add Camera Keyframe (tick 30)"));
+        let kf = SceneCameraKeyframe {
+            tick: 30,
+            x: 100.0,
+            y: 50.0,
+            zoom: 2.0,
+            interpolation: CameraInterpolationMode::Hold,
+            name: None,
+        };
+        doc.provenance_drilldown.insert("1".into(), PersistedSceneProvenanceDrilldownSource {
+            kind: "add-camera-keyframe".into(),
+            metadata: Some(PersistedSceneProvenanceMetadata {
+                instance_id: None,
+                slot_id: None,
+                changed_fields: None,
+                before_camera: None,
+                after_camera: None,
+                tick: Some(30),
+                previous_tick: None,
+            }),
+            before_instance: None,
+            after_instance: None,
+            before_camera: None,
+            after_camera: None,
+            before_keyframe: None,
+            after_keyframe: Some(kf),
+        });
+        let loaded = round_trip(&doc);
+        let source = loaded.provenance_drilldown.get("1").unwrap();
+        assert_eq!(source.kind, "add-camera-keyframe");
+        assert!(source.before_keyframe.is_none());
+        let after_kf = source.after_keyframe.as_ref().unwrap();
+        assert_eq!(after_kf.tick, 30);
+        assert_eq!(after_kf.x, 100.0);
+        assert_eq!(after_kf.y, 50.0);
+        assert_eq!(after_kf.zoom, 2.0);
+    }
+
+    #[test]
+    fn keyframe_edit_drilldown_with_before_and_after_survives() {
+        use crate::engine::scene::{SceneCameraKeyframe, CameraInterpolationMode};
+        let mut doc = make_doc();
+        doc.provenance.push(make_provenance_entry(1, "edit-camera-keyframe", "Edit Camera Keyframe (tick 30: zoom)"));
+        let before_kf = SceneCameraKeyframe {
+            tick: 30,
+            x: 100.0,
+            y: 50.0,
+            zoom: 2.0,
+            interpolation: CameraInterpolationMode::Hold,
+            name: None,
+        };
+        let after_kf = SceneCameraKeyframe {
+            tick: 30,
+            x: 100.0,
+            y: 50.0,
+            zoom: 3.5,
+            interpolation: CameraInterpolationMode::Linear,
+            name: None,
+        };
+        doc.provenance_drilldown.insert("1".into(), PersistedSceneProvenanceDrilldownSource {
+            kind: "edit-camera-keyframe".into(),
+            metadata: Some(PersistedSceneProvenanceMetadata {
+                instance_id: None,
+                slot_id: None,
+                changed_fields: Some(vec!["zoom".into(), "interpolation".into()]),
+                before_camera: None,
+                after_camera: None,
+                tick: Some(30),
+                previous_tick: None,
+            }),
+            before_instance: None,
+            after_instance: None,
+            before_camera: None,
+            after_camera: None,
+            before_keyframe: Some(before_kf),
+            after_keyframe: Some(after_kf),
+        });
+        let loaded = round_trip(&doc);
+        let source = loaded.provenance_drilldown.get("1").unwrap();
+        assert_eq!(source.before_keyframe.as_ref().unwrap().zoom, 2.0);
+        assert_eq!(source.after_keyframe.as_ref().unwrap().zoom, 3.5);
+    }
+
+    #[test]
+    fn legacy_scene_without_keyframe_fields_loads_cleanly() {
+        // Simulate a JSON payload from before keyframe fields were added
+        let json = r#"{
+            "schemaVersion": 1,
+            "sceneId": "s1",
+            "name": "OldScene",
+            "canvasWidth": 64,
+            "canvasHeight": 64,
+            "instances": [],
+            "playback": { "fps": 12, "looping": true },
+            "camera": { "x": 0.0, "y": 0.0, "zoom": 1.0 },
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T00:00:00Z",
+            "provenance": [
+                { "sequence": 1, "kind": "set-scene-camera", "label": "Camera pan", "timestamp": "2025-01-01T00:00:00Z" }
+            ],
+            "provenanceDrilldown": {
+                "1": {
+                    "kind": "set-scene-camera",
+                    "beforeCamera": { "x": 0.0, "y": 0.0, "zoom": 1.0 },
+                    "afterCamera": { "x": 120.0, "y": 80.0, "zoom": 1.0 }
+                }
+            }
+        }"#;
+        let file: SceneFile = serde_json::from_str(json).unwrap();
+        assert_eq!(file.document.provenance.len(), 1);
+        let source = file.document.provenance_drilldown.get("1").unwrap();
+        // Old drilldown without keyframe fields loads cleanly — keyframe fields default to None
+        assert!(source.before_keyframe.is_none());
+        assert!(source.after_keyframe.is_none());
+        // Camera fields still present
+        assert_eq!(source.before_camera.as_ref().unwrap().x, 0.0);
+        assert_eq!(source.after_camera.as_ref().unwrap().x, 120.0);
     }
 
     #[test]

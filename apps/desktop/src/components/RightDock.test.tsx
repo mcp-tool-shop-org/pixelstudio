@@ -35,7 +35,7 @@ describe('RightDock', () => {
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
       ['validate', ['Validation', 'Properties', 'Provenance']],
       ['export', ['Export Settings']],
-      ['scene', ['Instances', 'Camera', 'Assets']],
+      ['scene', ['Instances', 'Camera', 'Assets', 'Activity']],
     ];
 
     it.each(modeTabs)('%s mode shows correct tabs', (mode, expectedTabs) => {
@@ -62,9 +62,9 @@ describe('RightDock', () => {
       expect(screen.getAllByRole('button')).toHaveLength(1);
     });
 
-    it('scene has 3 tabs', () => {
+    it('scene has 4 tabs', () => {
       render(<RightDock activeMode="scene" />);
-      expect(screen.getAllByRole('button')).toHaveLength(3);
+      expect(screen.getAllByRole('button')).toHaveLength(4);
     });
   });
 

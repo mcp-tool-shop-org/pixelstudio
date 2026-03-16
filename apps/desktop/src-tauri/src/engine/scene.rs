@@ -247,6 +247,12 @@ pub struct PersistedSceneProvenanceMetadata {
     pub before_camera: Option<SceneCamera>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_camera: Option<SceneCamera>,
+    /// Keyframe tick (keyframe operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tick: Option<u32>,
+    /// Previous tick before move (move-camera-keyframe only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_tick: Option<u32>,
 }
 
 /// A single persisted provenance entry — captured edit truth.
@@ -287,6 +293,12 @@ pub struct PersistedSceneProvenanceDrilldownSource {
     /// Camera state after the edit (camera operations only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_camera: Option<SceneCamera>,
+    /// Keyframe state before the edit (keyframe operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_keyframe: Option<SceneCameraKeyframe>,
+    /// Keyframe state after the edit (keyframe operations only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_keyframe: Option<SceneCameraKeyframe>,
 }
 
 impl SceneDocument {
