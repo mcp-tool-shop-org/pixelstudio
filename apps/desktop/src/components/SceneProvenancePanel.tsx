@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSceneEditorStore } from '@glyphstudio/state';
 import type { SceneProvenanceEntry } from '@glyphstudio/state';
+import type { SceneRestoreActionResult } from '@glyphstudio/state';
 import { SceneProvenanceDrilldownPane } from './SceneProvenanceDrilldownPane';
 import { SceneComparisonPane } from './SceneComparisonPane';
 import { SceneRestorePreviewPane } from './SceneRestorePreviewPane';
@@ -90,8 +91,22 @@ export function SceneProvenancePanel() {
     }
   }, [selectedSequence]);
 
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  const handleRestore = useCallback((sequence: number) => {
+    setRestoreError(null);
+    const result: SceneRestoreActionResult = useSceneEditorStore.getState().restoreEntry(sequence);
+    if (result.status === 'success') {
+      // Exit preview mode — return to drilldown
+      setPanelMode({ type: 'drilldown' });
+    } else {
+      setRestoreError(result.label);
+    }
+  }, []);
+
   const handleCloseCompare = useCallback(() => {
     setPanelMode({ type: 'drilldown' });
+    setRestoreError(null);
   }, []);
 
   const handleRowClick = useCallback((sequence: number) => {
@@ -190,10 +205,18 @@ export function SceneProvenancePanel() {
               onClose={handleCloseCompare}
             />
           ) : isRestorePreview ? (
-            <SceneRestorePreviewPane
-              sequence={panelMode.sequence}
-              onClose={handleCloseCompare}
-            />
+            <>
+              <SceneRestorePreviewPane
+                sequence={panelMode.sequence}
+                onClose={handleCloseCompare}
+                onRestore={handleRestore}
+              />
+              {restoreError && (
+                <div className="restore-error-message" data-testid="restore-error">
+                  {restoreError}
+                </div>
+              )}
+            </>
           ) : selectedSequence !== null ? (
             <>
               <SceneProvenanceDrilldownPane sequence={selectedSequence} />

@@ -121,6 +121,7 @@ export type {
   SceneHistoryOverrideMeta,
   SceneHistoryCameraMeta,
   SceneHistoryKeyframeMeta,
+  SceneHistoryRestoreMeta,
   SceneHistoryOperationMetadata,
 } from './sceneHistory';
 export {
@@ -140,7 +141,7 @@ export type {
   ApplySceneEditResult,
 } from './sceneHistoryEngine';
 export { useSceneEditorStore } from './sceneEditorStore';
-export type { SceneEditorState, SceneUndoRedoResult } from './sceneEditorStore';
+export type { SceneEditorState, SceneUndoRedoResult, SceneRestoreActionResult } from './sceneEditorStore';
 export {
   createSceneProvenanceEntry,
   describeSceneProvenanceEntry,
@@ -205,3 +206,16 @@ export type {
   SceneComparisonResult,
   ComparisonUnavailableReason,
 } from './sceneComparison';
+export {
+  deriveSceneRestore,
+  describeSceneRestore,
+  FULL_RESTORE_DOMAINS,
+} from './sceneRestore';
+export type {
+  SceneRestoreScope,
+  SceneRestoreRequest,
+  SceneRestoreSnapshot,
+  SceneRestoreUnavailableReason,
+  SceneRestoreResult,
+  FullRestoreDomain,
+} from './sceneRestore';

@@ -170,6 +170,7 @@ function UnavailableSections({ result }: { result: SceneComparisonResult }) {
 export interface SceneRestorePreviewPaneProps {
   sequence: number;
   onClose: () => void;
+  onRestore: (sequence: number) => void;
 }
 
 // ── Pane ──
@@ -177,6 +178,7 @@ export interface SceneRestorePreviewPaneProps {
 export function SceneRestorePreviewPane({
   sequence,
   onClose,
+  onRestore,
 }: SceneRestorePreviewPaneProps) {
   const provenance = useSceneEditorStore((s) => s.provenance);
   const drilldownBySequence = useSceneEditorStore((s) => s.drilldownBySequence);
@@ -226,13 +228,24 @@ export function SceneRestorePreviewPane({
           Restoring this entry would make no authored changes.
         </div>
       ) : (
-        <div className="restore-preview-body">
-          <InstanceSectionView section={result.comparison.instances} />
-          <CameraSectionView section={result.comparison.camera} />
-          <KeyframeSectionView section={result.comparison.keyframes} />
-          <PlaybackSectionView section={result.comparison.playback} />
-          <UnavailableSections result={result.comparison} />
-        </div>
+        <>
+          <div className="restore-preview-body">
+            <InstanceSectionView section={result.comparison.instances} />
+            <CameraSectionView section={result.comparison.camera} />
+            <KeyframeSectionView section={result.comparison.keyframes} />
+            <PlaybackSectionView section={result.comparison.playback} />
+            <UnavailableSections result={result.comparison} />
+          </div>
+          <div className="restore-preview-actions">
+            <button
+              className="restore-preview-restore-btn"
+              data-action="restore-entry"
+              onClick={() => onRestore(sequence)}
+            >
+              Restore Entry
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

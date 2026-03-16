@@ -306,6 +306,16 @@ export function captureProvenanceDrilldownSource(
         afterKeyframe: tick !== undefined ? findKeyframe(nextKeyframes, tick) : undefined,
       };
     }
+
+    case 'restore-entry':
+      return {
+        kind,
+        metadata,
+        beforeCamera: currentCamera ? { ...currentCamera } : undefined,
+        afterCamera: nextCamera ? { ...nextCamera } : undefined,
+        beforePlayback: currentPlaybackConfig ? { ...currentPlaybackConfig } : undefined,
+        afterPlayback: nextPlaybackConfig ? { ...nextPlaybackConfig } : undefined,
+      };
   }
 }
 

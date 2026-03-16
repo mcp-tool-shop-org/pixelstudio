@@ -3,6 +3,7 @@ import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybac
 import type {
   SceneHistoryOperationKind,
   SceneHistoryOperationMetadata,
+  SceneHistoryRestoreMeta,
 } from './sceneHistory';
 import type { SceneHistoryState } from './sceneHistoryEngine';
 import {
@@ -22,6 +23,8 @@ import {
 } from './sceneProvenance';
 import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 import { captureProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
+import type { SceneRestoreResult } from './sceneRestore';
+import { deriveSceneRestore } from './sceneRestore';
 
 // ── Undo/redo result with rollback ──
 
@@ -35,6 +38,30 @@ export interface SceneUndoRedoResult {
   /** Call this if backend sync fails to restore pre-undo/redo state. */
   rollback: () => void;
 }
+
+// ── Restore action result ──
+
+export type SceneRestoreActionResult =
+  | {
+      status: 'success';
+      /** The restored instances to sync to backend. */
+      instances: SceneAssetInstance[];
+      /** The restored camera, if changed. */
+      camera: SceneCamera | undefined;
+      /** The restored keyframes, if changed. */
+      keyframes: SceneCameraKeyframe[] | undefined;
+      /** The restored playback config, if changed. */
+      playbackConfig: ScenePlaybackConfig | undefined;
+      /** Human-readable label. */
+      label: string;
+      /** Call this if backend sync fails to restore the exact pre-restore state. */
+      rollback: () => void;
+    }
+  | {
+      status: 'unavailable';
+      reason: string;
+      label: string;
+    };
 
 // ── Store shape ──
 
@@ -110,6 +137,21 @@ export interface SceneEditorState {
     nextKeyframes?: SceneCameraKeyframe[],
     nextPlaybackConfig?: ScenePlaybackConfig,
   ) => void;
+
+  // ── Restore ──
+
+  /**
+   * Restore a historical provenance entry as an explicit authored edit.
+   *
+   * Resolves the source snapshot from the drilldown data, derives the
+   * restore result, and if successful, routes through applyEdit() to
+   * produce one history entry, one provenance entry, and one drilldown
+   * capture.
+   *
+   * Returns the restore result so the UI can react to success or unavailable.
+   * Does NOT touch transient playback state (isPlaying, currentTick).
+   */
+  restoreEntry: (sequence: number) => SceneRestoreActionResult;
 
   // ── Undo / Redo ──
 
@@ -218,6 +260,72 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       canUndo: canUndoScene(result.history),
       canRedo: canRedoScene(result.history),
     });
+  },
+
+  restoreEntry: (sequence) => {
+    const state = get();
+    const { instances, camera, keyframes, playbackConfig, drilldownBySequence, history, provenance } = state;
+    const source = drilldownBySequence[sequence];
+
+    // Build the source snapshot from drilldown data
+    const sourceSnapshot = {
+      instances: source?.afterInstance ? [source.afterInstance] : [],
+      camera: source?.afterCamera,
+      playbackConfig: source?.afterPlayback,
+    };
+
+    const result = deriveSceneRestore({
+      scope: 'full',
+      sourceSequence: sequence,
+      sourceSnapshot,
+      currentSnapshot: { instances, camera, keyframes, playbackConfig },
+    });
+
+    if (result.status !== 'success') {
+      return { status: 'unavailable', reason: result.reason, label: result.label };
+    }
+
+    // Capture full pre-restore state for rollback
+    const prevInstances = instances;
+    const prevCamera = camera;
+    const prevKeyframes = keyframes;
+    const prevPlaybackConfig = playbackConfig;
+    const prevHistory = history;
+    const prevProvenance = provenance;
+    const prevDrilldown = drilldownBySequence;
+
+    // Route through the lawful seam — one edit, one history entry, one provenance entry
+    const meta: SceneHistoryRestoreMeta = { sourceSequence: sequence, scope: 'full' };
+    state.applyEdit(
+      'restore-entry',
+      result.instances,
+      meta,
+      result.camera,
+      result.keyframes,
+      result.playbackConfig,
+    );
+
+    return {
+      status: 'success',
+      instances: result.instances,
+      camera: result.camera,
+      keyframes: result.keyframes,
+      playbackConfig: result.playbackConfig,
+      label: result.label,
+      rollback: () => {
+        set({
+          instances: prevInstances,
+          camera: prevCamera,
+          keyframes: prevKeyframes,
+          playbackConfig: prevPlaybackConfig,
+          history: prevHistory,
+          provenance: prevProvenance,
+          drilldownBySequence: prevDrilldown,
+          canUndo: canUndoScene(prevHistory),
+          canRedo: canRedoScene(prevHistory),
+        });
+      },
+    };
   },
 
   undo: () => {
