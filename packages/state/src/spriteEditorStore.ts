@@ -37,6 +37,7 @@ export interface SpriteEditorStoreState {
   panX: number;
   panY: number;
   dirty: boolean;
+  showGrid: boolean;
 
   // -- Selection state (editor-only, not persisted) --
   selectionRect: SpriteSelectionRect | null;
@@ -106,6 +107,9 @@ export interface SpriteEditorStoreState {
   // -- Actions: Viewport --
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
+  toggleGrid: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
 }
 
 // ── Store ──
@@ -117,6 +121,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   selectionRect: null,
   selectionBuffer: null,
   clipboardBuffer: null,
+  showGrid: true,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -473,4 +478,15 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     set({ zoom });
   },
   setPan: (x, y) => set({ panX: x, panY: y }),
+  toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+  zoomIn: () => {
+    const { zoom } = get();
+    const next = Math.min(64, zoom < 4 ? zoom + 1 : zoom + 4);
+    set({ zoom: next });
+  },
+  zoomOut: () => {
+    const { zoom } = get();
+    const next = Math.max(1, zoom <= 4 ? zoom - 1 : zoom - 4);
+    set({ zoom: next });
+  },
 }));

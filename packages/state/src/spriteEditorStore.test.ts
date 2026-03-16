@@ -555,6 +555,56 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Grid toggle ──
+
+  describe('toggleGrid', () => {
+    it('defaults to grid visible', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().showGrid).toBe(true);
+    });
+
+    it('toggles grid off and on', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().toggleGrid();
+      expect(useSpriteEditorStore.getState().showGrid).toBe(false);
+      useSpriteEditorStore.getState().toggleGrid();
+      expect(useSpriteEditorStore.getState().showGrid).toBe(true);
+    });
+  });
+
+  // ── Zoom in/out ──
+
+  describe('zoomIn / zoomOut', () => {
+    it('zoomIn increases zoom', () => {
+      openTestDoc();
+      const before = useSpriteEditorStore.getState().zoom;
+      useSpriteEditorStore.getState().zoomIn();
+      expect(useSpriteEditorStore.getState().zoom).toBeGreaterThan(before);
+    });
+
+    it('zoomOut decreases zoom', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().zoomIn(); // make sure we can zoom out
+      const before = useSpriteEditorStore.getState().zoom;
+      useSpriteEditorStore.getState().zoomOut();
+      expect(useSpriteEditorStore.getState().zoom).toBeLessThan(before);
+    });
+
+    it('zoomIn caps at 64', () => {
+      openTestDoc();
+      useSpriteEditorStore.setState({ zoom: 64 });
+      useSpriteEditorStore.getState().zoomIn();
+      expect(useSpriteEditorStore.getState().zoom).toBe(64);
+    });
+
+    it('zoomOut floors at 1', () => {
+      openTestDoc();
+      useSpriteEditorStore.setState({ zoom: 1 });
+      useSpriteEditorStore.getState().zoomOut();
+      expect(useSpriteEditorStore.getState().zoom).toBe(1);
+    });
+  });
+
   // ── Selection state ──
 
   describe('selection', () => {

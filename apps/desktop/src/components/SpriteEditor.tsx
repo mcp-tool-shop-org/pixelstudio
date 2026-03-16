@@ -68,6 +68,25 @@ export function SpriteEditor() {
           store.addFrame();
           return;
         }
+
+        // Zoom: +/= to zoom in, - to zoom out
+        if (key === '=' || key === '+') {
+          e.preventDefault();
+          store.zoomIn();
+          return;
+        }
+        if (key === '-') {
+          e.preventDefault();
+          store.zoomOut();
+          return;
+        }
+      }
+
+      // Grid toggle: # (Shift+3)
+      if (key === '#' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        store.toggleGrid();
+        return;
       }
 
       // Duplicate frame: Shift+D

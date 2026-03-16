@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, type WheelEvent as ReactWheelEvent } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
 import {
   samplePixel,
@@ -105,6 +105,7 @@ export function SpriteCanvasArea() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [hoverPixel, setHoverPixel] = useState<{ x: number; y: number } | null>(null);
 
   // Store selectors
   const doc = useSpriteEditorStore((s) => s.document);
@@ -116,10 +117,13 @@ export function SpriteCanvasArea() {
   const tool = useSpriteEditorStore((s) => s.tool);
   const onionSkin = useSpriteEditorStore((s) => s.onionSkin);
   const selectionRect = useSpriteEditorStore((s) => s.selectionRect);
+  const showGrid = useSpriteEditorStore((s) => s.showGrid);
   const commitPixels = useSpriteEditorStore((s) => s.commitPixels);
   const setForegroundColorByRgba = useSpriteEditorStore((s) => s.setForegroundColorByRgba);
   const setSelection = useSpriteEditorStore((s) => s.setSelection);
   const clearSelection = useSpriteEditorStore((s) => s.clearSelection);
+  const zoomIn = useSpriteEditorStore((s) => s.zoomIn);
+  const zoomOut = useSpriteEditorStore((s) => s.zoomOut);
 
   // Draft stroke state — local, never in store
   const draftRef = useRef<{
@@ -264,7 +268,7 @@ export function SpriteCanvasArea() {
       }
 
       // Pixel grid
-      if (zoom >= GRID_ZOOM_THRESHOLD) {
+      if (useSpriteEditorStore.getState().showGrid && zoom >= GRID_ZOOM_THRESHOLD) {
         ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -287,7 +291,7 @@ export function SpriteCanvasArea() {
         renderSelectionOverlay(ctx, selRect, originX, originY, zoom);
       }
     },
-    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin],
+    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin, showGrid],
   );
 
   // Re-render when state changes
@@ -394,8 +398,28 @@ export function SpriteCanvasArea() {
     [doc, activeBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas, clearSelection, setSelection],
   );
 
+  const handleWheel = useCallback(
+    (e: ReactWheelEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        zoomIn();
+      } else if (e.deltaY > 0) {
+        zoomOut();
+      }
+    },
+    [zoomIn, zoomOut],
+  );
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Track hover pixel for coordinate display
+      const hp = getPointerPixel(e);
+      if (hp && doc && hp.x >= 0 && hp.x < doc.width && hp.y >= 0 && hp.y < doc.height) {
+        setHoverPixel({ x: hp.x, y: hp.y });
+      } else {
+        setHoverPixel(null);
+      }
+
       // Selection drag
       if (selectDragRef.current && viewport) {
         const pixel = getPointerPixel(e);
@@ -525,7 +549,8 @@ export function SpriteCanvasArea() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerLeave={(e) => { handlePointerUp(e); setHoverPixel(null); }}
+        onWheel={handleWheel}
         style={{ display: 'block', width: '100%', height: '100%', imageRendering: 'pixelated' }}
       />
       <div className="sprite-canvas-info" data-testid="sprite-canvas-info">
@@ -538,6 +563,9 @@ export function SpriteCanvasArea() {
         </span>
         {activeFrame && (
           <span data-testid="canvas-frame-duration">{activeFrame.durationMs}ms</span>
+        )}
+        {hoverPixel && (
+          <span data-testid="canvas-pixel-coords">{hoverPixel.x},{hoverPixel.y}</span>
         )}
       </div>
     </div>

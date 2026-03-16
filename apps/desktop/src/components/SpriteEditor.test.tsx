@@ -553,6 +553,24 @@ describe('SpriteEditor', () => {
     expect(useSpriteEditorStore.getState().document!.frames.length).toBe(2);
   });
 
+  it('= key zooms in', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const before = useSpriteEditorStore.getState().zoom;
+    await userEvent.keyboard('=');
+    expect(useSpriteEditorStore.getState().zoom).toBeGreaterThan(before);
+  });
+
+  it('- key zooms out', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    // Zoom in first so we can zoom out
+    act(() => useSpriteEditorStore.getState().zoomIn());
+    const before = useSpriteEditorStore.getState().zoom;
+    await userEvent.keyboard('-');
+    expect(useSpriteEditorStore.getState().zoom).toBeLessThan(before);
+  });
+
   // ── Frame reorder buttons ──
 
   it('shows move frame buttons when multiple frames', () => {
