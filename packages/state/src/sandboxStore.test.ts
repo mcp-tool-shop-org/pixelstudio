@@ -26,7 +26,7 @@ describe('sandboxStore', () => {
     useSandboxStore.getState().setError('old error');
 
     useSandboxStore.getState().setSession({
-      id: 'sess1',
+      sessionId: 'sess1',
       intent: 'idle_bob',
       sourceFrameId: 'f1',
       outputFrameCount: 4,
