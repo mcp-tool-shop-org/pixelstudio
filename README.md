@@ -11,17 +11,29 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-2776%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-2216%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
-Craft-first sprite studio for deterministic pixel editing, frame-by-frame animation, and future locomotion assistance.
+# GlyphStudio
 
-GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. It is designed around a simple rule: the editor should stay in control of the artwork, and automation should remain subordinate to the artist.
+Craft-first sprite studio for deterministic pixel editing, frame-by-frame animation, and programmable sprite pipelines.
+
+GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. It ships alongside an **MCP server** that exposes the full sprite editing surface to LLMs — same domain logic, same pixel buffers, same undo/redo.
+
+## Packages
+
+| Package | Description | |
+|---------|-------------|---|
+| `apps/desktop` | Tauri v2 desktop app (React + Rust) | The editor |
+| [`@glyphstudio/domain`](packages/domain/) | Types and contracts | Shared |
+| [`@glyphstudio/api-contract`](packages/api-contract/) | Tauri IPC contract types | Shared |
+| [`@glyphstudio/state`](packages/state/) | State management, raster ops, history | Shared |
+| [`@glyphstudio/mcp-sprite-server`](packages/mcp-sprite-server/) | MCP server — 75 tools, 5 resources | [README](packages/mcp-sprite-server/README.md) |
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 32 shipped stages and 2,776 tests green.
+GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 75 programmable tools, and 2,216 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -55,6 +67,25 @@ GlyphStudio is a working desktop editor with 32 shipped stages and 2,776 tests g
 - Rectangular selection with copy/cut/paste/delete
 - Sprite sheet import/export with multi-layer flattening
 - Palette panel with color picker and foreground/background swap
+- Undo/redo with deep-snapshot history (document + all pixel buffers)
+- `.glyph` file persistence with schema-versioned serialize/deserialize
+
+### MCP Server (`@glyphstudio/mcp-sprite-server`)
+
+Headless MCP server that exposes the sprite editor as 75 programmable tools. Calls the same `@glyphstudio/domain` and `@glyphstudio/state` code as the desktop app — no parallel raster, no shadow state.
+
+- **Session/Document** — create, open, save, close documents
+- **Drawing** — batch pixel draw, line, flood fill, erase, sample
+- **Frames & Layers** — add, remove, duplicate, move, rename, toggle visibility
+- **Selection** — rect, copy, cut, paste, flip, commit
+- **History** — undo, redo, batch apply (multiple ops as single undo step)
+- **Analysis** — bounding box, color histogram, frame-to-frame diff
+- **Transform** — flip, rotate (90/180/270), resize canvas
+- **Render** — frame PNG, sprite sheet, overview thumbnails
+- **Import/Export** — sheet import, PNG/GIF/metadata export
+- **Playback** — config, preview play/stop/scrub/step
+
+See the [MCP server README](packages/mcp-sprite-server/README.md) for the full tool inventory, quick start, and examples.
 
 This is not a browser toy or prompt-slot machine. It is a native desktop editor where Rust owns canvas pixel truth and the frontend owns sprite pixel truth.
 
@@ -93,6 +124,12 @@ GlyphStudio is built around four principles:
 - Asset catalog with thumbnail generation
 - 166 implemented Tauri commands
 
+### MCP Server (Node.js)
+- Headless Zustand store per session (no React, no browser)
+- Store adapter wraps real state/domain logic
+- 75 tools registered via `@modelcontextprotocol/sdk`
+- Runs over stdio — works with Claude Desktop, Claude Code, or any MCP client
+
 ### Desktop Shell
 - Tauri v2
 
@@ -100,50 +137,22 @@ GlyphStudio is built around four principles:
 
 ```text
 glyphstudio/
-  apps/desktop/
-    src/
-    src-tauri/
+  apps/desktop/           Desktop app (React + Tauri + Rust)
+    src/                  Frontend
+    src-tauri/            Rust backend (166 commands, 298 tests)
   packages/
-    domain/
-    api-contract/
-    state/
-  site/
+    domain/               Types and contracts (18 tests)
+    api-contract/         Tauri IPC types
+    state/                State management, raster, history (1,744 tests)
+    mcp-sprite-server/    MCP server — 75 tools (156 tests)
+  site/                   Landing page (Astro)
 ```
 
-## Implemented Stages
+### Stages 31–32 — Sprite Export and Persistence
+Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs.
 
-### Stages 1–3 — Editor Foundation
-Canvas, layers, drawing tools, undo/redo, selection, transforms, timeline, onion skin, playback, frame operations, PNG/strip export, project persistence, autosave, crash recovery.
-
-### Stage 4A — Motion Assistance
-Bounded motion sessions, deterministic proposal generation, preview with mini frame strips, session safety, proposal commit to timeline.
-
-### Stages 5–8 — Motion Polish
-Anchors with hierarchy and falloff, secondary motion templates (wind, sway, swing, rustle), motion sandbox with analysis metrics, motion presets with batch apply.
-
-### Stages 9–10 — Clips, Export, Scene Foundation
-Clip definitions with pivot/tags/validation, sprite sheet export with manifests, asset catalog with thumbnails, bundle packaging, scene composition with instances and z-ordering.
-
-### Stages 11–14 — Character System
-Character builds with 12 body-region slots, preset picker with compatibility tiers, build validation, build library with persistence, character-to-scene bridge with snapshot placement.
-
-### Stages 15–16 — Scene Editing
-Scene camera with pan/zoom, camera keyframes with interpolation, scene undo/redo with full-snapshot history, rollback on backend sync failure.
-
-### Stages 17–24 — Provenance & Inspection
-Persisted scene provenance with 20 operation kinds, drilldown inspection with captured before/after slices, structured value summaries, scene comparison engine, restore preview workflows.
-
-### Stages 25–26 — Restore & Selective Restore
-Scene restore contract with pure derivation, selective restore per domain (instances, camera, keyframes, playback), playbackConfig through lawful seam with undo/redo.
-
-### Stages 27–28 — Sprite Editor
-Frontend-only sprite editor: document contract, pixel canvas with pencil/eraser/fill/eyedropper, frames with onion skin, selection with clipboard, sprite sheet import/export, keyboard shortcuts, zoom/grid, palette panel.
-
-### Stage 29 — Animation Preview
-Animation player contract, playback UI with scrubber and Space shortcut, inline frame duration editing with presets, onion skin suppression during playback.
-
-### Stage 30 — Layers and Layer Workflow
-SpriteLayer type, layerId-keyed pixel buffers, flattenLayers alpha compositing, activeLayerId tracking, layer panel with CRUD/visibility/rename/reorder, draft stroke compositing across all visible layers, multi-layer export.
+### MCP Server (MCP.1–MCP.4)
+Headless MCP server with 75 tools: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, and canvas transforms.
 
 ## Running the App
 
@@ -165,10 +174,24 @@ pnpm install
 pnpm dev
 ```
 
+### Run MCP server (standalone)
+
+```bash
+npx tsx packages/mcp-sprite-server/src/cli.ts
+```
+
 ### Typecheck
 
 ```bash
 pnpm typecheck
+```
+
+### Test (TypeScript packages)
+
+```bash
+pnpm --filter @glyphstudio/domain test
+pnpm --filter @glyphstudio/state test
+pnpm --filter @glyphstudio/mcp-sprite-server test
 ```
 
 ### Rust check
@@ -176,6 +199,7 @@ pnpm typecheck
 ```bash
 cd apps/desktop/src-tauri
 cargo check
+cargo test
 ```
 
 ## Export Support
@@ -192,6 +216,12 @@ cargo check
 ### Sprite Editor (frontend)
 - **Sprite Strip** — horizontal strip with all visible layers flattened per frame
 - **Current Frame** — flattened composite of visible layers
+
+### MCP Server
+- **Frame PNG** — base64-encoded composited frame
+- **Sheet PNG** — base64-encoded horizontal sprite sheet
+- **Animated GIF** — base64-encoded animation
+- **Metadata JSON** — frame positions, timing, layout
 
 Exports use composited visible layers only. Onion skin, playback state, and transient editor overlays are not included in output.
 
@@ -230,7 +260,7 @@ GlyphStudio is a **desktop-only** application. It does not make network requests
 - **Permissions:** filesystem access scoped to user-selected directories via Tauri v2 native file dialogs
 - **No telemetry** is collected or sent
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+The MCP server runs locally over stdio with no network egress. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## License
 

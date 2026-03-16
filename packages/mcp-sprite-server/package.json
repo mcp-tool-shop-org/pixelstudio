@@ -1,7 +1,7 @@
 {
   "name": "@glyphstudio/mcp-sprite-server",
   "version": "1.0.0",
-  "description": "MCP server exposing GlyphStudio sprite editor as 61 programmable tools",
+  "description": "MCP server exposing GlyphStudio sprite editor as 75 programmable tools",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",

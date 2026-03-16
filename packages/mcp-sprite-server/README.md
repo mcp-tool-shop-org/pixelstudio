@@ -11,12 +11,14 @@
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/MCP-75%20tools-blueviolet?style=flat-square" alt="75 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-199%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-156%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
 
-MCP server that exposes the full GlyphStudio sprite editor as a programmable surface for LLMs. Create documents, draw pixels, manage frames and layers, control playback — all through [Model Context Protocol](https://modelcontextprotocol.io/) tools that call the real domain and state logic. No reimplemented raster, no parallel universe.
+MCP server that exposes the [GlyphStudio](../../README.md) sprite editor as a programmable surface for LLMs. Create documents, draw pixels, manage frames and layers, control playback — all through [Model Context Protocol](https://modelcontextprotocol.io/) tools that call the real domain and state logic. No reimplemented raster, no parallel universe.
+
+Part of the [GlyphStudio monorepo](../../README.md) — a Tauri v2 desktop sprite studio with 32 shipped stages, 166 Rust commands, and 2,216 tests.
 
 ## Why
 
@@ -309,6 +311,15 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
 │  Raster ops, stores    Types, contracts     │
 └─────────────────────────────────────────────┘
 ```
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [`@glyphstudio/domain`](../domain/) | Types, contracts, and factory functions |
+| [`@glyphstudio/state`](../state/) | State management, raster ops, analysis, transforms, history engine |
+| [`@glyphstudio/api-contract`](../api-contract/) | Tauri IPC contract types |
+| [GlyphStudio Desktop](../../apps/desktop/) | The full Tauri v2 desktop editor |
 
 ## Security
 
