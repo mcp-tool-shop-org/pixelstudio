@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-2253%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-2299%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -29,11 +29,11 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 | [`@glyphstudio/domain`](packages/domain/) | Types and contracts | Shared |
 | [`@glyphstudio/api-contract`](packages/api-contract/) | Tauri IPC contract types | Shared |
 | [`@glyphstudio/state`](packages/state/) | State management, raster ops, history | Shared |
-| [`@glyphstudio/mcp-sprite-server`](packages/mcp-sprite-server/) | MCP server — 75 tools, 5 resources | [README](packages/mcp-sprite-server/README.md) |
+| [`@glyphstudio/mcp-sprite-server`](packages/mcp-sprite-server/) | MCP server — 76 tools, 6 resources | [README](packages/mcp-sprite-server/README.md) |
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 75 programmable tools, and 2,253 tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 76 programmable tools, and 2,299 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -48,6 +48,7 @@ GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server wi
 - Motion presets with batch apply across frames
 - Clip definitions with pivot, tags, and validation
 - Sprite sheet export with manifest (native + generic runtime formats)
+- Animated GIF export with per-frame delay support
 - Asset catalog with thumbnails, search, and bundle packaging
 - Project save/load, autosave recovery, and schema migration
 
@@ -72,7 +73,7 @@ GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server wi
 
 ### MCP Server (`@glyphstudio/mcp-sprite-server`)
 
-Headless MCP server that exposes the sprite editor as 75 programmable tools. Calls the same `@glyphstudio/domain` and `@glyphstudio/state` code as the desktop app — no parallel raster, no shadow state.
+Headless MCP server that exposes the sprite editor as 76 programmable tools. Calls the same `@glyphstudio/domain` and `@glyphstudio/state` code as the desktop app — no parallel raster, no shadow state.
 
 - **Session/Document** — create, open, save, close documents
 - **Drawing** — batch pixel draw, line, flood fill, erase, sample
@@ -119,15 +120,15 @@ GlyphStudio is built around four principles:
 - Stroke transactions with before/after patches
 - Selection/transform sessions
 - Project persistence, autosave, crash recovery
-- Export pipelines (PNG, sprite sheet, clip, bundle)
+- Export pipelines (PNG, sprite sheet, clip, bundle, animated GIF)
 - Scene composition engine with camera and playback
 - Asset catalog with thumbnail generation
-- 166 implemented Tauri commands
+- 167 implemented Tauri commands
 
 ### MCP Server (Node.js)
 - Headless Zustand store per session (no React, no browser)
 - Store adapter wraps real state/domain logic
-- 75 tools registered via `@modelcontextprotocol/sdk`
+- 76 tools registered via `@modelcontextprotocol/sdk`
 - Runs over stdio — works with Claude Desktop, Claude Code, or any MCP client
 
 ### Desktop Shell
@@ -139,20 +140,20 @@ GlyphStudio is built around four principles:
 glyphstudio/
   apps/desktop/           Desktop app (React + Tauri + Rust)
     src/                  Frontend
-    src-tauri/            Rust backend (166 commands, 298 tests)
+    src-tauri/            Rust backend (167 commands, 298 tests)
   packages/
     domain/               Types and contracts (18 tests)
     api-contract/         Tauri IPC types
     state/                State management, raster, history (1,744 tests)
-    mcp-sprite-server/    MCP server — 75 tools (193 tests)
+    mcp-sprite-server/    MCP server — 76 tools (239 tests)
   site/                   Landing page (Astro)
 ```
 
-### Stages 31–32 — Sprite Export and Persistence
-Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs.
+### Stages 31–32 — Sprite Export, Persistence, and Desktop Parity
+Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend.
 
-### MCP Server (MCP.1–MCP.4)
-Headless MCP server with 75 tools: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, and canvas transforms.
+### MCP Server (MCP.1–MCP.6)
+Headless MCP server with 76 tools and 6 resources: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, canvas transforms, structured error model, and machine-readable tool catalog.
 
 ## Running the App
 
