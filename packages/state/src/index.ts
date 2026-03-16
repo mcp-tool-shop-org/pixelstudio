@@ -179,3 +179,26 @@ export type {
   StructuredValueSummary,
   SummaryFamily,
 } from './structuredValueSummary';
+export {
+  createCurrentAnchor,
+  createEntryAnchor,
+  createComparisonRequest,
+  validateComparisonRequest,
+  describeComparison,
+  resolveComparisonScopes,
+} from './sceneComparison';
+export type {
+  SceneComparisonMode,
+  SceneComparisonSnapshot,
+  SceneComparisonAnchor,
+  SceneComparisonRequest,
+  InstanceFieldDiff,
+  InstanceComparisonEntry,
+  CameraComparisonSection,
+  KeyframeComparisonEntry,
+  KeyframeComparisonSection,
+  PlaybackComparisonSection,
+  InstanceComparisonSection,
+  SceneComparisonResult,
+  ComparisonUnavailableReason,
+} from './sceneComparison';
