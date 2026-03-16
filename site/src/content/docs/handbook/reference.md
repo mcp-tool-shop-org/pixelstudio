@@ -1163,6 +1163,24 @@ All 20 scene operation kinds are fully covered across history, provenance, drill
 | `beforeCamera` / `afterCamera` | Camera ops | `SceneCamera` (x, y, zoom) |
 | `beforeKeyframe` / `afterKeyframe` | Keyframe ops | `SceneCameraKeyframe` (tick, x, y, zoom, interpolation, name?) |
 
+### Structured value summary helpers (`structuredValueSummary`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `FieldConfig` | type | Field key + label + optional formatter |
+| `FieldChange` | type | Extracted changed field with formatted before/after |
+| `StructuredValueSummary` | type | Changes array + changedFieldKeys + isNoOp + description |
+| `SummaryFamily` | type | `'scalar' \| 'position' \| 'multi-field' \| 'state-transition' \| 'fallback'` |
+| `extractChangedFields` | fn | Compare before/after objects, return only changed fields in config order |
+| `summarizeMultiFieldChange` | fn | Full multi-field summary with compact description |
+| `summarizeScalarChange` | fn | Single-field before/after summary |
+| `fallbackSummary` | fn | Honest fallback when structure is unknown |
+| `classifySummaryFamily` | fn | Classify field configs into a summary family |
+| `CAMERA_FIELD_CONFIGS` | const | Camera fields: Pan X, Pan Y, Zoom |
+| `KEYFRAME_FIELD_CONFIGS` | const | Keyframe fields: X, Y, Zoom, Interpolation, Name |
+| `POSITION_FIELD_CONFIGS` | const | Position fields: X, Y |
+| `PLAYBACK_FIELD_CONFIGS` | const | Playback fields: FPS, Looping |
+
 ### SceneTimelineSummary
 
 ```typescript

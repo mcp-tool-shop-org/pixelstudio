@@ -439,6 +439,12 @@ Authored scene operation parity is complete across all six domains: instances (8
 
 Transient preview state (current tick, play/pause, scrub head, camera resolver output, shot derivation) remains intentionally outside the law. This boundary is load-bearing — blurring it would pollute the provenance log with noise that isn't authored truth.
 
+### Structured value summary contract (Stage 23)
+
+The `structuredValueSummary` module provides reusable helpers for multi-field before/after summaries in drilldown rendering. Pre-defined field configs exist for camera (`CAMERA_FIELD_CONFIGS`), keyframe (`KEYFRAME_FIELD_CONFIGS`), position (`POSITION_FIELD_CONFIGS`), and playback (`PLAYBACK_FIELD_CONFIGS`). Changed-field extraction produces stable, config-ordered results. Unknown or partial payloads degrade to an honest fallback summary.
+
+Diff-depth audit: 19/20 operation kinds are good enough; playback is the one shallow case (empty payload, no before/after values). Improvement targets: deepen playback diff, adopt human-readable field labels for camera/keyframe renderers, suppress unchanged fields in keyframe-moved.
+
 ## Character workflow
 
 GlyphStudio treats characters as a first-class concept above raw layers. A character is not "some layers that happen to look like a person" — it is a structured build with named slots, typed parts, and validation rules.

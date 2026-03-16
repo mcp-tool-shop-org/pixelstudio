@@ -159,3 +159,23 @@ export type {
   SceneProvenanceDrilldown,
   SceneProvenanceDrilldownSource,
 } from './sceneProvenanceDrilldown';
+export {
+  extractChangedFields,
+  summarizeMultiFieldChange,
+  summarizeScalarChange,
+  fallbackSummary,
+  classifySummaryFamily,
+  fmtNumber,
+  fmtPercent,
+  fmtBool,
+  CAMERA_FIELD_CONFIGS,
+  KEYFRAME_FIELD_CONFIGS,
+  POSITION_FIELD_CONFIGS,
+  PLAYBACK_FIELD_CONFIGS,
+} from './structuredValueSummary';
+export type {
+  FieldChange,
+  FieldConfig,
+  StructuredValueSummary,
+  SummaryFamily,
+} from './structuredValueSummary';
