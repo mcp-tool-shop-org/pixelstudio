@@ -236,6 +236,76 @@ function CharacterOverrideDiffView({ diff }: { diff: SceneProvenanceDiff }) {
   return null;
 }
 
+// ── Keyframes ──
+
+/** Format a keyframe value field for compact display. */
+function fmtKfVal(v: number): string {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+function KeyframeDiffView({ diff }: { diff: SceneProvenanceDiff }) {
+  if (diff.type === 'keyframe-added') {
+    const { keyframe } = diff;
+    return (
+      <div className="provenance-drilldown-detail" data-family="keyframe">
+        <Field label="Tick" value={String(diff.tick)} />
+        <div className="provenance-drilldown-section-label">After</div>
+        <Field label="X" value={fmtKfVal(keyframe.x)} />
+        <Field label="Y" value={fmtKfVal(keyframe.y)} />
+        <Field label="Zoom" value={fmtKfVal(keyframe.zoom)} />
+        <Field label="Interpolation" value={keyframe.interpolation} />
+        {keyframe.name && <Field label="Name" value={keyframe.name} />}
+      </div>
+    );
+  }
+  if (diff.type === 'keyframe-removed') {
+    const { keyframe } = diff;
+    return (
+      <div className="provenance-drilldown-detail" data-family="keyframe">
+        <Field label="Tick" value={String(diff.tick)} />
+        <div className="provenance-drilldown-section-label">Before</div>
+        <Field label="X" value={fmtKfVal(keyframe.x)} />
+        <Field label="Y" value={fmtKfVal(keyframe.y)} />
+        <Field label="Zoom" value={fmtKfVal(keyframe.zoom)} />
+        <Field label="Interpolation" value={keyframe.interpolation} />
+        {keyframe.name && <Field label="Name" value={keyframe.name} />}
+      </div>
+    );
+  }
+  if (diff.type === 'keyframe-moved') {
+    return (
+      <div className="provenance-drilldown-detail" data-family="keyframe">
+        <BeforeAfter label="Tick" before={String(diff.previousTick)} after={String(diff.newTick)} />
+        <Field label="X" value={fmtKfVal(diff.keyframe.x)} />
+        <Field label="Y" value={fmtKfVal(diff.keyframe.y)} />
+        <Field label="Zoom" value={fmtKfVal(diff.keyframe.zoom)} />
+        <Field label="Interpolation" value={diff.keyframe.interpolation} />
+      </div>
+    );
+  }
+  if (diff.type === 'keyframe-edited') {
+    return (
+      <div className="provenance-drilldown-detail" data-family="keyframe">
+        <Field label="Tick" value={String(diff.tick)} />
+        <Field label="Changed" value={diff.changedFields.join(', ')} />
+        {diff.changedFields.includes('x') && (
+          <BeforeAfter label="X" before={fmtKfVal(diff.before.x)} after={fmtKfVal(diff.after.x)} />
+        )}
+        {diff.changedFields.includes('y') && (
+          <BeforeAfter label="Y" before={fmtKfVal(diff.before.y)} after={fmtKfVal(diff.after.y)} />
+        )}
+        {diff.changedFields.includes('zoom') && (
+          <BeforeAfter label="Zoom" before={fmtKfVal(diff.before.zoom)} after={fmtKfVal(diff.after.zoom)} />
+        )}
+        {diff.changedFields.includes('interpolation') && (
+          <BeforeAfter label="Interpolation" before={diff.before.interpolation} after={diff.after.interpolation} />
+        )}
+      </div>
+    );
+  }
+  return null;
+}
+
 // ── Camera / playback ──
 
 /** Format a camera coordinate for display. */
@@ -327,6 +397,11 @@ function DiffSummary({ diff }: { diff: SceneProvenanceDiff }) {
     case 'camera':
     case 'playback':
       return <CameraPlaybackDiffView diff={diff} />;
+    case 'keyframe-added':
+    case 'keyframe-removed':
+    case 'keyframe-moved':
+    case 'keyframe-edited':
+      return <KeyframeDiffView diff={diff} />;
   }
 }
 
@@ -371,6 +446,8 @@ export function SceneProvenanceDrilldownPane({ sequence }: Props) {
     source.metadata,
     source.beforeCamera,
     source.afterCamera,
+    source.beforeKeyframe,
+    source.afterKeyframe,
   );
 
   if (!diff) {

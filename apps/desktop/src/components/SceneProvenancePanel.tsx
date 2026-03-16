@@ -24,6 +24,15 @@ function metadataSummary(entry: SceneProvenanceEntry): string | null {
   if ('instanceId' in meta) {
     return `Instance: ${meta.instanceId}`;
   }
+  if ('tick' in meta && typeof meta.tick === 'number') {
+    if ('previousTick' in meta && meta.previousTick !== undefined) {
+      return `Tick ${meta.previousTick} \u2192 ${meta.tick}`;
+    }
+    if ('changedFields' in meta && meta.changedFields?.length) {
+      return `Tick ${meta.tick} \u00B7 ${meta.changedFields.join(', ')}`;
+    }
+    return `Tick ${meta.tick}`;
+  }
   if ('changedFields' in meta && meta.changedFields?.length) {
     return `Fields: ${meta.changedFields.join(', ')}`;
   }

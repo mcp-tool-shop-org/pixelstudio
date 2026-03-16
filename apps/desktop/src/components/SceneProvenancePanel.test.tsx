@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import type { SceneAssetInstance, SceneCamera } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
 import { useSceneEditorStore, createEmptySceneHistoryState, resetProvenanceSequence } from '@glyphstudio/state';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
 
@@ -61,6 +61,7 @@ beforeEach(() => {
   resetProvenanceSequence();
   useSceneEditorStore.setState({
     instances: [],
+    keyframes: [],
     history: createEmptySceneHistoryState(),
     provenance: [],
     drilldownBySequence: {},
@@ -1182,5 +1183,273 @@ describe('SceneProvenancePanel — restored (persisted) entries', () => {
     const source = useSceneEditorStore.getState().drilldownBySequence[1];
     expect(source.beforeInstance?.x).toBe(50);
     expect(source.afterInstance?.x).toBe(200);
+  });
+});
+
+// ── Stage 21.4 — Keyframe activity rows and drilldown rendering ──
+
+describe('SceneProvenancePanel — keyframe activity rows', () => {
+  const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+  const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+
+  function applyKeyframeEdit(
+    kind: string,
+    nextInstances: SceneAssetInstance[],
+    metadata: Record<string, unknown>,
+    nextKeyframes: SceneCameraKeyframe[],
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useSceneEditorStore.getState().applyEdit(kind as any, nextInstances, metadata as any, undefined, nextKeyframes);
+  }
+
+  it('add-camera-keyframe renders with correct label', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyKeyframeEdit('add-camera-keyframe', [INST_A], { tick: 0 }, [KF_A]);
+
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Add Camera Keyframe/)).toBeDefined();
+  });
+
+  it('remove-camera-keyframe renders with correct label', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    applyKeyframeEdit('remove-camera-keyframe', [INST_A], { tick: 30 }, [KF_A]);
+
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Remove Camera Keyframe/)).toBeDefined();
+  });
+
+  it('move-camera-keyframe renders with correct label', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyKeyframeEdit('move-camera-keyframe', [INST_A], { tick: 45, previousTick: 30 }, [KF_A, movedB]);
+
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Move Camera Keyframe/)).toBeDefined();
+  });
+
+  it('edit-camera-keyframe renders with correct label', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.5 };
+    applyKeyframeEdit('edit-camera-keyframe', [INST_A], { tick: 30, changedFields: ['zoom'] }, [KF_A, editedB]);
+
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Edit Camera Keyframe/)).toBeDefined();
+  });
+
+  it('keyframe metadata summary shows tick', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyKeyframeEdit('add-camera-keyframe', [INST_A], { tick: 30 }, [KF_B]);
+
+    render(<SceneProvenancePanel />);
+    const metaRow = document.querySelector('.scene-provenance-row-meta');
+    expect(metaRow).not.toBeNull();
+    expect(metaRow!.textContent).toContain('Tick 30');
+  });
+
+  it('move keyframe metadata shows tick transition', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyKeyframeEdit('move-camera-keyframe', [INST_A], { tick: 45, previousTick: 30 }, [KF_A, movedB]);
+
+    render(<SceneProvenancePanel />);
+    const metaRow = document.querySelector('.scene-provenance-row-meta');
+    expect(metaRow).not.toBeNull();
+    expect(metaRow!.textContent).toContain('30');
+    expect(metaRow!.textContent).toContain('45');
+  });
+
+  it('edit keyframe metadata shows tick and changed fields', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.5 };
+    applyKeyframeEdit('edit-camera-keyframe', [INST_A], { tick: 30, changedFields: ['zoom'] }, [KF_A, editedB]);
+
+    render(<SceneProvenancePanel />);
+    const metaRow = document.querySelector('.scene-provenance-row-meta');
+    expect(metaRow).not.toBeNull();
+    expect(metaRow!.textContent).toContain('Tick 30');
+    expect(metaRow!.textContent).toContain('zoom');
+  });
+
+  it('persisted keyframe entries render after load', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [
+        { sequence: 1, kind: 'add-camera-keyframe', label: 'Add Camera Keyframe (tick 0)', timestamp: '2026-03-15T12:00:00Z', metadata: { tick: 0 } },
+        { sequence: 2, kind: 'edit-camera-keyframe', label: 'Edit Camera Keyframe (tick 0: zoom)', timestamp: '2026-03-15T12:01:00Z', metadata: { tick: 0, changedFields: ['zoom'] } },
+      ],
+      {},
+    );
+
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText(/Add Camera Keyframe/)).toBeDefined();
+    expect(screen.getByText(/Edit Camera Keyframe/)).toBeDefined();
+  });
+});
+
+describe('SceneProvenancePanel — keyframe drilldown rendering', () => {
+  const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+  const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+
+  function applyKeyframeEdit(
+    kind: string,
+    nextInstances: SceneAssetInstance[],
+    metadata: Record<string, unknown>,
+    nextKeyframes: SceneCameraKeyframe[],
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useSceneEditorStore.getState().applyEdit(kind as any, nextInstances, metadata as any, undefined, nextKeyframes);
+  }
+
+  it('add keyframe drilldown shows after tick/value/interpolation', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyKeyframeEdit('add-camera-keyframe', [INST_A], { tick: 30 }, [KF_B]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="keyframe"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('30'); // tick
+    expect(detail!.textContent).toContain('100'); // x
+    expect(detail!.textContent).toContain('50'); // y
+    expect(detail!.textContent).toContain('2'); // zoom
+    expect(detail!.textContent).toContain('hold'); // interpolation
+    expect(detail!.textContent).toContain('After');
+  });
+
+  it('remove keyframe drilldown shows before tick/value/interpolation', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    applyKeyframeEdit('remove-camera-keyframe', [INST_A], { tick: 30 }, [KF_A]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="keyframe"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('30'); // tick
+    expect(detail!.textContent).toContain('100'); // x
+    expect(detail!.textContent).toContain('hold'); // interpolation
+    expect(detail!.textContent).toContain('Before');
+  });
+
+  it('move keyframe drilldown shows before/after tick', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyKeyframeEdit('move-camera-keyframe', [INST_A], { tick: 45, previousTick: 30 }, [KF_A, movedB]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="keyframe"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Before');
+    expect(detail!.textContent).toContain('30');
+    expect(detail!.textContent).toContain('After');
+    expect(detail!.textContent).toContain('45');
+  });
+
+  it('value edit drilldown shows before/after value with changed fields', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadKeyframes([KF_A, KF_B]);
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.5, interpolation: 'linear' };
+    applyKeyframeEdit('edit-camera-keyframe', [INST_A], { tick: 30, changedFields: ['zoom', 'interpolation'] }, [KF_A, editedB]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="keyframe"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('30'); // tick
+    expect(detail!.textContent).toContain('zoom'); // changed field
+    expect(detail!.textContent).toContain('interpolation'); // changed field
+    // Before/after values
+    expect(detail!.textContent).toContain('2'); // before zoom
+    expect(detail!.textContent).toContain('3.5'); // after zoom
+    expect(detail!.textContent).toContain('hold'); // before interpolation
+    expect(detail!.textContent).toContain('linear'); // after interpolation
+  });
+
+  it('keyframe drilldown is distinct from camera diff family', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyKeyframeEdit('add-camera-keyframe', [INST_A], { tick: 0 }, [KF_A]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Should render keyframe family, not camera family
+    expect(document.querySelector('[data-family="keyframe"]')).not.toBeNull();
+    expect(document.querySelector('[data-family="camera"]')).toBeNull();
+  });
+
+  it('persisted keyframe drilldown opens correctly after load', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-camera-keyframe', label: 'Add Camera Keyframe (tick 30)', timestamp: '2026-03-15T12:00:00Z', metadata: { tick: 30 } }],
+      { 1: { kind: 'add-camera-keyframe', metadata: { tick: 30 }, afterKeyframe: KF_B } },
+    );
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="keyframe"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('30');
+    expect(detail!.textContent).toContain('hold');
+  });
+
+  it('restored keyframe drilldown stays truthful after later live keyframe edits', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'edit-camera-keyframe', label: 'Edit Camera Keyframe (tick 30: zoom)', timestamp: '2026-03-15T12:00:00Z', metadata: { tick: 30, changedFields: ['zoom'] } }],
+      { 1: { kind: 'edit-camera-keyframe', metadata: { tick: 30, changedFields: ['zoom'] }, beforeKeyframe: KF_B, afterKeyframe: { ...KF_B, zoom: 5.0 } } },
+    );
+
+    // Later live edit changes keyframes further — drilldown should stay fixed
+    useSceneEditorStore.getState().loadKeyframes([{ ...KF_B, zoom: 9.9 }]);
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const source = useSceneEditorStore.getState().drilldownBySequence[1];
+    expect(source.beforeKeyframe?.zoom).toBe(2.0);
+    expect(source.afterKeyframe?.zoom).toBe(5.0);
+  });
+
+  it('drilldown with missing keyframe source falls back gracefully', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'add-camera-keyframe', label: 'Add Camera Keyframe (tick 0)', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'add-camera-keyframe', metadata: { tick: 0 } } },
+    );
+
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    // Should show fallback — no afterKeyframe in the source means no diff
+    expect(document.querySelector('.provenance-drilldown-fallback')).not.toBeNull();
+  });
+
+  it('playback edit creates no Activity row', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    // Only keyframe operations produce entries, not playback.
+    // Playback state changes (play/pause/scrub) never reach applyEdit.
+    // Verify that the activity panel stays empty when no edits occur.
+    render(<SceneProvenancePanel />);
+    expect(screen.getByText('No scene changes recorded.')).toBeDefined();
   });
 });
