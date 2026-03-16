@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3263%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3308%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 76 programmable tools, and 3,263 tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 34 shipped stages, an MCP server with 76 programmable tools, and 3,308 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -68,7 +68,9 @@ GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server wi
 - Frame management with onion skin, playback, scrubber, and per-frame duration
 - Rectangular selection with copy/cut/paste/delete
 - Sprite sheet import/export with multi-layer flattening
-- Palette panel with color picker and foreground/background swap
+- Palette workspace with slot editing, lock, semantic roles, and color groups/ramps
+- Client-side validation engine with palette, animation, and export rules
+- Pixel-perfect stroke mode (removes L-shaped corners from 1px lines)
 - Undo/redo with deep-snapshot history (document + all pixel buffers)
 - `.glyph` file persistence with schema-versioned serialize/deserialize
 
@@ -145,13 +147,13 @@ glyphstudio/
   packages/
     domain/               Types and contracts (18 tests)
     api-contract/         Tauri IPC types
-    state/                State management, raster, history (1,744 tests)
+    state/                State management, raster, history (1,767 tests)
     mcp-sprite-server/    MCP server — 76 tools (239 tests)
   site/                   Landing page (Astro)
 ```
 
-### Stages 31–33 — Sprite Export, Persistence, and Desktop Parity
-Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button.
+### Stages 31–34 — Sprite Export, Persistence, Desktop Parity, and Workspace Authority
+Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button. Stage 34 adds palette workspace (slot editing, lock, semantic roles, color groups), validation workspace (rule engine with 8 rules across 3 categories, issue list with severity, category filters, detail pane), and real pixel-perfect stroke behavior (L-corner removal for 1px lines).
 
 ### MCP Server (MCP.1–MCP.6)
 Headless MCP server with 76 tools and 6 resources: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, canvas transforms, structured error model, and machine-readable tool catalog.
