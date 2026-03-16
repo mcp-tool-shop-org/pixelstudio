@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useSpriteEditorStore, samplePixel, setPixel, clonePixelBuffer } from '@glyphstudio/state';
+import { useSpriteEditorStore, samplePixel, setPixel, clonePixelBuffer, extractSelection } from '@glyphstudio/state';
 import type { Rgba } from '@glyphstudio/state';
 import { createBlankPixelBuffer } from '@glyphstudio/domain';
+import type { SpriteSelectionRect } from '@glyphstudio/domain';
 
 import { SpriteEditor } from '../components/SpriteEditor';
 
@@ -370,5 +371,154 @@ describe('SpriteEditor', () => {
     const storedBuf1 = useSpriteEditorStore.getState().pixelBuffers[frame1Id];
     expect(samplePixel(storedBuf1, 1, 1)).toEqual([0, 255, 0, 255]);
     expect(samplePixel(storedBuf1, 0, 0)).toEqual([0, 0, 0, 0]);
+  });
+
+  // ── Select tool ──
+
+  it('shows Select tool button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByText('Select')).toBeDefined();
+  });
+
+  it('clicking Select tool changes active tool', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Select'));
+    expect(useSpriteEditorStore.getState().tool.activeTool).toBe('select');
+  });
+
+  // ── Selection state integration ──
+
+  it('selection cleared on frame switch', () => {
+    openTestDoc(8, 8);
+    act(() => useSpriteEditorStore.getState().addFrame());
+    const rect: SpriteSelectionRect = { x: 0, y: 0, width: 2, height: 2 };
+    const buf = createBlankPixelBuffer(2, 2);
+    act(() => useSpriteEditorStore.getState().setSelection(rect, buf));
+    expect(useSpriteEditorStore.getState().selectionRect).not.toBeNull();
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+  });
+
+  it('clearSelection does not mutate pixel buffers', () => {
+    openTestDoc(4, 4);
+    const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+    const origBuf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frameId]);
+    const RED: Rgba = [255, 0, 0, 255];
+    setPixel(origBuf, 1, 1, RED);
+    act(() => useSpriteEditorStore.getState().commitPixels(origBuf));
+
+    const rect: SpriteSelectionRect = { x: 0, y: 0, width: 2, height: 2 };
+    const selBuf = createBlankPixelBuffer(2, 2);
+    act(() => useSpriteEditorStore.getState().setSelection(rect, selBuf));
+    act(() => useSpriteEditorStore.getState().clearSelection());
+
+    // Pixel buffer should be unchanged
+    const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+    expect(samplePixel(stored, 1, 1)).toEqual(RED);
+  });
+
+  // ── Palette panel ──
+
+  it('palette swatches have data-testid attributes', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('palette-swatch-0')).toBeDefined();
+    expect(screen.getByTestId('palette-swatch-1')).toBeDefined();
+  });
+
+  it('double-clicking a swatch selects color and switches to pencil', async () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().setTool('eraser'));
+    render(<SpriteEditor />);
+    const user = userEvent.setup();
+    await user.dblClick(screen.getByTestId('palette-swatch-3'));
+    const state = useSpriteEditorStore.getState();
+    expect(state.document!.palette.foregroundIndex).toBe(3);
+    expect(state.tool.activeTool).toBe('pencil');
+  });
+
+  // ── Import/export bar ──
+
+  it('renders import/export bar when document is open', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-import-export-bar')).toBeDefined();
+  });
+
+  it('shows import button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-import-btn')).toBeDefined();
+  });
+
+  it('shows export sheet button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-export-sheet-btn')).toBeDefined();
+  });
+
+  it('shows export frame button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-export-frame-btn')).toBeDefined();
+  });
+
+  it('no import/export bar when no document', () => {
+    render(<SpriteEditor />);
+    expect(screen.queryByTestId('sprite-import-export-bar')).toBeNull();
+  });
+
+  // ── View exclusion law ──
+
+  it('exported frame is not affected by onion skin', () => {
+    openTestDoc(4, 4);
+    const f0Buf = createBlankPixelBuffer(4, 4);
+    setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+    act(() => useSpriteEditorStore.getState().commitPixels(f0Buf));
+
+    act(() => useSpriteEditorStore.getState().addFrame());
+    const f1Buf = createBlankPixelBuffer(4, 4);
+    setPixel(f1Buf, 1, 1, [0, 255, 0, 255]);
+    act(() => {
+      useSpriteEditorStore.getState().commitPixels(f1Buf);
+      useSpriteEditorStore.getState().setOnionSkin({ enabled: true, framesBefore: 1 });
+    });
+
+    // Export active frame (frame 1) — should NOT contain frame 0's pixels
+    const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
+    expect(samplePixel(exported, 0, 0)).toEqual([0, 0, 0, 0]);
+    expect(samplePixel(exported, 1, 1)).toEqual([0, 255, 0, 255]);
+  });
+
+  it('export after frame operations reflects final state', () => {
+    openTestDoc(2, 2);
+    // Paint frame 0
+    const f0Buf = createBlankPixelBuffer(2, 2);
+    setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+    act(() => useSpriteEditorStore.getState().commitPixels(f0Buf));
+
+    // Add frame 1
+    act(() => useSpriteEditorStore.getState().addFrame());
+    const f1Buf = createBlankPixelBuffer(2, 2);
+    setPixel(f1Buf, 0, 0, [0, 255, 0, 255]);
+    act(() => useSpriteEditorStore.getState().commitPixels(f1Buf));
+
+    // Duplicate frame 1
+    act(() => useSpriteEditorStore.getState().duplicateFrame());
+
+    // Delete the middle frame (frame 1)
+    const f1Id = useSpriteEditorStore.getState().document!.frames[1].id;
+    act(() => useSpriteEditorStore.getState().removeFrame(f1Id));
+
+    // Export should reflect RED, GREEN (from duplicate)
+    const result = useSpriteEditorStore.getState().exportSpriteSheet();
+    expect(typeof result).not.toBe('string');
+    if (typeof result === 'string') return;
+    expect(result.width).toBe(4);
+    expect(samplePixel(result, 0, 0)).toEqual([255, 0, 0, 255]);
+    expect(samplePixel(result, 2, 0)).toEqual([0, 255, 0, 255]);
   });
 });

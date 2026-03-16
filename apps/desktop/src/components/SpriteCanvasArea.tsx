@@ -6,10 +6,14 @@ import {
   bresenhamLine,
   floodFill,
   clonePixelBuffer,
+  normalizeRect,
+  extractSelection,
+  clearSelectionArea,
+  blitSelection,
   TRANSPARENT,
 } from '@glyphstudio/state';
 import type { Rgba } from '@glyphstudio/state';
-import type { SpritePixelBuffer } from '@glyphstudio/domain';
+import type { SpritePixelBuffer, SpriteSelectionRect } from '@glyphstudio/domain';
 import { pointerToPixel, getSpriteOrigin } from '../lib/spriteCanvasMath';
 import type { SpriteViewport } from '../lib/spriteCanvasMath';
 
@@ -21,6 +25,9 @@ const GRID_COLOR = 'rgba(255,255,255,0.12)';
 const GRID_ZOOM_THRESHOLD = 4;
 const ONION_BEFORE_TINT = [0, 120, 255]; // blue tint for previous frames
 const ONION_AFTER_TINT = [255, 80, 0];   // orange tint for next frames
+const SELECTION_DASH = [4, 4];
+const SELECTION_COLOR = 'rgba(255,255,255,0.8)';
+const SELECTION_SHADOW = 'rgba(0,0,0,0.6)';
 
 /** Render a pixel buffer as an onion skin overlay with tinting and opacity. */
 function renderOnionBuffer(
@@ -51,9 +58,44 @@ function renderOnionBuffer(
   ctx.globalAlpha = 1.0;
 }
 
+/** Render a dashed selection rectangle overlay. */
+function renderSelectionOverlay(
+  ctx: CanvasRenderingContext2D,
+  rect: SpriteSelectionRect,
+  originX: number,
+  originY: number,
+  zoom: number,
+): void {
+  const sx = originX + rect.x * zoom;
+  const sy = originY + rect.y * zoom;
+  const sw = rect.width * zoom;
+  const sh = rect.height * zoom;
+
+  ctx.save();
+  ctx.lineWidth = 1;
+
+  // Shadow pass (offset by 1px for contrast)
+  ctx.strokeStyle = SELECTION_SHADOW;
+  ctx.setLineDash(SELECTION_DASH);
+  ctx.lineDashOffset = 0;
+  ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh);
+
+  // Bright pass
+  ctx.strokeStyle = SELECTION_COLOR;
+  ctx.lineDashOffset = 4;
+  ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh);
+
+  ctx.restore();
+}
+
+/** Check whether a pixel coordinate is inside a selection rectangle. */
+function isInsideSelection(px: number, py: number, rect: SpriteSelectionRect): boolean {
+  return px >= rect.x && px < rect.x + rect.width && py >= rect.y && py < rect.y + rect.height;
+}
+
 /**
  * Real pixel canvas with nearest-neighbor rendering, pixel grid,
- * and tool interaction (pencil, eraser, fill, eyedropper).
+ * and tool interaction (pencil, eraser, fill, eyedropper, select).
  *
  * Draft stroke state is local to this component. Pointer down starts
  * a draft on a cloned buffer; pointer moves paint into the draft;
@@ -73,14 +115,31 @@ export function SpriteCanvasArea() {
   const panY = useSpriteEditorStore((s) => s.panY);
   const tool = useSpriteEditorStore((s) => s.tool);
   const onionSkin = useSpriteEditorStore((s) => s.onionSkin);
+  const selectionRect = useSpriteEditorStore((s) => s.selectionRect);
   const commitPixels = useSpriteEditorStore((s) => s.commitPixels);
   const setForegroundColorByRgba = useSpriteEditorStore((s) => s.setForegroundColorByRgba);
+  const setSelection = useSpriteEditorStore((s) => s.setSelection);
+  const clearSelection = useSpriteEditorStore((s) => s.clearSelection);
 
   // Draft stroke state — local, never in store
   const draftRef = useRef<{
     buffer: SpritePixelBuffer;
     lastPixelX: number;
     lastPixelY: number;
+  } | null>(null);
+
+  // Selection drag state — local
+  const selectDragRef = useRef<{
+    mode: 'creating' | 'moving';
+    // For creating: drag start pixel
+    startX: number;
+    startY: number;
+    // For moving: original selection rect + extracted buffer + offset
+    origRect?: SpriteSelectionRect;
+    selBuffer?: SpritePixelBuffer;
+    draftBuffer?: SpritePixelBuffer;
+    currentX: number;
+    currentY: number;
   } | null>(null);
 
   // Get active frame buffer
@@ -125,7 +184,7 @@ export function SpriteCanvasArea() {
 
   // ── Render loop ──
   const renderCanvas = useCallback(
-    (bufferToRender?: SpritePixelBuffer) => {
+    (bufferToRender?: SpritePixelBuffer, selOverlay?: SpriteSelectionRect | null) => {
       const canvas = canvasRef.current;
       if (!canvas || !doc || !viewport) return;
 
@@ -221,6 +280,12 @@ export function SpriteCanvasArea() {
         }
         ctx.stroke();
       }
+
+      // Selection overlay
+      const selRect = selOverlay !== undefined ? selOverlay : useSpriteEditorStore.getState().selectionRect;
+      if (selRect) {
+        renderSelectionOverlay(ctx, selRect, originX, originY, zoom);
+      }
     },
     [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin],
   );
@@ -228,7 +293,7 @@ export function SpriteCanvasArea() {
   // Re-render when state changes
   useEffect(() => {
     renderCanvas();
-  }, [renderCanvas]);
+  }, [renderCanvas, selectionRect]);
 
   // ── Pointer event helpers ──
 
@@ -272,6 +337,46 @@ export function SpriteCanvasArea() {
         return;
       }
 
+      if (activeTool === 'select') {
+        const currentSel = useSpriteEditorStore.getState().selectionRect;
+        const currentSelBuf = useSpriteEditorStore.getState().selectionBuffer;
+
+        // If clicking inside existing selection → start move
+        if (currentSel && isInsideSelection(pixel.x, pixel.y, currentSel) && currentSelBuf) {
+          const draft = clonePixelBuffer(activeBuffer);
+          // Clear original selection area in draft
+          clearSelectionArea(draft, currentSel);
+          // Blit selection buffer at current position for preview
+          blitSelection(draft, currentSelBuf, currentSel.x, currentSel.y);
+
+          selectDragRef.current = {
+            mode: 'moving',
+            startX: pixel.x,
+            startY: pixel.y,
+            origRect: { ...currentSel },
+            selBuffer: currentSelBuf,
+            draftBuffer: draft,
+            currentX: pixel.x,
+            currentY: pixel.y,
+          };
+          (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+          renderCanvas(draft, currentSel);
+          return;
+        }
+
+        // Otherwise → clear old selection and start new drag
+        clearSelection();
+        selectDragRef.current = {
+          mode: 'creating',
+          startX: pixel.x,
+          startY: pixel.y,
+          currentX: pixel.x,
+          currentY: pixel.y,
+        };
+        (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+        return;
+      }
+
       // Pencil or eraser — start draft stroke
       const draft = clonePixelBuffer(activeBuffer);
       const color: Rgba = activeTool === 'eraser' ? TRANSPARENT : getForegroundRgba();
@@ -286,11 +391,50 @@ export function SpriteCanvasArea() {
       // Render draft preview
       renderCanvas(draft);
     },
-    [doc, activeBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas],
+    [doc, activeBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas, clearSelection, setSelection],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Selection drag
+      if (selectDragRef.current && viewport) {
+        const pixel = getPointerPixel(e);
+        if (!pixel) return;
+
+        const drag = selectDragRef.current;
+        if (pixel.x === drag.currentX && pixel.y === drag.currentY) return;
+        drag.currentX = pixel.x;
+        drag.currentY = pixel.y;
+
+        if (drag.mode === 'creating') {
+          const previewRect = normalizeRect(drag.startX, drag.startY, pixel.x, pixel.y);
+          renderCanvas(undefined, previewRect);
+          return;
+        }
+
+        if (drag.mode === 'moving' && drag.origRect && drag.selBuffer && activeBuffer) {
+          const dx = pixel.x - drag.startX;
+          const dy = pixel.y - drag.startY;
+          const movedRect: SpriteSelectionRect = {
+            x: drag.origRect.x + dx,
+            y: drag.origRect.y + dy,
+            width: drag.origRect.width,
+            height: drag.origRect.height,
+          };
+
+          // Rebuild draft: clear original area, blit at new position
+          const draft = clonePixelBuffer(activeBuffer);
+          clearSelectionArea(draft, drag.origRect);
+          blitSelection(draft, drag.selBuffer, movedRect.x, movedRect.y);
+          drag.draftBuffer = draft;
+
+          renderCanvas(draft, movedRect);
+          return;
+        }
+        return;
+      }
+
+      // Paint tool drag
       if (!draftRef.current || !viewport) return;
 
       const pixel = getPointerPixel(e);
@@ -315,18 +459,59 @@ export function SpriteCanvasArea() {
       // Render draft preview
       renderCanvas(draft.buffer);
     },
-    [viewport, getPointerPixel, getForegroundRgba, renderCanvas],
+    [viewport, getPointerPixel, getForegroundRgba, renderCanvas, activeBuffer],
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Selection drag finalize
+      if (selectDragRef.current && activeBuffer) {
+        const drag = selectDragRef.current;
+
+        if (drag.mode === 'creating') {
+          const rect = normalizeRect(drag.startX, drag.startY, drag.currentX, drag.currentY);
+          // Extract pixels from active buffer
+          const selBuf = extractSelection(activeBuffer, rect);
+          setSelection(rect, selBuf);
+          selectDragRef.current = null;
+          renderCanvas(undefined, rect);
+          return;
+        }
+
+        if (drag.mode === 'moving' && drag.origRect && drag.selBuffer) {
+          const dx = drag.currentX - drag.startX;
+          const dy = drag.currentY - drag.startY;
+          const movedRect: SpriteSelectionRect = {
+            x: drag.origRect.x + dx,
+            y: drag.origRect.y + dy,
+            width: drag.origRect.width,
+            height: drag.origRect.height,
+          };
+
+          // Commit: clear original area + blit at new position
+          const final = clonePixelBuffer(activeBuffer);
+          clearSelectionArea(final, drag.origRect);
+          blitSelection(final, drag.selBuffer, movedRect.x, movedRect.y);
+          commitPixels(final);
+
+          // Update selection to new position
+          setSelection(movedRect, drag.selBuffer);
+          selectDragRef.current = null;
+          return;
+        }
+
+        selectDragRef.current = null;
+        return;
+      }
+
+      // Paint tool finalize
       if (!draftRef.current) return;
 
       // Commit the final draft buffer — one authored edit
       commitPixels(draftRef.current.buffer);
       draftRef.current = null;
     },
-    [commitPixels],
+    [commitPixels, activeBuffer, setSelection, renderCanvas],
   );
 
   if (!doc) return null;

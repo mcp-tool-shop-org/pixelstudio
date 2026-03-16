@@ -233,6 +233,19 @@ export {
   bresenhamLine,
   floodFill,
   clonePixelBuffer,
+  normalizeRect,
+  extractSelection,
+  clearSelectionArea,
+  blitSelection,
+  flipBufferHorizontal,
+  flipBufferVertical,
   TRANSPARENT,
 } from './spriteRaster';
 export type { Rgba } from './spriteRaster';
+export {
+  validateSheetDimensions,
+  sliceSpriteSheet,
+  assembleSpriteSheet,
+  isImportExportError,
+} from './spriteImportExport';
+export type { SheetValidationResult } from './spriteImportExport';

@@ -3,6 +3,7 @@ import { SpriteToolRail } from './SpriteToolRail';
 import { SpritePalettePanel } from './SpritePalettePanel';
 import { SpriteFrameStrip } from './SpriteFrameStrip';
 import { SpriteCanvasArea } from './SpriteCanvasArea';
+import { SpriteImportExportBar } from './SpriteImportExportBar';
 
 /**
  * Top-level sprite editor shell.
@@ -31,6 +32,7 @@ export function SpriteEditor() {
         <SpritePalettePanel />
       </div>
       <SpriteFrameStrip />
+      <SpriteImportExportBar />
     </div>
   );
 }

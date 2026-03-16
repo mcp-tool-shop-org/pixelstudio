@@ -10,6 +10,12 @@ import {
   bresenhamLine,
   floodFill,
   clonePixelBuffer,
+  normalizeRect,
+  extractSelection,
+  clearSelectionArea,
+  blitSelection,
+  flipBufferHorizontal,
+  flipBufferVertical,
   TRANSPARENT,
 } from './spriteRaster';
 import type { Rgba } from './spriteRaster';
@@ -284,6 +290,205 @@ describe('spriteRaster', () => {
       const clone = clonePixelBuffer(buf);
       expect(clone.width).toBe(16);
       expect(clone.height).toBe(8);
+    });
+  });
+
+  // ── Selection helpers ──
+
+  describe('normalizeRect', () => {
+    it('normalizes top-left to bottom-right drag', () => {
+      const r = normalizeRect(1, 2, 4, 5);
+      expect(r).toEqual({ x: 1, y: 2, width: 4, height: 4 });
+    });
+
+    it('normalizes bottom-right to top-left drag', () => {
+      const r = normalizeRect(4, 5, 1, 2);
+      expect(r).toEqual({ x: 1, y: 2, width: 4, height: 4 });
+    });
+
+    it('handles single-pixel rect', () => {
+      const r = normalizeRect(3, 3, 3, 3);
+      expect(r).toEqual({ x: 3, y: 3, width: 1, height: 1 });
+    });
+
+    it('normalizes horizontal drag right-to-left', () => {
+      const r = normalizeRect(5, 0, 2, 0);
+      expect(r).toEqual({ x: 2, y: 0, width: 4, height: 1 });
+    });
+  });
+
+  describe('extractSelection', () => {
+    it('extracts pixels from a rect region', () => {
+      const buf = createBlankPixelBuffer(8, 8);
+      setPixel(buf, 2, 2, RED);
+      setPixel(buf, 3, 3, GREEN);
+
+      const sel = extractSelection(buf, { x: 2, y: 2, width: 2, height: 2 });
+      expect(sel.width).toBe(2);
+      expect(sel.height).toBe(2);
+      expect(samplePixel(sel, 0, 0)).toEqual(RED);
+      expect(samplePixel(sel, 1, 1)).toEqual(GREEN);
+      expect(samplePixel(sel, 1, 0)).toEqual(TRANSPARENT);
+    });
+
+    it('returns transparent for out-of-bounds pixels', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 3, 3, RED);
+      const sel = extractSelection(buf, { x: 3, y: 3, width: 3, height: 3 });
+      expect(sel.width).toBe(3);
+      expect(samplePixel(sel, 0, 0)).toEqual(RED);
+      expect(samplePixel(sel, 1, 0)).toEqual(TRANSPARENT);
+    });
+  });
+
+  describe('clearSelectionArea', () => {
+    it('clears pixels in rect to transparent', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 1, 1, RED);
+      setPixel(buf, 2, 2, GREEN);
+      clearSelectionArea(buf, { x: 1, y: 1, width: 2, height: 2 });
+      expect(samplePixel(buf, 1, 1)).toEqual(TRANSPARENT);
+      expect(samplePixel(buf, 2, 2)).toEqual(TRANSPARENT);
+    });
+
+    it('does not clear pixels outside rect', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, RED);
+      setPixel(buf, 1, 1, GREEN);
+      clearSelectionArea(buf, { x: 1, y: 1, width: 1, height: 1 });
+      expect(samplePixel(buf, 0, 0)).toEqual(RED);
+      expect(samplePixel(buf, 1, 1)).toEqual(TRANSPARENT);
+    });
+
+    it('ignores out-of-bounds pixels safely', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 3, 3, RED);
+      clearSelectionArea(buf, { x: 3, y: 3, width: 5, height: 5 });
+      expect(samplePixel(buf, 3, 3)).toEqual(TRANSPARENT);
+      expect(buf.data.length).toBe(4 * 4 * 4);
+    });
+  });
+
+  describe('blitSelection', () => {
+    it('pastes pixels at destination', () => {
+      const dest = createBlankPixelBuffer(8, 8);
+      const src = createBlankPixelBuffer(2, 2);
+      setPixel(src, 0, 0, RED);
+      setPixel(src, 1, 1, GREEN);
+
+      blitSelection(dest, src, 3, 4);
+      expect(samplePixel(dest, 3, 4)).toEqual(RED);
+      expect(samplePixel(dest, 4, 5)).toEqual(GREEN);
+      expect(samplePixel(dest, 4, 4)).toEqual(TRANSPARENT);
+    });
+
+    it('skips transparent source pixels', () => {
+      const dest = createBlankPixelBuffer(4, 4);
+      setPixel(dest, 1, 1, BLUE);
+      const src = createBlankPixelBuffer(2, 2);
+      setPixel(src, 0, 0, RED);
+      // src (1,0) is transparent — should not overwrite dest
+
+      blitSelection(dest, src, 1, 1);
+      expect(samplePixel(dest, 1, 1)).toEqual(RED);
+      // (2,1) was BLUE originally but src has transparent there — BLUE survives
+      // Wait, dest(2,1) was TRANSPARENT. dest(1,1) was BLUE but gets overwritten by RED.
+      // Let me reconsider: dest(2,1) src would map to src(1,0) which is transparent -> skip
+      expect(samplePixel(dest, 2, 1)).toEqual(TRANSPARENT);
+    });
+
+    it('clips to destination bounds', () => {
+      const dest = createBlankPixelBuffer(4, 4);
+      const src = createBlankPixelBuffer(2, 2);
+      setPixel(src, 0, 0, RED);
+      setPixel(src, 1, 1, GREEN);
+
+      blitSelection(dest, src, 3, 3);
+      expect(samplePixel(dest, 3, 3)).toEqual(RED);
+      // (4,4) is out of bounds — should not crash
+      expect(dest.data.length).toBe(4 * 4 * 4);
+    });
+
+    it('round-trips with extract and clear', () => {
+      const buf = createBlankPixelBuffer(8, 8);
+      setPixel(buf, 2, 2, RED);
+      setPixel(buf, 3, 3, GREEN);
+      const rect = { x: 2, y: 2, width: 2, height: 2 };
+      const sel = extractSelection(buf, rect);
+      clearSelectionArea(buf, rect);
+      // Both pixels should be cleared
+      expect(samplePixel(buf, 2, 2)).toEqual(TRANSPARENT);
+      expect(samplePixel(buf, 3, 3)).toEqual(TRANSPARENT);
+      // Blit at new position
+      blitSelection(buf, sel, 5, 5);
+      expect(samplePixel(buf, 5, 5)).toEqual(RED);
+      expect(samplePixel(buf, 6, 6)).toEqual(GREEN);
+    });
+  });
+
+  // ── Buffer transforms ──
+
+  describe('flipBufferHorizontal', () => {
+    it('mirrors pixels left-right', () => {
+      const buf = createBlankPixelBuffer(4, 2);
+      setPixel(buf, 0, 0, RED);
+      setPixel(buf, 3, 0, GREEN);
+      setPixel(buf, 0, 1, BLUE);
+
+      const flipped = flipBufferHorizontal(buf);
+      expect(flipped.width).toBe(4);
+      expect(flipped.height).toBe(2);
+      expect(samplePixel(flipped, 3, 0)).toEqual(RED);
+      expect(samplePixel(flipped, 0, 0)).toEqual(GREEN);
+      expect(samplePixel(flipped, 3, 1)).toEqual(BLUE);
+    });
+
+    it('does not mutate original', () => {
+      const buf = createBlankPixelBuffer(2, 2);
+      setPixel(buf, 0, 0, RED);
+      flipBufferHorizontal(buf);
+      expect(samplePixel(buf, 0, 0)).toEqual(RED);
+      expect(samplePixel(buf, 1, 0)).toEqual(TRANSPARENT);
+    });
+
+    it('double flip restores original', () => {
+      const buf = createBlankPixelBuffer(3, 3);
+      setPixel(buf, 0, 0, RED);
+      setPixel(buf, 2, 1, GREEN);
+      const result = flipBufferHorizontal(flipBufferHorizontal(buf));
+      expect(samplePixel(result, 0, 0)).toEqual(RED);
+      expect(samplePixel(result, 2, 1)).toEqual(GREEN);
+    });
+  });
+
+  describe('flipBufferVertical', () => {
+    it('mirrors pixels top-bottom', () => {
+      const buf = createBlankPixelBuffer(2, 4);
+      setPixel(buf, 0, 0, RED);
+      setPixel(buf, 1, 3, GREEN);
+
+      const flipped = flipBufferVertical(buf);
+      expect(flipped.width).toBe(2);
+      expect(flipped.height).toBe(4);
+      expect(samplePixel(flipped, 0, 3)).toEqual(RED);
+      expect(samplePixel(flipped, 1, 0)).toEqual(GREEN);
+    });
+
+    it('does not mutate original', () => {
+      const buf = createBlankPixelBuffer(2, 2);
+      setPixel(buf, 0, 0, RED);
+      flipBufferVertical(buf);
+      expect(samplePixel(buf, 0, 0)).toEqual(RED);
+      expect(samplePixel(buf, 0, 1)).toEqual(TRANSPARENT);
+    });
+
+    it('double flip restores original', () => {
+      const buf = createBlankPixelBuffer(3, 3);
+      setPixel(buf, 0, 0, RED);
+      setPixel(buf, 1, 2, GREEN);
+      const result = flipBufferVertical(flipBufferVertical(buf));
+      expect(samplePixel(result, 0, 0)).toEqual(RED);
+      expect(samplePixel(result, 1, 2)).toEqual(GREEN);
     });
   });
 });

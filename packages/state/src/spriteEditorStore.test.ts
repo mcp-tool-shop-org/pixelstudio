@@ -459,4 +459,486 @@ describe('spriteEditorStore', () => {
       expect(useSpriteEditorStore.getState().document).toBeNull();
     });
   });
+
+  // ── Selection state ──
+
+  describe('selection', () => {
+    it('starts with no selection', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+
+    it('setSelection stores rect and buffer', () => {
+      openTestDoc(8, 8);
+      const rect = { x: 1, y: 1, width: 3, height: 3 };
+      const buf = createBlankPixelBuffer(3, 3);
+      useSpriteEditorStore.getState().setSelection(rect, buf);
+      expect(useSpriteEditorStore.getState().selectionRect).toEqual(rect);
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBe(buf);
+    });
+
+    it('clearSelection removes rect and buffer', () => {
+      openTestDoc(8, 8);
+      const rect = { x: 0, y: 0, width: 2, height: 2 };
+      const buf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection(rect, buf);
+      useSpriteEditorStore.getState().clearSelection();
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+
+    it('setActiveFrame clears selection', () => {
+      openTestDoc(8, 8);
+      useSpriteEditorStore.getState().addFrame();
+      const rect = { x: 0, y: 0, width: 2, height: 2 };
+      const buf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection(rect, buf);
+      expect(useSpriteEditorStore.getState().selectionRect).not.toBeNull();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+
+    it('newDocument clears selection', () => {
+      openTestDoc(8, 8);
+      const rect = { x: 0, y: 0, width: 2, height: 2 };
+      const buf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection(rect, buf);
+      openTestDoc(4, 4);
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+    });
+
+    it('closeDocument clears selection', () => {
+      openTestDoc(8, 8);
+      const rect = { x: 0, y: 0, width: 2, height: 2 };
+      const buf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection(rect, buf);
+      useSpriteEditorStore.getState().closeDocument();
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+    });
+  });
+
+  // ── Import/export ──
+
+  describe('importSpriteSheet', () => {
+    it('imports a horizontal strip into frames', () => {
+      openTestDoc(2, 2);
+      // 2 frames side by side: frame 0 has RED at (0,0), frame 1 has GREEN at (0,0)
+      const sheetData = new Uint8ClampedArray(4 * 2 * 4);
+      sheetData[0] = 255; sheetData[3] = 255; // RED at (0,0) in frame 0
+      const i1 = (0 * 4 + 2) * 4;
+      sheetData[i1 + 1] = 255; sheetData[i1 + 3] = 255; // GREEN at (0,0) in frame 1
+
+      const err = useSpriteEditorStore.getState().importSpriteSheet(sheetData, 4, 2);
+      expect(err).toBeNull();
+
+      const state = useSpriteEditorStore.getState();
+      expect(state.document!.frames).toHaveLength(2);
+      expect(state.activeFrameIndex).toBe(0);
+
+      const f0Buf = state.pixelBuffers[state.document!.frames[0].id];
+      expect(samplePixel(f0Buf, 0, 0)).toEqual([255, 0, 0, 255]);
+      const f1Buf = state.pixelBuffers[state.document!.frames[1].id];
+      expect(samplePixel(f1Buf, 0, 0)).toEqual([0, 255, 0, 255]);
+    });
+
+    it('returns error for incompatible dimensions', () => {
+      openTestDoc(16, 16);
+      const sheetData = new Uint8ClampedArray(50 * 16 * 4);
+      const err = useSpriteEditorStore.getState().importSpriteSheet(sheetData, 50, 16);
+      expect(err).toContain('not divisible');
+    });
+
+    it('returns error without document', () => {
+      const err = useSpriteEditorStore.getState().importSpriteSheet(new Uint8ClampedArray(0), 0, 0);
+      expect(err).toBe('No document open');
+    });
+
+    it('clears selection on import', () => {
+      openTestDoc(2, 2);
+      useSpriteEditorStore.getState().setSelection(
+        { x: 0, y: 0, width: 1, height: 1 },
+        createBlankPixelBuffer(1, 1),
+      );
+      const sheetData = new Uint8ClampedArray(2 * 2 * 4);
+      useSpriteEditorStore.getState().importSpriteSheet(sheetData, 2, 2);
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+    });
+
+    it('marks document dirty after import', () => {
+      openTestDoc(2, 2);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+      const sheetData = new Uint8ClampedArray(4 * 2 * 4);
+      useSpriteEditorStore.getState().importSpriteSheet(sheetData, 4, 2);
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('imported document remains editable', () => {
+      openTestDoc(2, 2);
+      const sheetData = new Uint8ClampedArray(4 * 2 * 4);
+      useSpriteEditorStore.getState().importSpriteSheet(sheetData, 4, 2);
+      // Add a frame — should work
+      useSpriteEditorStore.getState().addFrame();
+      expect(useSpriteEditorStore.getState().document!.frames).toHaveLength(3);
+    });
+  });
+
+  describe('exportSpriteSheet', () => {
+    it('exports frames as horizontal strip', () => {
+      openTestDoc(2, 2);
+      // Paint frame 0
+      const f0Id = useSpriteEditorStore.getState().document!.frames[0].id;
+      const f0Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f0Buf);
+
+      // Add and paint frame 1
+      useSpriteEditorStore.getState().addFrame();
+      const f1Id = useSpriteEditorStore.getState().document!.frames[1].id;
+      const f1Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f1Buf, 1, 1, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f1Buf);
+
+      const result = useSpriteEditorStore.getState().exportSpriteSheet();
+      expect(typeof result).not.toBe('string');
+      if (typeof result === 'string') return;
+
+      expect(result.width).toBe(4);
+      expect(result.height).toBe(2);
+      expect(samplePixel(result, 0, 0)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(result, 3, 1)).toEqual([0, 255, 0, 255]);
+    });
+
+    it('returns error without document', () => {
+      const result = useSpriteEditorStore.getState().exportSpriteSheet();
+      expect(result).toBe('No document open');
+    });
+
+    it('export order matches frame strip order', () => {
+      openTestDoc(2, 2);
+      // Paint frame 0 RED
+      const f0Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f0Buf);
+
+      // Add frame 1, paint BLUE
+      useSpriteEditorStore.getState().addFrame();
+      const f1Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f1Buf, 0, 0, [0, 0, 255, 255]);
+      useSpriteEditorStore.getState().commitPixels(f1Buf);
+
+      // Switch back to frame 0, add frame between → becomes new frame 1
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().addFrame();
+      const fMidBuf = createBlankPixelBuffer(2, 2);
+      setPixel(fMidBuf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(fMidBuf);
+
+      // Frames: RED, GREEN, BLUE
+      const result = useSpriteEditorStore.getState().exportSpriteSheet();
+      if (typeof result === 'string') { expect.unreachable(); return; }
+
+      expect(result.width).toBe(6);
+      expect(samplePixel(result, 0, 0)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(result, 2, 0)).toEqual([0, 255, 0, 255]);
+      expect(samplePixel(result, 4, 0)).toEqual([0, 0, 255, 255]);
+    });
+
+    it('single frame exports as same-size buffer', () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 2, 2, [128, 64, 32, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const result = useSpriteEditorStore.getState().exportSpriteSheet();
+      if (typeof result === 'string') { expect.unreachable(); return; }
+
+      expect(result.width).toBe(4);
+      expect(result.height).toBe(4);
+      expect(samplePixel(result, 2, 2)).toEqual([128, 64, 32, 255]);
+    });
+  });
+
+  describe('exportCurrentFrame', () => {
+    it('exports active frame pixels', () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 1, 1, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const exported = useSpriteEditorStore.getState().exportCurrentFrame();
+      expect(exported).not.toBeNull();
+      expect(samplePixel(exported!, 1, 1)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('returns independent copy', () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
+      setPixel(exported, 0, 0, [0, 255, 0, 255]);
+
+      // Original should be unchanged
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('returns null without document', () => {
+      expect(useSpriteEditorStore.getState().exportCurrentFrame()).toBeNull();
+    });
+
+    it('exports only active frame, not others', () => {
+      openTestDoc(2, 2);
+      const f0Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f0Buf);
+
+      useSpriteEditorStore.getState().addFrame();
+      const f1Buf = createBlankPixelBuffer(2, 2);
+      setPixel(f1Buf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f1Buf);
+
+      // Active is frame 1
+      const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
+      expect(samplePixel(exported, 0, 0)).toEqual([0, 255, 0, 255]);
+    });
+  });
+
+  // ── Clipboard ──
+
+  describe('copySelection', () => {
+    it('copies selection buffer to clipboard', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 1, y: 1, width: 2, height: 2 }, selBuf);
+
+      useSpriteEditorStore.getState().copySelection();
+      const clip = useSpriteEditorStore.getState().clipboardBuffer;
+      expect(clip).not.toBeNull();
+      expect(samplePixel(clip!, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('does not mutate frame pixels', () => {
+      openTestDoc(4, 4);
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 1, 1, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const selBuf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().copySelection();
+
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 1, 1)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('clipboard is independent of selection buffer', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().copySelection();
+
+      // Modify selection buffer
+      setPixel(selBuf, 0, 0, [0, 255, 0, 255]);
+      const clip = useSpriteEditorStore.getState().clipboardBuffer!;
+      expect(samplePixel(clip, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('no-ops without selection', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().copySelection();
+      expect(useSpriteEditorStore.getState().clipboardBuffer).toBeNull();
+    });
+  });
+
+  describe('cutSelection', () => {
+    it('copies to clipboard and clears selected area', () => {
+      openTestDoc(4, 4);
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 1, 1, [255, 0, 0, 255]);
+      setPixel(buf, 2, 2, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const selBuf = createBlankPixelBuffer(2, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      setPixel(selBuf, 1, 1, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 1, y: 1, width: 2, height: 2 }, selBuf);
+
+      useSpriteEditorStore.getState().cutSelection();
+
+      // Clipboard should have the selection
+      const clip = useSpriteEditorStore.getState().clipboardBuffer!;
+      expect(samplePixel(clip, 0, 0)).toEqual([255, 0, 0, 255]);
+
+      // Frame pixels in selection area should be cleared
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 1, 1)).toEqual([0, 0, 0, 0]);
+      expect(samplePixel(stored, 2, 2)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('clears selection state', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().cutSelection();
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+
+    it('marks document dirty', () => {
+      openTestDoc(4, 4);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().cutSelection();
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('does not affect other frames', () => {
+      openTestDoc(4, 4);
+      const f0Buf = createBlankPixelBuffer(4, 4);
+      setPixel(f0Buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f0Buf);
+
+      useSpriteEditorStore.getState().addFrame();
+      const f1Buf = createBlankPixelBuffer(4, 4);
+      setPixel(f1Buf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(f1Buf);
+
+      // Cut from frame 1
+      const selBuf = createBlankPixelBuffer(1, 1);
+      setPixel(selBuf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 1, height: 1 }, selBuf);
+      useSpriteEditorStore.getState().cutSelection();
+
+      // Frame 0 should be untouched
+      const f0Id = useSpriteEditorStore.getState().document!.frames[0].id;
+      const f0Stored = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+      expect(samplePixel(f0Stored, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+  });
+
+  describe('pasteSelection', () => {
+    it('creates selection from clipboard at (0,0)', () => {
+      openTestDoc(8, 8);
+      // Manually set clipboard
+      const clip = createBlankPixelBuffer(2, 2);
+      setPixel(clip, 0, 0, [255, 0, 0, 255]);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 3, y: 3, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().copySelection();
+
+      // Clear selection, then paste
+      useSpriteEditorStore.getState().clearSelection();
+      useSpriteEditorStore.getState().pasteSelection();
+
+      const rect = useSpriteEditorStore.getState().selectionRect;
+      expect(rect).toEqual({ x: 0, y: 0, width: 2, height: 2 });
+      const pasted = useSpriteEditorStore.getState().selectionBuffer!;
+      expect(samplePixel(pasted, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('paste is frame-local (does not auto-commit)', () => {
+      openTestDoc(4, 4);
+      const clip = createBlankPixelBuffer(2, 2);
+      setPixel(clip, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, clip);
+      useSpriteEditorStore.getState().copySelection();
+      useSpriteEditorStore.getState().clearSelection();
+      useSpriteEditorStore.getState().pasteSelection();
+
+      // Frame pixels should be untouched
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 0, 0)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('no-ops without clipboard', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().pasteSelection();
+      expect(useSpriteEditorStore.getState().selectionRect).toBeNull();
+    });
+
+    it('pasted buffer is independent of clipboard', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(2, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().copySelection();
+      useSpriteEditorStore.getState().clearSelection();
+      useSpriteEditorStore.getState().pasteSelection();
+
+      // Modify pasted selection buffer
+      const pasted = useSpriteEditorStore.getState().selectionBuffer!;
+      setPixel(pasted, 0, 0, [0, 0, 0, 0]);
+
+      // Clipboard should be unaffected
+      const clip = useSpriteEditorStore.getState().clipboardBuffer!;
+      expect(samplePixel(clip, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+  });
+
+  describe('flipSelectionHorizontal', () => {
+    it('flips selection buffer horizontally', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(2, 1);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 1 }, selBuf);
+
+      useSpriteEditorStore.getState().flipSelectionHorizontal();
+      const flipped = useSpriteEditorStore.getState().selectionBuffer!;
+      expect(samplePixel(flipped, 0, 0)).toEqual([0, 0, 0, 0]);
+      expect(samplePixel(flipped, 1, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('no-ops without selection', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().flipSelectionHorizontal();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+
+    it('does not mutate frame pixels', () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const selBuf = createBlankPixelBuffer(2, 2);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 2, height: 2 }, selBuf);
+      useSpriteEditorStore.getState().flipSelectionHorizontal();
+
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+  });
+
+  describe('flipSelectionVertical', () => {
+    it('flips selection buffer vertically', () => {
+      openTestDoc(4, 4);
+      const selBuf = createBlankPixelBuffer(1, 2);
+      setPixel(selBuf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().setSelection({ x: 0, y: 0, width: 1, height: 2 }, selBuf);
+
+      useSpriteEditorStore.getState().flipSelectionVertical();
+      const flipped = useSpriteEditorStore.getState().selectionBuffer!;
+      expect(samplePixel(flipped, 0, 0)).toEqual([0, 0, 0, 0]);
+      expect(samplePixel(flipped, 0, 1)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('no-ops without selection', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().flipSelectionVertical();
+      expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
+    });
+  });
 });

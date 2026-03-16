@@ -52,10 +52,18 @@ export interface SpriteFrame {
 /**
  * Sprite editing tool identifiers.
  *
- * Starts with the v1 core set: pencil, eraser, fill, eyedropper.
- * Shape tools and selection tools will follow in later stages.
+ * Core set: pencil, eraser, fill, eyedropper, select.
+ * Shape tools will follow in later stages.
  */
-export type SpriteToolId = 'pencil' | 'eraser' | 'fill' | 'eyedropper';
+export type SpriteToolId = 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'select';
+
+/** Axis-aligned selection rectangle in pixel coordinates. */
+export interface SpriteSelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** Brush shape for stroke-based tools. */
 export type SpriteBrushShape = 'square' | 'circle';

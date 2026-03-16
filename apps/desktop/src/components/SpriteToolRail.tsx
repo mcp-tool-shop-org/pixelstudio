@@ -2,6 +2,7 @@ import { useSpriteEditorStore } from '@glyphstudio/state';
 import type { SpriteToolId } from '@glyphstudio/domain';
 
 const TOOLS: { id: SpriteToolId; label: string; shortcut: string }[] = [
+  { id: 'select', label: 'Select', shortcut: 'M' },
   { id: 'pencil', label: 'Pencil', shortcut: 'B' },
   { id: 'eraser', label: 'Eraser', shortcut: 'E' },
   { id: 'fill', label: 'Fill', shortcut: 'G' },

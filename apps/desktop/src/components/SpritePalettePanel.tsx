@@ -5,6 +5,7 @@ export function SpritePalettePanel() {
   const setForegroundColor = useSpriteEditorStore((s) => s.setForegroundColor);
   const setBackgroundColor = useSpriteEditorStore((s) => s.setBackgroundColor);
   const swapColors = useSpriteEditorStore((s) => s.swapColors);
+  const setTool = useSpriteEditorStore((s) => s.setTool);
 
   if (!doc) return null;
 
@@ -56,11 +57,16 @@ export function SpritePalettePanel() {
             }}
             title={color.name ?? `Color ${i}`}
             onClick={() => setForegroundColor(i)}
+            onDoubleClick={() => {
+              setForegroundColor(i);
+              setTool('pencil');
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               setBackgroundColor(i);
             }}
             data-color-index={i}
+            data-testid={`palette-swatch-${i}`}
           />
         ))}
       </div>

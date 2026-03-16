@@ -8,6 +8,7 @@ import type {
   SpriteOnionSkin,
   SpritePixelBuffer,
   SpriteColor,
+  SpriteSelectionRect,
 } from '@glyphstudio/domain';
 import {
   createSpriteDocument,
@@ -17,7 +18,8 @@ import {
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
-import { clonePixelBuffer } from './spriteRaster';
+import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical } from './spriteRaster';
+import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 
 // ── Store state ──
 
@@ -35,6 +37,13 @@ export interface SpriteEditorStoreState {
   panX: number;
   panY: number;
   dirty: boolean;
+
+  // -- Selection state (editor-only, not persisted) --
+  selectionRect: SpriteSelectionRect | null;
+  selectionBuffer: SpritePixelBuffer | null;
+
+  // -- Clipboard (editor-only, survives frame switches) --
+  clipboardBuffer: SpritePixelBuffer | null;
 
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
@@ -58,6 +67,24 @@ export interface SpriteEditorStoreState {
   setBackgroundColor: (index: number) => void;
   swapColors: () => void;
 
+  // -- Actions: Selection --
+  /** Set the selection rectangle and extracted pixel buffer. */
+  setSelection: (rect: SpriteSelectionRect, buffer: SpritePixelBuffer) => void;
+  /** Clear selection state without any pixel changes. */
+  clearSelection: () => void;
+
+  // -- Actions: Clipboard --
+  /** Copy selection to clipboard. No pixel mutation. */
+  copySelection: () => void;
+  /** Cut selection: copy to clipboard + clear selected pixels. One authored edit. */
+  cutSelection: () => void;
+  /** Paste clipboard as new selection at top-left. No pixel mutation until moved. */
+  pasteSelection: () => void;
+  /** Flip selection buffer horizontally. */
+  flipSelectionHorizontal: () => void;
+  /** Flip selection buffer vertically. */
+  flipSelectionVertical: () => void;
+
   // -- Actions: Onion skin --
   setOnionSkin: (config: Partial<SpriteOnionSkin>) => void;
 
@@ -66,6 +93,14 @@ export interface SpriteEditorStoreState {
   commitPixels: (buffer: SpritePixelBuffer) => void;
   /** Set foreground color by RGBA value (for eyedropper). */
   setForegroundColorByRgba: (rgba: [number, number, number, number]) => void;
+
+  // -- Actions: Import/export --
+  /** Import a sprite sheet, replacing current frames. Returns error string or null. */
+  importSpriteSheet: (sheetData: Uint8ClampedArray, sheetWidth: number, sheetHeight: number) => string | null;
+  /** Export all frames as a horizontal sprite sheet buffer. Returns buffer or error string. */
+  exportSpriteSheet: () => SpritePixelBuffer | string;
+  /** Export the active frame as a standalone pixel buffer. Returns buffer or null if no document. */
+  exportCurrentFrame: () => SpritePixelBuffer | null;
 
   // -- Actions: Viewport --
   setZoom: (zoom: number) => void;
@@ -78,6 +113,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   // -- Initial state --
   document: null,
   pixelBuffers: {},
+  selectionRect: null,
+  selectionBuffer: null,
+  clipboardBuffer: null,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -91,6 +129,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       activeFrameIndex: 0,
       tool: { ...DEFAULT_SPRITE_TOOL_CONFIG },
       onionSkin: { ...DEFAULT_SPRITE_ONION_SKIN },
+      selectionRect: null,
+      selectionBuffer: null,
+      clipboardBuffer: null,
       zoom: 8,
       panX: 0,
       panY: 0,
@@ -102,6 +143,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     set({
       document: null,
       pixelBuffers: {},
+      selectionRect: null,
+      selectionBuffer: null,
+      clipboardBuffer: null,
       ...createDefaultSpriteEditorState(),
     });
   },
@@ -179,7 +223,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     const { document: doc } = get();
     if (!doc) return;
     if (index < 0 || index >= doc.frames.length) return;
-    set({ activeFrameIndex: index });
+    set({ activeFrameIndex: index, selectionRect: null, selectionBuffer: null });
   },
 
   setFrameDuration: (frameId, durationMs) => {
@@ -239,6 +283,72 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     });
   },
 
+  // -- Selection --
+  setSelection: (rect, buffer) => set({ selectionRect: rect, selectionBuffer: buffer }),
+  clearSelection: () => set({ selectionRect: null, selectionBuffer: null }),
+
+  // -- Clipboard --
+  copySelection: () => {
+    const { selectionBuffer } = get();
+    if (!selectionBuffer) return;
+    set({ clipboardBuffer: clonePixelBuffer(selectionBuffer) });
+  },
+
+  cutSelection: () => {
+    const { selectionRect, selectionBuffer, document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!selectionRect || !selectionBuffer || !doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+
+    const currentBuf = pixelBuffers[frame.id];
+    if (!currentBuf) return;
+
+    // Copy to clipboard
+    const clipboard = clonePixelBuffer(selectionBuffer);
+
+    // Clear selected area in frame buffer — one authored edit
+    const updated = clonePixelBuffer(currentBuf);
+    clearSelectionArea(updated, selectionRect);
+
+    set({
+      clipboardBuffer: clipboard,
+      pixelBuffers: { ...pixelBuffers, [frame.id]: updated },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      selectionRect: null,
+      selectionBuffer: null,
+      dirty: true,
+    });
+  },
+
+  pasteSelection: () => {
+    const { clipboardBuffer, document: doc } = get();
+    if (!clipboardBuffer || !doc) return;
+
+    // Place pasted selection at (0, 0) as a new selection
+    const rect: SpriteSelectionRect = {
+      x: 0,
+      y: 0,
+      width: clipboardBuffer.width,
+      height: clipboardBuffer.height,
+    };
+    set({
+      selectionRect: rect,
+      selectionBuffer: clonePixelBuffer(clipboardBuffer),
+    });
+  },
+
+  flipSelectionHorizontal: () => {
+    const { selectionBuffer } = get();
+    if (!selectionBuffer) return;
+    set({ selectionBuffer: flipBufferHorizontal(selectionBuffer) });
+  },
+
+  flipSelectionVertical: () => {
+    const { selectionBuffer } = get();
+    if (!selectionBuffer) return;
+    set({ selectionBuffer: flipBufferVertical(selectionBuffer) });
+  },
+
   // -- Onion skin --
   setOnionSkin: (config) => set((s) => ({ onionSkin: { ...s.onionSkin, ...config } })),
 
@@ -274,6 +384,57 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
         },
       });
     }
+  },
+
+  // -- Import/export --
+  importSpriteSheet: (sheetData, sheetWidth, sheetHeight) => {
+    const { document: doc } = get();
+    if (!doc) return 'No document open';
+
+    const result = sliceSpriteSheet(sheetData, sheetWidth, sheetHeight, doc.width, doc.height);
+    if (isImportExportError(result)) return result.error;
+
+    // Build new frames and pixel buffers from sliced data
+    const newFrames: SpriteFrame[] = result.frames.map((_, i) => createSpriteFrame(i));
+    const newBuffers: Record<string, SpritePixelBuffer> = {};
+    for (let i = 0; i < newFrames.length; i++) {
+      newBuffers[newFrames[i].id] = result.frames[i];
+    }
+
+    set({
+      document: {
+        ...doc,
+        frames: newFrames,
+        updatedAt: new Date().toISOString(),
+      },
+      pixelBuffers: newBuffers,
+      activeFrameIndex: 0,
+      selectionRect: null,
+      selectionBuffer: null,
+      dirty: true,
+    });
+    return null;
+  },
+
+  exportSpriteSheet: () => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return 'No document open';
+
+    const frameBuffers = doc.frames.map((f) =>
+      pixelBuffers[f.id] ?? createBlankPixelBuffer(doc.width, doc.height),
+    );
+    const result = assembleSpriteSheet(frameBuffers);
+    if (isImportExportError(result)) return result.error;
+    return result;
+  },
+
+  exportCurrentFrame: () => {
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!doc) return null;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return null;
+    const buf = pixelBuffers[frame.id];
+    return buf ? clonePixelBuffer(buf) : null;
   },
 
   // -- Viewport --

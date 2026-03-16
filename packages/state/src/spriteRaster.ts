@@ -1,4 +1,4 @@
-import type { SpritePixelBuffer } from '@glyphstudio/domain';
+import type { SpritePixelBuffer, SpriteSelectionRect } from '@glyphstudio/domain';
 
 /** RGBA color tuple — each channel 0–255. */
 export type Rgba = [number, number, number, number];
@@ -167,6 +167,148 @@ export function floodFill(
     if (y > 0) queue.push([x, y - 1]);
     if (y < height - 1) queue.push([x, y + 1]);
   }
+}
+
+// ── Selection helpers ──
+
+/**
+ * Normalize a drag rectangle from two corner points into a positive-size rect.
+ * The inputs are the start and end pixel coordinates of a drag gesture.
+ */
+export function normalizeRect(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): SpriteSelectionRect {
+  const x = Math.min(x1, x2);
+  const y = Math.min(y1, y2);
+  return {
+    x,
+    y,
+    width: Math.abs(x2 - x1) + 1,
+    height: Math.abs(y2 - y1) + 1,
+  };
+}
+
+/**
+ * Extract pixels within a selection rectangle into a new buffer.
+ * Out-of-bounds pixels are transparent.
+ */
+export function extractSelection(
+  buffer: SpritePixelBuffer,
+  rect: SpriteSelectionRect,
+): SpritePixelBuffer {
+  const result: SpritePixelBuffer = {
+    width: rect.width,
+    height: rect.height,
+    data: new Uint8ClampedArray(rect.width * rect.height * 4),
+  };
+  for (let sy = 0; sy < rect.height; sy++) {
+    for (let sx = 0; sx < rect.width; sx++) {
+      const srcX = rect.x + sx;
+      const srcY = rect.y + sy;
+      if (!isInBounds(srcX, srcY, buffer.width, buffer.height)) continue;
+      const srcIdx = getPixelIndex(srcX, srcY, buffer.width);
+      const dstIdx = (sy * rect.width + sx) * 4;
+      result.data[dstIdx] = buffer.data[srcIdx];
+      result.data[dstIdx + 1] = buffer.data[srcIdx + 1];
+      result.data[dstIdx + 2] = buffer.data[srcIdx + 2];
+      result.data[dstIdx + 3] = buffer.data[srcIdx + 3];
+    }
+  }
+  return result;
+}
+
+/**
+ * Clear all pixels within a selection rectangle to transparent.
+ * Mutates the buffer in place. Out-of-bounds pixels are ignored.
+ */
+export function clearSelectionArea(
+  buffer: SpritePixelBuffer,
+  rect: SpriteSelectionRect,
+): void {
+  for (let sy = 0; sy < rect.height; sy++) {
+    for (let sx = 0; sx < rect.width; sx++) {
+      const px = rect.x + sx;
+      const py = rect.y + sy;
+      if (!isInBounds(px, py, buffer.width, buffer.height)) continue;
+      const idx = getPixelIndex(px, py, buffer.width);
+      buffer.data[idx] = 0;
+      buffer.data[idx + 1] = 0;
+      buffer.data[idx + 2] = 0;
+      buffer.data[idx + 3] = 0;
+    }
+  }
+}
+
+/**
+ * Blit (paste) a source pixel buffer onto a destination buffer at the given position.
+ * Only non-transparent source pixels are written. Mutates dest in place.
+ */
+export function blitSelection(
+  dest: SpritePixelBuffer,
+  source: SpritePixelBuffer,
+  destX: number,
+  destY: number,
+): void {
+  for (let sy = 0; sy < source.height; sy++) {
+    for (let sx = 0; sx < source.width; sx++) {
+      const srcIdx = (sy * source.width + sx) * 4;
+      const a = source.data[srcIdx + 3];
+      if (a === 0) continue;
+      const px = destX + sx;
+      const py = destY + sy;
+      if (!isInBounds(px, py, dest.width, dest.height)) continue;
+      const dstIdx = getPixelIndex(px, py, dest.width);
+      dest.data[dstIdx] = source.data[srcIdx];
+      dest.data[dstIdx + 1] = source.data[srcIdx + 1];
+      dest.data[dstIdx + 2] = source.data[srcIdx + 2];
+      dest.data[dstIdx + 3] = source.data[srcIdx + 3];
+    }
+  }
+}
+
+// ── Buffer transforms ──
+
+/** Flip a pixel buffer horizontally (mirror left-right). Returns a new buffer. */
+export function flipBufferHorizontal(buffer: SpritePixelBuffer): SpritePixelBuffer {
+  const { width, height } = buffer;
+  const result: SpritePixelBuffer = {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  };
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const srcIdx = (y * width + x) * 4;
+      const dstIdx = (y * width + (width - 1 - x)) * 4;
+      result.data[dstIdx] = buffer.data[srcIdx];
+      result.data[dstIdx + 1] = buffer.data[srcIdx + 1];
+      result.data[dstIdx + 2] = buffer.data[srcIdx + 2];
+      result.data[dstIdx + 3] = buffer.data[srcIdx + 3];
+    }
+  }
+  return result;
+}
+
+/** Flip a pixel buffer vertically (mirror top-bottom). Returns a new buffer. */
+export function flipBufferVertical(buffer: SpritePixelBuffer): SpritePixelBuffer {
+  const { width, height } = buffer;
+  const result: SpritePixelBuffer = {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  };
+  for (let y = 0; y < height; y++) {
+    const srcRowStart = y * width * 4;
+    const dstRowStart = (height - 1 - y) * width * 4;
+    result.data.set(
+      buffer.data.subarray(srcRowStart, srcRowStart + width * 4),
+      dstRowStart,
+    );
+  }
+  return result;
 }
 
 // ── Buffer cloning ──
