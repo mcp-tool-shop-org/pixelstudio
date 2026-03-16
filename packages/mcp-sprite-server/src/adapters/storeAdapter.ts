@@ -889,6 +889,101 @@ export function storePreviewStepPrev(store: HeadlessStore): string | null {
   return null;
 }
 
+// ── Render operations ──
+
+export interface RenderedFrame {
+  width: number;
+  height: number;
+  rgba: Uint8ClampedArray;
+  frameIndex: number;
+  frameId: string;
+}
+
+/**
+ * Flatten the active frame's visible layers into a single RGBA buffer.
+ */
+export function storeRenderFrame(store: HeadlessStore, frameIndex?: number): RenderedFrame | { error: string } {
+  const { document: doc, pixelBuffers, activeFrameIndex } = store.getState();
+  if (!doc) return { error: 'No document open' };
+
+  const idx = frameIndex ?? activeFrameIndex;
+  if (idx < 0 || idx >= doc.frames.length) return { error: `Frame index out of range: ${idx}` };
+
+  const frame = doc.frames[idx];
+  const flat = flattenLayers(frame.layers, pixelBuffers, doc.width, doc.height);
+  return { width: flat.width, height: flat.height, rgba: flat.data, frameIndex: idx, frameId: frame.id };
+}
+
+/**
+ * Render all frames and assemble into a horizontal sprite sheet RGBA buffer.
+ */
+export function storeRenderSheet(store: HeadlessStore): { width: number; height: number; rgba: Uint8ClampedArray; frameCount: number } | { error: string } {
+  const { document: doc, pixelBuffers } = store.getState();
+  if (!doc) return { error: 'No document open' };
+
+  const frameBuffers = doc.frames.map((f) =>
+    flattenLayers(f.layers, pixelBuffers, doc.width, doc.height),
+  );
+  const sheet = assembleSpriteSheet(frameBuffers);
+  if (isImportExportError(sheet)) return { error: sheet.error };
+  return { width: sheet.width, height: sheet.height, rgba: sheet.data, frameCount: doc.frames.length };
+}
+
+/**
+ * Import a sprite sheet by slicing it into frames, replacing the current document frames.
+ */
+export function storeImportSheet(
+  store: HeadlessStore,
+  sheetData: Uint8ClampedArray,
+  sheetWidth: number,
+  sheetHeight: number,
+  frameWidth: number,
+  frameHeight: number,
+): { frameCount: number } | { error: string } {
+  const { document: doc } = store.getState();
+  if (!doc) return { error: 'No document open' };
+
+  if (frameWidth !== doc.width || frameHeight !== doc.height) {
+    return { error: `Frame dimensions (${frameWidth}x${frameHeight}) must match document dimensions (${doc.width}x${doc.height})` };
+  }
+
+  const result = sliceSpriteSheet(sheetData, sheetWidth, sheetHeight, frameWidth, frameHeight);
+  if (isImportExportError(result)) return { error: result.error };
+
+  const newFrames = result.frames.map((buf, i) => {
+    const frame = createSpriteFrame(i);
+    return { frame, buffer: buf, layerId: frame.layers[0].id };
+  });
+
+  const newPixelBuffers: Record<string, SpritePixelBuffer> = {};
+  const docFrames = newFrames.map(({ frame, buffer, layerId }) => {
+    newPixelBuffers[layerId] = buffer;
+    return frame;
+  });
+
+  store.setState({
+    document: { ...doc, frames: docFrames, updatedAt: new Date().toISOString() },
+    pixelBuffers: newPixelBuffers,
+    activeFrameIndex: 0,
+    activeLayerId: docFrames[0]?.layers[0]?.id ?? null,
+    dirty: true,
+  });
+
+  return { frameCount: docFrames.length };
+}
+
+/**
+ * Export metadata JSON for the current sprite sheet layout.
+ */
+export function storeExportMetadataJson(store: HeadlessStore): { json: string; meta: SpriteSheetMeta } | { error: string } {
+  const { document: doc } = store.getState();
+  if (!doc) return { error: 'No document open' };
+
+  const meta = generateSpriteSheetMeta(doc);
+  if ('error' in meta) return { error: meta.error };
+  return { json: JSON.stringify(meta, null, 2), meta };
+}
+
 // ── Compact state snapshot ──
 
 export interface SessionStateSummary {

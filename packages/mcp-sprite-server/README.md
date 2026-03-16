@@ -1,12 +1,17 @@
 <p align="center">
+  <a href="README.ja.md">日本語</a> | <a href="README.zh.md">中文</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.hi.md">हिन्दी</a> | <a href="README.it.md">Italiano</a> | <a href="README.pt-BR.md">Português (BR)</a>
+</p>
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/brand/main/logos/GlyphStudio/readme.jpg" alt="GlyphStudio MCP Server" width="400" />
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@glyphstudio/mcp-sprite-server"><img src="https://img.shields.io/npm/v/@glyphstudio/mcp-sprite-server?style=flat-square&label=npm" alt="npm"></a>
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/MCP-53%20tools-blueviolet?style=flat-square" alt="53 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-100%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-61%20tools-blueviolet?style=flat-square" alt="61 MCP Tools">
+  <img src="https://img.shields.io/badge/tests-115%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
@@ -16,6 +21,12 @@ MCP server that exposes the full GlyphStudio sprite editor as a programmable sur
 ## Why
 
 LLMs can describe sprites but can't draw them. This server bridges that gap: an agent calls `sprite_draw_pixels` with coordinates and colors, and the real GlyphStudio engine applies them to a real pixel buffer with real undo, real layers, and real frame isolation. The result is a `.glyph` file you can open in the desktop editor and keep working on by hand.
+
+## Install
+
+```bash
+npm install @glyphstudio/mcp-sprite-server
+```
 
 ## Quick Start
 
@@ -28,8 +39,7 @@ Add to your MCP config (`claude_desktop_config.json` or `.mcp.json`):
   "mcpServers": {
     "glyphstudio": {
       "command": "npx",
-      "args": ["tsx", "packages/mcp-sprite-server/src/cli.ts"],
-      "cwd": "/path/to/glyphstudio"
+      "args": ["@glyphstudio/mcp-sprite-server"]
     }
   }
 }
@@ -38,10 +48,16 @@ Add to your MCP config (`claude_desktop_config.json` or `.mcp.json`):
 ### stdio (direct)
 
 ```bash
+npx @glyphstudio/mcp-sprite-server
+```
+
+### From source (development)
+
+```bash
 npx tsx packages/mcp-sprite-server/src/cli.ts
 ```
 
-## Tool Inventory (53 tools)
+## Tool Inventory (61 tools)
 
 ### Session (3)
 
@@ -146,12 +162,33 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_preview_step_next` | Step forward one frame |
 | `sprite_preview_step_prev` | Step backward one frame |
 
+### Render (3)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_render_frame` | Flatten visible layers into a composited PNG (returns base64 data URI + image) |
+| `sprite_render_sheet` | Assemble all frames into a horizontal sprite sheet PNG |
+| `sprite_render_overview` | Document overview with rendered thumbnail for each frame |
+
+### Import / Export (5)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_import_sheet` | Import a horizontal sprite sheet PNG by slicing it into frames |
+| `sprite_export_frame_png` | Export a single frame as PNG (base64) |
+| `sprite_export_sheet_png` | Export all frames as a horizontal sprite sheet PNG (base64) |
+| `sprite_export_gif` | Export the animation as an animated GIF (base64) |
+| `sprite_export_metadata_json` | Export sprite sheet metadata JSON (frame positions, timing, layout) |
+
 ## Resources
 
 | URI Pattern | Description |
 |-------------|-------------|
 | `sprite://session/{id}/document` | Full document summary (frames, layers, dimensions, palette) |
 | `sprite://session/{id}/state` | Compact session state (tool, selection, playback, preview, dirty flag) |
+| `sprite://session/{id}/frame.png` | Active frame rendered as PNG |
+| `sprite://session/{id}/sheet.png` | Full sprite sheet as PNG |
+| `sprite://session/{id}/metadata.json` | Sprite sheet metadata (frame positions, timing, layout) |
 
 ## Result Shape
 
@@ -167,7 +204,7 @@ Every tool returns a consistent JSON envelope:
 { "ok": false, "code": "out_of_bounds", "message": "Pixel (20, 5) outside 16×16 canvas" }
 ```
 
-Error codes: `no_session`, `no_document`, `no_frame`, `no_layer`, `no_selection`, `out_of_bounds`, `invalid_input`, `empty_clipboard`.
+Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_found`, `serialize_error`, `constraint_violation`.
 
 ## Example: Create a 2-Frame Sprite
 
@@ -198,8 +235,17 @@ Error codes: `no_session`, `no_document`, `no_frame`, `no_layer`, `no_selection`
 7. sprite_playback_set_config { sessionId: "session_1", isLooping: true }
    → { ok: true }
 
-8. sprite_document_save { sessionId: "session_1" }
-   → { ok: true, json: "..." }
+8. sprite_render_frame { sessionId: "session_1", frameIndex: 0 }
+   → { ok: true, frameIndex: 0, width: 16, height: 16 } + PNG image
+
+9. sprite_export_sheet_png { sessionId: "session_1" }
+   → { ok: true, width: 32, height: 16, frameCount: 2, pngBase64: "...", byteLength: 1234 }
+
+10. sprite_export_metadata_json { sessionId: "session_1" }
+    → { ok: true, metadata: { format: "glyphstudio-sprite-sheet", frameCount: 2, ... } }
+
+11. sprite_document_save { sessionId: "session_1" }
+    → { ok: true, json: "..." }
 ```
 
 ## Design Laws

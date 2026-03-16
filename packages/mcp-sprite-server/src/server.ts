@@ -13,8 +13,10 @@ import { registerDrawingTools } from './tools/drawingTools.js';
 import { registerSelectionTools } from './tools/selectionTools.js';
 import { registerToolSettingsTools } from './tools/toolSettingsTools.js';
 import { registerPlaybackTools } from './tools/playbackTools.js';
+import { registerRenderTools } from './tools/renderTools.js';
 import { registerResources } from './resources/documentResource.js';
 import { registerStateResource } from './resources/stateResource.js';
+import { registerRenderResources } from './resources/renderResource.js';
 
 export interface GlyphStudioServerOptions {
   /** Custom session manager (for testing). If omitted, a new one is created. */
@@ -49,10 +51,12 @@ export function createGlyphStudioServer(options?: GlyphStudioServerOptions): Gly
   registerSelectionTools(server, sessions);
   registerToolSettingsTools(server, sessions);
   registerPlaybackTools(server, sessions);
+  registerRenderTools(server, sessions);
 
   // Register resources
   registerResources(server, sessions);
   registerStateResource(server, sessions);
+  registerRenderResources(server, sessions);
 
   return { server, sessions };
 }

@@ -21,6 +21,7 @@ export function fail(code: string, message: string): ToolResult<never> {
 export const ErrorCode = {
   NO_SESSION: 'no_session',
   NO_DOCUMENT: 'no_document',
+  NO_FRAME: 'no_frame',
   INVALID_INPUT: 'invalid_input',
   NOT_FOUND: 'not_found',
   SERIALIZE_ERROR: 'serialize_error',

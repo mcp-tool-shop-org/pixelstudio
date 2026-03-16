@@ -1,13 +1,38 @@
 {
   "name": "@glyphstudio/state",
   "version": "1.0.0",
+  "description": "State management and raster operations for GlyphStudio sprite editor",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcp-tool-shop-org/glyphstudio.git",
+    "directory": "packages/state"
+  },
+  "license": "MIT",
+  "author": "mcp-tool-shop",
   "dependencies": {
     "@glyphstudio/api-contract": "workspace:*",
     "@glyphstudio/domain": "workspace:*",
