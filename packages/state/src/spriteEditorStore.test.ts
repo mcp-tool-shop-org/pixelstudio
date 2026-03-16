@@ -460,6 +460,101 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Move frame ──
+
+  describe('moveFrame', () => {
+    it('swaps two frames', () => {
+      openTestDoc();
+      const store = useSpriteEditorStore.getState();
+      store.addFrame(); // now 2 frames, active = 1
+      store.addFrame(); // now 3 frames, active = 2
+      const doc = useSpriteEditorStore.getState().document!;
+      const originalIds = doc.frames.map((f) => f.id);
+
+      // Move frame 2 to position 0
+      useSpriteEditorStore.getState().moveFrame(2, 0);
+      const updated = useSpriteEditorStore.getState().document!;
+      expect(updated.frames.map((f) => f.id)).toEqual([originalIds[2], originalIds[0], originalIds[1]]);
+    });
+
+    it('follows active frame when moved', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      // Active is frame 2
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(2);
+      useSpriteEditorStore.getState().moveFrame(2, 0);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+    });
+
+    it('adjusts active index when non-active frame is moved before it', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(1); // active = 1
+      // Move frame 2 to position 0 (before active)
+      useSpriteEditorStore.getState().moveFrame(2, 0);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(2);
+    });
+
+    it('marks document dirty', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.setState({ dirty: false });
+      useSpriteEditorStore.getState().moveFrame(0, 1);
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('re-indexes frames after move', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().moveFrame(2, 0);
+      const doc = useSpriteEditorStore.getState().document!;
+      doc.frames.forEach((f, i) => expect(f.index).toBe(i));
+    });
+
+    it('no-ops for same index', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.setState({ dirty: false });
+      useSpriteEditorStore.getState().moveFrame(0, 0);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+    });
+
+    it('no-ops for out-of-bounds', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.setState({ dirty: false });
+      useSpriteEditorStore.getState().moveFrame(0, 5);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+    });
+
+    it('no-ops without document', () => {
+      useSpriteEditorStore.getState().moveFrame(0, 1);
+      expect(useSpriteEditorStore.getState().document).toBeNull();
+    });
+
+    it('preserves pixel buffers after move', () => {
+      openTestDoc(4, 4);
+      const store = useSpriteEditorStore.getState();
+      // Paint frame 0
+      const frame0Id = store.document!.frames[0].id;
+      const buf = store.pixelBuffers[frame0Id];
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      store.commitPixels(buf);
+
+      store.addFrame(); // frame 1
+      useSpriteEditorStore.getState().moveFrame(0, 1);
+
+      // Frame 0's buffer should still have the red pixel
+      const movedId = useSpriteEditorStore.getState().document!.frames[1].id;
+      expect(movedId).toBe(frame0Id);
+      const movedBuf = useSpriteEditorStore.getState().pixelBuffers[movedId];
+      expect(samplePixel(movedBuf, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+  });
+
   // ── Selection state ──
 
   describe('selection', () => {

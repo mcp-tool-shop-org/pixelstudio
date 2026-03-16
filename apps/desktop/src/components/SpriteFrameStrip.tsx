@@ -64,6 +64,7 @@ export function SpriteFrameStrip() {
   const addFrame = useSpriteEditorStore((s) => s.addFrame);
   const duplicateFrame = useSpriteEditorStore((s) => s.duplicateFrame);
   const removeFrame = useSpriteEditorStore((s) => s.removeFrame);
+  const moveFrame = useSpriteEditorStore((s) => s.moveFrame);
 
   if (!doc) return null;
 
@@ -106,17 +107,37 @@ export function SpriteFrameStrip() {
           Duplicate
         </button>
         {doc.frames.length > 1 && (
-          <button
-            className="sprite-frame-remove-btn"
-            onClick={() => {
-              const frame = doc.frames[activeFrameIndex];
-              if (frame) removeFrame(frame.id);
-            }}
-            title="Remove current frame"
-            data-testid="remove-frame-btn"
-          >
-            - Frame
-          </button>
+          <>
+            <button
+              className="sprite-frame-move-btn"
+              onClick={() => moveFrame(activeFrameIndex, activeFrameIndex - 1)}
+              disabled={activeFrameIndex === 0}
+              title="Move frame left"
+              data-testid="move-frame-left-btn"
+            >
+              ◀
+            </button>
+            <button
+              className="sprite-frame-move-btn"
+              onClick={() => moveFrame(activeFrameIndex, activeFrameIndex + 1)}
+              disabled={activeFrameIndex === doc.frames.length - 1}
+              title="Move frame right"
+              data-testid="move-frame-right-btn"
+            >
+              ▶
+            </button>
+            <button
+              className="sprite-frame-remove-btn"
+              onClick={() => {
+                const frame = doc.frames[activeFrameIndex];
+                if (frame) removeFrame(frame.id);
+              }}
+              title="Remove current frame"
+              data-testid="remove-frame-btn"
+            >
+              - Frame
+            </button>
+          </>
         )}
       </div>
     </div>

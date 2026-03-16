@@ -1,9 +1,19 @@
+import { useEffect } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
+import type { SpriteToolId } from '@glyphstudio/domain';
 import { SpriteToolRail } from './SpriteToolRail';
 import { SpritePalettePanel } from './SpritePalettePanel';
 import { SpriteFrameStrip } from './SpriteFrameStrip';
 import { SpriteCanvasArea } from './SpriteCanvasArea';
 import { SpriteImportExportBar } from './SpriteImportExportBar';
+
+const TOOL_SHORTCUTS: Record<string, SpriteToolId> = {
+  m: 'select',
+  b: 'pencil',
+  e: 'eraser',
+  g: 'fill',
+  i: 'eyedropper',
+};
 
 /**
  * Top-level sprite editor shell.
@@ -13,6 +23,64 @@ import { SpriteImportExportBar } from './SpriteImportExportBar';
  */
 export function SpriteEditor() {
   const doc = useSpriteEditorStore((s) => s.document);
+
+  // Keyboard shortcuts — only active when a document is open
+  useEffect(() => {
+    if (!doc) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const key = e.key.toLowerCase();
+      const store = useSpriteEditorStore.getState();
+
+      // Tool shortcuts (no modifiers)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tool = TOOL_SHORTCUTS[key];
+        if (tool) {
+          e.preventDefault();
+          store.setTool(tool);
+          return;
+        }
+
+        // Frame navigation: , = prev, . = next
+        if (key === ',' || key === 'comma') {
+          e.preventDefault();
+          if (store.activeFrameIndex > 0) {
+            store.setActiveFrame(store.activeFrameIndex - 1);
+          }
+          return;
+        }
+        if (key === '.' || key === 'period') {
+          e.preventDefault();
+          const doc = store.document;
+          if (doc && store.activeFrameIndex < doc.frames.length - 1) {
+            store.setActiveFrame(store.activeFrameIndex + 1);
+          }
+          return;
+        }
+
+        // Add blank frame: N
+        if (key === 'n') {
+          e.preventDefault();
+          store.addFrame();
+          return;
+        }
+      }
+
+      // Duplicate frame: Shift+D
+      if (key === 'd' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        store.duplicateFrame();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [doc]);
 
   if (!doc) {
     return (

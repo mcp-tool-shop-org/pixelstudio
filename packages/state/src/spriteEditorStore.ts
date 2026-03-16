@@ -55,6 +55,7 @@ export interface SpriteEditorStoreState {
   removeFrame: (frameId: string) => void;
   setActiveFrame: (index: number) => void;
   setFrameDuration: (frameId: string, durationMs: number) => void;
+  moveFrame: (fromIndex: number, toIndex: number) => void;
 
   // -- Actions: Tool --
   setTool: (tool: SpriteToolId) => void;
@@ -236,6 +237,35 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     );
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+  },
+
+  moveFrame: (fromIndex, toIndex) => {
+    const { document: doc, activeFrameIndex } = get();
+    if (!doc) return;
+    if (fromIndex < 0 || fromIndex >= doc.frames.length) return;
+    if (toIndex < 0 || toIndex >= doc.frames.length) return;
+    if (fromIndex === toIndex) return;
+
+    const frames = [...doc.frames];
+    const [moved] = frames.splice(fromIndex, 1);
+    frames.splice(toIndex, 0, moved);
+    const updatedFrames = frames.map((f, i) => ({ ...f, index: i }));
+
+    // Track active frame: if the active frame was the one moved, follow it
+    let newActiveIndex = activeFrameIndex;
+    if (activeFrameIndex === fromIndex) {
+      newActiveIndex = toIndex;
+    } else if (fromIndex < activeFrameIndex && toIndex >= activeFrameIndex) {
+      newActiveIndex = activeFrameIndex - 1;
+    } else if (fromIndex > activeFrameIndex && toIndex <= activeFrameIndex) {
+      newActiveIndex = activeFrameIndex + 1;
+    }
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      activeFrameIndex: newActiveIndex,
       dirty: true,
     });
   },

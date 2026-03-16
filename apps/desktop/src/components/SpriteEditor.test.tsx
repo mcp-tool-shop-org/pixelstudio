@@ -493,6 +493,92 @@ describe('SpriteEditor', () => {
     expect(samplePixel(exported, 1, 1)).toEqual([0, 255, 0, 255]);
   });
 
+  // ── Keyboard shortcuts ──
+
+  it('tool shortcut B activates pencil', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    act(() => useSpriteEditorStore.getState().setTool('select'));
+    expect(useSpriteEditorStore.getState().tool.activeTool).toBe('select');
+    await userEvent.keyboard('b');
+    expect(useSpriteEditorStore.getState().tool.activeTool).toBe('pencil');
+  });
+
+  it('tool shortcut E activates eraser', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    await userEvent.keyboard('e');
+    expect(useSpriteEditorStore.getState().tool.activeTool).toBe('eraser');
+  });
+
+  it('tool shortcut M activates select', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    await userEvent.keyboard('m');
+    expect(useSpriteEditorStore.getState().tool.activeTool).toBe('select');
+  });
+
+  it('comma key navigates to previous frame', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    act(() => useSpriteEditorStore.getState().addFrame());
+    expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1);
+    await userEvent.keyboard(',');
+    expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+  });
+
+  it('period key navigates to next frame', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+    await userEvent.keyboard('.');
+    expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1);
+  });
+
+  it('N key adds a blank frame', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(useSpriteEditorStore.getState().document!.frames.length).toBe(1);
+    await userEvent.keyboard('n');
+    expect(useSpriteEditorStore.getState().document!.frames.length).toBe(2);
+  });
+
+  it('Shift+D duplicates the current frame', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(useSpriteEditorStore.getState().document!.frames.length).toBe(1);
+    await userEvent.keyboard('{Shift>}d{/Shift}');
+    expect(useSpriteEditorStore.getState().document!.frames.length).toBe(2);
+  });
+
+  // ── Frame reorder buttons ──
+
+  it('shows move frame buttons when multiple frames', () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addFrame());
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('move-frame-left-btn')).toBeDefined();
+    expect(screen.getByTestId('move-frame-right-btn')).toBeDefined();
+  });
+
+  it('move left button is disabled on first frame', () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('move-frame-left-btn').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('move right button is disabled on last frame', () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addFrame());
+    // Active is frame 1 (last)
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('move-frame-right-btn').hasAttribute('disabled')).toBe(true);
+  });
+
   it('export after frame operations reflects final state', () => {
     openTestDoc(2, 2);
     // Paint frame 0
