@@ -260,6 +260,22 @@ export {
   GLYPH_FORMAT,
 } from './spritePersistence';
 export {
+  rotateBuffer,
+  resizeBuffer,
+} from './spriteTransform';
+export type { RotationAngle, FlipDirection } from './spriteTransform';
+export {
+  analyzeSpriteBounds,
+  analyzeSpriteColors,
+  compareFrames,
+} from './spriteAnalysis';
+export type {
+  SpriteBounds,
+  SpriteColorAnalysis,
+  SpriteColorEntry,
+  SpriteFrameDiff,
+} from './spriteAnalysis';
+export {
   SPRITE_HISTORY_OPERATION_KINDS,
   describeSpriteHistoryOperation,
   captureSpriteSnapshot,

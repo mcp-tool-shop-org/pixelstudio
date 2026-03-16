@@ -10,5 +10,6 @@ export { createGlyphStudioServer } from './server.js';
 export { SessionManager } from './session/sessionManager.js';
 export type { SessionInfo } from './session/sessionManager.js';
 export type { DocumentSummary, SessionStateSummary, PlaybackConfig, PreviewState, ChangedBounds, PixelEntry, RenderedFrame, HistorySummary, BatchOperation, BatchResult } from './adapters/storeAdapter.js';
+export type { SpriteBounds, SpriteColorAnalysis, SpriteColorEntry, SpriteFrameDiff } from '@glyphstudio/state';
 export { success, fail, ErrorCode } from './schemas/result.js';
 export type { ToolResult } from './schemas/result.js';

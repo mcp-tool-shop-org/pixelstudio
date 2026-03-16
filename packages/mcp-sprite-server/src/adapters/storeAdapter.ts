@@ -63,6 +63,10 @@ import {
   finishApplyingSpriteHistory,
 } from '@glyphstudio/state';
 import { createSpriteHistoryEntry } from '@glyphstudio/state';
+import { rotateBuffer, resizeBuffer } from '@glyphstudio/state';
+import type { RotationAngle } from '@glyphstudio/state';
+import { analyzeSpriteBounds, analyzeSpriteColors, compareFrames } from '@glyphstudio/state';
+import type { SpriteBounds, SpriteColorAnalysis, SpriteFrameDiff } from '@glyphstudio/state';
 
 // ── State shape (mirrors SpriteEditorStoreState but without React hooks) ──
 
@@ -397,6 +401,76 @@ export function storeSetFrameDuration(store: HeadlessStore, frameId: string, dur
   });
 }
 
+export function storeDuplicateFrame(store: HeadlessStore): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+
+  return withHistory(store, 'duplicate-frame', () => {
+    const { document: d, pixelBuffers, activeFrameIndex } = store.getState();
+    const sourceFrame = d!.frames[activeFrameIndex];
+    const insertAt = activeFrameIndex + 1;
+
+    const newLayers = sourceFrame.layers.map((srcLayer, i) => createSpriteLayer(i, srcLayer.name));
+    const newFrame = {
+      ...createSpriteFrame(insertAt, sourceFrame.durationMs),
+      layers: newLayers.map((l, i) => ({ ...l, visible: sourceFrame.layers[i].visible })),
+    };
+
+    const newBuffers = { ...pixelBuffers };
+    for (let i = 0; i < sourceFrame.layers.length; i++) {
+      const srcBuf = pixelBuffers[sourceFrame.layers[i].id];
+      newBuffers[newLayers[i].id] = srcBuf ? clonePixelBuffer(srcBuf) : createBlankPixelBuffer(d!.width, d!.height);
+    }
+
+    const updatedFrames = [
+      ...d!.frames.slice(0, insertAt),
+      newFrame,
+      ...d!.frames.slice(insertAt),
+    ].map((f, i) => ({ ...f, index: i }));
+
+    store.setState({
+      document: { ...d!, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: newBuffers,
+      activeFrameIndex: insertAt,
+      activeLayerId: newLayers[0]?.id ?? null,
+      dirty: true,
+    });
+    return null;
+  });
+}
+
+export function storeMoveFrame(store: HeadlessStore, fromIndex: number, toIndex: number): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+  if (fromIndex < 0 || fromIndex >= doc.frames.length) return `Frame index out of range: ${fromIndex}`;
+  if (toIndex < 0 || toIndex >= doc.frames.length) return `Frame index out of range: ${toIndex}`;
+  if (fromIndex === toIndex) return null;
+
+  return withHistory(store, 'move-frame', () => {
+    const { document: d, activeFrameIndex } = store.getState();
+    const frames = [...d!.frames];
+    const [moved] = frames.splice(fromIndex, 1);
+    frames.splice(toIndex, 0, moved);
+    const updatedFrames = frames.map((f, i) => ({ ...f, index: i }));
+
+    let newActiveIndex = activeFrameIndex;
+    if (activeFrameIndex === fromIndex) {
+      newActiveIndex = toIndex;
+    } else if (fromIndex < activeFrameIndex && toIndex >= activeFrameIndex) {
+      newActiveIndex = activeFrameIndex - 1;
+    } else if (fromIndex > activeFrameIndex && toIndex <= activeFrameIndex) {
+      newActiveIndex = activeFrameIndex + 1;
+    }
+
+    store.setState({
+      document: { ...d!, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      activeFrameIndex: newActiveIndex,
+      dirty: true,
+    });
+    return null;
+  });
+}
+
 // ── Layer operations ──
 
 export function storeAddLayer(store: HeadlessStore): string | null {
@@ -502,6 +576,63 @@ export function storeRenameLayer(store: HeadlessStore, layerId: string, name: st
     const updatedFrame = { ...fr, layers: updatedLayers };
     const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
     store.setState({ document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() }, dirty: true });
+    return null;
+  });
+}
+
+export function storeDuplicateLayer(store: HeadlessStore): string | null {
+  const { document: doc, activeFrameIndex, activeLayerId } = store.getState();
+  if (!doc) return 'No document open';
+  const frame = doc.frames[activeFrameIndex];
+  if (!frame) return 'No active frame';
+
+  return withHistory(store, 'add-layer', () => {
+    const s = store.getState();
+    const d = s.document!;
+    const fr = d.frames[s.activeFrameIndex];
+    const srcLayer = fr.layers.find((l) => l.id === s.activeLayerId);
+    const srcBuf = srcLayer ? s.pixelBuffers[srcLayer.id] : null;
+
+    const newLayer = createSpriteLayer(fr.layers.length, srcLayer ? `${srcLayer.name} copy` : undefined);
+    const updatedLayers = [...fr.layers, newLayer];
+    const updatedFrame = { ...fr, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
+
+    const newBuffer = srcBuf ? clonePixelBuffer(srcBuf) : createBlankPixelBuffer(d.width, d.height);
+
+    store.setState({
+      document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: { ...s.pixelBuffers, [newLayer.id]: newBuffer },
+      activeLayerId: newLayer.id,
+      dirty: true,
+    });
+    return null;
+  });
+}
+
+export function storeMoveLayer(store: HeadlessStore, fromIndex: number, toIndex: number): string | null {
+  const { document: doc, activeFrameIndex } = store.getState();
+  if (!doc) return 'No document open';
+  const frame = doc.frames[activeFrameIndex];
+  if (!frame) return 'No active frame';
+  if (fromIndex < 0 || fromIndex >= frame.layers.length) return `Layer index out of range: ${fromIndex}`;
+  if (toIndex < 0 || toIndex >= frame.layers.length) return `Layer index out of range: ${toIndex}`;
+  if (fromIndex === toIndex) return null;
+
+  return withHistory(store, 'move-layer', () => {
+    const d = store.getState().document!;
+    const fr = d.frames[store.getState().activeFrameIndex];
+    const layers = [...fr.layers];
+    const [moved] = layers.splice(fromIndex, 1);
+    layers.splice(toIndex, 0, moved);
+    const updatedLayers = layers.map((l, i) => ({ ...l, index: i }));
+    const updatedFrame = { ...fr, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
+
+    store.setState({
+      document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
     return null;
   });
 }
@@ -1135,6 +1266,116 @@ export function storeRedo(store: HeadlessStore): { restored: boolean; summary: H
   });
 
   return { restored: true, summary: getSpriteHistorySummary(store.getState().history) };
+}
+
+// ── Canvas transforms ──
+
+export function storeFlipCanvas(store: HeadlessStore, direction: 'horizontal' | 'vertical'): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+
+  const flipFn = direction === 'horizontal' ? flipBufferHorizontal : flipBufferVertical;
+  const kind = direction === 'horizontal' ? 'draw' as const : 'draw' as const; // no specific history kind for canvas flip
+
+  return withHistory(store, kind, () => {
+    const s = store.getState();
+    const d = s.document!;
+    const flippedBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [id, buf] of Object.entries(s.pixelBuffers)) {
+      flippedBuffers[id] = flipFn(buf);
+    }
+    store.setState({
+      pixelBuffers: flippedBuffers,
+      document: { ...d, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return null;
+  });
+}
+
+export function storeRotateCanvas(store: HeadlessStore, angle: RotationAngle): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+
+  return withHistory(store, 'draw', () => {
+    const s = store.getState();
+    const d = s.document!;
+    const rotatedBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [id, buf] of Object.entries(s.pixelBuffers)) {
+      rotatedBuffers[id] = rotateBuffer(buf, angle);
+    }
+
+    // 90/270 swap document dimensions
+    const newWidth = (angle === 90 || angle === 270) ? d.height : d.width;
+    const newHeight = (angle === 90 || angle === 270) ? d.width : d.height;
+
+    store.setState({
+      pixelBuffers: rotatedBuffers,
+      document: { ...d, width: newWidth, height: newHeight, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return null;
+  });
+}
+
+export function storeResizeCanvas(store: HeadlessStore, newWidth: number, newHeight: number): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+  if (newWidth < 1 || newHeight < 1) return `Invalid dimensions: ${newWidth}x${newHeight}`;
+  if (newWidth === doc.width && newHeight === doc.height) return null;
+
+  return withHistory(store, 'draw', () => {
+    const s = store.getState();
+    const d = s.document!;
+    const resizedBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [id, buf] of Object.entries(s.pixelBuffers)) {
+      resizedBuffers[id] = resizeBuffer(buf, newWidth, newHeight);
+    }
+
+    store.setState({
+      pixelBuffers: resizedBuffers,
+      document: { ...d, width: newWidth, height: newHeight, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return null;
+  });
+}
+
+// ── Analysis ──
+
+export function storeAnalyzeBounds(store: HeadlessStore, frameIndex?: number): SpriteBounds | string {
+  const s = store.getState();
+  if (!s.document) return 'No document open';
+  const idx = frameIndex ?? s.activeFrameIndex;
+  const frame = s.document.frames[idx];
+  if (!frame) return `Frame index out of range: ${idx}`;
+
+  const flattened = flattenLayers(frame.layers, s.pixelBuffers, s.document.width, s.document.height);
+  return analyzeSpriteBounds(flattened);
+}
+
+export function storeAnalyzeColors(store: HeadlessStore, frameIndex?: number): SpriteColorAnalysis | string {
+  const s = store.getState();
+  if (!s.document) return 'No document open';
+  const idx = frameIndex ?? s.activeFrameIndex;
+  const frame = s.document.frames[idx];
+  if (!frame) return `Frame index out of range: ${idx}`;
+
+  const flattened = flattenLayers(frame.layers, s.pixelBuffers, s.document.width, s.document.height);
+  return analyzeSpriteColors(flattened);
+}
+
+export function storeCompareFrames(store: HeadlessStore, frameA: number, frameB: number): SpriteFrameDiff | string {
+  const s = store.getState();
+  if (!s.document) return 'No document open';
+  const fA = s.document.frames[frameA];
+  const fB = s.document.frames[frameB];
+  if (!fA) return `Frame index out of range: ${frameA}`;
+  if (!fB) return `Frame index out of range: ${frameB}`;
+
+  const flatA = flattenLayers(fA.layers, s.pixelBuffers, s.document.width, s.document.height);
+  const flatB = flattenLayers(fB.layers, s.pixelBuffers, s.document.width, s.document.height);
+  return compareFrames(flatA, flatB);
 }
 
 // ── Batch operations ──

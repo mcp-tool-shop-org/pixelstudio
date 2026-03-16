@@ -10,8 +10,8 @@
   <a href="https://www.npmjs.com/package/@glyphstudio/mcp-sprite-server"><img src="https://img.shields.io/npm/v/@glyphstudio/mcp-sprite-server?style=flat-square&label=npm" alt="npm"></a>
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/MCP-65%20tools-blueviolet?style=flat-square" alt="65 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-150%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-75%20tools-blueviolet?style=flat-square" alt="75 MCP Tools">
+  <img src="https://img.shields.io/badge/tests-199%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
@@ -57,7 +57,7 @@ npx @glyphstudio/mcp-sprite-server
 npx tsx packages/mcp-sprite-server/src/cli.ts
 ```
 
-## Tool Inventory (65 tools)
+## Tool Inventory (75 tools)
 
 ### Session (3)
 
@@ -77,7 +77,7 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_document_close` | Close document without destroying session |
 | `sprite_document_summary` | Get structured document summary (frames, layers, dimensions) |
 
-### Frame (4)
+### Frame (6)
 
 | Tool | Description |
 |------|-------------|
@@ -85,8 +85,10 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_frame_remove` | Remove a frame by ID |
 | `sprite_frame_set_active` | Set the active frame by index |
 | `sprite_frame_set_duration` | Set frame duration in milliseconds |
+| `sprite_frame_duplicate` | Duplicate active frame with all layers and pixel data |
+| `sprite_frame_move` | Reorder a frame to a different position in the sequence |
 
-### Layer (5)
+### Layer (7)
 
 | Tool | Description |
 |------|-------------|
@@ -95,6 +97,8 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_layer_set_active` | Set the active layer for drawing |
 | `sprite_layer_toggle_visibility` | Toggle layer visibility |
 | `sprite_layer_rename` | Rename a layer |
+| `sprite_layer_duplicate` | Duplicate active layer with pixel data |
+| `sprite_layer_move` | Reorder a layer in the stack (0 = bottom) |
 
 ### Palette (4)
 
@@ -178,6 +182,22 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_history_undo` | Undo the last editing operation — restores document, buffers, and active frame/layer |
 | `sprite_history_redo` | Redo a previously undone operation |
 | `sprite_batch_apply` | Apply multiple drawing operations as a single undo step (draw, line, fill, erase) |
+
+### Analysis (3)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_analyze_bounds` | Bounding box of non-transparent pixels per frame (minX/Y, maxX/Y, opaque count) |
+| `sprite_analyze_colors` | Unique color count + frequency histogram sorted descending |
+| `sprite_compare_frames` | Pixel-by-pixel diff between two frames (changed count, bounds, percentage) |
+
+### Transform (3)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_flip_canvas` | Flip entire canvas (all frames/layers) horizontally or vertically |
+| `sprite_rotate_canvas` | Rotate entire canvas clockwise (90°/180°/270°) — 90/270 swap dimensions |
+| `sprite_resize_canvas` | Resize canvas (top-left anchor: shrink crops, grow extends with transparent) |
 
 ### Import / Export (5)
 
@@ -278,7 +298,7 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
                │ stdio / JSON-RPC
 ┌──────────────▼──────────────────────────────┐
 │  MCP Server (server.ts)                     │
-│  ├─ Tool handlers (65 tools)                │
+│  ├─ Tool handlers (75 tools)                │
 │  ├─ Resource handlers (5 resources)         │
 │  └─ Session manager (multi-session)         │
 ├─────────────────────────────────────────────┤
