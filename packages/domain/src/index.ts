@@ -17,3 +17,4 @@ export * from './bundle';
 export * from './package';
 export * from './scene';
 export * from './character';
+export * from './sprite';

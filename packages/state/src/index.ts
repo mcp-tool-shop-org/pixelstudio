@@ -221,3 +221,5 @@ export type {
   SceneRestoreResult,
   FullRestoreDomain,
 } from './sceneRestore';
+export { useSpriteEditorStore } from './spriteEditorStore';
+export type { SpriteEditorStoreState } from './spriteEditorStore';

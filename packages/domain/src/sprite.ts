@@ -1,0 +1,223 @@
+/** Unique sprite document identifier. */
+export type SpriteId = string;
+
+// ── Pixel data ──
+
+/**
+ * A flat RGBA pixel buffer for a single cel.
+ *
+ * Stored as a Uint8ClampedArray of length width * height * 4.
+ * Pixel at (x, y) starts at index (y * width + x) * 4.
+ */
+export interface SpritePixelBuffer {
+  width: number;
+  height: number;
+  /** RGBA pixel data — length = width * height * 4. */
+  data: Uint8ClampedArray;
+}
+
+// ── Palette ──
+
+/** A single color entry in a sprite palette. */
+export interface SpriteColor {
+  /** RGBA tuple — each channel 0–255. */
+  rgba: [number, number, number, number];
+  /** Optional human-readable name. */
+  name?: string;
+}
+
+/** A sprite-local palette — flat ordered list of colors. */
+export interface SpritePalette {
+  /** Ordered color entries. Index 0 is typically transparent. */
+  colors: SpriteColor[];
+  /** Index of the currently selected foreground color. */
+  foregroundIndex: number;
+  /** Index of the currently selected background color. */
+  backgroundIndex: number;
+}
+
+// ── Frame ──
+
+/** A single frame in a sprite animation. */
+export interface SpriteFrame {
+  id: string;
+  /** 0-based index in the frame sequence. */
+  index: number;
+  /** Frame duration in milliseconds. */
+  durationMs: number;
+}
+
+// ── Tools ──
+
+/**
+ * Sprite editing tool identifiers.
+ *
+ * Starts with the v1 core set: pencil, eraser, fill, eyedropper.
+ * Shape tools and selection tools will follow in later stages.
+ */
+export type SpriteToolId = 'pencil' | 'eraser' | 'fill' | 'eyedropper';
+
+/** Brush shape for stroke-based tools. */
+export type SpriteBrushShape = 'square' | 'circle';
+
+/** Tool configuration state. */
+export interface SpriteToolConfig {
+  activeTool: SpriteToolId;
+  brushSize: number;
+  brushShape: SpriteBrushShape;
+  /** Pixel-perfect mode — prevents L-shaped corners in 1px strokes. */
+  pixelPerfect: boolean;
+}
+
+// ── Onion skin ──
+
+/** Onion skin display configuration. */
+export interface SpriteOnionSkin {
+  enabled: boolean;
+  /** Number of frames to show before the current frame. */
+  framesBefore: number;
+  /** Number of frames to show after the current frame. */
+  framesAfter: number;
+  /** Opacity for onion skin overlays (0.0–1.0). */
+  opacity: number;
+}
+
+// ── Document ──
+
+/**
+ * The sprite document — the root authored artifact.
+ *
+ * Pixel data lives outside the document (in the pixel buffer store).
+ * The document holds structure: canvas size, frames, palette, metadata.
+ */
+export interface SpriteDocument {
+  id: SpriteId;
+  name: string;
+  /** Canvas width in pixels. */
+  width: number;
+  /** Canvas height in pixels. */
+  height: number;
+  /** Ordered list of frames. */
+  frames: SpriteFrame[];
+  /** Sprite-local palette. */
+  palette: SpritePalette;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Editor state (non-persisted) ──
+
+/**
+ * Transient sprite editor state — not persisted with the document.
+ *
+ * Tracks UI concerns: active frame, zoom, tool state, onion skin config.
+ */
+export interface SpriteEditorState {
+  /** Currently active frame index. */
+  activeFrameIndex: number;
+  /** Tool configuration. */
+  tool: SpriteToolConfig;
+  /** Onion skin settings. */
+  onionSkin: SpriteOnionSkin;
+  /** Canvas zoom level (1 = 1 pixel = 1 screen pixel). */
+  zoom: number;
+  /** Canvas pan offset X in screen pixels. */
+  panX: number;
+  /** Canvas pan offset Y in screen pixels. */
+  panY: number;
+  /** Whether the sprite has unsaved changes. */
+  dirty: boolean;
+}
+
+// ── Defaults ──
+
+export const DEFAULT_SPRITE_TOOL_CONFIG: SpriteToolConfig = {
+  activeTool: 'pencil',
+  brushSize: 1,
+  brushShape: 'square',
+  pixelPerfect: false,
+};
+
+export const DEFAULT_SPRITE_ONION_SKIN: SpriteOnionSkin = {
+  enabled: false,
+  framesBefore: 1,
+  framesAfter: 1,
+  opacity: 0.3,
+};
+
+export const DEFAULT_SPRITE_PALETTE: SpritePalette = {
+  colors: [
+    { rgba: [0, 0, 0, 0], name: 'Transparent' },
+    { rgba: [0, 0, 0, 255], name: 'Black' },
+    { rgba: [255, 255, 255, 255], name: 'White' },
+    { rgba: [255, 0, 0, 255], name: 'Red' },
+    { rgba: [0, 255, 0, 255], name: 'Green' },
+    { rgba: [0, 0, 255, 255], name: 'Blue' },
+    { rgba: [255, 255, 0, 255], name: 'Yellow' },
+    { rgba: [255, 0, 255, 255], name: 'Magenta' },
+    { rgba: [0, 255, 255, 255], name: 'Cyan' },
+    { rgba: [128, 128, 128, 255], name: 'Gray' },
+  ],
+  foregroundIndex: 1,
+  backgroundIndex: 0,
+};
+
+/** Generate a unique sprite frame ID. */
+export function generateSpriteFrameId(): string {
+  return `sf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Generate a unique sprite document ID. */
+export function generateSpriteId(): string {
+  return `sprite_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Create a blank sprite frame at a given index. */
+export function createSpriteFrame(index: number, durationMs: number = 100): SpriteFrame {
+  return {
+    id: generateSpriteFrameId(),
+    index,
+    durationMs,
+  };
+}
+
+/** Create a new empty sprite document with default settings. */
+export function createSpriteDocument(
+  name: string,
+  width: number,
+  height: number,
+): SpriteDocument {
+  const now = new Date().toISOString();
+  return {
+    id: generateSpriteId(),
+    name,
+    width,
+    height,
+    frames: [createSpriteFrame(0)],
+    palette: { ...DEFAULT_SPRITE_PALETTE, colors: [...DEFAULT_SPRITE_PALETTE.colors] },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** Create a blank pixel buffer filled with transparent pixels. */
+export function createBlankPixelBuffer(width: number, height: number): SpritePixelBuffer {
+  return {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  };
+}
+
+/** Create default sprite editor state. */
+export function createDefaultSpriteEditorState(): SpriteEditorState {
+  return {
+    activeFrameIndex: 0,
+    tool: { ...DEFAULT_SPRITE_TOOL_CONFIG },
+    onionSkin: { ...DEFAULT_SPRITE_ONION_SKIN },
+    zoom: 8,
+    panX: 0,
+    panY: 0,
+    dirty: false,
+  };
+}
