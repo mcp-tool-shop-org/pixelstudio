@@ -57,7 +57,7 @@
 - [ ] `[all]` Logo in README header
 - [ ] `[all]` Translations (polyglot-mcp, 8 languages)
 - [x] `[org]` Landing page — Starlight handbook site deployed via GitHub Pages (2026-03-16)
-- [ ] `[all]` GitHub repo metadata: description, homepage, topics
+- [x] `[all]` GitHub repo metadata: description, homepage, topics (2026-03-16)
 
 ---
 
