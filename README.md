@@ -1,3 +1,20 @@
+<p align="center">
+  <img src="assets/logo.jpg" alt="GlyphStudio" width="240" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/platform-Windows-informational?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
+  <img src="https://img.shields.io/badge/tests-2722%20passing-brightgreen?style=flat-square" alt="Tests">
+</p>
+
+<p align="center">
+  <a href="README.ja.md">日本語</a> | <a href="README.zh.md">中文</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.hi.md">हिन्दी</a> | <a href="README.it.md">Italiano</a> | <a href="README.pt-BR.md">Português (BR)</a>
+</p>
+
 # GlyphStudio
 
 Craft-first sprite studio for deterministic pixel editing, frame-by-frame animation, and future locomotion assistance.
@@ -6,7 +23,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 30 shipped stages and 1,149 tests green.
+GlyphStudio is a working desktop editor with 32 shipped stages and 2,722 tests green.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering

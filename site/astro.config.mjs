@@ -6,13 +6,13 @@ import tailwindcss from '@tailwindcss/vite';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://mcp-tool-shop-org.github.io',
-  base: '/pixelstudio',
+  base: '/glyphstudio',
   integrations: [
     starlight({
-      title: 'PixelStudio',
+      title: 'GlyphStudio',
       disable404Route: true,
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/mcp-tool-shop-org/pixelstudio' },
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/mcp-tool-shop-org/glyphstudio' },
       ],
       sidebar: [
         {
