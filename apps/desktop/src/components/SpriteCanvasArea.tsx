@@ -10,6 +10,7 @@ import {
   extractSelection,
   clearSelectionArea,
   blitSelection,
+  flattenLayers,
   TRANSPARENT,
 } from '@glyphstudio/state';
 import type { Rgba } from '@glyphstudio/state';
@@ -124,6 +125,7 @@ export function SpriteCanvasArea() {
   const clearSelection = useSpriteEditorStore((s) => s.clearSelection);
   const zoomIn = useSpriteEditorStore((s) => s.zoomIn);
   const zoomOut = useSpriteEditorStore((s) => s.zoomOut);
+  const activeLayerId = useSpriteEditorStore((s) => s.activeLayerId);
   const isPlaying = useSpriteEditorStore((s) => s.isPlaying);
   const previewFrameIndex = useSpriteEditorStore((s) => s.previewFrameIndex);
 
@@ -148,10 +150,17 @@ export function SpriteCanvasArea() {
     currentY: number;
   } | null>(null);
 
-  // Get displayed frame buffer — during playback, show preview frame
+  // Get displayed frame — during playback, show preview frame
   const displayFrameIndex = isPlaying ? previewFrameIndex : activeFrameIndex;
   const activeFrame = doc?.frames[displayFrameIndex];
-  const activeBuffer = activeFrame ? pixelBuffers[activeFrame.id] : undefined;
+
+  // Flattened buffer for display (all visible layers composited)
+  const activeBuffer = activeFrame && doc
+    ? flattenLayers(activeFrame.layers, pixelBuffers, doc.width, doc.height)
+    : undefined;
+
+  // Active layer buffer for tool interaction (paint, sample, etc.)
+  const activeLayerBuffer = activeLayerId ? pixelBuffers[activeLayerId] : undefined;
 
   // Build viewport
   const viewport: SpriteViewport | null = doc && canvasSize.width > 0
@@ -238,8 +247,8 @@ export function SpriteCanvasArea() {
           const fi = afi - delta;
           if (fi < 0) break;
           const frame = doc.frames[fi];
-          const frameBuf = frame ? currentBuffers[frame.id] : undefined;
-          if (!frameBuf) continue;
+          if (!frame) continue;
+          const frameBuf = flattenLayers(frame.layers, currentBuffers, doc.width, doc.height);
           const fadeOpacity = currentOnionSkin.opacity / delta;
           renderOnionBuffer(ctx, frameBuf, doc.width, doc.height, originX, originY, zoom, fadeOpacity, ONION_BEFORE_TINT);
         }
@@ -249,8 +258,8 @@ export function SpriteCanvasArea() {
           const fi = afi + delta;
           if (fi >= doc.frames.length) break;
           const frame = doc.frames[fi];
-          const frameBuf = frame ? currentBuffers[frame.id] : undefined;
-          if (!frameBuf) continue;
+          if (!frame) continue;
+          const frameBuf = flattenLayers(frame.layers, currentBuffers, doc.width, doc.height);
           const fadeOpacity = currentOnionSkin.opacity / delta;
           renderOnionBuffer(ctx, frameBuf, doc.width, doc.height, originX, originY, zoom, fadeOpacity, ONION_AFTER_TINT);
         }
@@ -323,7 +332,7 @@ export function SpriteCanvasArea() {
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!doc || !activeBuffer || !viewport) return;
+      if (!doc || !activeLayerBuffer || !viewport) return;
 
       const pixel = getPointerPixel(e);
       if (!pixel) return;
@@ -331,7 +340,7 @@ export function SpriteCanvasArea() {
       const activeTool = useSpriteEditorStore.getState().tool.activeTool;
 
       if (activeTool === 'eyedropper') {
-        const color = samplePixel(activeBuffer, pixel.x, pixel.y);
+        const color = samplePixel(activeLayerBuffer, pixel.x, pixel.y);
         if (color && color[3] > 0) {
           setForegroundColorByRgba(color);
         }
@@ -339,7 +348,7 @@ export function SpriteCanvasArea() {
       }
 
       if (activeTool === 'fill') {
-        const fillBuffer = clonePixelBuffer(activeBuffer);
+        const fillBuffer = clonePixelBuffer(activeLayerBuffer);
         const fillColor = getForegroundRgba();
         floodFill(fillBuffer, pixel.x, pixel.y, fillColor);
         commitPixels(fillBuffer);
@@ -352,7 +361,7 @@ export function SpriteCanvasArea() {
 
         // If clicking inside existing selection → start move
         if (currentSel && isInsideSelection(pixel.x, pixel.y, currentSel) && currentSelBuf) {
-          const draft = clonePixelBuffer(activeBuffer);
+          const draft = clonePixelBuffer(activeLayerBuffer);
           // Clear original selection area in draft
           clearSelectionArea(draft, currentSel);
           // Blit selection buffer at current position for preview
@@ -386,8 +395,8 @@ export function SpriteCanvasArea() {
         return;
       }
 
-      // Pencil or eraser — start draft stroke
-      const draft = clonePixelBuffer(activeBuffer);
+      // Pencil or eraser — start draft stroke on active layer
+      const draft = clonePixelBuffer(activeLayerBuffer);
       const color: Rgba = activeTool === 'eraser' ? TRANSPARENT : getForegroundRgba();
       const { brushSize, brushShape } = useSpriteEditorStore.getState().tool;
       drawBrushDab(draft, pixel.x, pixel.y, color, brushSize, brushShape);
@@ -400,7 +409,7 @@ export function SpriteCanvasArea() {
       // Render draft preview
       renderCanvas(draft);
     },
-    [doc, activeBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas, clearSelection, setSelection],
+    [doc, activeLayerBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas, clearSelection, setSelection],
   );
 
   const handleWheel = useCallback(
@@ -441,7 +450,7 @@ export function SpriteCanvasArea() {
           return;
         }
 
-        if (drag.mode === 'moving' && drag.origRect && drag.selBuffer && activeBuffer) {
+        if (drag.mode === 'moving' && drag.origRect && drag.selBuffer && activeLayerBuffer) {
           const dx = pixel.x - drag.startX;
           const dy = pixel.y - drag.startY;
           const movedRect: SpriteSelectionRect = {
@@ -452,7 +461,7 @@ export function SpriteCanvasArea() {
           };
 
           // Rebuild draft: clear original area, blit at new position
-          const draft = clonePixelBuffer(activeBuffer);
+          const draft = clonePixelBuffer(activeLayerBuffer);
           clearSelectionArea(draft, drag.origRect);
           blitSelection(draft, drag.selBuffer, movedRect.x, movedRect.y);
           drag.draftBuffer = draft;
@@ -488,19 +497,19 @@ export function SpriteCanvasArea() {
       // Render draft preview
       renderCanvas(draft.buffer);
     },
-    [viewport, getPointerPixel, getForegroundRgba, renderCanvas, activeBuffer],
+    [viewport, getPointerPixel, getForegroundRgba, renderCanvas, activeLayerBuffer],
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       // Selection drag finalize
-      if (selectDragRef.current && activeBuffer) {
+      if (selectDragRef.current && activeLayerBuffer) {
         const drag = selectDragRef.current;
 
         if (drag.mode === 'creating') {
           const rect = normalizeRect(drag.startX, drag.startY, drag.currentX, drag.currentY);
-          // Extract pixels from active buffer
-          const selBuf = extractSelection(activeBuffer, rect);
+          // Extract pixels from active layer buffer
+          const selBuf = extractSelection(activeLayerBuffer, rect);
           setSelection(rect, selBuf);
           selectDragRef.current = null;
           renderCanvas(undefined, rect);
@@ -517,8 +526,8 @@ export function SpriteCanvasArea() {
             height: drag.origRect.height,
           };
 
-          // Commit: clear original area + blit at new position
-          const final = clonePixelBuffer(activeBuffer);
+          // Commit: clear original area + blit at new position on active layer
+          const final = clonePixelBuffer(activeLayerBuffer);
           clearSelectionArea(final, drag.origRect);
           blitSelection(final, drag.selBuffer, movedRect.x, movedRect.y);
           commitPixels(final);
@@ -540,7 +549,7 @@ export function SpriteCanvasArea() {
       commitPixels(draftRef.current.buffer);
       draftRef.current = null;
     },
-    [commitPixels, activeBuffer, setSelection, renderCanvas],
+    [commitPixels, activeLayerBuffer, setSelection, renderCanvas],
   );
 
   if (!doc) return null;

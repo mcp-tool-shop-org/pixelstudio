@@ -1,4 +1,5 @@
-import type { SpritePixelBuffer, SpriteSelectionRect } from '@glyphstudio/domain';
+import type { SpritePixelBuffer, SpriteSelectionRect, SpriteLayer } from '@glyphstudio/domain';
+import { createBlankPixelBuffer } from '@glyphstudio/domain';
 
 /** RGBA color tuple — each channel 0–255. */
 export type Rgba = [number, number, number, number];
@@ -320,4 +321,52 @@ export function clonePixelBuffer(buffer: SpritePixelBuffer): SpritePixelBuffer {
     height: buffer.height,
     data: new Uint8ClampedArray(buffer.data),
   };
+}
+
+/**
+ * Flatten visible layers into a single pixel buffer using simple alpha compositing.
+ * Layers are composited in order (index 0 = bottom, last = top).
+ * Hidden layers are skipped. Returns a blank buffer if no visible layers.
+ */
+export function flattenLayers(
+  layers: SpriteLayer[],
+  pixelBuffers: Record<string, SpritePixelBuffer>,
+  width: number,
+  height: number,
+): SpritePixelBuffer {
+  const result = createBlankPixelBuffer(width, height);
+  const size = width * height * 4;
+
+  for (const layer of layers) {
+    if (!layer.visible) continue;
+    const buf = pixelBuffers[layer.id];
+    if (!buf) continue;
+
+    for (let i = 0; i < size; i += 4) {
+      const srcA = buf.data[i + 3];
+      if (srcA === 0) continue;
+
+      if (srcA === 255) {
+        // Fully opaque — overwrite
+        result.data[i] = buf.data[i];
+        result.data[i + 1] = buf.data[i + 1];
+        result.data[i + 2] = buf.data[i + 2];
+        result.data[i + 3] = 255;
+      } else {
+        // Alpha blend: src over dst
+        const dstA = result.data[i + 3];
+        const srcAf = srcA / 255;
+        const dstAf = dstA / 255;
+        const outAf = srcAf + dstAf * (1 - srcAf);
+        if (outAf > 0) {
+          result.data[i] = Math.round((buf.data[i] * srcAf + result.data[i] * dstAf * (1 - srcAf)) / outAf);
+          result.data[i + 1] = Math.round((buf.data[i + 1] * srcAf + result.data[i + 1] * dstAf * (1 - srcAf)) / outAf);
+          result.data[i + 2] = Math.round((buf.data[i + 2] * srcAf + result.data[i + 2] * dstAf * (1 - srcAf)) / outAf);
+          result.data[i + 3] = Math.round(outAf * 255);
+        }
+      }
+    }
+  }
+
+  return result;
 }

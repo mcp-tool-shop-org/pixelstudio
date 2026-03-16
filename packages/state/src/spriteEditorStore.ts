@@ -13,12 +13,13 @@ import type {
 import {
   createSpriteDocument,
   createSpriteFrame,
+  createSpriteLayer,
   createBlankPixelBuffer,
   createDefaultSpriteEditorState,
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
-import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical } from './spriteRaster';
+import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 
 // ── Store state ──
@@ -26,8 +27,10 @@ import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './sp
 export interface SpriteEditorStoreState {
   // -- Document --
   document: SpriteDocument | null;
-  /** Per-frame pixel buffers keyed by frame ID. */
+  /** Per-layer pixel buffers keyed by layer ID. */
   pixelBuffers: Record<string, SpritePixelBuffer>;
+  /** ID of the active layer in the current frame. */
+  activeLayerId: string | null;
 
   // -- Editor state (transient) --
   activeFrameIndex: number;
@@ -143,6 +146,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   // -- Initial state --
   document: null,
   pixelBuffers: {},
+  activeLayerId: null,
   selectionRect: null,
   selectionBuffer: null,
   clipboardBuffer: null,
@@ -156,10 +160,12 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   newDocument: (name, width, height) => {
     const doc = createSpriteDocument(name, width, height);
     const firstFrame = doc.frames[0];
+    const firstLayer = firstFrame.layers[0];
     const buffer = createBlankPixelBuffer(width, height);
     set({
       document: doc,
-      pixelBuffers: { [firstFrame.id]: buffer },
+      pixelBuffers: { [firstLayer.id]: buffer },
+      activeLayerId: firstLayer.id,
       activeFrameIndex: 0,
       tool: { ...DEFAULT_SPRITE_TOOL_CONFIG },
       onionSkin: { ...DEFAULT_SPRITE_ONION_SKIN },
@@ -180,6 +186,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     set({
       document: null,
       pixelBuffers: {},
+      activeLayerId: null,
       selectionRect: null,
       selectionBuffer: null,
       clipboardBuffer: null,
@@ -197,6 +204,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
     const insertAt = activeFrameIndex + 1;
     const frame = createSpriteFrame(insertAt);
+    const layer = frame.layers[0];
     const buffer = createBlankPixelBuffer(doc.width, doc.height);
     const updatedFrames = [
       ...doc.frames.slice(0, insertAt),
@@ -206,8 +214,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-      pixelBuffers: { ...pixelBuffers, [frame.id]: buffer },
+      pixelBuffers: { ...pixelBuffers, [layer.id]: buffer },
       activeFrameIndex: insertAt,
+      activeLayerId: layer.id,
       dirty: true,
     });
   },
@@ -219,9 +228,16 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!sourceFrame) return;
 
     const insertAt = activeFrameIndex + 1;
-    const newFrame = createSpriteFrame(insertAt, sourceFrame.durationMs);
-    const sourceBuffer = pixelBuffers[sourceFrame.id];
-    const newBuffer = sourceBuffer ? clonePixelBuffer(sourceBuffer) : createBlankPixelBuffer(doc.width, doc.height);
+    // Create new frame with fresh layers that mirror the source frame's layers
+    const newLayers = sourceFrame.layers.map((srcLayer, i) => createSpriteLayer(i, srcLayer.name));
+    const newFrame = { ...createSpriteFrame(insertAt, sourceFrame.durationMs), layers: newLayers.map((l, i) => ({ ...l, visible: sourceFrame.layers[i].visible })) };
+
+    // Clone pixel buffers for each layer
+    const newBuffers = { ...pixelBuffers };
+    for (let i = 0; i < sourceFrame.layers.length; i++) {
+      const srcBuf = pixelBuffers[sourceFrame.layers[i].id];
+      newBuffers[newLayers[i].id] = srcBuf ? clonePixelBuffer(srcBuf) : createBlankPixelBuffer(doc.width, doc.height);
+    }
 
     const updatedFrames = [
       ...doc.frames.slice(0, insertAt),
@@ -231,8 +247,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-      pixelBuffers: { ...pixelBuffers, [newFrame.id]: newBuffer },
+      pixelBuffers: newBuffers,
       activeFrameIndex: insertAt,
+      activeLayerId: newLayers[0]?.id ?? null,
       dirty: true,
     });
   },
@@ -245,16 +262,29 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     const frameIndex = doc.frames.findIndex((f) => f.id === frameId);
     if (frameIndex === -1) return;
 
+    // Collect all layer IDs from the frame being removed
+    const removedFrame = doc.frames[frameIndex];
+    const removedLayerIds = new Set(removedFrame.layers.map((l) => l.id));
+
     const updatedFrames = doc.frames
       .filter((f) => f.id !== frameId)
       .map((f, i) => ({ ...f, index: i }));
-    const { [frameId]: _, ...remainingBuffers } = pixelBuffers;
+
+    // Remove all layer buffers for the deleted frame
+    const remainingBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [key, buf] of Object.entries(pixelBuffers)) {
+      if (!removedLayerIds.has(key)) remainingBuffers[key] = buf;
+    }
+
     const newActiveIndex = Math.min(activeFrameIndex, updatedFrames.length - 1);
+    const newActiveFrame = updatedFrames[newActiveIndex];
+    const newActiveLayerId = newActiveFrame?.layers[0]?.id ?? null;
 
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
       pixelBuffers: remainingBuffers,
       activeFrameIndex: newActiveIndex,
+      activeLayerId: newActiveLayerId,
       dirty: true,
     });
   },
@@ -263,7 +293,8 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     const { document: doc } = get();
     if (!doc) return;
     if (index < 0 || index >= doc.frames.length) return;
-    set({ activeFrameIndex: index, selectionRect: null, selectionBuffer: null });
+    const targetFrame = doc.frames[index];
+    set({ activeFrameIndex: index, activeLayerId: targetFrame?.layers[0]?.id ?? null, selectionRect: null, selectionBuffer: null });
   },
 
   setFrameDuration: (frameId, durationMs) => {
@@ -364,24 +395,22 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   },
 
   cutSelection: () => {
-    const { selectionRect, selectionBuffer, document: doc, pixelBuffers, activeFrameIndex } = get();
-    if (!selectionRect || !selectionBuffer || !doc) return;
-    const frame = doc.frames[activeFrameIndex];
-    if (!frame) return;
+    const { selectionRect, selectionBuffer, document: doc, pixelBuffers, activeLayerId } = get();
+    if (!selectionRect || !selectionBuffer || !doc || !activeLayerId) return;
 
-    const currentBuf = pixelBuffers[frame.id];
+    const currentBuf = pixelBuffers[activeLayerId];
     if (!currentBuf) return;
 
     // Copy to clipboard
     const clipboard = clonePixelBuffer(selectionBuffer);
 
-    // Clear selected area in frame buffer — one authored edit
+    // Clear selected area in active layer buffer — one authored edit
     const updated = clonePixelBuffer(currentBuf);
     clearSelectionArea(updated, selectionRect);
 
     set({
       clipboardBuffer: clipboard,
-      pixelBuffers: { ...pixelBuffers, [frame.id]: updated },
+      pixelBuffers: { ...pixelBuffers, [activeLayerId]: updated },
       document: { ...doc, updatedAt: new Date().toISOString() },
       selectionRect: null,
       selectionBuffer: null,
@@ -423,12 +452,10 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
   // -- Pixel editing --
   commitPixels: (buffer) => {
-    const { document: doc, pixelBuffers, activeFrameIndex } = get();
-    if (!doc) return;
-    const frame = doc.frames[activeFrameIndex];
-    if (!frame) return;
+    const { document: doc, pixelBuffers, activeLayerId } = get();
+    if (!doc || !activeLayerId) return;
     set({
-      pixelBuffers: { ...pixelBuffers, [frame.id]: buffer },
+      pixelBuffers: { ...pixelBuffers, [activeLayerId]: buffer },
       document: { ...doc, updatedAt: new Date().toISOString() },
       dirty: true,
     });
@@ -463,13 +490,15 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     const result = sliceSpriteSheet(sheetData, sheetWidth, sheetHeight, doc.width, doc.height);
     if (isImportExportError(result)) return result.error;
 
-    // Build new frames and pixel buffers from sliced data
+    // Build new frames and pixel buffers from sliced data (one layer per frame)
     const newFrames: SpriteFrame[] = result.frames.map((_, i) => createSpriteFrame(i));
     const newBuffers: Record<string, SpritePixelBuffer> = {};
     for (let i = 0; i < newFrames.length; i++) {
-      newBuffers[newFrames[i].id] = result.frames[i];
+      const layer = newFrames[i].layers[0];
+      newBuffers[layer.id] = result.frames[i];
     }
 
+    const firstLayer = newFrames[0]?.layers[0];
     set({
       document: {
         ...doc,
@@ -478,6 +507,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       },
       pixelBuffers: newBuffers,
       activeFrameIndex: 0,
+      activeLayerId: firstLayer?.id ?? null,
       selectionRect: null,
       selectionBuffer: null,
       dirty: true,
@@ -490,7 +520,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!doc) return 'No document open';
 
     const frameBuffers = doc.frames.map((f) =>
-      pixelBuffers[f.id] ?? createBlankPixelBuffer(doc.width, doc.height),
+      flattenLayers(f.layers, pixelBuffers, doc.width, doc.height),
     );
     const result = assembleSpriteSheet(frameBuffers);
     if (isImportExportError(result)) return result.error;
@@ -502,8 +532,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!doc) return null;
     const frame = doc.frames[activeFrameIndex];
     if (!frame) return null;
-    const buf = pixelBuffers[frame.id];
-    return buf ? clonePixelBuffer(buf) : null;
+    return flattenLayers(frame.layers, pixelBuffers, doc.width, doc.height);
   },
 
   // -- Preview --

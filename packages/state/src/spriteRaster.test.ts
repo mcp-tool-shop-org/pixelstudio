@@ -16,6 +16,7 @@ import {
   blitSelection,
   flipBufferHorizontal,
   flipBufferVertical,
+  flattenLayers,
   TRANSPARENT,
 } from './spriteRaster';
 import type { Rgba } from './spriteRaster';
@@ -489,6 +490,63 @@ describe('spriteRaster', () => {
       const result = flipBufferVertical(flipBufferVertical(buf));
       expect(samplePixel(result, 0, 0)).toEqual(RED);
       expect(samplePixel(result, 1, 2)).toEqual(GREEN);
+    });
+  });
+
+  // ── flattenLayers ──
+
+  describe('flattenLayers', () => {
+    it('returns blank buffer with no visible layers', () => {
+      const result = flattenLayers([], {}, 4, 4);
+      expect(result.width).toBe(4);
+      expect(result.height).toBe(4);
+      expect(result.data.every((v) => v === 0)).toBe(true);
+    });
+
+    it('returns single layer unchanged when only one visible layer', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 1, 1, RED);
+      const layers = [{ id: 'l1', name: 'Layer 1', visible: true, index: 0 }];
+      const buffers = { l1: buf };
+      const result = flattenLayers(layers, buffers, 4, 4);
+      expect(samplePixel(result, 1, 1)).toEqual(RED);
+      expect(samplePixel(result, 0, 0)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('skips hidden layers', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, RED);
+      const layers = [{ id: 'l1', name: 'Layer 1', visible: false, index: 0 }];
+      const result = flattenLayers(layers, { l1: buf }, 4, 4);
+      expect(samplePixel(result, 0, 0)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('top opaque layer overwrites bottom layer', () => {
+      const bottom = createBlankPixelBuffer(4, 4);
+      setPixel(bottom, 0, 0, RED);
+      const top = createBlankPixelBuffer(4, 4);
+      setPixel(top, 0, 0, GREEN);
+      const layers = [
+        { id: 'l1', name: 'Bottom', visible: true, index: 0 },
+        { id: 'l2', name: 'Top', visible: true, index: 1 },
+      ];
+      const result = flattenLayers(layers, { l1: bottom, l2: top }, 4, 4);
+      expect(samplePixel(result, 0, 0)).toEqual(GREEN);
+    });
+
+    it('transparent top pixel shows bottom layer through', () => {
+      const bottom = createBlankPixelBuffer(4, 4);
+      setPixel(bottom, 0, 0, RED);
+      const top = createBlankPixelBuffer(4, 4);
+      // top has nothing at (0,0) — transparent
+      setPixel(top, 1, 1, GREEN);
+      const layers = [
+        { id: 'l1', name: 'Bottom', visible: true, index: 0 },
+        { id: 'l2', name: 'Top', visible: true, index: 1 },
+      ];
+      const result = flattenLayers(layers, { l1: bottom, l2: top }, 4, 4);
+      expect(samplePixel(result, 0, 0)).toEqual(RED);
+      expect(samplePixel(result, 1, 1)).toEqual(GREEN);
     });
   });
 });

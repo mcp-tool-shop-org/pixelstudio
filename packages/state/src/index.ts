@@ -239,6 +239,7 @@ export {
   blitSelection,
   flipBufferHorizontal,
   flipBufferVertical,
+  flattenLayers,
   TRANSPARENT,
 } from './spriteRaster';
 export type { Rgba } from './spriteRaster';

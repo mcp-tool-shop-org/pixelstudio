@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { useSpriteEditorStore } from '@glyphstudio/state';
+import { useSpriteEditorStore, flattenLayers } from '@glyphstudio/state';
 import type { SpritePixelBuffer } from '@glyphstudio/domain';
 
 const THUMB_SIZE = 48;
@@ -86,7 +86,7 @@ export function SpriteFrameStrip() {
               frameId={frame.id}
               spriteW={doc.width}
               spriteH={doc.height}
-              buf={pixelBuffers[frame.id]}
+              buf={flattenLayers(frame.layers, pixelBuffers, doc.width, doc.height)}
             />
             <span className="sprite-frame-number">{i + 1}</span>
           </button>

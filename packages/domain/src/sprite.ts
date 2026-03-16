@@ -36,6 +36,19 @@ export interface SpritePalette {
   backgroundIndex: number;
 }
 
+// ── Layer ──
+
+/** A single raster layer within a frame. */
+export interface SpriteLayer {
+  id: string;
+  /** Human-readable layer name. */
+  name: string;
+  /** Whether this layer is visible in preview/export. */
+  visible: boolean;
+  /** 0-based index in the layer stack (0 = bottom). */
+  index: number;
+}
+
 // ── Frame ──
 
 /** A single frame in a sprite animation. */
@@ -45,6 +58,8 @@ export interface SpriteFrame {
   index: number;
   /** Frame duration in milliseconds. */
   durationMs: number;
+  /** Ordered layer stack (index 0 = bottom). */
+  layers: SpriteLayer[];
 }
 
 // ── Tools ──
@@ -170,6 +185,11 @@ export const DEFAULT_SPRITE_PALETTE: SpritePalette = {
   backgroundIndex: 0,
 };
 
+/** Generate a unique sprite layer ID. */
+export function generateSpriteLayerId(): string {
+  return `sl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /** Generate a unique sprite frame ID. */
 export function generateSpriteFrameId(): string {
   return `sf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -180,12 +200,23 @@ export function generateSpriteId(): string {
   return `sprite_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Create a blank sprite frame at a given index. */
+/** Create a new sprite layer. */
+export function createSpriteLayer(index: number, name?: string): SpriteLayer {
+  return {
+    id: generateSpriteLayerId(),
+    name: name ?? `Layer ${index + 1}`,
+    visible: true,
+    index,
+  };
+}
+
+/** Create a blank sprite frame at a given index with one default layer. */
 export function createSpriteFrame(index: number, durationMs: number = 100): SpriteFrame {
   return {
     id: generateSpriteFrameId(),
     index,
     durationMs,
+    layers: [createSpriteLayer(0, 'Layer 1')],
   };
 }
 

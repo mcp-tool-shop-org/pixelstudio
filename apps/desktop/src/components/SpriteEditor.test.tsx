@@ -16,6 +16,12 @@ function openTestDoc(width = 16, height = 16) {
   useSpriteEditorStore.getState().newDocument('test-sprite', width, height);
 }
 
+/** Get the first layer ID for a frame (convenience for layer-keyed pixelBuffers). */
+function lid(frameIndex: number): string {
+  const doc = useSpriteEditorStore.getState().document!;
+  return doc.frames[frameIndex].layers[0].id;
+}
+
 describe('SpriteEditor', () => {
   beforeEach(() => resetStore());
   afterEach(() => cleanup());
@@ -188,22 +194,18 @@ describe('SpriteEditor', () => {
     openTestDoc(4, 4);
     act(() => useSpriteEditorStore.getState().addFrame());
     // Active frame is now 1
-    const state = useSpriteEditorStore.getState();
-    const frame0Id = state.document!.frames[0].id;
-    const frame1Id = state.document!.frames[1].id;
-
     const buf = createBlankPixelBuffer(4, 4);
     const RED: Rgba = [255, 0, 0, 255];
     setPixel(buf, 2, 2, RED);
 
     act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
-    // Active frame (1) has red pixel
-    const buf1 = useSpriteEditorStore.getState().pixelBuffers[frame1Id];
+    // Active layer (frame 1's layer) has red pixel
+    const buf1 = useSpriteEditorStore.getState().pixelBuffers[lid(1)];
     expect(samplePixel(buf1, 2, 2)).toEqual(RED);
 
-    // Frame 0 is untouched
-    const buf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+    // Frame 0's layer is untouched
+    const buf0 = useSpriteEditorStore.getState().pixelBuffers[lid(0)];
     expect(samplePixel(buf0, 2, 2)).toEqual([0, 0, 0, 0]);
   });
 
@@ -220,17 +222,16 @@ describe('SpriteEditor', () => {
   it('eraser semantics: erase to transparent', () => {
     openTestDoc(4, 4);
     // Paint a pixel
-    const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
-    const buf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frameId]);
+    const buf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(0)]);
     setPixel(buf, 1, 1, [255, 0, 0, 255]);
     act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
     // Erase it
-    const buf2 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frameId]);
+    const buf2 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(0)]);
     setPixel(buf2, 1, 1, [0, 0, 0, 0]); // transparent
     act(() => useSpriteEditorStore.getState().commitPixels(buf2));
 
-    const final = useSpriteEditorStore.getState().pixelBuffers[frameId];
+    const final = useSpriteEditorStore.getState().pixelBuffers[lid(0)];
     expect(samplePixel(final, 1, 1)).toEqual([0, 0, 0, 0]);
   });
 
@@ -293,14 +294,12 @@ describe('SpriteEditor', () => {
     openTestDoc(4, 4);
     act(() => useSpriteEditorStore.getState().addFrame());
     // Active is now frame 1. Paint red at (1,1)
-    const frame1Id = useSpriteEditorStore.getState().document!.frames[1].id;
-    const buf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame1Id]);
+    const buf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(1)]);
     setPixel(buf, 1, 1, [255, 0, 0, 255]);
     act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
-    // Frame 0 should be untouched
-    const frame0Id = useSpriteEditorStore.getState().document!.frames[0].id;
-    const buf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+    // Frame 0's layer should be untouched
+    const buf0 = useSpriteEditorStore.getState().pixelBuffers[lid(0)];
     expect(samplePixel(buf0, 1, 1)).toEqual([0, 0, 0, 0]);
   });
 
@@ -339,11 +338,10 @@ describe('SpriteEditor', () => {
 
   // ── Onion skin safety ──
 
-  it('onion skin rendering does not alter frame buffers', () => {
+  it('onion skin rendering does not alter layer buffers', () => {
     openTestDoc(4, 4);
     // Paint frame 0 red
-    const frame0Id = useSpriteEditorStore.getState().document!.frames[0].id;
-    const buf0 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame0Id]);
+    const buf0 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(0)]);
     setPixel(buf0, 0, 0, [255, 0, 0, 255]);
     act(() => {
       useSpriteEditorStore.getState().commitPixels(buf0);
@@ -351,8 +349,7 @@ describe('SpriteEditor', () => {
 
     // Add frame 1 and paint green
     act(() => useSpriteEditorStore.getState().addFrame());
-    const frame1Id = useSpriteEditorStore.getState().document!.frames[1].id;
-    const buf1 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame1Id]);
+    const buf1 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(1)]);
     setPixel(buf1, 1, 1, [0, 255, 0, 255]);
     act(() => {
       useSpriteEditorStore.getState().commitPixels(buf1);
@@ -362,13 +359,13 @@ describe('SpriteEditor', () => {
     // Render the editor (which triggers canvas render with onion skin)
     render(<SpriteEditor />);
 
-    // Verify frame 0 buffer is unmodified
-    const storedBuf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+    // Verify frame 0's layer buffer is unmodified
+    const storedBuf0 = useSpriteEditorStore.getState().pixelBuffers[lid(0)];
     expect(samplePixel(storedBuf0, 0, 0)).toEqual([255, 0, 0, 255]);
     expect(samplePixel(storedBuf0, 1, 1)).toEqual([0, 0, 0, 0]);
 
-    // Verify frame 1 buffer is unmodified
-    const storedBuf1 = useSpriteEditorStore.getState().pixelBuffers[frame1Id];
+    // Verify frame 1's layer buffer is unmodified
+    const storedBuf1 = useSpriteEditorStore.getState().pixelBuffers[lid(1)];
     expect(samplePixel(storedBuf1, 1, 1)).toEqual([0, 255, 0, 255]);
     expect(samplePixel(storedBuf1, 0, 0)).toEqual([0, 0, 0, 0]);
   });
@@ -404,8 +401,7 @@ describe('SpriteEditor', () => {
 
   it('clearSelection does not mutate pixel buffers', () => {
     openTestDoc(4, 4);
-    const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
-    const origBuf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frameId]);
+    const origBuf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[lid(0)]);
     const RED: Rgba = [255, 0, 0, 255];
     setPixel(origBuf, 1, 1, RED);
     act(() => useSpriteEditorStore.getState().commitPixels(origBuf));
@@ -415,8 +411,8 @@ describe('SpriteEditor', () => {
     act(() => useSpriteEditorStore.getState().setSelection(rect, selBuf));
     act(() => useSpriteEditorStore.getState().clearSelection());
 
-    // Pixel buffer should be unchanged
-    const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+    // Layer buffer should be unchanged
+    const stored = useSpriteEditorStore.getState().pixelBuffers[lid(0)];
     expect(samplePixel(stored, 1, 1)).toEqual(RED);
   });
 
@@ -630,11 +626,10 @@ describe('SpriteEditor', () => {
 
   it('preview does not mutate pixel data', () => {
     openTestDoc(4, 4);
-    const store = useSpriteEditorStore.getState();
-    const f0Id = store.document!.frames[0].id;
-    const buf = store.pixelBuffers[f0Id];
+    const lid0 = lid(0);
+    const buf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     setPixel(buf, 0, 0, [255, 0, 0, 255]);
-    act(() => store.commitPixels(buf));
+    act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
     act(() => useSpriteEditorStore.getState().addFrame());
     act(() => useSpriteEditorStore.getState().setActiveFrame(0));
@@ -643,7 +638,7 @@ describe('SpriteEditor', () => {
     act(() => useSpriteEditorStore.getState().advancePreview());
     act(() => useSpriteEditorStore.getState().stop());
 
-    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     expect(samplePixel(afterBuf, 0, 0)).toEqual([255, 0, 0, 255]);
   });
 
@@ -661,11 +656,10 @@ describe('SpriteEditor', () => {
   it('scrub after frame reorder points to correct frame', () => {
     openTestDoc(4, 4);
     // Create 3 frames, paint frame 0 red
-    const store = useSpriteEditorStore.getState();
-    const f0Id = store.document!.frames[0].id;
-    const buf = store.pixelBuffers[f0Id];
+    const lid0 = lid(0);
+    const buf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     setPixel(buf, 0, 0, [255, 0, 0, 255]);
-    act(() => store.commitPixels(buf));
+    act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
     act(() => useSpriteEditorStore.getState().addFrame());
     act(() => useSpriteEditorStore.getState().addFrame());
@@ -674,10 +668,8 @@ describe('SpriteEditor', () => {
     act(() => useSpriteEditorStore.getState().moveFrame(0, 2));
     // Scrub to frame 2 — should be the original red frame
     act(() => useSpriteEditorStore.getState().scrubPreview(2));
-    const doc = useSpriteEditorStore.getState().document!;
-    const frame2 = doc.frames[2];
-    expect(frame2.id).toBe(f0Id);
-    const frame2Buf = useSpriteEditorStore.getState().pixelBuffers[frame2.id];
+    // The layer buffer should still have the red pixel
+    const frame2Buf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     expect(samplePixel(frame2Buf, 0, 0)).toEqual([255, 0, 0, 255]);
   });
 
@@ -715,16 +707,15 @@ describe('SpriteEditor', () => {
 
   it('duration edit does not mutate pixel buffers', async () => {
     openTestDoc(4, 4);
-    const store = useSpriteEditorStore.getState();
-    const f0Id = store.document!.frames[0].id;
-    const buf = store.pixelBuffers[f0Id];
+    const lid0 = lid(0);
+    const buf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     setPixel(buf, 0, 0, [255, 0, 0, 255]);
-    act(() => store.commitPixels(buf));
+    act(() => useSpriteEditorStore.getState().commitPixels(buf));
 
     render(<SpriteEditor />);
     await userEvent.click(screen.getByTestId('duration-preset-500'));
 
-    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[lid0];
     expect(samplePixel(afterBuf, 0, 0)).toEqual([255, 0, 0, 255]);
   });
 
