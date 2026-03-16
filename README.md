@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-2299%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3263%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,12 +33,13 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 76 programmable tools, and 2,299 tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 76 programmable tools, and 3,263 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
 - Layers with visibility, lock, opacity, rename, reorder
 - Stroke-based drawing with undo/redo
+- Canvas analysis: bounding box, color histogram, frame-to-frame comparison
 - Rectangular selection, clipboard actions, and transform workflow
 - Multi-frame timeline with per-frame undo/redo isolation
 - Onion skin overlays for adjacent-frame editing
@@ -123,7 +124,7 @@ GlyphStudio is built around four principles:
 - Export pipelines (PNG, sprite sheet, clip, bundle, animated GIF)
 - Scene composition engine with camera and playback
 - Asset catalog with thumbnail generation
-- 167 implemented Tauri commands
+- 170 implemented Tauri commands
 
 ### MCP Server (Node.js)
 - Headless Zustand store per session (no React, no browser)
@@ -140,7 +141,7 @@ GlyphStudio is built around four principles:
 glyphstudio/
   apps/desktop/           Desktop app (React + Tauri + Rust)
     src/                  Frontend
-    src-tauri/            Rust backend (167 commands, 298 tests)
+    src-tauri/            Rust backend (170 commands, 298 tests)
   packages/
     domain/               Types and contracts (18 tests)
     api-contract/         Tauri IPC types
@@ -149,8 +150,8 @@ glyphstudio/
   site/                   Landing page (Astro)
 ```
 
-### Stages 31–32 — Sprite Export, Persistence, and Desktop Parity
-Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend.
+### Stages 31–33 — Sprite Export, Persistence, and Desktop Parity
+Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button.
 
 ### MCP Server (MCP.1–MCP.6)
 Headless MCP server with 76 tools and 6 resources: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, canvas transforms, structured error model, and machine-readable tool catalog.

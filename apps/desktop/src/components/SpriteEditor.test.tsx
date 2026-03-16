@@ -336,6 +336,66 @@ describe('SpriteEditor', () => {
     expect(screen.queryByTestId('onion-frames-before')).toBeNull();
   });
 
+  // ── Brush shape control ──
+
+  it('shows brush shape control', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('brush-shape-control')).toBeDefined();
+  });
+
+  it('brush shape square button updates store', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const circleBtn = screen.getByTestId('brush-shape-circle');
+    await act(async () => { await userEvent.click(circleBtn); });
+    expect(useSpriteEditorStore.getState().tool.brushShape).toBe('circle');
+    const squareBtn = screen.getByTestId('brush-shape-square');
+    await act(async () => { await userEvent.click(squareBtn); });
+    expect(useSpriteEditorStore.getState().tool.brushShape).toBe('square');
+  });
+
+  // ── Pixel-perfect toggle ──
+
+  it('shows pixel-perfect control', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('pixel-perfect-control')).toBeDefined();
+  });
+
+  it('pixel-perfect toggle updates store', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const toggle = screen.getByTestId('pixel-perfect-toggle');
+    await act(async () => { await userEvent.click(toggle); });
+    expect(useSpriteEditorStore.getState().tool.pixelPerfect).toBe(true);
+    await act(async () => { await userEvent.click(toggle); });
+    expect(useSpriteEditorStore.getState().tool.pixelPerfect).toBe(false);
+  });
+
+  // ── Reset view ──
+
+  it('shows reset view button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('reset-view-btn')).toBeDefined();
+  });
+
+  it('reset view restores zoom=8 and pan=0,0', async () => {
+    openTestDoc();
+    act(() => {
+      useSpriteEditorStore.getState().setZoom(16);
+      useSpriteEditorStore.getState().setPan(50, 50);
+    });
+    render(<SpriteEditor />);
+    const btn = screen.getByTestId('reset-view-btn');
+    await act(async () => { await userEvent.click(btn); });
+    const state = useSpriteEditorStore.getState();
+    expect(state.zoom).toBe(8);
+    expect(state.panX).toBe(0);
+    expect(state.panY).toBe(0);
+  });
+
   // ── Onion skin safety ──
 
   it('onion skin rendering does not alter layer buffers', () => {
