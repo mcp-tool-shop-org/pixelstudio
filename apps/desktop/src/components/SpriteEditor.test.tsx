@@ -577,6 +577,55 @@ describe('SpriteEditor', () => {
     expect(screen.getByTestId('palette-color-picker')).toBeDefined();
   });
 
+  // ── Preview bar ──
+
+  it('renders preview bar when document is open', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-preview-bar')).toBeDefined();
+  });
+
+  it('no preview bar when no document', () => {
+    render(<SpriteEditor />);
+    expect(screen.queryByTestId('sprite-preview-bar')).toBeNull();
+  });
+
+  it('shows play button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('preview-play-btn')).toBeDefined();
+  });
+
+  it('shows loop toggle', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('preview-loop-btn')).toBeDefined();
+  });
+
+  it('shows frame counter', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('preview-frame-counter').textContent).toBe('1 / 1');
+  });
+
+  it('shows scrubber', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('preview-scrubber')).toBeDefined();
+  });
+
+  it('Space key toggles play (requires 2+ frames)', async () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    render(<SpriteEditor />);
+    expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+    await userEvent.keyboard(' ');
+    expect(useSpriteEditorStore.getState().isPlaying).toBe(true);
+    await userEvent.keyboard(' ');
+    expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+  });
+
   it('= key zooms in', async () => {
     openTestDoc();
     render(<SpriteEditor />);

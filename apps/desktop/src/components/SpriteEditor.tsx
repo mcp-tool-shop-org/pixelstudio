@@ -6,6 +6,7 @@ import { SpritePalettePanel } from './SpritePalettePanel';
 import { SpriteFrameStrip } from './SpriteFrameStrip';
 import { SpriteCanvasArea } from './SpriteCanvasArea';
 import { SpriteImportExportBar } from './SpriteImportExportBar';
+import { SpritePreviewBar } from './SpritePreviewBar';
 
 const TOOL_SHORTCUTS: Record<string, SpriteToolId> = {
   m: 'select',
@@ -76,6 +77,13 @@ export function SpriteEditor() {
           return;
         }
 
+        // Play/stop: Space
+        if (key === ' ') {
+          e.preventDefault();
+          store.togglePlay();
+          return;
+        }
+
         // Zoom: +/= to zoom in, - to zoom out
         if (key === '=' || key === '+') {
           e.preventDefault();
@@ -125,6 +133,7 @@ export function SpriteEditor() {
         <SpriteCanvasArea />
         <SpritePalettePanel />
       </div>
+      <SpritePreviewBar />
       <SpriteFrameStrip />
       <SpriteImportExportBar />
     </div>
