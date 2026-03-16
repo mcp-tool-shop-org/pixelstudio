@@ -98,6 +98,22 @@ export function LayerPanel() {
     [applyFrame, notifyDirty],
   );
 
+  const handleSetOpacity = useCallback(
+    async (layerId: string, opacity: number) => {
+      try {
+        const frame = await invoke<CanvasFrameData>('set_layer_opacity', {
+          layerId,
+          opacity,
+        });
+        applyFrame(frame);
+        notifyDirty();
+      } catch (err) {
+        console.error('set_layer_opacity failed:', err);
+      }
+    },
+    [applyFrame, notifyDirty],
+  );
+
   const handleStartRename = useCallback((layerId: string, currentName: string) => {
     setRenamingId(layerId);
     setRenameValue(currentName);
@@ -197,6 +213,25 @@ export function LayerPanel() {
                 >
                   {'\u00d7'}
                 </button>
+              )}
+              {isActive && (
+                <div className="layer-opacity" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="range"
+                    className="layer-opacity-slider"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(layer.opacity * 100)}
+                    onChange={(e) =>
+                      handleSetOpacity(layer.id, Number(e.target.value) / 100)
+                    }
+                    title={`Opacity: ${Math.round(layer.opacity * 100)}%`}
+                  />
+                  <span className="layer-opacity-value">
+                    {Math.round(layer.opacity * 100)}%
+                  </span>
+                </div>
               )}
             </div>
           );

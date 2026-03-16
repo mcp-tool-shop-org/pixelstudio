@@ -483,6 +483,70 @@ pub fn export_sprite_strip(
     Ok(file_path)
 }
 
+/// Export all frames as an animated GIF.
+///
+/// `fps` defaults to 12 if not provided. Per-frame `duration_ms` overrides
+/// take precedence when set. The GIF loops forever by default.
+#[command]
+pub fn export_animated_gif(
+    file_path: String,
+    fps: Option<u32>,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<String, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let frame_count = canvas.frames.len();
+    if frame_count == 0 {
+        return Err(AppError::Internal("No frames to export".to_string()));
+    }
+
+    let w = canvas.width as u16;
+    let h = canvas.height as u16;
+    let global_fps = fps.unwrap_or(12).max(1);
+    let default_delay_cs = (100u32 / global_fps).max(1) as u16;
+
+    let path = std::path::Path::new(&file_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(AppError::Io)?;
+    }
+
+    let file = std::fs::File::create(path).map_err(AppError::Io)?;
+    let mut encoder = gif::Encoder::new(file, w, h, &[])
+        .map_err(|e| AppError::Internal(format!("GIF encoder init error: {}", e)))?;
+    encoder.set_repeat(gif::Repeat::Infinite)
+        .map_err(|e| AppError::Internal(format!("GIF repeat error: {}", e)))?;
+
+    for i in 0..frame_count {
+        let rgba = canvas.composite_frame_at(i)
+            .ok_or_else(|| AppError::Internal(format!("Failed to composite frame {}", i)))?;
+
+        // Convert RGBA → RGB (composite onto black background)
+        let pixel_count = (w as usize) * (h as usize);
+        let mut rgb = vec![0u8; pixel_count * 3];
+        for p in 0..pixel_count {
+            let si = p * 4;
+            let di = p * 3;
+            let a = rgba[si + 3] as f32 / 255.0;
+            rgb[di]     = (rgba[si]     as f32 * a) as u8;
+            rgb[di + 1] = (rgba[si + 1] as f32 * a) as u8;
+            rgb[di + 2] = (rgba[si + 2] as f32 * a) as u8;
+        }
+
+        let delay_cs = canvas.frames[i].duration_ms
+            .map(|ms| (ms / 10).max(1) as u16)
+            .unwrap_or(default_delay_cs);
+
+        let mut frame = gif::Frame::from_rgb(w, h, &rgb);
+        frame.delay = delay_cs;
+        encoder.write_frame(&frame)
+            .map_err(|e| AppError::Internal(format!("GIF frame write error: {}", e)))?;
+    }
+
+    Ok(file_path)
+}
+
 // --- Helpers ---
 
 fn get_recents_path() -> PathBuf {

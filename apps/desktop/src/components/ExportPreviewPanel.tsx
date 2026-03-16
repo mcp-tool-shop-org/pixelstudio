@@ -246,6 +246,26 @@ export function ExportPreviewPanel() {
     setExporting(false);
   }, [previewState, buildLayout, emitManifest, manifestFormat, lastOutputDir, layoutChoice]);
 
+  const handleExportGif = useCallback(async () => {
+    setExporting(true);
+    setErrorMsg('');
+    try {
+      const defaultName = `${projectName || 'sprite'}.gif`;
+      const defaultPath = lastOutputDir ? `${lastOutputDir}/${defaultName}` : defaultName;
+      const filePath = await save({
+        title: 'Export Animated GIF',
+        defaultPath,
+        filters: [{ name: 'GIF', extensions: ['gif'] }],
+      });
+      if (!filePath) { setExporting(false); return; }
+      await invoke<string>('export_animated_gif', { filePath, fps: 12 });
+      setLastOutputDir(filePath.replace(/[\\/][^\\/]*$/, ''));
+    } catch (err) {
+      setErrorMsg(String(err));
+    }
+    setExporting(false);
+  }, [projectName, lastOutputDir]);
+
   // Export Again — re-run last export to the same path without dialog
   const handleExportAgain = useCallback(async () => {
     if (!lastExportConfig || previewState !== 'ready' || exporting) return;
@@ -697,6 +717,9 @@ export function ExportPreviewPanel() {
                 Select a clip scope to enable export
               </span>
             )}
+            <button className="export-action-btn" onClick={handleExportGif} disabled={exporting}>
+              Export GIF
+            </button>
           </div>
           {canExportAgain && (
             <button

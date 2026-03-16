@@ -86,6 +86,7 @@ pub fn run() {
             timeline::set_frame_duration,
             project::export_frame_sequence,
             project::export_sprite_strip,
+            project::export_animated_gif,
             motion::begin_motion_session,
             motion::generate_motion_proposals,
             motion::get_motion_session,

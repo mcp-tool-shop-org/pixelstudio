@@ -290,6 +290,7 @@
 .layer-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px 6px;
   border-radius: 3px;
@@ -371,6 +372,28 @@
 
 .layer-delete:hover {
   color: var(--accent-error, #e84545);
+}
+
+.layer-opacity {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 0 0 24px;
+}
+
+.layer-opacity-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.layer-opacity-value {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
 }
 
 .dock-panel-placeholder {
