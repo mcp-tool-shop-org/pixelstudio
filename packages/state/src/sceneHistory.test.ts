@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import {
   describeSceneHistoryOperation,
   isSceneHistoryChange,
@@ -644,5 +644,108 @@ describe('SceneHistory — keyframe history entry creation', () => {
     const meta = entry!.metadata as { tick: number; previousTick: number };
     expect(meta.tick).toBe(45);
     expect(meta.previousTick).toBe(30);
+  });
+});
+
+// ── Authored playback config in snapshots ──
+
+const PB_DEFAULT: ScenePlaybackConfig = { fps: 24, looping: false };
+const PB_FAST: ScenePlaybackConfig = { fps: 60, looping: true };
+
+describe('SceneHistory — playbackConfig change detection', () => {
+  it('identical playbackConfig is not a change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: { ...PB_DEFAULT } };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('fps-only change is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: { ...PB_DEFAULT, fps: 60 } };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('looping-only change is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: { ...PB_DEFAULT, looping: true } };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('playbackConfig-only change with same instances is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [], playbackConfig: PB_FAST };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('no playbackConfig on either side falls back to other comparisons', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+  });
+
+  it('playbackConfig added where none existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('playbackConfig removed where one existed is detected', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET] };
+    expect(isSceneHistoryChange(before, after)).toBe(true);
+  });
+
+  it('transient playback state (not in snapshot) is not compared', () => {
+    // SceneHistorySnapshot has no isPlaying or currentTick fields.
+    // This test confirms the type boundary: only authored config matters.
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: { ...PB_DEFAULT } };
+    expect(isSceneHistoryChange(before, after)).toBe(false);
+    // Even though "transport state" might differ at runtime, it's not in the snapshot.
+  });
+});
+
+describe('SceneHistory — playbackConfig snapshot capture', () => {
+  it('captures playbackConfig when provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET], undefined, undefined, PB_DEFAULT);
+    expect(snapshot.playbackConfig).toEqual(PB_DEFAULT);
+  });
+
+  it('omits playbackConfig when not provided', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET]);
+    expect(snapshot.playbackConfig).toBeUndefined();
+  });
+
+  it('deep-clones playbackConfig (no aliasing)', () => {
+    const pb = { fps: 30, looping: false };
+    const snapshot = captureSceneSnapshot([], undefined, undefined, pb);
+    pb.fps = 9999;
+    expect(snapshot.playbackConfig!.fps).toBe(30);
+  });
+
+  it('captures camera, keyframes, and playbackConfig together', () => {
+    const snapshot = captureSceneSnapshot([INST_ASSET], CAM_DEFAULT, [KF_A], PB_DEFAULT);
+    expect(snapshot.camera).toEqual(CAM_DEFAULT);
+    expect(snapshot.keyframes).toHaveLength(1);
+    expect(snapshot.playbackConfig).toEqual(PB_DEFAULT);
+  });
+});
+
+describe('SceneHistory — playbackConfig history entry creation', () => {
+  it('creates entry for playbackConfig-only change', () => {
+    const before: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const after: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_FAST };
+    const entry = createSceneHistoryEntry('set-scene-playback', before, after);
+    expect(entry).toBeDefined();
+    expect(entry!.kind).toBe('set-scene-playback');
+    expect(entry!.label).toBe('Edit Playback');
+    expect(entry!.before.playbackConfig).toEqual(PB_DEFAULT);
+    expect(entry!.after.playbackConfig).toEqual(PB_FAST);
+  });
+
+  it('returns undefined for no-op playbackConfig edit', () => {
+    const s: SceneHistorySnapshot = { instances: [INST_ASSET], playbackConfig: PB_DEFAULT };
+    const entry = createSceneHistoryEntry('set-scene-playback', s, { ...s, playbackConfig: { ...PB_DEFAULT } });
+    expect(entry).toBeUndefined();
   });
 });

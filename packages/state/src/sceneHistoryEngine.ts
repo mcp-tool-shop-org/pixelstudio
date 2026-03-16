@@ -1,4 +1,4 @@
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import type {
   SceneHistoryEntry,
   SceneHistorySnapshot,
@@ -156,6 +156,7 @@ export interface ApplySceneEditResult {
   instances: SceneAssetInstance[];
   camera?: SceneCamera;
   keyframes?: SceneCameraKeyframe[];
+  playbackConfig?: ScenePlaybackConfig;
   history: SceneHistoryState;
 }
 
@@ -182,25 +183,28 @@ export function applySceneEditWithHistory(
   nextCamera?: SceneCamera,
   currentKeyframes?: SceneCameraKeyframe[],
   nextKeyframes?: SceneCameraKeyframe[],
+  currentPlaybackConfig?: ScenePlaybackConfig,
+  nextPlaybackConfig?: ScenePlaybackConfig,
 ): ApplySceneEditResult {
   // If we're mid-undo/redo, apply the edit but don't record it
   if (history.isApplyingHistory) {
-    return { instances: nextInstances, camera: nextCamera, keyframes: nextKeyframes, history };
+    return { instances: nextInstances, camera: nextCamera, keyframes: nextKeyframes, playbackConfig: nextPlaybackConfig, history };
   }
 
-  const before = captureSceneSnapshot(currentInstances, currentCamera, currentKeyframes);
-  const after = captureSceneSnapshot(nextInstances, nextCamera, nextKeyframes);
+  const before = captureSceneSnapshot(currentInstances, currentCamera, currentKeyframes, currentPlaybackConfig);
+  const after = captureSceneSnapshot(nextInstances, nextCamera, nextKeyframes, nextPlaybackConfig);
   const entry = createSceneHistoryEntry(kind, before, after, metadata);
 
   if (!entry) {
     // No-op — scene didn't change
-    return { instances: nextInstances, camera: nextCamera, keyframes: nextKeyframes, history };
+    return { instances: nextInstances, camera: nextCamera, keyframes: nextKeyframes, playbackConfig: nextPlaybackConfig, history };
   }
 
   return {
     instances: nextInstances,
     camera: nextCamera,
     keyframes: nextKeyframes,
+    playbackConfig: nextPlaybackConfig,
     history: recordSceneHistoryEntry(history, entry),
   };
 }

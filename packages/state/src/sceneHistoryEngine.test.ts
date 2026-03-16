@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SceneAssetInstance, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import type { SceneHistoryState } from './sceneHistoryEngine';
 import {
   createEmptySceneHistoryState,
@@ -565,5 +565,101 @@ describe('SceneHistoryEngine — keyframe support', () => {
     expect(undoSnap).toBeDefined();
     expect(undoSnap!.keyframes).toHaveLength(1);
     expect(undoSnap!.keyframes![0].tick).toBe(0);
+  });
+});
+
+// ── PlaybackConfig support in applySceneEditWithHistory ──
+
+const PB_DEFAULT: ScenePlaybackConfig = { fps: 24, looping: false };
+const PB_FAST: ScenePlaybackConfig = { fps: 60, looping: true };
+
+describe('SceneHistoryEngine — playbackConfig support', () => {
+  it('records playbackConfig-only change via applySceneEditWithHistory', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, PB_FAST,
+    );
+    expect(result.history.past).toHaveLength(1);
+    expect(result.history.past[0].kind).toBe('set-scene-playback');
+    expect(result.playbackConfig).toEqual(PB_FAST);
+  });
+
+  it('returns playbackConfig in result', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, PB_FAST,
+    );
+    expect(result.playbackConfig).toEqual(PB_FAST);
+  });
+
+  it('no-op playbackConfig edit skips recording', () => {
+    const h = createEmptySceneHistoryState();
+    const result = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, { ...PB_DEFAULT },
+    );
+    expect(result.history.past).toHaveLength(0);
+  });
+
+  it('undo restores playbackConfig from snapshot', () => {
+    const h = createEmptySceneHistoryState();
+    const r1 = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, PB_FAST,
+    );
+    const { snapshot: undoSnap } = undoSceneHistory(r1.history);
+    expect(undoSnap).toBeDefined();
+    expect(undoSnap!.playbackConfig).toEqual(PB_DEFAULT);
+  });
+
+  it('redo restores playbackConfig from snapshot', () => {
+    const h = createEmptySceneHistoryState();
+    const r1 = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, PB_FAST,
+    );
+    const { history: afterUndo } = undoSceneHistory(r1.history);
+    const { snapshot: redoSnap } = redoSceneHistory(finishApplyingHistory(afterUndo));
+    expect(redoSnap).toBeDefined();
+    expect(redoSnap!.playbackConfig).toEqual(PB_FAST);
+  });
+
+  it('mid-undo playbackConfig edit is not recorded', () => {
+    const h = createEmptySceneHistoryState();
+    const r1 = applySceneEditWithHistory(
+      [INST_ASSET], h, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_DEFAULT, PB_FAST,
+    );
+    const { history: afterUndo } = undoSceneHistory(r1.history);
+    expect(afterUndo.isApplyingHistory).toBe(true);
+    const r2 = applySceneEditWithHistory(
+      [INST_ASSET], afterUndo, 'set-scene-playback', [INST_ASSET],
+      undefined,
+      undefined, undefined,
+      undefined, undefined,
+      PB_FAST, PB_DEFAULT,
+    );
+    expect(r2.history.past).toHaveLength(0);
+    expect(r2.history.future).toHaveLength(1);
   });
 });

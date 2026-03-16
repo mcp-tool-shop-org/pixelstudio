@@ -1,4 +1,4 @@
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 
 // ── Operation kinds ──
 
@@ -70,7 +70,7 @@ export interface SceneHistoryRestoreMeta {
   /** The provenance sequence number of the entry being restored. */
   sourceSequence: number;
   /** Restore scope — which authored domain(s) are being restored. */
-  scope: 'full' | 'camera' | 'keyframes' | 'instances';
+  scope: 'full' | 'camera' | 'keyframes' | 'instances' | 'playback';
 }
 
 export type SceneHistoryOperationMetadata =
@@ -97,6 +97,10 @@ export type SceneHistoryOperationMetadata =
  * Instance-only edits omit camera. Camera-only edits include camera
  * but instances may be unchanged. Undo/redo restores whichever fields
  * are present.
+ *
+ * PlaybackConfig is optional — present when the edit involves authored
+ * playback configuration (fps, looping). Transient playback state
+ * (isPlaying, currentTick) is never captured in snapshots.
  */
 export interface SceneHistorySnapshot {
   instances: SceneAssetInstance[];
@@ -104,6 +108,8 @@ export interface SceneHistorySnapshot {
   camera?: SceneCamera;
   /** Authored camera keyframes at this point in time. Present for keyframe-aware edits. */
   keyframes?: SceneCameraKeyframe[];
+  /** Authored playback config at this point in time. Present for playback-aware edits. */
+  playbackConfig?: ScenePlaybackConfig;
 }
 
 // ── History entry ──
@@ -190,6 +196,12 @@ export function isSceneHistoryChange(
       return true;
     }
   }
+  // Playback config change detection — only when at least one snapshot carries playbackConfig
+  if (before.playbackConfig || after.playbackConfig) {
+    if (JSON.stringify(before.playbackConfig) !== JSON.stringify(after.playbackConfig)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -219,13 +231,14 @@ export function createSceneHistoryEntry(
 /**
  * Capture a snapshot of the current scene state.
  *
- * Deep-clones instances (and camera when provided) to prevent aliasing
- * between history entries and live state.
+ * Deep-clones instances (and camera/keyframes/playbackConfig when provided)
+ * to prevent aliasing between history entries and live state.
  */
 export function captureSceneSnapshot(
   instances: SceneAssetInstance[],
   camera?: SceneCamera,
   keyframes?: SceneCameraKeyframe[],
+  playbackConfig?: ScenePlaybackConfig,
 ): SceneHistorySnapshot {
   const snapshot: SceneHistorySnapshot = {
     instances: JSON.parse(JSON.stringify(instances)) as SceneAssetInstance[],
@@ -235,6 +248,9 @@ export function captureSceneSnapshot(
   }
   if (keyframes !== undefined) {
     snapshot.keyframes = JSON.parse(JSON.stringify(keyframes)) as SceneCameraKeyframe[];
+  }
+  if (playbackConfig !== undefined) {
+    snapshot.playbackConfig = { ...playbackConfig };
   }
   return snapshot;
 }
