@@ -10,8 +10,8 @@
   <a href="https://www.npmjs.com/package/@glyphstudio/mcp-sprite-server"><img src="https://img.shields.io/npm/v/@glyphstudio/mcp-sprite-server?style=flat-square&label=npm" alt="npm"></a>
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/MCP-75%20tools-blueviolet?style=flat-square" alt="75 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-193%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-76%20tools-blueviolet?style=flat-square" alt="76 MCP Tools">
+  <img src="https://img.shields.io/badge/tests-239%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
@@ -59,7 +59,7 @@ npx @glyphstudio/mcp-sprite-server
 npx tsx packages/mcp-sprite-server/src/cli.ts
 ```
 
-## Tool Inventory (75 tools)
+## Tool Inventory (76 tools)
 
 ### Session (3)
 
@@ -211,6 +211,12 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_export_gif` | Export the animation as an animated GIF (base64) |
 | `sprite_export_metadata_json` | Export sprite sheet metadata JSON (frame positions, timing, layout) |
 
+### Introspection (1)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_tools_get_catalog` | Machine-readable catalog of all tools with input schemas |
+
 ## Resources
 
 | URI Pattern | Description |
@@ -220,6 +226,7 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite://session/{id}/frame.png` | Active frame rendered as PNG |
 | `sprite://session/{id}/sheet.png` | Full sprite sheet as PNG |
 | `sprite://session/{id}/metadata.json` | Sprite sheet metadata (frame positions, timing, layout) |
+| `sprite://schema/tools.json` | Machine-readable catalog of all tools with input schemas |
 
 ## Result Shape
 
@@ -232,10 +239,10 @@ Every tool returns a consistent JSON envelope:
 
 // Error — always code + message
 { "ok": false, "code": "no_document", "message": "No document open" }
-{ "ok": false, "code": "out_of_bounds", "message": "Pixel (20, 5) outside 16×16 canvas" }
+{ "ok": false, "code": "invalid_coordinates", "message": "Pixel (20, 5) outside 16×16 canvas" }
 ```
 
-Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_found`, `serialize_error`, `constraint_violation`, `batch_failed`.
+Error codes (centralized in `ErrorCode` enum): `no_session`, `no_document`, `no_frame`, `serialize_error`, `invalid_input`, `invalid_coordinates`, `constraint_violation`, `not_found`, `selection_required`, `clipboard_empty`, `batch_failed`, `playback_unavailable`, `validation_error`.
 
 ## Example: Create a 2-Frame Sprite
 
@@ -300,8 +307,8 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
                │ stdio / JSON-RPC
 ┌──────────────▼──────────────────────────────┐
 │  MCP Server (server.ts)                     │
-│  ├─ Tool handlers (75 tools)                │
-│  ├─ Resource handlers (5 resources)         │
+│  ├─ Tool handlers (76 tools)                │
+│  ├─ Resource handlers (6 resources)         │
 │  └─ Session manager (multi-session)         │
 ├─────────────────────────────────────────────┤
 │  Store Adapter (storeAdapter.ts)            │
