@@ -32,6 +32,7 @@ interface CanvasViewState {
   showOnionSkin: boolean;
   showSilhouette: boolean;
   silhouetteColor: SilhouetteColor;
+  compareSnapshotId: string | null;
   previewBackground: 'dark' | 'light' | 'checker';
 
   setZoom: (zoom: number) => void;
@@ -42,6 +43,7 @@ interface CanvasViewState {
   panBy: (dx: number, dy: number) => void;
   toggleOverlay: (key: OverlayKey) => void;
   setSilhouetteColor: (color: SilhouetteColor) => void;
+  setCompareSnapshot: (id: string | null) => void;
   setPreviewBackground: (bg: 'dark' | 'light' | 'checker') => void;
 }
 
@@ -73,6 +75,7 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   showOnionSkin: false,
   showSilhouette: false,
   silhouetteColor: [30, 30, 40, 255] as SilhouetteColor,
+  compareSnapshotId: null,
   previewBackground: 'checker',
 
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
@@ -93,6 +96,7 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   panBy: (dx, dy) => set((s) => ({ panX: s.panX + dx, panY: s.panY + dy })),
   toggleOverlay: (key) => set((s) => ({ [key]: !s[key] })),
   setSilhouetteColor: (color) => set({ silhouetteColor: color }),
+  setCompareSnapshot: (id) => set({ compareSnapshotId: id }),
   setPreviewBackground: (bg) => set({ previewBackground: bg }),
 }));
 

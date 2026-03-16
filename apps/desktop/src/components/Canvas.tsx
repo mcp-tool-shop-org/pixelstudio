@@ -1,10 +1,11 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useCanvasViewStore } from '@glyphstudio/state';
 import { useToolStore } from '@glyphstudio/state';
 import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
+import { useSnapshotStore } from '@glyphstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -59,7 +60,7 @@ export function Canvas() {
   const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
 
-  const frame = useCanvasFrameStore((s) => s.frame);
+  const liveFrame = useCanvasFrameStore((s) => s.frame);
   const frameVersion = useCanvasFrameStore((s) => s.version);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
 
@@ -69,6 +70,17 @@ export function Canvas() {
   const showPixelGrid = useCanvasViewStore((s) => s.showPixelGrid);
   const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
   const silhouetteColor = useCanvasViewStore((s) => s.silhouetteColor);
+  const compareSnapshotId = useCanvasViewStore((s) => s.compareSnapshotId);
+
+  const compareSnapshot = useSnapshotStore((s) =>
+    compareSnapshotId ? s.snapshots.find((snap) => snap.id === compareSnapshotId) ?? null : null,
+  );
+  const frame = useMemo(() => {
+    if (compareSnapshot && liveFrame) {
+      return { ...liveFrame, data: compareSnapshot.data };
+    }
+    return liveFrame;
+  }, [liveFrame, compareSnapshot]);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
   const panBy = useCanvasViewStore((s) => s.panBy);
   const zoomIn = useCanvasViewStore((s) => s.zoomIn);
@@ -379,7 +391,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
 
   useEffect(() => { render(); }, [render]);
 

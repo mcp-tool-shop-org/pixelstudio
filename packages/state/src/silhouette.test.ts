@@ -99,6 +99,7 @@ describe('canvasViewStore — silhouette toggle', () => {
     useCanvasViewStore.setState({
       showSilhouette: false,
       silhouetteColor: [30, 30, 40, 255],
+      compareSnapshotId: null,
     });
   });
 
@@ -120,5 +121,22 @@ describe('canvasViewStore — silhouette toggle', () => {
 
   it('silhouetteColor defaults to dark blue-gray', () => {
     expect(useCanvasViewStore.getState().silhouetteColor).toEqual([30, 30, 40, 255]);
+  });
+
+  it('compareSnapshotId defaults to null', () => {
+    expect(useCanvasViewStore.getState().compareSnapshotId).toBeNull();
+  });
+
+  it('setCompareSnapshot sets and clears compare id', () => {
+    useCanvasViewStore.getState().setCompareSnapshot('snap-1');
+    expect(useCanvasViewStore.getState().compareSnapshotId).toBe('snap-1');
+    useCanvasViewStore.getState().setCompareSnapshot(null);
+    expect(useCanvasViewStore.getState().compareSnapshotId).toBeNull();
+  });
+
+  it('setCompareSnapshot replaces previous compare id', () => {
+    useCanvasViewStore.getState().setCompareSnapshot('snap-1');
+    useCanvasViewStore.getState().setCompareSnapshot('snap-2');
+    expect(useCanvasViewStore.getState().compareSnapshotId).toBe('snap-2');
   });
 });
