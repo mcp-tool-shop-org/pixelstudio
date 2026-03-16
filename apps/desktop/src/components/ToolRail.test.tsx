@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToolRail } from '../components/ToolRail';
-import { useToolStore } from '@glyphstudio/state';
+import { useToolStore, useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS } from '@glyphstudio/state';
 
 function seed() {
   useToolStore.setState({
@@ -16,12 +16,12 @@ describe('ToolRail', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('renders all 15 tool buttons', () => {
+    it('renders all 17 tool buttons (15 standard + 2 sketch)', () => {
       seed();
       render(<ToolRail />);
       const buttons = screen.getAllByRole('button');
-      // 15 tool buttons (color swatch area uses a div with onClick, not a button)
-      expect(buttons).toHaveLength(15);
+      // 15 standard + 2 sketch tools (color swatch area uses a div with onClick, not a button)
+      expect(buttons).toHaveLength(17);
     });
 
     it('each button shows first letter of tool label as icon', () => {
@@ -111,6 +111,58 @@ describe('ToolRail', () => {
       });
       expect(screen.getByTitle('Move (V)').className).toContain('active');
       expect(screen.getByTitle('Pencil (B)').className).not.toContain('active');
+    });
+
+    it('clicking sketch-brush activates sketch tool', async () => {
+      seed();
+      render(<ToolRail />);
+      await act(async () => {
+        await userEvent.click(screen.getByTitle('Sketch (N)'));
+      });
+      expect(useToolStore.getState().activeTool).toBe('sketch-brush');
+    });
+
+    it('clicking sketch-eraser activates sketch eraser', async () => {
+      seed();
+      render(<ToolRail />);
+      await act(async () => {
+        await userEvent.click(screen.getByTitle('S.Erase (Shift+N)'));
+      });
+      expect(useToolStore.getState().activeTool).toBe('sketch-eraser');
+    });
+  });
+
+  describe('sketch settings', () => {
+    it('shows sketch settings when sketch-brush is active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      render(<ToolRail />);
+      expect(document.querySelector('.sketch-settings')).not.toBeNull();
+    });
+
+    it('hides sketch settings when pencil is active', () => {
+      seed();
+      render(<ToolRail />);
+      expect(document.querySelector('.sketch-settings')).toBeNull();
+    });
+
+    it('sketch button has sketch-tool class', () => {
+      seed();
+      render(<ToolRail />);
+      const sketchBtn = screen.getByTitle('Sketch (N)');
+      expect(sketchBtn.className).toContain('sketch-tool');
+    });
+
+    it('reset button restores defaults', async () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().setBrushSize('sketchBrush', 20);
+      render(<ToolRail />);
+      const resetBtn = screen.getByText('Reset');
+      await act(async () => {
+        await userEvent.click(resetBtn);
+      });
+      expect(useBrushSettingsStore.getState().sketchBrush.size).toBe(SKETCH_BRUSH_DEFAULTS.size);
     });
   });
 });

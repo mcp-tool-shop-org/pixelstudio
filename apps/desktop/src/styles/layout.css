@@ -139,6 +139,88 @@
   font-size: 13px;
 }
 
+.tool-rail-divider {
+  width: 24px;
+  height: 1px;
+  background: var(--border-panel);
+  margin: 4px 0;
+}
+
+.tool-btn.sketch-tool {
+  border: 1px dashed var(--border-panel);
+  border-radius: 4px;
+  color: #d4a052;
+}
+
+.tool-btn.sketch-tool.active {
+  background: #7c5a20;
+  border-color: #d4a052;
+  color: #fff;
+}
+
+.tool-btn.sketch-tool:hover:not(.active) {
+  background: rgba(212, 160, 82, 0.15);
+}
+
+/* Sketch brush settings (inline in tool rail) */
+.sketch-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 3px;
+  margin-top: 2px;
+  border-top: 1px solid var(--border-panel);
+  width: 100%;
+}
+
+.sketch-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sketch-setting-label {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: right;
+  font-weight: 600;
+  color: #d4a052;
+}
+
+.sketch-slider {
+  flex: 1;
+  height: 12px;
+  min-width: 0;
+  accent-color: #d4a052;
+}
+
+.sketch-setting-value {
+  width: 24px;
+  text-align: right;
+  font-size: 9px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sketch-reset-btn {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-secondary);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 1px;
+}
+
+.sketch-reset-btn:hover {
+  color: var(--text-primary);
+  border-color: #d4a052;
+}
+
 .tool-rail-spacer {
   flex: 1;
 }
@@ -190,6 +272,11 @@
   background: rgba(17, 17, 20, 0.8);
   padding: 2px 10px;
   border-radius: 3px;
+}
+
+.status-sketch {
+  color: #d4a052;
+  font-weight: 600;
 }
 
 /* Right Dock */

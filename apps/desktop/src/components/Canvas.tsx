@@ -878,6 +878,14 @@ export function Canvas() {
         }
       }
 
+      // Sketch tool shortcuts: N = sketch-brush, Shift+N = sketch-eraser
+      if (e.code === 'KeyN' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const tool = e.shiftKey ? 'sketch-eraser' : 'sketch-brush';
+        useToolStore.getState().setTool(tool);
+        return;
+      }
+
       // Toggle onion skin with O
       if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -955,6 +963,7 @@ export function Canvas() {
         <span>{pixelCoord}</span>
         <span style={{ color: colorHex }}>{colorHex}</span>
         <span>{activeTool}</span>
+        {isSketchTool(activeTool) && <span className="status-sketch" title="Rough drawing mode">rough</span>}
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
         {frameCount > 1 && <span title=", / . to switch">F{activeFrameIndex + 1}/{frameCount}</span>}
