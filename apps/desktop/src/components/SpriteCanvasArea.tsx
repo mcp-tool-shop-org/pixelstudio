@@ -200,14 +200,23 @@ export function SpriteCanvasArea() {
 
   // ── Render loop ──
   const renderCanvas = useCallback(
-    (bufferToRender?: SpritePixelBuffer, selOverlay?: SpriteSelectionRect | null) => {
+    (draftLayerBuffer?: SpritePixelBuffer, selOverlay?: SpriteSelectionRect | null) => {
       const canvas = canvasRef.current;
-      if (!canvas || !doc || !viewport) return;
+      if (!canvas || !doc || !viewport || !activeFrame) return;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const buf = bufferToRender ?? activeBuffer;
+      // Build the display buffer: if a draft is provided, substitute it for
+      // the active layer, then flatten all visible layers for the composite.
+      let buf: SpritePixelBuffer;
+      if (draftLayerBuffer && activeLayerId) {
+        const currentBuffers = useSpriteEditorStore.getState().pixelBuffers;
+        const overrideBuffers = { ...currentBuffers, [activeLayerId]: draftLayerBuffer };
+        buf = flattenLayers(activeFrame.layers, overrideBuffers, doc.width, doc.height);
+      } else {
+        buf = activeBuffer ?? flattenLayers(activeFrame.layers, useSpriteEditorStore.getState().pixelBuffers, doc.width, doc.height);
+      }
       if (!buf) return;
 
       const { width: cw, height: ch } = canvasSize;
@@ -305,7 +314,7 @@ export function SpriteCanvasArea() {
         renderSelectionOverlay(ctx, selRect, originX, originY, zoom);
       }
     },
-    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin, showGrid, isPlaying, previewFrameIndex],
+    [doc, activeBuffer, activeFrame, activeLayerId, viewport, zoom, canvasSize, onionSkin, showGrid, isPlaying, previewFrameIndex],
   );
 
   // Re-render when state changes
