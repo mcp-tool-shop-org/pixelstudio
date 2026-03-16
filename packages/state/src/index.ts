@@ -1,3 +1,5 @@
+export { useReferenceStore } from './referenceStore';
+export type { ReferenceImage } from './referenceStore';
 export { useAppShellStore } from './appShellStore';
 export { useProjectStore } from './projectStore';
 export { useWorkspaceStore } from './workspaceStore';

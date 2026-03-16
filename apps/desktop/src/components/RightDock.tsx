@@ -9,6 +9,7 @@ import { SceneProvenancePanel } from './SceneProvenancePanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { PalettePropsPanel } from './PalettePropsPanel';
 import { ValidationPanel } from './ValidationPanel';
+import { ReferencePanel } from './ReferencePanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -16,8 +17,8 @@ interface RightDockProps {
 
 const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
-  animate: ['Layers', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
+  edit: ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
+  animate: ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
   ai: ['AI Assist', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
@@ -44,6 +45,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Activity') {
     return <SceneProvenancePanel />;
+  }
+  if (tabName === 'Reference') {
+    return <ReferencePanel />;
   }
   if (tabName === 'Analysis') {
     return <AnalysisPanel />;
