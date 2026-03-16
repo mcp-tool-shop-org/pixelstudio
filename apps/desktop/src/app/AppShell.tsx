@@ -107,7 +107,7 @@ export function AppShell() {
   }
 
   if (mode === 'project-home') {
-    return <ProjectHome onEnterWorkspace={() => setMode('edit')} />;
+    return <ProjectHome onEnterWorkspace={(m) => setMode(m ?? 'edit')} />;
   }
 
   return (

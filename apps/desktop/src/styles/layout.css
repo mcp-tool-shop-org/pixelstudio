@@ -7143,3 +7143,236 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* ── Project Home — Create Form ── */
+.ph-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  max-width: 320px;
+}
+.ph-create-form h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.ph-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.ph-field input {
+  padding: 4px 6px;
+  font-size: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+.ph-field-row {
+  display: flex;
+  gap: 8px;
+}
+.ph-mode-toggle {
+  display: flex;
+  gap: 0;
+}
+.ph-mode-toggle button {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ph-mode-toggle button:first-child {
+  border-radius: 3px 0 0 3px;
+}
+.ph-mode-toggle button:last-child {
+  border-radius: 0 3px 3px 0;
+  border-left: none;
+}
+.ph-mode-toggle button.active {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+.ph-create-btn {
+  margin-top: 4px;
+}
+
+/* Workflow cards */
+.ph-workflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ph-workflow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.ph-workflow-card:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  background: var(--bg-panel-raised);
+}
+.ph-workflow-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ph-wf-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ph-wf-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.ph-wf-category {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ph-runner-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px;
+  width: 100%;
+}
+
+/* ── Workflow Runner ── */
+.wf-runner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  max-width: 480px;
+  width: 100%;
+}
+.wf-runner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wf-runner-title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+.wf-runner-status {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.wf-status-running { background: var(--accent-primary, #3b82f6); color: #fff; }
+.wf-status-completed { background: var(--accent-success, #22c55e); color: #fff; }
+.wf-status-failed { background: var(--accent-error, #e84545); color: #fff; }
+.wf-status-cancelled { background: var(--bg-panel-raised); color: var(--text-muted); }
+.wf-runner-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Step list */
+.wf-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wf-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-panel-raised);
+}
+.wf-step-row.wf-step-running {
+  border-left: 2px solid var(--accent-primary, #3b82f6);
+}
+.wf-step-row.wf-step-completed {
+  border-left: 2px solid var(--accent-success, #22c55e);
+}
+.wf-step-row.wf-step-failed {
+  border-left: 2px solid var(--accent-error, #e84545);
+}
+.wf-step-row.wf-step-skipped {
+  border-left: 2px solid var(--border-subtle);
+  opacity: 0.7;
+}
+.wf-step-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+  margin-top: 1px;
+}
+.wf-step-icon.completed { color: var(--accent-success, #22c55e); }
+.wf-step-icon.failed { color: var(--accent-error, #e84545); }
+.wf-step-icon.running { color: var(--accent-primary, #3b82f6); }
+.wf-step-icon.skipped { color: var(--text-muted); }
+.wf-step-icon.pending { color: var(--text-muted); }
+.wf-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.wf-step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wf-step-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.wf-step-summary {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.wf-step-error {
+  font-size: 10px;
+  color: var(--accent-error, #e84545);
+}
+.wf-step-duration {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.wf-runner-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+.wf-close-btn {
+  padding: 4px 14px;
+  font-size: 12px;
+  background: var(--accent-primary, #3b82f6);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
