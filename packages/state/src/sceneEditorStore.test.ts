@@ -4297,4 +4297,31 @@ describe('SceneEditorStore — scoped restore', () => {
     expect(useSceneEditorStore.getState().instances).toEqual(pre.instances);
     expect(useSceneEditorStore.getState().camera).toEqual(pre.camera);
   });
+
+  it('selective restore never mutates playback config', () => {
+    setupForCameraRestore();
+    const PB: ScenePlaybackConfig = { fps: 30, looping: true };
+    useSceneEditorStore.setState({ playbackConfig: PB });
+    useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB);
+  });
+
+  it('scoped restore keeps provenance/history entry counts exact', () => {
+    setupForCameraRestore();
+    const prevProv = useSceneEditorStore.getState().provenance.length;
+    const prevHist = useSceneEditorStore.getState().history.past.length;
+    useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(useSceneEditorStore.getState().provenance.length).toBe(prevProv + 1);
+    expect(useSceneEditorStore.getState().history.past.length).toBe(prevHist + 1);
+    // Only 1 drilldown entry added
+    const lastProv = useSceneEditorStore.getState().provenance;
+    const lastSeq = lastProv[lastProv.length - 1].sequence;
+    expect(useSceneEditorStore.getState().drilldownBySequence[lastSeq]).toBeDefined();
+  });
+
+  it('playback-only scoped restore is honestly unavailable', () => {
+    setupForCameraRestore();
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'playback' as any);
+    expect(result.status).toBe('unavailable');
+  });
 });

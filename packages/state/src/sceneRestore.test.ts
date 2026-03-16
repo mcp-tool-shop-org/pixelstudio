@@ -805,4 +805,42 @@ describe('deriveSceneRestore cross-scope isolation', () => {
     expect(result.camera).toEqual(CAM_B); // current
     expect(result.keyframes).toEqual([KF_A]); // restored
   });
+
+  it('selective restore never mutates authored playback config', () => {
+    for (const scope of SELECTIVE_RESTORE_SCOPES) {
+      const result = deriveSceneRestore(makeRequest(
+        { instances: [INST_A], camera: CAM_A, keyframes: [KF_A], playbackConfig: PB_A },
+        { instances: [INST_B], camera: CAM_B, keyframes: [KF_B], playbackConfig: PB_B },
+        5,
+        scope,
+      ));
+      if (result.status !== 'success') continue;
+      // Playback config always preserved from current
+      expect(result.playbackConfig).toEqual(PB_B);
+    }
+  });
+
+  it('full restore includes authored playback config from source', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, keyframes: [KF_A], playbackConfig: PB_A },
+      { instances: [INST_B], camera: CAM_B, keyframes: [KF_B], playbackConfig: PB_B },
+      5,
+      'full',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.playbackConfig).toEqual(PB_A);
+  });
+
+  it('playback scope is not a valid SceneRestoreScope', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, playbackConfig: PB_A },
+      { instances: [INST_B], camera: CAM_B, playbackConfig: PB_B },
+      5,
+      'playback' as any,
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('scope-not-supported');
+  });
 });

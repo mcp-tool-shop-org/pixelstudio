@@ -2450,4 +2450,46 @@ describe('SceneProvenancePanel — scoped restore UI', () => {
     // Camera unchanged after instance-scoped restore
     expect(useSceneEditorStore.getState().camera).toEqual(preCam);
   });
+
+  it('no playback-only scope button exists in UI', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('[data-scope="playback"]')).toBeNull();
+  });
+
+  it('playback section only appears in full scope preview', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    // Full scope: playback section may or may not render depending on data,
+    // but switching to instances scope must not show playback
+    fireEvent.click(document.querySelector('[data-scope="instances"]')!);
+    expect(document.querySelector('[data-domain="playback"]')).toBeNull();
+  });
+
+  it('restore after compare mode exits compare cleanly', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    // Enter compare mode
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    expect(document.querySelector('.comparison-pane')).not.toBeNull();
+    // Close compare, enter restore preview
+    fireEvent.click(document.querySelector('.comparison-close')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    // Restore
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Both compare and restore preview are gone
+    expect(document.querySelector('.comparison-pane')).toBeNull();
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+  });
 });
