@@ -7,6 +7,8 @@ import { pixelBufferToPngBlob, decodeImageFile, downloadBlob } from '../lib/spri
  *
  * - Import sprite sheet: reads a PNG, slices into frames
  * - Export sprite sheet: assembles frames into a horizontal strip PNG
+ * - Export sheet + JSON: sprite sheet PNG + metadata manifest
+ * - Export GIF: animated GIF with authored durations
  * - Export current frame: exports the active frame as a standalone PNG
  */
 export function SpriteImportExportBar() {
@@ -14,10 +16,14 @@ export function SpriteImportExportBar() {
   const importSpriteSheet = useSpriteEditorStore((s) => s.importSpriteSheet);
   const exportSpriteSheet = useSpriteEditorStore((s) => s.exportSpriteSheet);
   const exportCurrentFrame = useSpriteEditorStore((s) => s.exportCurrentFrame);
+  const exportSheetWithMeta = useSpriteEditorStore((s) => s.exportSheetWithMeta);
+  const exportGif = useSpriteEditorStore((s) => s.exportGif);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!doc) return null;
+
+  const safeName = doc.name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -49,11 +55,42 @@ export function SpriteImportExportBar() {
     }
     try {
       const blob = await pixelBufferToPngBlob(result);
-      const name = doc.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-      downloadBlob(blob, `${name}-sheet.png`);
+      downloadBlob(blob, `${safeName}-sheet.png`);
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : 'Failed to export sprite sheet');
     }
+  };
+
+  const handleExportSheetWithMeta = async () => {
+    setError(null);
+    const result = exportSheetWithMeta();
+    if (typeof result === 'string') {
+      setError(result);
+      return;
+    }
+    try {
+      // Download PNG sheet
+      const blob = await pixelBufferToPngBlob(result.sheet);
+      downloadBlob(blob, `${safeName}-sheet.png`);
+
+      // Download JSON metadata
+      const json = JSON.stringify(result.meta, null, 2);
+      const metaBlob = new Blob([json], { type: 'application/json' });
+      downloadBlob(metaBlob, `${safeName}-sheet.json`);
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : 'Failed to export sheet with metadata');
+    }
+  };
+
+  const handleExportGif = () => {
+    setError(null);
+    const result = exportGif();
+    if (typeof result === 'string') {
+      setError(result);
+      return;
+    }
+    const blob = new Blob([result], { type: 'image/gif' });
+    downloadBlob(blob, `${safeName}.gif`);
   };
 
   const handleExportFrame = async () => {
@@ -65,10 +102,9 @@ export function SpriteImportExportBar() {
     }
     try {
       const blob = await pixelBufferToPngBlob(buf);
-      const name = doc.name.replace(/[^a-zA-Z0-9_-]/g, '_');
       const frameIdx = useSpriteEditorStore.getState().activeFrameIndex;
       const frameNum = String(frameIdx + 1).padStart(2, '0');
-      downloadBlob(blob, `${name}-frame-${frameNum}.png`);
+      downloadBlob(blob, `${safeName}-frame-${frameNum}.png`);
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : 'Failed to export frame');
     }
@@ -99,6 +135,22 @@ export function SpriteImportExportBar() {
         data-testid="sprite-export-sheet-btn"
       >
         Export Sheet
+      </button>
+      <button
+        className="sprite-export-meta-btn"
+        onClick={handleExportSheetWithMeta}
+        title="Export sprite sheet PNG + JSON metadata"
+        data-testid="sprite-export-meta-btn"
+      >
+        Export Sheet + JSON
+      </button>
+      <button
+        className="sprite-export-gif-btn"
+        onClick={handleExportGif}
+        title="Export as animated GIF"
+        data-testid="sprite-export-gif-btn"
+      >
+        Export GIF
       </button>
       <button
         className="sprite-export-frame-btn"

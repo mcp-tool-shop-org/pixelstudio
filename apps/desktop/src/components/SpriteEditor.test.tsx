@@ -462,6 +462,18 @@ describe('SpriteEditor', () => {
     expect(screen.getByTestId('sprite-export-frame-btn')).toBeDefined();
   });
 
+  it('shows export sheet + JSON button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-export-meta-btn')).toBeDefined();
+  });
+
+  it('shows export GIF button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-export-gif-btn')).toBeDefined();
+  });
+
   it('no import/export bar when no document', () => {
     render(<SpriteEditor />);
     expect(screen.queryByTestId('sprite-import-export-bar')).toBeNull();
