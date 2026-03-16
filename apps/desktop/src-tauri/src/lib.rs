@@ -6,7 +6,7 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
+use commands::{analysis, anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 use engine::motion::ManagedMotionState;
 use engine::sandbox::ManagedSandboxState;
@@ -87,6 +87,9 @@ pub fn run() {
             project::export_frame_sequence,
             project::export_sprite_strip,
             project::export_animated_gif,
+            analysis::analyze_bounds,
+            analysis::analyze_colors,
+            analysis::compare_frames,
             motion::begin_motion_session,
             motion::generate_motion_proposals,
             motion::get_motion_session,

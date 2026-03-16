@@ -18,3 +18,4 @@ pub mod preset;
 pub mod clip;
 pub mod bundle;
 pub mod scene;
+pub mod analysis;
