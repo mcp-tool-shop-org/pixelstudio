@@ -8,6 +8,7 @@ import type {
   SpriteOnionSkin,
   SpritePixelBuffer,
   SpriteColor,
+  SpriteColorGroup,
   SpriteSelectionRect,
 } from '@glyphstudio/domain';
 import {
@@ -101,6 +102,15 @@ export interface SpriteEditorStoreState {
   setForegroundColor: (index: number) => void;
   setBackgroundColor: (index: number) => void;
   swapColors: () => void;
+  addPaletteColor: (color: SpriteColor) => void;
+  removePaletteColor: (index: number) => void;
+  renamePaletteColor: (index: number, name: string) => void;
+  lockPaletteColor: (index: number, locked: boolean) => void;
+  setPaletteColorRole: (index: number, role: string | undefined) => void;
+  createColorGroup: (name: string) => string;
+  renameColorGroup: (groupId: string, name: string) => void;
+  deleteColorGroup: (groupId: string) => void;
+  assignColorToGroup: (colorIndex: number, groupId: string | undefined) => void;
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -579,6 +589,81 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
         },
       },
     });
+  },
+
+  addPaletteColor: (color) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const colors = [...doc.palette.colors, color];
+    set({ document: { ...doc, palette: { ...doc.palette, colors } } });
+  },
+
+  removePaletteColor: (index) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (index < 0 || index >= doc.palette.colors.length) return;
+    if (doc.palette.colors[index]?.locked) return;
+    const colors = doc.palette.colors.filter((_, i) => i !== index);
+    if (colors.length === 0) return;
+    const fg = doc.palette.foregroundIndex >= colors.length ? 0 : doc.palette.foregroundIndex > index ? doc.palette.foregroundIndex - 1 : doc.palette.foregroundIndex;
+    const bg = doc.palette.backgroundIndex >= colors.length ? 0 : doc.palette.backgroundIndex > index ? doc.palette.backgroundIndex - 1 : doc.palette.backgroundIndex;
+    set({ document: { ...doc, palette: { ...doc.palette, colors, foregroundIndex: fg, backgroundIndex: bg } } });
+  },
+
+  renamePaletteColor: (index, name) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (index < 0 || index >= doc.palette.colors.length) return;
+    const colors = doc.palette.colors.map((c, i) => i === index ? { ...c, name } : c);
+    set({ document: { ...doc, palette: { ...doc.palette, colors } } });
+  },
+
+  lockPaletteColor: (index, locked) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (index < 0 || index >= doc.palette.colors.length) return;
+    const colors = doc.palette.colors.map((c, i) => i === index ? { ...c, locked } : c);
+    set({ document: { ...doc, palette: { ...doc.palette, colors } } });
+  },
+
+  setPaletteColorRole: (index, role) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (index < 0 || index >= doc.palette.colors.length) return;
+    const colors = doc.palette.colors.map((c, i) => i === index ? { ...c, semanticRole: role } : c);
+    set({ document: { ...doc, palette: { ...doc.palette, colors } } });
+  },
+
+  createColorGroup: (name) => {
+    const { document: doc } = get();
+    const id = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    if (!doc) return id;
+    const groups = [...(doc.palette.groups ?? []), { id, name }];
+    set({ document: { ...doc, palette: { ...doc.palette, groups } } });
+    return id;
+  },
+
+  renameColorGroup: (groupId, name) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const groups = (doc.palette.groups ?? []).map((g) => g.id === groupId ? { ...g, name } : g);
+    set({ document: { ...doc, palette: { ...doc.palette, groups } } });
+  },
+
+  deleteColorGroup: (groupId) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const groups = (doc.palette.groups ?? []).filter((g) => g.id !== groupId);
+    const colors = doc.palette.colors.map((c) => c.groupId === groupId ? { ...c, groupId: undefined } : c);
+    set({ document: { ...doc, palette: { ...doc.palette, groups, colors } } });
+  },
+
+  assignColorToGroup: (colorIndex, groupId) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (colorIndex < 0 || colorIndex >= doc.palette.colors.length) return;
+    const colors = doc.palette.colors.map((c, i) => i === colorIndex ? { ...c, groupId } : c);
+    set({ document: { ...doc, palette: { ...doc.palette, colors } } });
   },
 
   // -- Selection --

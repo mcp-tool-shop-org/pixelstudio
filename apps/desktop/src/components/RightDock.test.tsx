@@ -22,6 +22,9 @@ vi.mock('../components/CharacterBuilderPanel', () => ({
 vi.mock('../components/AnalysisPanel', () => ({
   AnalysisPanel: () => <div data-testid="analysis-panel">AnalysisPanel</div>,
 }));
+vi.mock('../components/PalettePropsPanel', () => ({
+  PalettePropsPanel: () => <div data-testid="palette-props-panel">PalettePropsPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';
@@ -145,13 +148,18 @@ describe('RightDock', () => {
       expect(screen.getByTestId('camera-keyframe-panel')).toBeInTheDocument();
     });
 
-    it('unhandled tab name renders placeholder', () => {
+    it('palette mode first tab renders PalettePropsPanel', () => {
       render(<RightDock activeMode="palette" />);
-      // First tab "Palette Props" has no dedicated component → placeholder
+      expect(screen.getByTestId('palette-props-panel')).toBeInTheDocument();
+    });
+
+    it('unhandled tab name renders placeholder', () => {
+      render(<RightDock activeMode="export" />);
+      // "Export Settings" has no dedicated component → placeholder
       const placeholder = document.querySelector('.dock-panel-placeholder');
       expect(placeholder).not.toBeNull();
       const label = placeholder!.querySelector('.placeholder-label');
-      expect(label?.textContent).toBe('Palette Props');
+      expect(label?.textContent).toBe('Export Settings');
     });
 
     it('non-first placeholder tabs work', async () => {

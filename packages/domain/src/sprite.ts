@@ -24,6 +24,18 @@ export interface SpriteColor {
   rgba: [number, number, number, number];
   /** Optional human-readable name. */
   name?: string;
+  /** Whether this color is locked (cannot be edited or removed). */
+  locked?: boolean;
+  /** Semantic role label (e.g. "skin", "outline", "shadow"). */
+  semanticRole?: string;
+  /** ID of the color group/ramp this slot belongs to. */
+  groupId?: string;
+}
+
+/** A named group of palette colors (e.g. a value ramp). */
+export interface SpriteColorGroup {
+  id: string;
+  name: string;
 }
 
 /** A sprite-local palette — flat ordered list of colors. */
@@ -34,6 +46,8 @@ export interface SpritePalette {
   foregroundIndex: number;
   /** Index of the currently selected background color. */
   backgroundIndex: number;
+  /** Named color groups/ramps. */
+  groups?: SpriteColorGroup[];
 }
 
 // ── Layer ──

@@ -7,6 +7,7 @@ import { CameraKeyframePanel } from './CameraKeyframePanel';
 import { CharacterBuilderPanel } from './CharacterBuilderPanel';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
 import { AnalysisPanel } from './AnalysisPanel';
+import { PalettePropsPanel } from './PalettePropsPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -45,6 +46,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Analysis') {
     return <AnalysisPanel />;
+  }
+  if (tabName === 'Palette Props') {
+    return <PalettePropsPanel />;
   }
 
   return (
