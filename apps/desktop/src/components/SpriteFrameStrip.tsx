@@ -65,8 +65,11 @@ export function SpriteFrameStrip() {
   const duplicateFrame = useSpriteEditorStore((s) => s.duplicateFrame);
   const removeFrame = useSpriteEditorStore((s) => s.removeFrame);
   const moveFrame = useSpriteEditorStore((s) => s.moveFrame);
+  const setFrameDuration = useSpriteEditorStore((s) => s.setFrameDuration);
 
   if (!doc) return null;
+
+  const activeFrame = doc.frames[activeFrameIndex];
 
   return (
     <div className="sprite-frame-strip" data-testid="sprite-frame-strip">
@@ -140,6 +143,35 @@ export function SpriteFrameStrip() {
           </>
         )}
       </div>
+      {activeFrame && (
+        <div className="sprite-frame-duration-controls" data-testid="frame-duration-controls">
+          <label className="sprite-frame-duration-label">
+            Duration
+            <input
+              type="number"
+              className="sprite-frame-duration-input"
+              min={10}
+              max={10000}
+              step={10}
+              value={activeFrame.durationMs}
+              onChange={(e) => setFrameDuration(activeFrame.id, Number(e.target.value))}
+              data-testid="frame-duration-input"
+            />
+            ms
+          </label>
+          {[50, 100, 200, 500].map((ms) => (
+            <button
+              key={ms}
+              className={`sprite-frame-duration-preset${activeFrame.durationMs === ms ? ' active' : ''}`}
+              onClick={() => setFrameDuration(activeFrame.id, ms)}
+              data-testid={`duration-preset-${ms}`}
+              title={`Set to ${ms}ms`}
+            >
+              {ms}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

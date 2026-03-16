@@ -279,7 +279,7 @@ describe('SpriteEditor', () => {
       useSpriteEditorStore.getState().addFrame();
     });
     render(<SpriteEditor />);
-    const thumbs = screen.getAllByText(/^\d+$/);
+    const thumbs = screen.getAllByText(/^\d+$/).filter((el) => el.classList.contains('sprite-frame-number'));
     expect(thumbs.length).toBe(3);
   });
 
@@ -624,6 +624,53 @@ describe('SpriteEditor', () => {
     expect(useSpriteEditorStore.getState().isPlaying).toBe(true);
     await userEvent.keyboard(' ');
     expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+  });
+
+  // ── Frame duration controls ──
+
+  it('shows duration controls when document is open', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('frame-duration-controls')).toBeDefined();
+  });
+
+  it('shows duration input for active frame', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const input = screen.getByTestId('frame-duration-input') as HTMLInputElement;
+    expect(Number(input.value)).toBe(100); // default duration
+  });
+
+  it('shows duration presets', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('duration-preset-50')).toBeDefined();
+    expect(screen.getByTestId('duration-preset-100')).toBeDefined();
+    expect(screen.getByTestId('duration-preset-200')).toBeDefined();
+    expect(screen.getByTestId('duration-preset-500')).toBeDefined();
+  });
+
+  it('clicking duration preset changes frame duration', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    await userEvent.click(screen.getByTestId('duration-preset-200'));
+    const doc = useSpriteEditorStore.getState().document!;
+    expect(doc.frames[0].durationMs).toBe(200);
+  });
+
+  it('duration edit does not mutate pixel buffers', async () => {
+    openTestDoc(4, 4);
+    const store = useSpriteEditorStore.getState();
+    const f0Id = store.document!.frames[0].id;
+    const buf = store.pixelBuffers[f0Id];
+    setPixel(buf, 0, 0, [255, 0, 0, 255]);
+    act(() => store.commitPixels(buf));
+
+    render(<SpriteEditor />);
+    await userEvent.click(screen.getByTestId('duration-preset-500'));
+
+    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+    expect(samplePixel(afterBuf, 0, 0)).toEqual([255, 0, 0, 255]);
   });
 
   it('= key zooms in', async () => {
