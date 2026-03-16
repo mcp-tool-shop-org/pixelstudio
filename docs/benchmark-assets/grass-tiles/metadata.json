@@ -1,0 +1,235 @@
+{
+  "name": "Grass Tiles",
+  "width": 32,
+  "height": 16,
+  "frameCount": 1,
+  "frameDurations": [
+    100
+  ],
+  "palette": {
+    "colorCount": 16,
+    "groups": [
+      "Outline",
+      "Neutral",
+      "Warm",
+      "Accent",
+      "Nature",
+      "Cool"
+    ],
+    "namedColors": [
+      {
+        "name": "Transparent",
+        "rgba": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": false
+      },
+      {
+        "name": "Black",
+        "rgba": [
+          0,
+          0,
+          0,
+          255
+        ],
+        "role": "outline",
+        "group": "Outline",
+        "locked": true
+      },
+      {
+        "name": "Dark Gray",
+        "rgba": [
+          85,
+          85,
+          85,
+          255
+        ],
+        "role": "shadow",
+        "group": "Neutral",
+        "locked": false
+      },
+      {
+        "name": "Mid Gray",
+        "rgba": [
+          170,
+          170,
+          170,
+          255
+        ],
+        "group": "Neutral",
+        "locked": false
+      },
+      {
+        "name": "White",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "role": "highlight",
+        "group": "Neutral",
+        "locked": false
+      },
+      {
+        "name": "Dark Brown",
+        "rgba": [
+          102,
+          57,
+          0,
+          255
+        ],
+        "group": "Warm",
+        "locked": false
+      },
+      {
+        "name": "Brown",
+        "rgba": [
+          153,
+          102,
+          51,
+          255
+        ],
+        "group": "Warm",
+        "locked": false
+      },
+      {
+        "name": "Tan",
+        "rgba": [
+          204,
+          170,
+          102,
+          255
+        ],
+        "role": "skin",
+        "group": "Warm",
+        "locked": false
+      },
+      {
+        "name": "Dark Red",
+        "rgba": [
+          153,
+          0,
+          0,
+          255
+        ],
+        "group": "Accent",
+        "locked": false
+      },
+      {
+        "name": "Red",
+        "rgba": [
+          255,
+          51,
+          51,
+          255
+        ],
+        "group": "Accent",
+        "locked": false
+      },
+      {
+        "name": "Dark Green",
+        "rgba": [
+          0,
+          102,
+          0,
+          255
+        ],
+        "group": "Nature",
+        "locked": false
+      },
+      {
+        "name": "Green",
+        "rgba": [
+          51,
+          170,
+          51,
+          255
+        ],
+        "group": "Nature",
+        "locked": false
+      },
+      {
+        "name": "Dark Blue",
+        "rgba": [
+          0,
+          51,
+          153,
+          255
+        ],
+        "group": "Cool",
+        "locked": false
+      },
+      {
+        "name": "Blue",
+        "rgba": [
+          51,
+          102,
+          255,
+          255
+        ],
+        "group": "Cool",
+        "locked": false
+      },
+      {
+        "name": "Yellow",
+        "rgba": [
+          255,
+          204,
+          0,
+          255
+        ],
+        "group": "Accent",
+        "locked": false
+      },
+      {
+        "name": "Peach",
+        "rgba": [
+          255,
+          204,
+          170,
+          255
+        ],
+        "role": "skin-light",
+        "group": "Warm",
+        "locked": false
+      }
+    ]
+  },
+  "workflow": "new-static-sprite",
+  "validation": {
+    "errors": 0,
+    "warnings": 0,
+    "info": 1,
+    "issues": [
+      {
+        "severity": "info",
+        "rule": "animation-single-frame",
+        "message": "Document has only 1 frame — animations require multiple frames"
+      }
+    ]
+  },
+  "analysis": [
+    {
+      "frame": 0,
+      "bounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 31,
+        "maxY": 15,
+        "width": 32,
+        "height": 16,
+        "opaquePixelCount": 512,
+        "empty": false
+      },
+      "colors": {
+        "uniqueColors": 5
+      }
+    }
+  ],
+  "generatedAt": "2026-03-16T18:49:05.110Z",
+  "generator": "Stage 37 — Benchmark Asset Materialization"
+}

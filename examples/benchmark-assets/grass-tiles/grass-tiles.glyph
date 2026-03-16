@@ -1,0 +1,231 @@
+{
+  "format": "glyphstudio-sprite",
+  "schemaVersion": 1,
+  "document": {
+    "id": "sprite_1773686945105_24aiaq",
+    "name": "Grass Tiles",
+    "width": 32,
+    "height": 16,
+    "frames": [
+      {
+        "id": "sf_1773686945105_mi29m2",
+        "index": 0,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773686945105_v9sohw",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colors": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "name": "Transparent"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "name": "Black",
+          "locked": true,
+          "semanticRole": "outline",
+          "groupId": "grp_outline"
+        },
+        {
+          "rgba": [
+            85,
+            85,
+            85,
+            255
+          ],
+          "name": "Dark Gray",
+          "semanticRole": "shadow",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            170,
+            170,
+            170,
+            255
+          ],
+          "name": "Mid Gray",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "name": "White",
+          "semanticRole": "highlight",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            102,
+            57,
+            0,
+            255
+          ],
+          "name": "Dark Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            102,
+            51,
+            255
+          ],
+          "name": "Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            204,
+            170,
+            102,
+            255
+          ],
+          "name": "Tan",
+          "semanticRole": "skin",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            0,
+            0,
+            255
+          ],
+          "name": "Dark Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            51,
+            51,
+            255
+          ],
+          "name": "Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            0,
+            102,
+            0,
+            255
+          ],
+          "name": "Dark Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            51,
+            170,
+            51,
+            255
+          ],
+          "name": "Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            0,
+            51,
+            153,
+            255
+          ],
+          "name": "Dark Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            51,
+            102,
+            255,
+            255
+          ],
+          "name": "Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            0,
+            255
+          ],
+          "name": "Yellow",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            170,
+            255
+          ],
+          "name": "Peach",
+          "semanticRole": "skin-light",
+          "groupId": "grp_warm"
+        }
+      ],
+      "foregroundIndex": 1,
+      "backgroundIndex": 0,
+      "groups": [
+        {
+          "id": "grp_outline",
+          "name": "Outline"
+        },
+        {
+          "id": "grp_neutral",
+          "name": "Neutral"
+        },
+        {
+          "id": "grp_warm",
+          "name": "Warm"
+        },
+        {
+          "id": "grp_accent",
+          "name": "Accent"
+        },
+        {
+          "id": "grp_nature",
+          "name": "Nature"
+        },
+        {
+          "id": "grp_cool",
+          "name": "Cool"
+        }
+      ]
+    },
+    "createdAt": "2026-03-16T18:49:05.105Z",
+    "updatedAt": "2026-03-16T18:49:05.106Z"
+  },
+  "pixelBuffers": {
+    "sl_1773686945105_v9sohw": {
+      "width": 32,
+      "height": 16,
+      "data": "M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP//zMz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz//8zM///zAD//zMz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz//8zM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/AGYA/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP8="
+    }
+  }
+}

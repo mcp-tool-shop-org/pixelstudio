@@ -1,0 +1,285 @@
+{
+  "format": "glyphstudio-sprite",
+  "schemaVersion": 1,
+  "document": {
+    "id": "sprite_1773686945069_lkkt8h",
+    "name": "Knight Walk",
+    "width": 16,
+    "height": 24,
+    "frames": [
+      {
+        "id": "sf_1773686945069_7q689s",
+        "index": 0,
+        "durationMs": 150,
+        "layers": [
+          {
+            "id": "sl_1773686945069_2ji5pa",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773686945069_8xj7te",
+        "index": 1,
+        "durationMs": 150,
+        "layers": [
+          {
+            "id": "sl_1773686945069_q4075c",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773686945069_f62q77",
+        "index": 2,
+        "durationMs": 150,
+        "layers": [
+          {
+            "id": "sl_1773686945069_zhoeur",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773686945069_94vlaq",
+        "index": 3,
+        "durationMs": 150,
+        "layers": [
+          {
+            "id": "sl_1773686945069_imxe5e",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colors": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "name": "Transparent"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "name": "Black",
+          "locked": true,
+          "semanticRole": "outline",
+          "groupId": "grp_outline"
+        },
+        {
+          "rgba": [
+            85,
+            85,
+            85,
+            255
+          ],
+          "name": "Dark Gray",
+          "semanticRole": "shadow",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            170,
+            170,
+            170,
+            255
+          ],
+          "name": "Mid Gray",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "name": "White",
+          "semanticRole": "highlight",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            102,
+            57,
+            0,
+            255
+          ],
+          "name": "Dark Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            102,
+            51,
+            255
+          ],
+          "name": "Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            204,
+            170,
+            102,
+            255
+          ],
+          "name": "Tan",
+          "semanticRole": "skin",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            0,
+            0,
+            255
+          ],
+          "name": "Dark Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            51,
+            51,
+            255
+          ],
+          "name": "Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            0,
+            102,
+            0,
+            255
+          ],
+          "name": "Dark Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            51,
+            170,
+            51,
+            255
+          ],
+          "name": "Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            0,
+            51,
+            153,
+            255
+          ],
+          "name": "Dark Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            51,
+            102,
+            255,
+            255
+          ],
+          "name": "Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            0,
+            255
+          ],
+          "name": "Yellow",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            170,
+            255
+          ],
+          "name": "Peach",
+          "semanticRole": "skin-light",
+          "groupId": "grp_warm"
+        }
+      ],
+      "foregroundIndex": 1,
+      "backgroundIndex": 0,
+      "groups": [
+        {
+          "id": "grp_outline",
+          "name": "Outline"
+        },
+        {
+          "id": "grp_neutral",
+          "name": "Neutral"
+        },
+        {
+          "id": "grp_warm",
+          "name": "Warm"
+        },
+        {
+          "id": "grp_accent",
+          "name": "Accent"
+        },
+        {
+          "id": "grp_nature",
+          "name": "Nature"
+        },
+        {
+          "id": "grp_cool",
+          "name": "Cool"
+        }
+      ]
+    },
+    "createdAt": "2026-03-16T18:49:05.069Z",
+    "updatedAt": "2026-03-16T18:49:05.071Z"
+  },
+  "pixelBuffers": {
+    "sl_1773686945069_2ji5pa": {
+      "width": 16,
+      "height": 24,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAD/zKr//8yq///Mqv//zKr//8yq///Mqv8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b////Mqv//zKr//8yq///Mqv//zKr//8yq/zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm////zKr//8yq///Mqv//zKr//8yq///Mqv8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "sl_1773686945069_q4075c": {
+      "width": 16,
+      "height": 24,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAD/zKr//8yq///Mqv//zKr//8yq///Mqv8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b////Mqv//zKr//8yq///Mqv//zKr//8yq/zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm////zKr//8yq///Mqv//zKr//8yq///Mqv8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/ADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/ADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "sl_1773686945069_zhoeur": {
+      "width": 16,
+      "height": 24,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAD/zKr//8yq///Mqv//zKr//8yq///Mqv8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b////Mqv//zKr//8yq///Mqv//zKr//8yq/zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm////zKr//8yq///Mqv//zKr//8yq///Mqv8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "sl_1773686945069_imxe5e": {
+      "width": 16,
+      "height": 24,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAD/zKr//8yq///Mqv//zKr//8yq///Mqv8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b////Mqv//zKr//8yq///Mqv//zKr//8yq/zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm////zKr//8yq///Mqv//zKr//8yq///Mqv8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv///8yq///Mqv//zKr//8yq///Mqv//zKr/M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM2b//zNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADNm//8zZv//M2b//zNm//8zZv//M2b//zNm//8zZv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzZv//M2b//zNm//8zZv//M2b//zNm//8zZv//M2b//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/ADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADOZ/wAzmf8AM5n/ADOZ/wAzmf8AM5n/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzmf8AM5n/ADOZ/wAzmf8AM5n/ADOZ/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5n/ADOZ/wAzmf8AM5n/ADOZ/wAzmf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  }
+}

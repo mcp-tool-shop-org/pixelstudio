@@ -1,0 +1,231 @@
+{
+  "format": "glyphstudio-sprite",
+  "schemaVersion": 1,
+  "document": {
+    "id": "sprite_1773686945027_5lmbnt",
+    "name": "Wooden Crate",
+    "width": 16,
+    "height": 16,
+    "frames": [
+      {
+        "id": "sf_1773686945027_28h3x5",
+        "index": 0,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773686945027_9ct2ej",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colors": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "name": "Transparent"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "name": "Black",
+          "locked": true,
+          "semanticRole": "outline",
+          "groupId": "grp_outline"
+        },
+        {
+          "rgba": [
+            85,
+            85,
+            85,
+            255
+          ],
+          "name": "Dark Gray",
+          "semanticRole": "shadow",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            170,
+            170,
+            170,
+            255
+          ],
+          "name": "Mid Gray",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "name": "White",
+          "semanticRole": "highlight",
+          "groupId": "grp_neutral"
+        },
+        {
+          "rgba": [
+            102,
+            57,
+            0,
+            255
+          ],
+          "name": "Dark Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            102,
+            51,
+            255
+          ],
+          "name": "Brown",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            204,
+            170,
+            102,
+            255
+          ],
+          "name": "Tan",
+          "semanticRole": "skin",
+          "groupId": "grp_warm"
+        },
+        {
+          "rgba": [
+            153,
+            0,
+            0,
+            255
+          ],
+          "name": "Dark Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            51,
+            51,
+            255
+          ],
+          "name": "Red",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            0,
+            102,
+            0,
+            255
+          ],
+          "name": "Dark Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            51,
+            170,
+            51,
+            255
+          ],
+          "name": "Green",
+          "groupId": "grp_nature"
+        },
+        {
+          "rgba": [
+            0,
+            51,
+            153,
+            255
+          ],
+          "name": "Dark Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            51,
+            102,
+            255,
+            255
+          ],
+          "name": "Blue",
+          "groupId": "grp_cool"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            0,
+            255
+          ],
+          "name": "Yellow",
+          "groupId": "grp_accent"
+        },
+        {
+          "rgba": [
+            255,
+            204,
+            170,
+            255
+          ],
+          "name": "Peach",
+          "semanticRole": "skin-light",
+          "groupId": "grp_warm"
+        }
+      ],
+      "foregroundIndex": 1,
+      "backgroundIndex": 0,
+      "groups": [
+        {
+          "id": "grp_outline",
+          "name": "Outline"
+        },
+        {
+          "id": "grp_neutral",
+          "name": "Neutral"
+        },
+        {
+          "id": "grp_warm",
+          "name": "Warm"
+        },
+        {
+          "id": "grp_accent",
+          "name": "Accent"
+        },
+        {
+          "id": "grp_nature",
+          "name": "Nature"
+        },
+        {
+          "id": "grp_cool",
+          "name": "Cool"
+        }
+      ]
+    },
+    "createdAt": "2026-03-16T18:49:05.027Z",
+    "updatedAt": "2026-03-16T18:49:05.029Z"
+  },
+  "pixelBuffers": {
+    "sl_1773686945027_9ct2ej": {
+      "width": 16,
+      "height": 16,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAD/zKpm/8yqZv/Mqmb/zKpm/8yqZv/Mqmb/zKpm/8yqZv/Mqmb/zKpm/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAA/5lmM///zAD/mWYz/5lmM/9mOQD/ZjkA/5lmM/+ZZjP//8wA/5lmM/8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAP+ZZjP/mWYz/5lmM/+ZZjP/ZjkA/2Y5AP+ZZjP/mWYz/5lmM/+ZZjP/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAD/mWYz/5lmM/+ZZjP/mWYz/2Y5AP9mOQD/mWYz/5lmM/+ZZjP/mWYz/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAD/mWYz/5lmM/+ZZjP/mWYz/2Y5AP9mOQD/mWYz/5lmM/+ZZjP/mWYz/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAA/5lmM/+ZZjP/mWYz/5lmM/9mOQD/ZjkA/5lmM/+ZZjP/mWYz/5lmM/8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAP+ZZjP//8wA/5lmM/+ZZjP/ZjkA/2Y5AP+ZZjP/mWYz///MAP+ZZjP/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAD/VVVV/1VVVf9VVVX/VVVV/1VVVf9VVVX/VVVV/1VVVf9VVVX/VVVV/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    }
+  }
+}
