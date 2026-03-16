@@ -124,6 +124,8 @@ export function SpriteCanvasArea() {
   const clearSelection = useSpriteEditorStore((s) => s.clearSelection);
   const zoomIn = useSpriteEditorStore((s) => s.zoomIn);
   const zoomOut = useSpriteEditorStore((s) => s.zoomOut);
+  const isPlaying = useSpriteEditorStore((s) => s.isPlaying);
+  const previewFrameIndex = useSpriteEditorStore((s) => s.previewFrameIndex);
 
   // Draft stroke state — local, never in store
   const draftRef = useRef<{
@@ -146,8 +148,9 @@ export function SpriteCanvasArea() {
     currentY: number;
   } | null>(null);
 
-  // Get active frame buffer
-  const activeFrame = doc?.frames[activeFrameIndex];
+  // Get displayed frame buffer — during playback, show preview frame
+  const displayFrameIndex = isPlaying ? previewFrameIndex : activeFrameIndex;
+  const activeFrame = doc?.frames[displayFrameIndex];
   const activeBuffer = activeFrame ? pixelBuffers[activeFrame.id] : undefined;
 
   // Build viewport
@@ -223,8 +226,10 @@ export function SpriteCanvasArea() {
       }
 
       // Onion skin overlays (rendered BEFORE active frame so active stays dominant)
+      // Hidden during playback — preview shows exactly what the animation looks like
       const currentOnionSkin = useSpriteEditorStore.getState().onionSkin;
-      if (currentOnionSkin.enabled && doc.frames.length > 1) {
+      const currentIsPlaying = useSpriteEditorStore.getState().isPlaying;
+      if (currentOnionSkin.enabled && !currentIsPlaying && doc.frames.length > 1) {
         const currentBuffers = useSpriteEditorStore.getState().pixelBuffers;
         const afi = useSpriteEditorStore.getState().activeFrameIndex;
 
@@ -291,7 +296,7 @@ export function SpriteCanvasArea() {
         renderSelectionOverlay(ctx, selRect, originX, originY, zoom);
       }
     },
-    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin, showGrid],
+    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin, showGrid, isPlaying, previewFrameIndex],
   );
 
   // Re-render when state changes
@@ -559,7 +564,7 @@ export function SpriteCanvasArea() {
         </span>
         <span data-testid="canvas-zoom">{zoom}x</span>
         <span data-testid="canvas-frame">
-          Frame {activeFrameIndex + 1}/{doc.frames.length}
+          Frame {displayFrameIndex + 1}/{doc.frames.length}
         </span>
         {activeFrame && (
           <span data-testid="canvas-frame-duration">{activeFrame.durationMs}ms</span>

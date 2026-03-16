@@ -626,6 +626,61 @@ describe('SpriteEditor', () => {
     expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
   });
 
+  // ── Preview hardening ──
+
+  it('preview does not mutate pixel data', () => {
+    openTestDoc(4, 4);
+    const store = useSpriteEditorStore.getState();
+    const f0Id = store.document!.frames[0].id;
+    const buf = store.pixelBuffers[f0Id];
+    setPixel(buf, 0, 0, [255, 0, 0, 255]);
+    act(() => store.commitPixels(buf));
+
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    act(() => useSpriteEditorStore.getState().play());
+    act(() => useSpriteEditorStore.getState().advancePreview());
+    act(() => useSpriteEditorStore.getState().advancePreview());
+    act(() => useSpriteEditorStore.getState().stop());
+
+    const afterBuf = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+    expect(samplePixel(afterBuf, 0, 0)).toEqual([255, 0, 0, 255]);
+  });
+
+  it('preview state resets on new document', () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    act(() => useSpriteEditorStore.getState().play());
+    openTestDoc(); // re-open
+    const s = useSpriteEditorStore.getState();
+    expect(s.isPlaying).toBe(false);
+    expect(s.previewFrameIndex).toBe(0);
+  });
+
+  it('scrub after frame reorder points to correct frame', () => {
+    openTestDoc(4, 4);
+    // Create 3 frames, paint frame 0 red
+    const store = useSpriteEditorStore.getState();
+    const f0Id = store.document!.frames[0].id;
+    const buf = store.pixelBuffers[f0Id];
+    setPixel(buf, 0, 0, [255, 0, 0, 255]);
+    act(() => store.commitPixels(buf));
+
+    act(() => useSpriteEditorStore.getState().addFrame());
+    act(() => useSpriteEditorStore.getState().addFrame());
+    // Move frame 0 (red) to position 2
+    act(() => useSpriteEditorStore.getState().setActiveFrame(0));
+    act(() => useSpriteEditorStore.getState().moveFrame(0, 2));
+    // Scrub to frame 2 — should be the original red frame
+    act(() => useSpriteEditorStore.getState().scrubPreview(2));
+    const doc = useSpriteEditorStore.getState().document!;
+    const frame2 = doc.frames[2];
+    expect(frame2.id).toBe(f0Id);
+    const frame2Buf = useSpriteEditorStore.getState().pixelBuffers[frame2.id];
+    expect(samplePixel(frame2Buf, 0, 0)).toEqual([255, 0, 0, 255]);
+  });
+
   // ── Frame duration controls ──
 
   it('shows duration controls when document is open', () => {
