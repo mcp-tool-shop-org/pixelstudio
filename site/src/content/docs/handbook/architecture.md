@@ -256,6 +256,67 @@ Shortcuts are suppressed when focus is in an `<input>`, `<textarea>`, or `conten
 - History covers instances, camera, and keyframes — not a generalized project-wide undo system
 - Canvas and scene editors use different undo mechanisms by design
 
+## Sprite editor architecture
+
+The sprite editor is a self-contained frontend system that manages pixel editing, animation, and export entirely within the React/TypeScript layer. Unlike the canvas editor (which delegates pixel truth to the Rust backend), the sprite editor owns its pixel data directly in the frontend store.
+
+### Ownership boundary
+
+| Concern | Owner | Storage |
+|---------|-------|---------|
+| Pixel data | `spriteEditorStore` (Zustand) | `pixelBuffers: Record<string, SpritePixelBuffer>` keyed by **layerId** |
+| Document model | `@glyphstudio/domain` | `SpriteDocument` → `SpriteFrame[]` → `SpriteLayer[]` |
+| Compositing | `flattenLayers()` in `spriteRaster.ts` | Pure function, no store mutation |
+| Tool interaction | `SpriteCanvasArea` component | Pointer events → draft buffer → commit to store |
+| Layer management | `spriteEditorStore` actions | addLayer, removeLayer, moveLayer, toggleVisibility, rename |
+| Animation | `spriteEditorStore` + `SpriteFrameStrip` | Frame CRUD, playback state, onion skin |
+
+### Layer compositing model
+
+Layers are composited bottom-to-top using source-over alpha blending (`flattenLayers`). The function:
+
+1. Creates a blank output buffer (width × height)
+2. Iterates layers in order (index 0 = bottom)
+3. Skips hidden layers
+4. For each visible layer, blends each pixel using standard alpha compositing:
+   - `srcA` from the layer pixel, `dstA` from the accumulated output
+   - `outA = srcA + dstA × (1 - srcA)`
+   - RGB channels blended proportionally
+
+During active paint strokes, the canvas substitutes the draft buffer for the active layer's committed buffer and re-flattens all visible layers. This gives the user a real-time composite preview while painting on a single layer.
+
+### Draft stroke lifecycle
+
+```
+pointer down → clone active layer buffer into draft
+pointer move → paint into draft buffer (Bresenham interpolation)
+canvas render → flattenLayers with draft override for active layer
+pointer up → commitPixels (store replaces active layer buffer with draft)
+```
+
+The draft buffer is never stored in the Zustand store. It lives as component-local state in `SpriteCanvasArea` and is discarded after commit.
+
+### Pixel buffer keying
+
+Pixel buffers are keyed by **layer ID**, not frame ID. When a frame is removed, all its layers' buffers are cleaned up. When a frame is switched, `activeLayerId` updates to the first layer of the target frame.
+
+### Store actions (sprite editor)
+
+| Action | Purpose |
+|--------|---------|
+| `newDocument` | Create document, initialize layer buffers, set activeLayerId |
+| `addFrame` / `removeFrame` | Frame CRUD with buffer lifecycle management |
+| `setActiveFrame` | Switch frame, update activeLayerId to target frame's first layer |
+| `commitPixels` | Write pixel data to activeLayerId buffer |
+| `addLayer` | Add layer to active frame, create blank buffer, set as active |
+| `removeLayer` | Remove layer and its buffer, update activeLayerId if needed |
+| `setActiveLayer` | Switch which layer receives paint operations |
+| `toggleLayerVisibility` | Toggle layer visible/hidden (affects compositing) |
+| `renameLayer` | Update layer name |
+| `moveLayer` | Reorder layer within frame's layer stack |
+| `importSpriteSheet` | Slice image into frames with layer-keyed buffers |
+| `exportSpriteSheet` / `exportCurrentFrame` | Flatten visible layers per frame for output |
+
 ## Scene provenance (persisted)
 
 Scene provenance is an append-only activity log that records successful forward scene edits. It persists with the scene document, surviving save/load cycles. It exists alongside scene history but serves a fundamentally different purpose.
@@ -552,6 +613,24 @@ The engine compares:
 #### Honest fallback behavior
 
 When historical data is missing (legacy entries, partial captures), domains report `unavailable` status with explicit messaging. The system never fabricates comparison data from absent sources.
+
+#### Scene restore (Stage 25)
+
+Stage 25 added a restore contract that can reconstruct scene state from historical entries. Restore operates through pure derivation — it reads captured provenance data and produces a candidate state without mutating anything. The contract covers all authored domains: instances, camera, keyframes, and playback.
+
+Selective restore allows restoring individual domains independently (e.g., restore only camera position without touching instances). Full restore applies all domains at once. Both paths flow through the lawful seam so that undo/redo and provenance capture fire correctly.
+
+Rollback integrity is hardened: if a restore fails at the backend sync step, the local store and history stacks revert to their exact prior state.
+
+#### Playback selective restore (Stage 26)
+
+Stage 26 extended the lawful seam to include `playbackConfig` (FPS, looping) in scene history snapshots. This enables:
+
+- Undo/redo of playback configuration changes
+- Selective restore of playback settings independently from other domains
+- Change detection that correctly identifies playback-only edits
+
+The playback config flows through `applyEdit` like all other authored state, ensuring history, provenance, and drilldown all fire atomically.
 
 #### Compare/restore closeout (Stage 24)
 

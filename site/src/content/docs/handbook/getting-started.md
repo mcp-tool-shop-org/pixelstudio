@@ -147,7 +147,7 @@ cargo check
 - Sprite strip export: horizontal or vertical PNG strip of all frames
 - Export uses composited visible layers, never includes onion skin or overlays
 
-**Stage 4A (Motion Assistance Foothold)** — in progress:
+**Stage 4A (Motion Assistance Foothold)** — complete:
 - Motion session model: begin/generate/accept/reject/cancel lifecycle
 - Bounded intent set: idle bob, walk cycle stub, run cycle stub, hop
 - Direction control (left/right/up/down) and frame count (2 or 4)
@@ -158,3 +158,45 @@ cargo check
 - Session invalidation: auto-cancels on frame switch
 - Proposals are preview-only — no timeline mutation until accepted
 - 6 motion commands registered (67 total commands)
+
+**Stage 25 (Scene Restore)** — complete:
+- Scene restore contract with pure derivation and domain coverage
+- Full and selective restore semantics (restore specific domains independently)
+- Undo/redo integrity hardening with rollback coherence
+
+**Stage 26 (Playback Selective Restore)** — complete:
+- PlaybackConfig added to SceneHistorySnapshot and change detection
+- Playback config wired through lawful seam with undo/redo
+- Playback-only selective restore (restore FPS/looping without touching instances)
+
+**Stage 27 (Sprite Editor Foundation)** — complete:
+- Sprite document contract: SpriteDocument, SpriteFrame, SpriteLayer, SpritePixelBuffer types
+- Editor shell with tool rail, canvas area, frame strip, and palette panel
+- Pixel canvas with pencil, eraser, fill, and eyedropper tools
+- Draft stroke batching: pointer down clones buffer, moves paint into draft, pointer up commits
+- Frame management: add, duplicate, delete, reorder, switch frames
+- Onion skin overlays (previous/next frame ghosts)
+- Rectangular selection with marching ants, copy/cut/paste/delete
+- Sprite sheet import (slice grid into frames) and export (flatten frames into strip)
+
+**Stage 28 (Sprite Editor Polish)** — complete:
+- Keyboard shortcuts: Ctrl+Z/Y undo/redo, Ctrl+C/X/V clipboard, Delete, Escape
+- Frame navigation: left/right arrow keys, frame reorder
+- Zoom/grid: scroll wheel zoom (1x–32x), pixel grid toggle, coordinate display
+- Palette panel with color picker and X shortcut for foreground/background swap
+
+**Stage 29 (Animation Preview)** — complete:
+- Animation preview state and player contract (play/pause/loop/FPS)
+- Playback UI with scrubber bar and Space shortcut
+- Inline frame duration editing with presets (50ms–500ms)
+- Onion skin suppression during playback
+
+**Stage 30 (Layers and Layer Workflow)** — complete:
+- SpriteLayer type with id, name, visible, index fields
+- pixelBuffers migrated from frameId-keyed to layerId-keyed storage
+- flattenLayers alpha compositing helper (src-over-dst, bottom to top)
+- activeLayerId tracking across frame switches and document lifecycle
+- Layer panel UI: add/remove/rename/reorder/visibility toggle
+- Draft stroke compositing: override active layer buffer and re-flatten all visible layers
+- Multi-layer export: flatten visible layers per frame for sprite sheet output
+- 1,149 tests (951 desktop + 198 sprite package)

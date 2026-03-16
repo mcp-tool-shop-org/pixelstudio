@@ -1343,6 +1343,143 @@ The Scene tab in the top bar activates a dedicated workspace:
 - `author` and `description` are optional; empty values are never serialized
 - Missing optional fields never block export or packaging
 
+## Sprite editor (frontend-only)
+
+The sprite editor operates entirely within the React/TypeScript frontend — no Tauri commands are involved. All state lives in `useSpriteEditorStore` (Zustand).
+
+### Domain types (`@glyphstudio/domain`)
+
+```typescript
+interface SpriteLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  index: number;
+}
+
+interface SpriteFrame {
+  id: string;
+  name: string;
+  index: number;
+  durationMs: number;
+  layers: SpriteLayer[];
+}
+
+interface SpriteDocument {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  frames: SpriteFrame[];
+  palette: SpritePalette;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SpritePixelBuffer {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;  // RGBA row-major
+}
+```
+
+### Store state
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `document` | `SpriteDocument \| null` | Active sprite document |
+| `pixelBuffers` | `Record<string, SpritePixelBuffer>` | Pixel data keyed by **layerId** |
+| `activeFrameIndex` | `number` | Currently selected frame |
+| `activeLayerId` | `string \| null` | Layer receiving paint operations |
+| `activeTool` | `SpriteToolId` | Current tool (pencil/eraser/fill/eyedropper/select) |
+| `toolConfig` | `SpriteToolConfig` | Brush size, shape, colors |
+| `selection` | `SpriteSelectionRect \| null` | Active selection bounds |
+| `clipboard` | `SpritePixelBuffer \| null` | Copied pixel data |
+| `undoStack` / `redoStack` | `SpriteEditorState[]` | Undo/redo snapshots |
+| `onionSkin` | `SpriteOnionSkin` | Onion skin settings (enabled, prev/next opacity) |
+| `isPlaying` | `boolean` | Animation playback state |
+| `fps` | `number` | Playback frames per second |
+| `loop` | `boolean` | Loop playback |
+| `isDirty` | `boolean` | Unsaved changes flag |
+
+### Store actions
+
+#### Document lifecycle
+
+| Action | Description |
+|--------|-------------|
+| `newDocument(name, w, h)` | Create document with one frame, one layer, blank buffer |
+| `closeDocument()` | Clear document and all state |
+| `undo()` / `redo()` | Navigate undo/redo stacks |
+
+#### Frame management
+
+| Action | Description |
+|--------|-------------|
+| `addFrame()` | Append frame with one layer and blank buffer |
+| `duplicateFrame()` | Deep copy active frame (all layers and buffers) |
+| `removeFrame(frameId)` | Delete frame and all its layer buffers |
+| `setActiveFrame(index)` | Switch frame, update activeLayerId |
+| `reorderFrame(from, to)` | Move frame in timeline |
+
+#### Layer management
+
+| Action | Description |
+|--------|-------------|
+| `addLayer()` | Add layer to active frame, create blank buffer, set as active |
+| `removeLayer(layerId)` | Remove layer and buffer; update activeLayerId if needed |
+| `setActiveLayer(layerId)` | Set which layer receives paint operations |
+| `toggleLayerVisibility(layerId)` | Toggle layer visible/hidden |
+| `renameLayer(layerId, name)` | Update layer display name |
+| `moveLayer(fromIndex, toIndex)` | Reorder layer within frame stack |
+
+#### Pixel operations
+
+| Action | Description |
+|--------|-------------|
+| `commitPixels(buffer)` | Write pixel data to activeLayerId buffer |
+| `cutSelection()` | Copy selection pixels, clear to transparent |
+| `copySelection()` | Copy selection pixels to clipboard |
+| `pasteSelection()` | Paste clipboard at selection origin |
+| `deleteSelection()` | Clear selection pixels to transparent |
+
+#### Import/Export
+
+| Action | Description |
+|--------|-------------|
+| `importSpriteSheet(data, cols, rows, w, h)` | Slice image into frames with layer-keyed buffers |
+| `exportSpriteSheet()` | Flatten visible layers per frame, return composite strip |
+| `exportCurrentFrame()` | Flatten visible layers of active frame |
+
+### Compositing helper
+
+```typescript
+function flattenLayers(
+  layers: SpriteLayer[],
+  pixelBuffers: Record<string, SpritePixelBuffer>,
+  width: number,
+  height: number
+): SpritePixelBuffer
+```
+
+Composites visible layers bottom-to-top using source-over alpha blending. Hidden layers are skipped. Missing buffers are treated as transparent. Returns a new `SpritePixelBuffer` — never mutates inputs.
+
+### Keyboard shortcuts (sprite editor)
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+Z | Undo |
+| Ctrl+Y / Ctrl+Shift+Z | Redo |
+| Ctrl+C | Copy selection |
+| Ctrl+X | Cut selection |
+| Ctrl+V | Paste |
+| Delete | Delete selection pixels |
+| Escape | Clear selection |
+| Space | Play/pause animation |
+| X | Swap foreground/background color |
+| Left/Right arrow | Previous/next frame |
+| Scroll wheel | Zoom in/out |
+
 ## Events (planned)
 
 | Event | Payload |
