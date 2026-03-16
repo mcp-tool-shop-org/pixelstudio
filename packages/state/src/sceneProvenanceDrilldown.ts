@@ -1,4 +1,4 @@
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import type { SceneHistoryOperationKind, SceneHistoryOperationMetadata } from './sceneHistory';
 import type { SceneProvenanceEntry } from './sceneProvenance';
 
@@ -139,6 +139,8 @@ export interface CameraDiff {
 
 export interface PlaybackDiff {
   type: 'playback';
+  before?: ScenePlaybackConfig;
+  after?: ScenePlaybackConfig;
 }
 
 export interface KeyframeAddedDiff {
@@ -189,6 +191,10 @@ export interface SceneProvenanceDrilldownSource {
   beforeKeyframe?: SceneCameraKeyframe;
   /** Keyframe state after a keyframe-targeted operation. */
   afterKeyframe?: SceneCameraKeyframe;
+  /** Playback config before a playback-targeted operation. */
+  beforePlayback?: ScenePlaybackConfig;
+  /** Playback config after a playback-targeted operation. */
+  afterPlayback?: ScenePlaybackConfig;
 }
 
 /**
@@ -207,6 +213,8 @@ export function captureProvenanceDrilldownSource(
   nextCamera?: SceneCamera,
   currentKeyframes?: SceneCameraKeyframe[],
   nextKeyframes?: SceneCameraKeyframe[],
+  currentPlaybackConfig?: ScenePlaybackConfig,
+  nextPlaybackConfig?: ScenePlaybackConfig,
 ): SceneProvenanceDrilldownSource {
   const instanceId = metaInstanceId(metadata);
 
@@ -253,7 +261,12 @@ export function captureProvenanceDrilldownSource(
       };
 
     case 'set-scene-playback':
-      return { kind, metadata };
+      return {
+        kind,
+        metadata,
+        beforePlayback: currentPlaybackConfig ? { ...currentPlaybackConfig } : undefined,
+        afterPlayback: nextPlaybackConfig ? { ...nextPlaybackConfig } : undefined,
+      };
 
     case 'add-camera-keyframe': {
       const tick = metaKeyframeTick(metadata);
@@ -375,6 +388,8 @@ export function deriveProvenanceDiff(
   afterCamera?: SceneCamera,
   beforeKeyframe?: SceneCameraKeyframe,
   afterKeyframe?: SceneCameraKeyframe,
+  beforePlayback?: ScenePlaybackConfig,
+  afterPlayback?: ScenePlaybackConfig,
 ): SceneProvenanceDiff | undefined {
   const instanceId = metaInstanceId(metadata);
 
@@ -579,7 +594,7 @@ export function deriveProvenanceDiff(
     }
 
     case 'set-scene-playback': {
-      return { type: 'playback' };
+      return { type: 'playback', before: beforePlayback, after: afterPlayback };
     }
 
     case 'add-camera-keyframe': {
@@ -639,6 +654,8 @@ export function deriveProvenanceDrilldown(
   afterCamera?: SceneCamera,
   beforeKeyframe?: SceneCameraKeyframe,
   afterKeyframe?: SceneCameraKeyframe,
+  beforePlayback?: ScenePlaybackConfig,
+  afterPlayback?: ScenePlaybackConfig,
 ): SceneProvenanceDrilldown | undefined {
   const diff = deriveProvenanceDiff(
     entry.kind,
@@ -649,6 +666,8 @@ export function deriveProvenanceDrilldown(
     afterCamera,
     beforeKeyframe,
     afterKeyframe,
+    beforePlayback,
+    afterPlayback,
   );
   if (!diff) return undefined;
   return {
@@ -742,8 +761,19 @@ export function describeProvenanceDiff(diff: SceneProvenanceDiff): string {
       return `Camera: ${diff.changedFields.join(', ')}`;
     }
 
-    case 'playback':
-      return 'Playback settings changed';
+    case 'playback': {
+      if (!diff.before || !diff.after) return 'Playback settings changed';
+      const parts: string[] = [];
+      if (diff.before.fps !== diff.after.fps) {
+        parts.push(`FPS: ${diff.before.fps} → ${diff.after.fps}`);
+      }
+      if (diff.before.looping !== diff.after.looping) {
+        parts.push(`Looping: ${diff.before.looping ? 'Yes' : 'No'} → ${diff.after.looping ? 'Yes' : 'No'}`);
+      }
+      return parts.length > 0
+        ? `Playback: ${parts.join(', ')}`
+        : 'Playback settings changed';
+    }
 
     case 'keyframe-added':
       return `Added keyframe at tick ${diff.tick}`;

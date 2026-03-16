@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import type {
   SceneHistoryOperationKind,
   SceneHistoryOperationMetadata,
@@ -45,6 +45,8 @@ export interface SceneEditorState {
   camera: SceneCamera | undefined;
   /** Current authored keyframes — tracked for history snapshot capture. */
   keyframes: SceneCameraKeyframe[];
+  /** Current playback config — tracked for drilldown capture. */
+  playbackConfig: ScenePlaybackConfig | undefined;
   /** Undo/redo history stacks. */
   history: SceneHistoryState;
   /** Append-only provenance log — persists with the scene document. */
@@ -79,6 +81,12 @@ export interface SceneEditorState {
    */
   loadKeyframes: (keyframes: SceneCameraKeyframe[]) => void;
 
+  /**
+   * Load playback config without recording history.
+   * Used for initial load and refresh — tracked for drilldown capture.
+   */
+  loadPlaybackConfig: (config: ScenePlaybackConfig) => void;
+
   // ── History-producing edits ──
 
   /**
@@ -90,6 +98,7 @@ export interface SceneEditorState {
    *
    * For camera edits, pass `nextCamera` to include camera state in the
    * history snapshot. For keyframe edits, pass `nextKeyframes`.
+   * For playback edits, pass `nextPlaybackConfig` for drilldown capture.
    *
    * No-ops are automatically skipped.
    */
@@ -99,6 +108,7 @@ export interface SceneEditorState {
     metadata?: SceneHistoryOperationMetadata,
     nextCamera?: SceneCamera,
     nextKeyframes?: SceneCameraKeyframe[],
+    nextPlaybackConfig?: ScenePlaybackConfig,
   ) => void;
 
   // ── Undo / Redo ──
@@ -151,6 +161,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   instances: [],
   camera: undefined,
   keyframes: [],
+  playbackConfig: undefined,
   history: createEmptySceneHistoryState(),
   provenance: [],
   drilldownBySequence: {},
@@ -169,8 +180,12 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     set({ keyframes });
   },
 
-  applyEdit: (kind, nextInstances, metadata, nextCamera, nextKeyframes) => {
-    const { instances: current, camera: currentCamera, keyframes: currentKeyframes, history, provenance, drilldownBySequence } = get();
+  loadPlaybackConfig: (config) => {
+    set({ playbackConfig: config });
+  },
+
+  applyEdit: (kind, nextInstances, metadata, nextCamera, nextKeyframes, nextPlaybackConfig) => {
+    const { instances: current, camera: currentCamera, keyframes: currentKeyframes, playbackConfig: currentPlaybackConfig, history, provenance, drilldownBySequence } = get();
     const result = applySceneEditWithHistory(
       current, history, kind, nextInstances, metadata, currentCamera, nextCamera,
       currentKeyframes.length > 0 || nextKeyframes ? currentKeyframes : undefined,
@@ -187,6 +202,8 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
         kind, current, nextInstances, metadata, currentCamera, nextCamera,
         currentKeyframes.length > 0 || nextKeyframes ? currentKeyframes : undefined,
         nextKeyframes,
+        currentPlaybackConfig,
+        nextPlaybackConfig,
       );
       newDrilldown = { ...drilldownBySequence, [entry.sequence]: source };
     }
@@ -194,6 +211,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       instances: result.instances,
       camera: nextCamera ?? currentCamera,
       keyframes: nextKeyframes ?? currentKeyframes,
+      playbackConfig: nextPlaybackConfig ?? currentPlaybackConfig,
       history: result.history,
       provenance: newProvenance,
       drilldownBySequence: newDrilldown,

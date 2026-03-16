@@ -1,6 +1,10 @@
 import {
   useSceneEditorStore,
   deriveProvenanceDiff,
+  extractChangedFields,
+  CAMERA_FIELD_CONFIGS,
+  KEYFRAME_FIELD_CONFIGS,
+  PLAYBACK_FIELD_CONFIGS,
 } from '@glyphstudio/state';
 import type {
   SceneProvenanceEntry,
@@ -276,30 +280,21 @@ function KeyframeDiffView({ diff }: { diff: SceneProvenanceDiff }) {
     return (
       <div className="provenance-drilldown-detail" data-family="keyframe">
         <BeforeAfter label="Tick" before={String(diff.previousTick)} after={String(diff.newTick)} />
-        <Field label="X" value={fmtKfVal(diff.keyframe.x)} />
-        <Field label="Y" value={fmtKfVal(diff.keyframe.y)} />
-        <Field label="Zoom" value={fmtKfVal(diff.keyframe.zoom)} />
-        <Field label="Interpolation" value={diff.keyframe.interpolation} />
       </div>
     );
   }
   if (diff.type === 'keyframe-edited') {
+    const changes = extractChangedFields(
+      diff.before as unknown as Record<string, unknown>,
+      diff.after as unknown as Record<string, unknown>,
+      KEYFRAME_FIELD_CONFIGS,
+    );
     return (
       <div className="provenance-drilldown-detail" data-family="keyframe">
         <Field label="Tick" value={String(diff.tick)} />
-        <Field label="Changed" value={diff.changedFields.join(', ')} />
-        {diff.changedFields.includes('x') && (
-          <BeforeAfter label="X" before={fmtKfVal(diff.before.x)} after={fmtKfVal(diff.after.x)} />
-        )}
-        {diff.changedFields.includes('y') && (
-          <BeforeAfter label="Y" before={fmtKfVal(diff.before.y)} after={fmtKfVal(diff.after.y)} />
-        )}
-        {diff.changedFields.includes('zoom') && (
-          <BeforeAfter label="Zoom" before={fmtKfVal(diff.before.zoom)} after={fmtKfVal(diff.after.zoom)} />
-        )}
-        {diff.changedFields.includes('interpolation') && (
-          <BeforeAfter label="Interpolation" before={diff.before.interpolation} after={diff.after.interpolation} />
-        )}
+        {changes.map((c) => (
+          <BeforeAfter key={c.field} label={c.label} before={c.before} after={c.after} />
+        ))}
       </div>
     );
   }
@@ -307,11 +302,6 @@ function KeyframeDiffView({ diff }: { diff: SceneProvenanceDiff }) {
 }
 
 // ── Camera / playback ──
-
-/** Format a camera coordinate for display. */
-function fmtCam(v: number): string {
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
-}
 
 /** Contextual note based on which fields changed. */
 function cameraNote(fields?: string[]): string {
@@ -326,32 +316,32 @@ function cameraNote(fields?: string[]): string {
 
 function CameraDiffView({ diff }: { diff: SceneProvenanceDiff }) {
   if (diff.type !== 'camera') return null;
-  const { changedFields, before, after } = diff;
+  const { before, after } = diff;
 
-  // Real before/after values available — show per-field rows
-  if (before && after && changedFields?.length) {
-    return (
-      <div className="provenance-drilldown-detail" data-family="camera">
-        <Field label="Changed" value={changedFields.join(', ')} />
-        {changedFields.includes('x') && (
-          <BeforeAfter label="X" before={fmtCam(before.x)} after={fmtCam(after.x)} />
-        )}
-        {changedFields.includes('y') && (
-          <BeforeAfter label="Y" before={fmtCam(before.y)} after={fmtCam(after.y)} />
-        )}
-        {changedFields.includes('zoom') && (
-          <BeforeAfter label="Zoom" before={fmtCam(before.zoom)} after={fmtCam(after.zoom)} />
-        )}
-        <Note text={cameraNote(changedFields)} />
-      </div>
+  // Real before/after values available — use structured field configs
+  if (before && after) {
+    const changes = extractChangedFields(
+      before as unknown as Record<string, unknown>,
+      after as unknown as Record<string, unknown>,
+      CAMERA_FIELD_CONFIGS,
     );
+    if (changes.length > 0) {
+      return (
+        <div className="provenance-drilldown-detail" data-family="camera">
+          {changes.map((c) => (
+            <BeforeAfter key={c.field} label={c.label} before={c.before} after={c.after} />
+          ))}
+          <Note text={cameraNote(changes.map((c) => c.field))} />
+        </div>
+      );
+    }
   }
 
   // Fallback: metadata only (legacy entries without captured camera)
   return (
     <div className="provenance-drilldown-detail" data-family="camera">
-      {changedFields?.length ? (
-        <Field label="Changed" value={changedFields.join(', ')} />
+      {diff.changedFields?.length ? (
+        <Field label="Changed" value={diff.changedFields.join(', ')} />
       ) : (
         <Note text="Camera settings changed." />
       )}
@@ -359,15 +349,38 @@ function CameraDiffView({ diff }: { diff: SceneProvenanceDiff }) {
   );
 }
 
+function PlaybackDiffView({ diff }: { diff: SceneProvenanceDiff }) {
+  if (diff.type !== 'playback') return null;
+
+  // Real before/after values available — show structured field changes
+  if (diff.before && diff.after) {
+    const changes = extractChangedFields(
+      diff.before as unknown as Record<string, unknown>,
+      diff.after as unknown as Record<string, unknown>,
+      PLAYBACK_FIELD_CONFIGS,
+    );
+    if (changes.length > 0) {
+      return (
+        <div className="provenance-drilldown-detail" data-family="playback">
+          {changes.map((c) => (
+            <BeforeAfter key={c.field} label={c.label} before={c.before} after={c.after} />
+          ))}
+        </div>
+      );
+    }
+  }
+
+  // Fallback: no before/after captured (legacy entries)
+  return (
+    <div className="provenance-drilldown-detail" data-family="playback">
+      <Note text="Playback settings changed." />
+    </div>
+  );
+}
+
 function CameraPlaybackDiffView({ diff }: { diff: SceneProvenanceDiff }) {
   if (diff.type === 'camera') return <CameraDiffView diff={diff} />;
-  if (diff.type === 'playback') {
-    return (
-      <div className="provenance-drilldown-detail" data-family="camera">
-        <Note text="Playback settings changed." />
-      </div>
-    );
-  }
+  if (diff.type === 'playback') return <PlaybackDiffView diff={diff} />;
   return null;
 }
 
@@ -448,6 +461,8 @@ export function SceneProvenanceDrilldownPane({ sequence }: Props) {
     source.afterCamera,
     source.beforeKeyframe,
     source.afterKeyframe,
+    source.beforePlayback,
+    source.afterPlayback,
   );
 
   if (!diff) {

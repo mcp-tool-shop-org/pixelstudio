@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import { useSceneEditorStore, createEmptySceneHistoryState, resetProvenanceSequence } from '@glyphstudio/state';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
 
@@ -704,13 +704,13 @@ describe('SceneProvenancePanel — camera/playback rendering', () => {
     expect(detail!.textContent).toContain('zoom');
   });
 
-  it('playback diff shows note', () => {
+  it('playback diff shows fallback note when no config captured', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     // Must change instances to avoid no-op detection
     applyTestEdit('set-scene-playback', [{ ...INST_A, x: 888 }], {});
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
-    const detail = document.querySelector('[data-family="camera"]');
+    const detail = document.querySelector('[data-family="playback"]');
     expect(detail).not.toBeNull();
     expect(detail!.textContent).toContain('Playback settings changed');
   });
@@ -785,31 +785,37 @@ describe('SceneProvenancePanel — camera drilldown with values', () => {
     expect(text).toContain('Camera reset to defaults');
   });
 
-  it('changed fields summary renders correctly for pan', () => {
+  it('pan uses structured field labels (Pan X, Pan Y)', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_B, ['x', 'y']);
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
     const detail = document.querySelector('[data-family="camera"]');
-    expect(detail!.textContent).toContain('x, y');
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('Pan X');
+    expect(baLabels).toContain('Pan Y');
   });
 
-  it('changed fields summary renders correctly for zoom', () => {
+  it('zoom uses structured field label (Zoom)', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_ZOOM, ['zoom']);
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
     const detail = document.querySelector('[data-family="camera"]');
-    expect(detail!.textContent).toContain('zoom');
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('Zoom');
   });
 
-  it('changed fields summary renders correctly for reset', () => {
+  it('reset uses structured field labels for all fields', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyCameraEdit([{ ...INST_A, x: 999 }], CAM_RESET, CAM_A, ['x', 'y', 'zoom']);
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
     const detail = document.querySelector('[data-family="camera"]');
-    expect(detail!.textContent).toContain('x, y, zoom');
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('Pan X');
+    expect(baLabels).toContain('Pan Y');
+    expect(baLabels).toContain('Zoom');
   });
 
   it('camera drilldown uses captured values not current live state', () => {
@@ -851,20 +857,19 @@ describe('SceneProvenancePanel — camera drilldown with values', () => {
     expect(pane!.querySelectorAll('button').length).toBe(0);
   });
 
-  it('zoom-only drilldown does not render x/y rows', () => {
+  it('zoom-only drilldown does not render Pan X/Pan Y rows', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyCameraEdit([{ ...INST_A, x: 999 }], CAM_A, CAM_ZOOM, ['zoom']);
     render(<SceneProvenancePanel />);
     fireEvent.click(document.querySelector('.scene-provenance-row')!);
     const detail = document.querySelector('[data-family="camera"]');
     const text = detail!.textContent!;
-    // Should have Zoom but not X/Y as before/after labels
+    // Should have Zoom but not Pan X/Pan Y as before/after labels
     expect(text).toContain('Zoom');
-    // X and Y should not appear as before/after labeled rows
     const baLabels = detail!.querySelectorAll('.provenance-drilldown-ba-label');
     const labelTexts = Array.from(baLabels).map((el) => el.textContent);
-    expect(labelTexts).not.toContain('X');
-    expect(labelTexts).not.toContain('Y');
+    expect(labelTexts).not.toContain('Pan X');
+    expect(labelTexts).not.toContain('Pan Y');
   });
 
   it('camera drilldown is visually distinct from instance property drilldown', () => {
@@ -1052,11 +1057,11 @@ describe('SceneProvenancePanel — restored (persisted) entries', () => {
 
     // Camera drilldown should show before/after values
     expect(document.querySelector('[data-family="camera"]')).not.toBeNull();
-    // X before/after
+    // Pan X/Pan Y before/after
     const baLabels = document.querySelectorAll('.provenance-drilldown-ba-label');
     const labels = Array.from(baLabels).map((el) => el.textContent);
-    expect(labels).toContain('X');
-    expect(labels).toContain('Y');
+    expect(labels).toContain('Pan X');
+    expect(labels).toContain('Pan Y');
   });
 
   it('persisted row with missing drilldown source shows fallback', () => {
@@ -1371,8 +1376,10 @@ describe('SceneProvenancePanel — keyframe drilldown rendering', () => {
     const detail = document.querySelector('[data-family="keyframe"]');
     expect(detail).not.toBeNull();
     expect(detail!.textContent).toContain('30'); // tick
-    expect(detail!.textContent).toContain('zoom'); // changed field
-    expect(detail!.textContent).toContain('interpolation'); // changed field
+    // Structured field labels from KEYFRAME_FIELD_CONFIGS
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('Zoom');
+    expect(baLabels).toContain('Interpolation');
     // Before/after values
     expect(detail!.textContent).toContain('2'); // before zoom
     expect(detail!.textContent).toContain('3.5'); // after zoom
@@ -1451,5 +1458,88 @@ describe('SceneProvenancePanel — keyframe drilldown rendering', () => {
     // Verify that the activity panel stays empty when no edits occur.
     render(<SceneProvenancePanel />);
     expect(screen.getByText('No scene changes recorded.')).toBeDefined();
+  });
+});
+
+// ── Stage 23.2 — Playback drilldown with real values ──
+
+describe('SceneProvenancePanel — playback drilldown with values', () => {
+  const PB_BEFORE: ScenePlaybackConfig = { fps: 12, looping: false };
+  const PB_AFTER: ScenePlaybackConfig = { fps: 24, looping: true };
+
+  function applyPlaybackEdit(
+    nextInstances: SceneAssetInstance[],
+    beforeConfig: ScenePlaybackConfig,
+    afterConfig: ScenePlaybackConfig,
+  ) {
+    useSceneEditorStore.getState().loadPlaybackConfig(beforeConfig);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useSceneEditorStore.getState().applyEdit(
+      'set-scene-playback' as any,
+      nextInstances,
+      undefined,
+      undefined,
+      undefined,
+      afterConfig,
+    );
+  }
+
+  it('playback edit with before/after shows FPS change', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyPlaybackEdit(
+      [{ ...INST_A, x: 888 }],
+      { fps: 12, looping: false },
+      { fps: 24, looping: false },
+    );
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="playback"]');
+    expect(detail).not.toBeNull();
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('FPS');
+    expect(baLabels).not.toContain('Looping');
+  });
+
+  it('playback edit with before/after shows looping change', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyPlaybackEdit(
+      [{ ...INST_A, x: 888 }],
+      { fps: 12, looping: false },
+      { fps: 12, looping: true },
+    );
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="playback"]');
+    expect(detail).not.toBeNull();
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('Looping');
+    expect(baLabels).not.toContain('FPS');
+  });
+
+  it('playback edit with both changes shows FPS and looping', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyPlaybackEdit([{ ...INST_A, x: 888 }], PB_BEFORE, PB_AFTER);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="playback"]');
+    expect(detail).not.toBeNull();
+    const baLabels = Array.from(detail!.querySelectorAll('.provenance-drilldown-ba-label')).map((el) => el.textContent);
+    expect(baLabels).toContain('FPS');
+    expect(baLabels).toContain('Looping');
+  });
+
+  it('playback drilldown uses captured values not current live state', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyPlaybackEdit([{ ...INST_A, x: 888 }], PB_BEFORE, PB_AFTER);
+    // Change live playback config
+    useSceneEditorStore.getState().loadPlaybackConfig({ fps: 60, looping: false });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const detail = document.querySelector('[data-family="playback"]');
+    const text = detail!.textContent!;
+    // Should show captured values (12 → 24), not current (60)
+    expect(text).toContain('12');
+    expect(text).toContain('24');
+    expect(text).not.toContain('60');
   });
 });

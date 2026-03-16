@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe } from '@glyphstudio/domain';
+import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import {
   deriveProvenanceDiff,
   deriveProvenanceDrilldown,
@@ -794,5 +794,130 @@ describe('captureProvenanceDrilldownSource — keyframes', () => {
     );
     expect(src.beforeKeyframe).toBeUndefined();
     expect(src.afterKeyframe).toBeUndefined();
+  });
+});
+
+// ── Playback diff deepening ──
+
+const PB_A: ScenePlaybackConfig = { fps: 12, looping: false };
+const PB_B: ScenePlaybackConfig = { fps: 24, looping: true };
+
+describe('captureProvenanceDrilldownSource — playback', () => {
+  it('set-scene-playback captures beforePlayback and afterPlayback', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-playback', [INST_A], [INST_A],
+      undefined, undefined, undefined,
+      undefined, undefined,
+      PB_A, PB_B,
+    );
+    expect(src.beforePlayback).toEqual(PB_A);
+    expect(src.afterPlayback).toEqual(PB_B);
+  });
+
+  it('playback slices are shallow copies (not aliased)', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-playback', [INST_A], [INST_A],
+      undefined, undefined, undefined,
+      undefined, undefined,
+      PB_A, PB_B,
+    );
+    expect(src.beforePlayback).toEqual(PB_A);
+    expect(src.beforePlayback).not.toBe(PB_A);
+    expect(src.afterPlayback).toEqual(PB_B);
+    expect(src.afterPlayback).not.toBe(PB_B);
+  });
+
+  it('camera ops do not capture playback fields', () => {
+    const src = captureProvenanceDrilldownSource(
+      'set-scene-camera', [INST_A], [INST_A],
+      { changedFields: ['x'] },
+      { x: 0, y: 0, zoom: 1 }, { x: 100, y: 0, zoom: 1 },
+      undefined, undefined,
+      PB_A, PB_B,
+    );
+    expect(src.beforePlayback).toBeUndefined();
+    expect(src.afterPlayback).toBeUndefined();
+  });
+
+  it('instance ops do not capture playback fields', () => {
+    const src = captureProvenanceDrilldownSource(
+      'move-instance', [INST_A], [{ ...INST_A, x: 200 }],
+      { instanceId: 'i1' },
+      undefined, undefined,
+      undefined, undefined,
+      PB_A, PB_B,
+    );
+    expect(src.beforePlayback).toBeUndefined();
+    expect(src.afterPlayback).toBeUndefined();
+  });
+});
+
+describe('deriveProvenanceDiff — playback with values', () => {
+  it('derives playback diff with before/after config', () => {
+    const diff = deriveProvenanceDiff(
+      'set-scene-playback', [INST_A], [{ ...INST_A, x: 10 }],
+      undefined, undefined, undefined,
+      undefined, undefined,
+      PB_A, PB_B,
+    );
+    expect(diff).toBeDefined();
+    expect(diff!.type).toBe('playback');
+    if (diff!.type === 'playback') {
+      expect(diff!.before).toEqual(PB_A);
+      expect(diff!.after).toEqual(PB_B);
+    }
+  });
+
+  it('derives playback diff without config (legacy fallback)', () => {
+    const diff = deriveProvenanceDiff(
+      'set-scene-playback', [INST_A], [{ ...INST_A, x: 10 }],
+    );
+    expect(diff!.type).toBe('playback');
+    if (diff!.type === 'playback') {
+      expect(diff!.before).toBeUndefined();
+      expect(diff!.after).toBeUndefined();
+    }
+  });
+});
+
+describe('describeProvenanceDiff — playback with values', () => {
+  it('describes FPS change', () => {
+    const desc = describeProvenanceDiff({
+      type: 'playback', before: { fps: 12, looping: false }, after: { fps: 24, looping: false },
+    });
+    expect(desc).toContain('FPS');
+    expect(desc).toContain('12');
+    expect(desc).toContain('24');
+    expect(desc).not.toContain('Looping');
+  });
+
+  it('describes looping change', () => {
+    const desc = describeProvenanceDiff({
+      type: 'playback', before: { fps: 12, looping: false }, after: { fps: 12, looping: true },
+    });
+    expect(desc).toContain('Looping');
+    expect(desc).toContain('No');
+    expect(desc).toContain('Yes');
+    expect(desc).not.toContain('FPS');
+  });
+
+  it('describes both FPS and looping change', () => {
+    const desc = describeProvenanceDiff({
+      type: 'playback', before: PB_A, after: PB_B,
+    });
+    expect(desc).toContain('FPS');
+    expect(desc).toContain('Looping');
+  });
+
+  it('falls back when no before/after', () => {
+    const desc = describeProvenanceDiff({ type: 'playback' });
+    expect(desc).toBe('Playback settings changed');
+  });
+
+  it('falls back when values identical', () => {
+    const desc = describeProvenanceDiff({
+      type: 'playback', before: PB_A, after: { ...PB_A },
+    });
+    expect(desc).toBe('Playback settings changed');
   });
 });
