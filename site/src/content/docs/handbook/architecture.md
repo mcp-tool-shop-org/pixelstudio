@@ -427,7 +427,8 @@ Keyframe drilldown sources include `beforeKeyframe` and `afterKeyframe` slices c
 
 ### Current limitations
 
-- No restore-from-entry or jump-to-state action
+- No restore-from-entry or jump-to-state action — restore preview shows impact but does not apply
+- Compare and restore preview are read-only inspection modes, not mutation workflows
 - No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
 - Camera drilldown shows exact before/after values with structured labels (Pan X, Pan Y, Zoom); keyframe drilldown shows tick, position, zoom, and interpolation; playback drilldown shows FPS and looping before/after when captured, with honest fallback for legacy entries
@@ -498,6 +499,79 @@ Drilldown renderers are keyed by `data-family` attribute:
 | Instance/character/override | various | Direct | Field-specific inline rendering |
 
 All structured renderers use `extractChangedFields` from `structuredValueSummary.ts`, which returns fields in config-defined order. This guarantees stable, predictable label ordering regardless of which fields changed.
+
+### Inspection workflow stack (Stage 24)
+
+The Activity panel supports three read-only inspection modes. None of them mutate authored scene state or create history/provenance entries.
+
+| Mode | Inputs | Purpose | Mutates state? |
+|------|--------|---------|----------------|
+| Drilldown | one entry | Explain one historical change | No |
+| Compare | two states | Show authored differences | No |
+| Restore Preview | selected entry + current state | Show what would change if restored | No |
+| Undo/Redo | history stack | Reverse/reapply edits | Yes |
+
+#### Drilldown
+
+Drilldown explains a single provenance entry. It shows the operation kind, affected entity, and structured before/after diffs using captured historical data. Drilldown never reads current live state — it displays exactly what was captured at the edit seam.
+
+#### Compare
+
+Compare contrasts two scene states. Two modes exist:
+
+- **Current vs entry** — compares the live scene against a historical entry's after-state
+- **Entry vs entry** — compares two historical entries' after-states
+
+Compare uses neutral language ("differences") and produces domain-by-domain sections: instances, camera, keyframes, playback. Unchanged domains are omitted. Unavailable domains (missing historical data) are reported honestly.
+
+#### Restore preview
+
+Restore preview shows what would change if a selected entry's after-state were restored into the current authored scene. It uses impact-focused language ("would change," "would be added/removed") to distinguish itself from generic comparison.
+
+Key distinction: restore preview does not apply changes. It is a read-only impact summary. Actual restore-from-entry is a future concern.
+
+#### Mode transitions
+
+- Selecting a row enters drilldown (default mode)
+- "Compare to Current" or "Compare to..." enters compare mode
+- "Preview Restore Impact" enters restore preview mode
+- Clicking a different row exits compare/preview back to drilldown
+- Close button exits compare/preview back to drilldown
+- Scene reset/switch clears all modes back to empty state
+
+#### Comparison engine
+
+The comparison engine (`sceneComparison.ts`) is a pure function layer with no store access. It operates on resolved anchors (current snapshot or entry-based snapshot) and produces structured results by domain.
+
+The engine compares:
+- **Instances** — by `instanceId`, sorted for stable ordering. Added/removed/changed instances listed; unchanged counted but omitted. Character override diffs reported per-slot.
+- **Camera** — via `CAMERA_FIELD_CONFIGS` (Pan X, Pan Y, Zoom). One-side-only camera is a real change, not "unavailable."
+- **Keyframes** — by tick identity (not array position). Added/removed/changed keyframes listed.
+- **Playback** — via `PLAYBACK_FIELD_CONFIGS` (FPS, Looping). Same one-side logic as camera.
+
+#### Honest fallback behavior
+
+When historical data is missing (legacy entries, partial captures), domains report `unavailable` status with explicit messaging. The system never fabricates comparison data from absent sources.
+
+#### Compare/restore closeout (Stage 24)
+
+Stage 24 added the full inspection workflow stack:
+
+| Commit | What shipped |
+|--------|-------------|
+| 24.1 | Comparison contract and typed modes |
+| 24.2 | Pure comparison derivation engine across all domains |
+| 24.3 | Compare UI integrated into Activity panel |
+| 24.4 | Restore preview workflow with impact-focused rendering |
+| 24.5 | Hardening, docs, and closeout |
+
+#### Current limitations
+
+- Compare is scene-local only — no cross-scene or project-wide comparison
+- Restore preview is preview-only — no actual restore action exists yet
+- No selective partial restore (e.g., restore only instances but keep current camera)
+- Transient playback state (current tick, play/pause, scrub) remains excluded
+- Entry-based anchors use drilldown source data, which captures single instances rather than full scene snapshots
 
 ## Character workflow
 

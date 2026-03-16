@@ -2036,3 +2036,137 @@ describe('SceneProvenancePanel — restore preview stability', () => {
     expect(pane!.textContent).toContain('not available');
   });
 });
+
+// ══════════════════════════════════════════════════
+// ── Stage 24.5 — Cross-mode transitions and hardening ──
+// ══════════════════════════════════════════════════
+
+describe('SceneProvenancePanel — cross-mode transitions', () => {
+  function setupTwoEdits() {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+  }
+
+  it('compare and restore preview never coexist simultaneously', () => {
+    setupTwoEdits();
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    // Enter compare
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    expect(document.querySelector('.comparison-pane')).not.toBeNull();
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    // Exit compare, enter restore preview
+    fireEvent.click(document.querySelector('.comparison-close')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    expect(document.querySelector('.comparison-pane')).toBeNull();
+  });
+
+  it('entering restore preview from compare exits compare cleanly', () => {
+    setupTwoEdits();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    // Enter compare
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    expect(document.querySelector('.comparison-pane')).not.toBeNull();
+    // Click a different row — exits compare back to drilldown
+    fireEvent.click(rows[1]);
+    expect(document.querySelector('.comparison-pane')).toBeNull();
+    // Now enter restore preview from drilldown
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+  });
+
+  it('entering compare after restore preview exits preview cleanly', () => {
+    setupTwoEdits();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    // Enter restore preview
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    // Click a different row — exits preview back to drilldown
+    fireEvent.click(rows[1]);
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    // Now enter compare from drilldown
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    expect(document.querySelector('.comparison-pane')).not.toBeNull();
+  });
+
+  it('entering restore preview preserves selection', () => {
+    setupTwoEdits();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    const selectedSeq = rows[0].getAttribute('data-sequence');
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    // The row should still be the same entry (selection preserved)
+    const title = document.querySelector('.restore-preview-title');
+    expect(title!.textContent).toContain(`#${selectedSeq}`);
+  });
+
+  it('no stale pane remains when switching modes rapidly', () => {
+    setupTwoEdits();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    // Select row → compare → exit → select other row → restore preview → exit
+    fireEvent.click(rows[0]);
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    fireEvent.click(document.querySelector('.comparison-close')!);
+    fireEvent.click(rows[1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('.restore-preview-close')!);
+    // Should be in drilldown mode with no compare or preview pane
+    expect(document.querySelector('.comparison-pane')).toBeNull();
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    expect(document.querySelector('.provenance-drilldown-pane')).not.toBeNull();
+  });
+});
+
+describe('SceneProvenancePanel — inspection mode provenance safety', () => {
+  it('compare mode creates zero provenance entries', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    const countBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    fireEvent.click(document.querySelector('.comparison-close')!);
+    expect(useSceneEditorStore.getState().provenance.length).toBe(countBefore);
+  });
+
+  it('restore preview creates zero provenance entries', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    const countBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('.restore-preview-close')!);
+    expect(useSceneEditorStore.getState().provenance.length).toBe(countBefore);
+  });
+
+  it('compare mode creates zero history entries', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    const historyBefore = useSceneEditorStore.getState().history;
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    fireEvent.click(document.querySelector('.comparison-close')!);
+    expect(useSceneEditorStore.getState().history).toBe(historyBefore);
+  });
+
+  it('restore preview creates zero history entries', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    const historyBefore = useSceneEditorStore.getState().history;
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('.restore-preview-close')!);
+    expect(useSceneEditorStore.getState().history).toBe(historyBefore);
+  });
+});

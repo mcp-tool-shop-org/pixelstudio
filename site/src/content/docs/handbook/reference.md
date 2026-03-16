@@ -1185,6 +1185,33 @@ All 20 scene operation kinds are fully covered across history, provenance, drill
 | `POSITION_FIELD_CONFIGS` | const | Position fields: X, Y |
 | `PLAYBACK_FIELD_CONFIGS` | const | Playback fields: FPS, Looping |
 
+### Scene comparison helpers (`sceneComparison`)
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `SceneComparisonMode` | type | `'current-vs-entry' \| 'entry-vs-entry'` |
+| `SceneComparisonSnapshot` | type | Scene state at one point: instances, camera?, keyframes?, playbackConfig? |
+| `SceneComparisonAnchor` | type | Tagged union: `{ type: 'current' }` or `{ type: 'entry' }` with snapshot |
+| `SceneComparisonRequest` | type | Resolved pair of anchors (left = older, right = newer) |
+| `SceneComparisonResult` | type | Full comparison across instances, camera, keyframes, playback |
+| `InstanceComparisonSection` | type | Instance domain: added/removed/changed/unchanged counts + entries |
+| `InstanceComparisonEntry` | type | Single instance with status and field-level diffs |
+| `InstanceFieldDiff` | type | Single field diff: field, label, before, after |
+| `CameraComparisonSection` | type | Camera domain: status, before/after, changedFields |
+| `KeyframeComparisonSection` | type | Keyframe domain: status, entries by tick |
+| `KeyframeComparisonEntry` | type | Single keyframe with status and changedFields |
+| `PlaybackComparisonSection` | type | Playback domain: status, before/after, changedFields |
+| `RestorePreviewResult` | type | Restore impact: comparison + noImpact flag + label |
+| `ComparisonUnavailableReason` | type | Why a section is unavailable |
+| `createCurrentAnchor` | fn | Build anchor from current live scene state |
+| `createEntryAnchor` | fn | Build anchor from provenance entry + drilldown source |
+| `createComparisonRequest` | fn | Create request from two anchors, infers mode |
+| `validateComparisonRequest` | fn | Validate request well-formedness |
+| `describeComparison` | fn | Human-readable label (e.g., "#3 vs Current") |
+| `resolveComparisonScopes` | fn | Determine which domains are comparable |
+| `deriveSceneComparison` | fn | Pure derivation engine: anchors → structured result |
+| `deriveRestorePreview` | fn | Restore impact: entry anchor + current snapshot → RestorePreviewResult |
+
 ### SceneTimelineSummary
 
 ```typescript
