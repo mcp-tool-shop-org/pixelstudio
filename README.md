@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3185%2B%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3236%2B%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 39 shipped stages, an MCP server with 76 programmable tools, and 3,185+ tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 40 shipped stages, an MCP server with 76 programmable tools, and 3,236+ tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -62,6 +62,14 @@ GlyphStudio is a working desktop editor with 39 shipped stages, an MCP server wi
 - **Rough drawing mode** — sketch-brush and sketch-eraser with configurable size, opacity, and scatter for fast form blocking (N / Shift+N shortcuts)
 
 Intended workflow: import reference → create sketch layer → rough block-in → silhouette check → snapshot → compare → refine on normal layer.
+
+### Concept-to-Sprite Translation (Stage 40)
+- **Translation workspace** — session tracking with concept→sprite relationships, cue survival categorization
+- **Comparison utilities** — nearest-neighbor downscale (reference), pixel-perfect upscale, side-by-side layout
+- **Silhouette survival analysis** — quantifies how much of the concept read survives at target resolution
+- **Tested translations** — ranger/scout (500→48), treasure chest (500→32 + 48)
+
+Translation discipline: rebuild at target resolution, don't downscale. Identify strongest read cues, accept detail loss, exaggerate where needed.
 
 ### Scene Compositor (frontend + Rust)
 - Scene composition with asset instances, z-ordering, visibility, opacity, parallax
