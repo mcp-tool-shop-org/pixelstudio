@@ -4425,3 +4425,141 @@ describe('SceneEditorStore — playback-config seam wiring', () => {
     expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
   });
 });
+
+// ── Playback-config undo/redo integrity ──
+
+describe('SceneEditorStore — playback-config undo/redo', () => {
+  const PB_A: ScenePlaybackConfig = { fps: 12, looping: false };
+  const PB_B: ScenePlaybackConfig = { fps: 60, looping: true };
+  const PB_C: ScenePlaybackConfig = { fps: 30, looping: false };
+
+  it('fps edit → undo restores prior fps', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+  });
+
+  it('fps edit → undo → redo restores later fps', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    useSceneEditorStore.getState().undo();
+    useSceneEditorStore.getState().redo();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+  });
+
+  it('looping edit → undo → redo round-trips', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, { ...PB_A, looping: true });
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().playbackConfig?.looping).toBe(false);
+    useSceneEditorStore.getState().redo();
+    expect(useSceneEditorStore.getState().playbackConfig?.looping).toBe(true);
+  });
+
+  it('multiple playback edits → sequential undo restores each step', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_C);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_C);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+  });
+
+  it('rollback restores prior playbackConfig exactly', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult).toBeDefined();
+    if (!undoResult) return;
+    // After undo, playbackConfig should be PB_A
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+    // Rollback should restore to PB_B (the state before undo)
+    undoResult.rollback();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+  });
+
+  it('redo rollback restores prior playbackConfig exactly', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    useSceneEditorStore.getState().undo();
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult).toBeDefined();
+    if (!redoResult) return;
+    // After redo, playbackConfig should be PB_B
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+    // Rollback should restore to PB_A (the state before redo)
+    redoResult.rollback();
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+  });
+
+  it('mixed chain: instance + playback edits stay coherent through undo', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    // Edit 1: move instance
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    // Edit 2: change playback
+    store.applyEdit('set-scene-playback', [{ ...INST_ASSET, x: 200 }], undefined, undefined, undefined, PB_B);
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(200);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_B);
+    // Undo playback edit — instances stay at x:200, playback reverts
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(200);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+    // Undo instance edit — instance reverts
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(50);
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_A);
+  });
+
+  it('mixed chain with restore + playback-config edit stays coherent', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    store.applyEdit('set-scene-playback', [{ ...INST_ASSET, x: 200 }], undefined, undefined, undefined, PB_B);
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 500 }], { instanceId: 'i1' });
+    // Restore entry #1 (instance at x:200)
+    useSceneEditorStore.getState().restoreEntry(1);
+    // Now apply a playback edit on top
+    useSceneEditorStore.getState().applyEdit(
+      'set-scene-playback',
+      useSceneEditorStore.getState().instances,
+      undefined, undefined, undefined, PB_C,
+    );
+    expect(useSceneEditorStore.getState().playbackConfig).toEqual(PB_C);
+    // Undo playback edit
+    useSceneEditorStore.getState().undo();
+    // playbackConfig should revert to whatever it was post-restore
+    const postRestorePB = useSceneEditorStore.getState().playbackConfig;
+    expect(postRestorePB).toBeDefined();
+    expect(postRestorePB).not.toEqual(PB_C);
+  });
+
+  it('transient playback state not changed by undo/redo', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadPlaybackConfig(PB_A);
+    store.applyEdit('set-scene-playback', [INST_ASSET], undefined, undefined, undefined, PB_B);
+    useSceneEditorStore.getState().undo();
+    const state = useSceneEditorStore.getState();
+    expect('isPlaying' in state).toBe(false);
+    expect('currentTick' in state).toBe(false);
+  });
+});
