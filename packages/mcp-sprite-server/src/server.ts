@@ -14,6 +14,7 @@ import { registerSelectionTools } from './tools/selectionTools.js';
 import { registerToolSettingsTools } from './tools/toolSettingsTools.js';
 import { registerPlaybackTools } from './tools/playbackTools.js';
 import { registerRenderTools } from './tools/renderTools.js';
+import { registerHistoryTools } from './tools/historyTools.js';
 import { registerResources } from './resources/documentResource.js';
 import { registerStateResource } from './resources/stateResource.js';
 import { registerRenderResources } from './resources/renderResource.js';
@@ -52,6 +53,7 @@ export function createGlyphStudioServer(options?: GlyphStudioServerOptions): Gly
   registerToolSettingsTools(server, sessions);
   registerPlaybackTools(server, sessions);
   registerRenderTools(server, sessions);
+  registerHistoryTools(server, sessions);
 
   // Register resources
   registerResources(server, sessions);

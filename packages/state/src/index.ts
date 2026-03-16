@@ -259,3 +259,29 @@ export {
   GLYPH_SCHEMA_VERSION,
   GLYPH_FORMAT,
 } from './spritePersistence';
+export {
+  SPRITE_HISTORY_OPERATION_KINDS,
+  describeSpriteHistoryOperation,
+  captureSpriteSnapshot,
+  createSpriteHistoryEntry,
+} from './spriteHistory';
+export type {
+  SpriteHistoryOperationKind,
+  SpriteHistorySnapshot,
+  SpriteHistoryEntry,
+} from './spriteHistory';
+export {
+  createEmptySpriteHistoryState,
+  canUndoSprite,
+  canRedoSprite,
+  getSpriteHistorySummary,
+  recordSpriteHistoryEntry,
+  undoSpriteHistory,
+  redoSpriteHistory,
+  finishApplyingSpriteHistory,
+} from './spriteHistoryEngine';
+export type {
+  SpriteHistoryState,
+  SpriteHistoryUndoResult,
+  SpriteHistoryRedoResult,
+} from './spriteHistoryEngine';

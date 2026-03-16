@@ -10,8 +10,8 @@
   <a href="https://www.npmjs.com/package/@glyphstudio/mcp-sprite-server"><img src="https://img.shields.io/npm/v/@glyphstudio/mcp-sprite-server?style=flat-square&label=npm" alt="npm"></a>
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/MCP-61%20tools-blueviolet?style=flat-square" alt="61 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-115%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-65%20tools-blueviolet?style=flat-square" alt="65 MCP Tools">
+  <img src="https://img.shields.io/badge/tests-150%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
@@ -57,7 +57,7 @@ npx @glyphstudio/mcp-sprite-server
 npx tsx packages/mcp-sprite-server/src/cli.ts
 ```
 
-## Tool Inventory (61 tools)
+## Tool Inventory (65 tools)
 
 ### Session (3)
 
@@ -170,6 +170,15 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 | `sprite_render_sheet` | Assemble all frames into a horizontal sprite sheet PNG |
 | `sprite_render_overview` | Document overview with rendered thumbnail for each frame |
 
+### History (4)
+
+| Tool | Description |
+|------|-------------|
+| `sprite_history_get_summary` | Get undo/redo stack sizes, can-undo/redo flags, latest operation label |
+| `sprite_history_undo` | Undo the last editing operation — restores document, buffers, and active frame/layer |
+| `sprite_history_redo` | Redo a previously undone operation |
+| `sprite_batch_apply` | Apply multiple drawing operations as a single undo step (draw, line, fill, erase) |
+
 ### Import / Export (5)
 
 | Tool | Description |
@@ -204,7 +213,7 @@ Every tool returns a consistent JSON envelope:
 { "ok": false, "code": "out_of_bounds", "message": "Pixel (20, 5) outside 16×16 canvas" }
 ```
 
-Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_found`, `serialize_error`, `constraint_violation`.
+Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_found`, `serialize_error`, `constraint_violation`, `batch_failed`.
 
 ## Example: Create a 2-Frame Sprite
 
@@ -269,8 +278,8 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
                │ stdio / JSON-RPC
 ┌──────────────▼──────────────────────────────┐
 │  MCP Server (server.ts)                     │
-│  ├─ Tool handlers (53 tools)                │
-│  ├─ Resource handlers (2 resources)         │
+│  ├─ Tool handlers (65 tools)                │
+│  ├─ Resource handlers (5 resources)         │
 │  └─ Session manager (multi-session)         │
 ├─────────────────────────────────────────────┤
 │  Store Adapter (storeAdapter.ts)            │

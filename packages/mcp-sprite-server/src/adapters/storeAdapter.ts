@@ -49,6 +49,20 @@ import {
 } from '@glyphstudio/state';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from '@glyphstudio/state';
 import { serializeSpriteFile, deserializeSpriteFile } from '@glyphstudio/state';
+import type { SpriteHistoryOperationKind } from '@glyphstudio/state';
+import { captureSpriteSnapshot } from '@glyphstudio/state';
+import type { SpriteHistoryState } from '@glyphstudio/state';
+import {
+  createEmptySpriteHistoryState,
+  canUndoSprite,
+  canRedoSprite,
+  getSpriteHistorySummary,
+  recordSpriteHistoryEntry,
+  undoSpriteHistory,
+  redoSpriteHistory,
+  finishApplyingSpriteHistory,
+} from '@glyphstudio/state';
+import { createSpriteHistoryEntry } from '@glyphstudio/state';
 
 // ── State shape (mirrors SpriteEditorStoreState but without React hooks) ──
 
@@ -71,6 +85,7 @@ export interface HeadlessStoreState {
   isPlaying: boolean;
   isLooping: boolean;
   previewFrameIndex: number;
+  history: SpriteHistoryState;
 }
 
 export type HeadlessStore = ReturnType<typeof createHeadlessStore>;
@@ -92,8 +107,54 @@ export function createHeadlessStore() {
     isPlaying: false,
     isLooping: true,
     previewFrameIndex: 0,
+    history: createEmptySpriteHistoryState(),
     ...createDefaultSpriteEditorState(),
   }));
+}
+
+// ── History helpers ──
+
+/** Capture a snapshot of current authored state. Returns null if no document. */
+function captureCurrentSnapshot(store: HeadlessStore) {
+  const s = store.getState();
+  if (!s.document) return null;
+  return captureSpriteSnapshot(s.document, s.pixelBuffers, s.activeFrameIndex, s.activeLayerId);
+}
+
+/**
+ * Run a mutating operation with automatic history recording.
+ *
+ * 1. Capture before snapshot
+ * 2. Execute the operation
+ * 3. Capture after snapshot
+ * 4. Record entry if state changed
+ * 5. Skip recording if isApplyingHistory is true (undo/redo guard)
+ */
+function withHistory<T>(
+  store: HeadlessStore,
+  kind: SpriteHistoryOperationKind,
+  operation: () => T,
+): T {
+  const { history } = store.getState();
+
+  // If we're mid-undo/redo, just run the operation without recording
+  if (history.isApplyingHistory) {
+    return operation();
+  }
+
+  const before = captureCurrentSnapshot(store);
+  const result = operation();
+  const after = captureCurrentSnapshot(store);
+
+  // Can't record if no document before or after
+  if (!before || !after) return result;
+
+  const entry = createSpriteHistoryEntry(kind, before, after);
+  if (entry) {
+    store.setState({ history: recordSpriteHistoryEntry(history, entry) });
+  }
+
+  return result;
 }
 
 // ── Imperative operations on a headless store ──
@@ -249,60 +310,65 @@ export interface DocumentSummary {
 // ── Frame operations ──
 
 export function storeAddFrame(store: HeadlessStore): string | null {
-  const { document: doc, pixelBuffers, activeFrameIndex } = store.getState();
+  const { document: doc } = store.getState();
   if (!doc) return 'No document open';
 
-  const insertAt = activeFrameIndex + 1;
-  const frame = createSpriteFrame(insertAt);
-  const layer = frame.layers[0];
-  const buffer = createBlankPixelBuffer(doc.width, doc.height);
-  const updatedFrames = [
-    ...doc.frames.slice(0, insertAt),
-    frame,
-    ...doc.frames.slice(insertAt),
-  ].map((f, i) => ({ ...f, index: i }));
+  return withHistory(store, 'add-frame', () => {
+    const { document: d, pixelBuffers, activeFrameIndex } = store.getState();
+    const insertAt = activeFrameIndex + 1;
+    const frame = createSpriteFrame(insertAt);
+    const layer = frame.layers[0];
+    const buffer = createBlankPixelBuffer(d!.width, d!.height);
+    const updatedFrames = [
+      ...d!.frames.slice(0, insertAt),
+      frame,
+      ...d!.frames.slice(insertAt),
+    ].map((f, i) => ({ ...f, index: i }));
 
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    pixelBuffers: { ...pixelBuffers, [layer.id]: buffer },
-    activeFrameIndex: insertAt,
-    activeLayerId: layer.id,
-    dirty: true,
+    store.setState({
+      document: { ...d!, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: { ...pixelBuffers, [layer.id]: buffer },
+      activeFrameIndex: insertAt,
+      activeLayerId: layer.id,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 export function storeRemoveFrame(store: HeadlessStore, frameId: string): string | null {
-  const { document: doc, pixelBuffers, activeFrameIndex } = store.getState();
+  const { document: doc } = store.getState();
   if (!doc) return 'No document open';
   if (doc.frames.length <= 1) return 'Cannot remove the last frame';
+  if (!doc.frames.some((f) => f.id === frameId)) return `Frame not found: ${frameId}`;
 
-  const frameIndex = doc.frames.findIndex((f) => f.id === frameId);
-  if (frameIndex === -1) return `Frame not found: ${frameId}`;
+  return withHistory(store, 'remove-frame', () => {
+    const { document: d, pixelBuffers, activeFrameIndex } = store.getState();
+    const frameIndex = d!.frames.findIndex((f) => f.id === frameId);
+    const removedFrame = d!.frames[frameIndex];
+    const removedLayerIds = new Set(removedFrame.layers.map((l) => l.id));
 
-  const removedFrame = doc.frames[frameIndex];
-  const removedLayerIds = new Set(removedFrame.layers.map((l) => l.id));
+    const updatedFrames = d!.frames
+      .filter((f) => f.id !== frameId)
+      .map((f, i) => ({ ...f, index: i }));
 
-  const updatedFrames = doc.frames
-    .filter((f) => f.id !== frameId)
-    .map((f, i) => ({ ...f, index: i }));
+    const remainingBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [key, buf] of Object.entries(pixelBuffers)) {
+      if (!removedLayerIds.has(key)) remainingBuffers[key] = buf;
+    }
 
-  const remainingBuffers: Record<string, SpritePixelBuffer> = {};
-  for (const [key, buf] of Object.entries(pixelBuffers)) {
-    if (!removedLayerIds.has(key)) remainingBuffers[key] = buf;
-  }
+    const newActiveIndex = Math.min(activeFrameIndex, updatedFrames.length - 1);
+    const newActiveFrame = updatedFrames[newActiveIndex];
 
-  const newActiveIndex = Math.min(activeFrameIndex, updatedFrames.length - 1);
-  const newActiveFrame = updatedFrames[newActiveIndex];
-
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    pixelBuffers: remainingBuffers,
-    activeFrameIndex: newActiveIndex,
-    activeLayerId: newActiveFrame?.layers[0]?.id ?? null,
-    dirty: true,
+    store.setState({
+      document: { ...d!, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: remainingBuffers,
+      activeFrameIndex: newActiveIndex,
+      activeLayerId: newActiveFrame?.layers[0]?.id ?? null,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 export function storeSetActiveFrame(store: HeadlessStore, index: number): string | null {
@@ -318,70 +384,79 @@ export function storeSetFrameDuration(store: HeadlessStore, frameId: string, dur
   const { document: doc } = store.getState();
   if (!doc) return 'No document open';
   if (durationMs <= 0) return 'Duration must be positive';
+  if (!doc.frames.some((f) => f.id === frameId)) return `Frame not found: ${frameId}`;
 
-  const frame = doc.frames.find((f) => f.id === frameId);
-  if (!frame) return `Frame not found: ${frameId}`;
-
-  const updatedFrames = doc.frames.map((f) => f.id === frameId ? { ...f, durationMs } : f);
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    dirty: true,
+  return withHistory(store, 'set-frame-duration', () => {
+    const d = store.getState().document!;
+    const updatedFrames = d.frames.map((f) => f.id === frameId ? { ...f, durationMs } : f);
+    store.setState({
+      document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 // ── Layer operations ──
 
 export function storeAddLayer(store: HeadlessStore): string | null {
-  const { document: doc, pixelBuffers, activeFrameIndex } = store.getState();
+  const { document: doc, activeFrameIndex } = store.getState();
   if (!doc) return 'No document open';
-  const frame = doc.frames[activeFrameIndex];
-  if (!frame) return 'No active frame';
+  if (!doc.frames[activeFrameIndex]) return 'No active frame';
 
-  const newLayer = createSpriteLayer(frame.layers.length);
-  const updatedLayers = [...frame.layers, newLayer];
-  const updatedFrame = { ...frame, layers: updatedLayers };
-  const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+  return withHistory(store, 'add-layer', () => {
+    const s = store.getState();
+    const d = s.document!;
+    const frame = d.frames[s.activeFrameIndex];
+    const newLayer = createSpriteLayer(frame.layers.length);
+    const updatedLayers = [...frame.layers, newLayer];
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === frame.id ? updatedFrame : f);
 
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    pixelBuffers: { ...pixelBuffers, [newLayer.id]: createBlankPixelBuffer(doc.width, doc.height) },
-    activeLayerId: newLayer.id,
-    dirty: true,
+    store.setState({
+      document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: { ...s.pixelBuffers, [newLayer.id]: createBlankPixelBuffer(d.width, d.height) },
+      activeLayerId: newLayer.id,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 export function storeRemoveLayer(store: HeadlessStore, layerId: string): string | null {
-  const { document: doc, pixelBuffers, activeFrameIndex, activeLayerId } = store.getState();
+  const { document: doc, activeFrameIndex } = store.getState();
   if (!doc) return 'No document open';
   const frame = doc.frames[activeFrameIndex];
   if (!frame) return 'No active frame';
   if (frame.layers.length <= 1) return 'Cannot remove the last layer';
+  if (!frame.layers.some((l) => l.id === layerId)) return `Layer not found: ${layerId}`;
 
-  const layerIndex = frame.layers.findIndex((l) => l.id === layerId);
-  if (layerIndex === -1) return `Layer not found: ${layerId}`;
+  return withHistory(store, 'remove-layer', () => {
+    const s = store.getState();
+    const d = s.document!;
+    const fr = d.frames[s.activeFrameIndex];
+    const layerIndex = fr.layers.findIndex((l) => l.id === layerId);
+    const updatedLayers = fr.layers.filter((l) => l.id !== layerId).map((l, i) => ({ ...l, index: i }));
+    const updatedFrame = { ...fr, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
 
-  const updatedLayers = frame.layers.filter((l) => l.id !== layerId).map((l, i) => ({ ...l, index: i }));
-  const updatedFrame = { ...frame, layers: updatedLayers };
-  const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+    const remainingBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [key, buf] of Object.entries(s.pixelBuffers)) {
+      if (key !== layerId) remainingBuffers[key] = buf;
+    }
 
-  const remainingBuffers: Record<string, SpritePixelBuffer> = {};
-  for (const [key, buf] of Object.entries(pixelBuffers)) {
-    if (key !== layerId) remainingBuffers[key] = buf;
-  }
+    const newActiveLayerId = s.activeLayerId === layerId
+      ? updatedLayers[Math.min(layerIndex, updatedLayers.length - 1)]?.id ?? null
+      : s.activeLayerId;
 
-  const newActiveLayerId = activeLayerId === layerId
-    ? updatedLayers[Math.min(layerIndex, updatedLayers.length - 1)]?.id ?? null
-    : activeLayerId;
-
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    pixelBuffers: remainingBuffers,
-    activeLayerId: newActiveLayerId,
-    dirty: true,
+    store.setState({
+      document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: remainingBuffers,
+      activeLayerId: newActiveLayerId,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 export function storeSetActiveLayer(store: HeadlessStore, layerId: string): string | null {
@@ -401,15 +476,15 @@ export function storeToggleLayerVisibility(store: HeadlessStore, layerId: string
   if (!frame) return 'No active frame';
   if (!frame.layers.some((l) => l.id === layerId)) return `Layer not found: ${layerId}`;
 
-  const updatedLayers = frame.layers.map((l) => l.id === layerId ? { ...l, visible: !l.visible } : l);
-  const updatedFrame = { ...frame, layers: updatedLayers };
-  const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
-
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    dirty: true,
+  return withHistory(store, 'toggle-layer-visibility', () => {
+    const d = store.getState().document!;
+    const fr = d.frames[store.getState().activeFrameIndex];
+    const updatedLayers = fr.layers.map((l) => l.id === layerId ? { ...l, visible: !l.visible } : l);
+    const updatedFrame = { ...fr, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
+    store.setState({ document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() }, dirty: true });
+    return null;
   });
-  return null;
 }
 
 export function storeRenameLayer(store: HeadlessStore, layerId: string, name: string): string | null {
@@ -420,15 +495,15 @@ export function storeRenameLayer(store: HeadlessStore, layerId: string, name: st
   if (!frame) return 'No active frame';
   if (!frame.layers.some((l) => l.id === layerId)) return `Layer not found: ${layerId}`;
 
-  const updatedLayers = frame.layers.map((l) => l.id === layerId ? { ...l, name: name.trim() } : l);
-  const updatedFrame = { ...frame, layers: updatedLayers };
-  const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
-
-  store.setState({
-    document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
-    dirty: true,
+  return withHistory(store, 'rename-layer', () => {
+    const d = store.getState().document!;
+    const fr = d.frames[store.getState().activeFrameIndex];
+    const updatedLayers = fr.layers.map((l) => l.id === layerId ? { ...l, name: name.trim() } : l);
+    const updatedFrame = { ...fr, layers: updatedLayers };
+    const updatedFrames = d.frames.map((f) => f.id === fr.id ? updatedFrame : f);
+    store.setState({ document: { ...d, frames: updatedFrames, updatedAt: new Date().toISOString() }, dirty: true });
+    return null;
   });
-  return null;
 }
 
 // ── Palette operations ──
@@ -437,36 +512,34 @@ export function storeSetForegroundColor(store: HeadlessStore, index: number): st
   const { document: doc } = store.getState();
   if (!doc) return 'No document open';
   if (index < 0 || index >= doc.palette.colors.length) return `Color index out of range: ${index}`;
-  store.setState({
-    document: { ...doc, palette: { ...doc.palette, foregroundIndex: index } },
+  return withHistory(store, 'set-palette-color', () => {
+    const d = store.getState().document!;
+    store.setState({ document: { ...d, palette: { ...d.palette, foregroundIndex: index } } });
+    return null;
   });
-  return null;
 }
 
 export function storeSetBackgroundColor(store: HeadlessStore, index: number): string | null {
   const { document: doc } = store.getState();
   if (!doc) return 'No document open';
   if (index < 0 || index >= doc.palette.colors.length) return `Color index out of range: ${index}`;
-  store.setState({
-    document: { ...doc, palette: { ...doc.palette, backgroundIndex: index } },
+  return withHistory(store, 'set-palette-color', () => {
+    const d = store.getState().document!;
+    store.setState({ document: { ...d, palette: { ...d.palette, backgroundIndex: index } } });
+    return null;
   });
-  return null;
 }
 
 export function storeSwapColors(store: HeadlessStore): string | null {
   const { document: doc } = store.getState();
   if (!doc) return 'No document open';
-  store.setState({
-    document: {
-      ...doc,
-      palette: {
-        ...doc.palette,
-        foregroundIndex: doc.palette.backgroundIndex,
-        backgroundIndex: doc.palette.foregroundIndex,
-      },
-    },
+  return withHistory(store, 'swap-palette-colors', () => {
+    const d = store.getState().document!;
+    store.setState({
+      document: { ...d, palette: { ...d.palette, foregroundIndex: d.palette.backgroundIndex, backgroundIndex: d.palette.foregroundIndex } },
+    });
+    return null;
   });
-  return null;
 }
 
 // ── Pixel operations ──
@@ -547,82 +620,101 @@ function resolveActiveBuffer(store: HeadlessStore, layerId?: string): { buf: Spr
 export function storeDrawPixels(store: HeadlessStore, pixels: PixelEntry[], layerId?: string): { bounds: ChangedBounds } | { error: string } {
   const resolved = resolveActiveBuffer(store, layerId);
   if ('error' in resolved) return resolved;
-  const { buf, id, doc } = resolved;
 
-  const updated = clonePixelBuffer(buf);
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  let count = 0;
+  return withHistory(store, 'draw', () => {
+    const { buf, id, doc } = resolveActiveBuffer(store, layerId) as { buf: SpritePixelBuffer; id: string; doc: SpriteDocument };
+    const updated = clonePixelBuffer(buf);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let count = 0;
 
-  for (const p of pixels) {
-    if (!isInBounds(p.x, p.y, updated.width, updated.height)) continue;
-    setPixel(updated, p.x, p.y, p.rgba as Rgba);
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
-    count++;
-  }
+    for (const p of pixels) {
+      if (!isInBounds(p.x, p.y, updated.width, updated.height)) continue;
+      setPixel(updated, p.x, p.y, p.rgba as Rgba);
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+      count++;
+    }
 
-  if (count === 0) return { bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0, pixelCount: 0 } };
+    if (count === 0) return { bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0, pixelCount: 0 } };
 
-  store.setState({
-    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
-    document: { ...doc, updatedAt: new Date().toISOString() },
-    dirty: true,
+    store.setState({
+      pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return { bounds: { minX, minY, maxX, maxY, pixelCount: count } };
   });
-  return { bounds: { minX, minY, maxX, maxY, pixelCount: count } };
 }
 
 export function storeDrawLine(store: HeadlessStore, x0: number, y0: number, x1: number, y1: number, rgba: Rgba, layerId?: string): { bounds: ChangedBounds } | { error: string } {
   const resolved = resolveActiveBuffer(store, layerId);
   if ('error' in resolved) return resolved;
-  const { buf, id, doc } = resolved;
 
-  const updated = clonePixelBuffer(buf);
-  const points = bresenhamLine(x0, y0, x1, y1);
+  return withHistory(store, 'draw-line', () => {
+    const { buf, id, doc } = resolveActiveBuffer(store, layerId) as { buf: SpritePixelBuffer; id: string; doc: SpriteDocument };
+    const updated = clonePixelBuffer(buf);
+    const points = bresenhamLine(x0, y0, x1, y1);
 
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  let count = 0;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let count = 0;
 
-  for (const [px, py] of points) {
-    if (!isInBounds(px, py, updated.width, updated.height)) continue;
-    setPixel(updated, px, py, rgba);
-    minX = Math.min(minX, px);
-    minY = Math.min(minY, py);
-    maxX = Math.max(maxX, px);
-    maxY = Math.max(maxY, py);
-    count++;
-  }
+    for (const [px, py] of points) {
+      if (!isInBounds(px, py, updated.width, updated.height)) continue;
+      setPixel(updated, px, py, rgba);
+      minX = Math.min(minX, px);
+      minY = Math.min(minY, py);
+      maxX = Math.max(maxX, px);
+      maxY = Math.max(maxY, py);
+      count++;
+    }
 
-  store.setState({
-    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
-    document: { ...doc, updatedAt: new Date().toISOString() },
-    dirty: true,
+    store.setState({
+      pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return { bounds: { minX: count ? minX : 0, minY: count ? minY : 0, maxX: count ? maxX : 0, maxY: count ? maxY : 0, pixelCount: count } };
   });
-  return { bounds: { minX: count ? minX : 0, minY: count ? minY : 0, maxX: count ? maxX : 0, maxY: count ? maxY : 0, pixelCount: count } };
 }
 
 export function storeFill(store: HeadlessStore, x: number, y: number, rgba: Rgba, layerId?: string): { error: string } | { filled: true } {
   const resolved = resolveActiveBuffer(store, layerId);
   if ('error' in resolved) return resolved;
-  const { buf, id, doc } = resolved;
+  const { buf } = resolved;
 
   if (!isInBounds(x, y, buf.width, buf.height)) return { error: `Coordinates out of bounds: (${x}, ${y})` };
 
-  const updated = clonePixelBuffer(buf);
-  floodFill(updated, x, y, rgba);
+  return withHistory(store, 'fill', () => {
+    const { buf: b, id, doc } = resolveActiveBuffer(store, layerId) as { buf: SpritePixelBuffer; id: string; doc: SpriteDocument };
+    const updated = clonePixelBuffer(b);
+    floodFill(updated, x, y, rgba);
 
-  store.setState({
-    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
-    document: { ...doc, updatedAt: new Date().toISOString() },
-    dirty: true,
+    store.setState({
+      pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+    return { filled: true as const };
   });
-  return { filled: true };
 }
 
 export function storeErasePixels(store: HeadlessStore, pixels: { x: number; y: number }[], layerId?: string): { bounds: ChangedBounds } | { error: string } {
-  const entries: PixelEntry[] = pixels.map((p) => ({ x: p.x, y: p.y, rgba: [0, 0, 0, 0] as [number, number, number, number] }));
-  return storeDrawPixels(store, entries, layerId);
+  // Validate first, then let storeDrawPixels handle history as 'draw' (erase is semantically a draw of transparent)
+  const resolved = resolveActiveBuffer(store, layerId);
+  if ('error' in resolved) return resolved;
+
+  // Wrap in our own history entry so it shows as 'erase' not 'draw'
+  return withHistory(store, 'erase', () => {
+    const { history } = store.getState();
+    // Temporarily set isApplyingHistory so inner storeDrawPixels doesn't double-record
+    store.setState({ history: { ...history, isApplyingHistory: true } });
+    const entries: PixelEntry[] = pixels.map((p) => ({ x: p.x, y: p.y, rgba: [0, 0, 0, 0] as [number, number, number, number] }));
+    const result = storeDrawPixels(store, entries, layerId);
+    store.setState({ history: { ...store.getState().history, isApplyingHistory: false } });
+    return result;
+  });
 }
 
 export function storeSamplePixel(store: HeadlessStore, x: number, y: number, layerId?: string): { rgba: Rgba } | { error: string } {
@@ -676,23 +768,25 @@ export function storeCutSelection(store: HeadlessStore): string | null {
   const state = store.getState();
   if (!state.selectionRect || !state.selectionBuffer) return 'No selection';
   if (!state.document || !state.activeLayerId) return 'No document open';
+  if (!state.pixelBuffers[state.activeLayerId]) return 'No active layer buffer';
 
-  const buf = state.pixelBuffers[state.activeLayerId];
-  if (!buf) return 'No active layer buffer';
+  return withHistory(store, 'cut-selection', () => {
+    const s = store.getState();
+    const buf = s.pixelBuffers[s.activeLayerId!];
+    const clipboard = clonePixelBuffer(s.selectionBuffer!);
+    const updated = clonePixelBuffer(buf);
+    clearSelectionArea(updated, s.selectionRect!);
 
-  const clipboard = clonePixelBuffer(state.selectionBuffer);
-  const updated = clonePixelBuffer(buf);
-  clearSelectionArea(updated, state.selectionRect);
-
-  store.setState({
-    clipboardBuffer: clipboard,
-    pixelBuffers: { ...state.pixelBuffers, [state.activeLayerId]: updated },
-    document: { ...state.document, updatedAt: new Date().toISOString() },
-    selectionRect: null,
-    selectionBuffer: null,
-    dirty: true,
+    store.setState({
+      clipboardBuffer: clipboard,
+      pixelBuffers: { ...s.pixelBuffers, [s.activeLayerId!]: updated },
+      document: { ...s.document!, updatedAt: new Date().toISOString() },
+      selectionRect: null,
+      selectionBuffer: null,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 export function storePasteSelection(store: HeadlessStore): string | null {
@@ -731,21 +825,23 @@ export function storeCommitSelection(store: HeadlessStore): string | null {
   const state = store.getState();
   if (!state.selectionRect || !state.selectionBuffer) return 'No selection';
   if (!state.document || !state.activeLayerId) return 'No document open';
+  if (!state.pixelBuffers[state.activeLayerId]) return 'No active layer buffer';
 
-  const buf = state.pixelBuffers[state.activeLayerId];
-  if (!buf) return 'No active layer buffer';
+  return withHistory(store, 'commit-selection', () => {
+    const s = store.getState();
+    const buf = s.pixelBuffers[s.activeLayerId!];
+    const updated = clonePixelBuffer(buf);
+    blitSelection(updated, s.selectionBuffer!, s.selectionRect!.x, s.selectionRect!.y);
 
-  const updated = clonePixelBuffer(buf);
-  blitSelection(updated, state.selectionBuffer, state.selectionRect.x, state.selectionRect.y);
-
-  store.setState({
-    pixelBuffers: { ...state.pixelBuffers, [state.activeLayerId]: updated },
-    document: { ...state.document, updatedAt: new Date().toISOString() },
-    selectionRect: null,
-    selectionBuffer: null,
-    dirty: true,
+    store.setState({
+      pixelBuffers: { ...s.pixelBuffers, [s.activeLayerId!]: updated },
+      document: { ...s.document!, updatedAt: new Date().toISOString() },
+      selectionRect: null,
+      selectionBuffer: null,
+      dirty: true,
+    });
+    return null;
   });
-  return null;
 }
 
 // ── Tool settings operations ──
@@ -947,29 +1043,32 @@ export function storeImportSheet(
     return { error: `Frame dimensions (${frameWidth}x${frameHeight}) must match document dimensions (${doc.width}x${doc.height})` };
   }
 
-  const result = sliceSpriteSheet(sheetData, sheetWidth, sheetHeight, frameWidth, frameHeight);
-  if (isImportExportError(result)) return { error: result.error };
+  const sliceResult = sliceSpriteSheet(sheetData, sheetWidth, sheetHeight, frameWidth, frameHeight);
+  if (isImportExportError(sliceResult)) return { error: sliceResult.error };
 
-  const newFrames = result.frames.map((buf, i) => {
-    const frame = createSpriteFrame(i);
-    return { frame, buffer: buf, layerId: frame.layers[0].id };
+  return withHistory(store, 'import-sheet', () => {
+    const d = store.getState().document!;
+    const newFrames = sliceResult.frames.map((buf, i) => {
+      const frame = createSpriteFrame(i);
+      return { frame, buffer: buf, layerId: frame.layers[0].id };
+    });
+
+    const newPixelBuffers: Record<string, SpritePixelBuffer> = {};
+    const docFrames = newFrames.map(({ frame, buffer, layerId }) => {
+      newPixelBuffers[layerId] = buffer;
+      return frame;
+    });
+
+    store.setState({
+      document: { ...d, frames: docFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: newPixelBuffers,
+      activeFrameIndex: 0,
+      activeLayerId: docFrames[0]?.layers[0]?.id ?? null,
+      dirty: true,
+    });
+
+    return { frameCount: docFrames.length };
   });
-
-  const newPixelBuffers: Record<string, SpritePixelBuffer> = {};
-  const docFrames = newFrames.map(({ frame, buffer, layerId }) => {
-    newPixelBuffers[layerId] = buffer;
-    return frame;
-  });
-
-  store.setState({
-    document: { ...doc, frames: docFrames, updatedAt: new Date().toISOString() },
-    pixelBuffers: newPixelBuffers,
-    activeFrameIndex: 0,
-    activeLayerId: docFrames[0]?.layers[0]?.id ?? null,
-    dirty: true,
-  });
-
-  return { frameCount: docFrames.length };
 }
 
 /**
@@ -982,6 +1081,139 @@ export function storeExportMetadataJson(store: HeadlessStore): { json: string; m
   const meta = generateSpriteSheetMeta(doc);
   if ('error' in meta) return { error: meta.error };
   return { json: JSON.stringify(meta, null, 2), meta };
+}
+
+// ── History operations ──
+
+export interface HistorySummary {
+  canUndo: boolean;
+  canRedo: boolean;
+  pastCount: number;
+  futureCount: number;
+  latestOperation: string | null;
+}
+
+export function storeGetHistorySummary(store: HeadlessStore): HistorySummary {
+  return getSpriteHistorySummary(store.getState().history);
+}
+
+export function storeUndo(store: HeadlessStore): { restored: boolean; summary: HistorySummary } {
+  const { history } = store.getState();
+  const result = undoSpriteHistory(history);
+
+  if (!result.snapshot) {
+    return { restored: false, summary: getSpriteHistorySummary(history) };
+  }
+
+  store.setState({
+    document: result.snapshot.document,
+    pixelBuffers: result.snapshot.pixelBuffers,
+    activeFrameIndex: result.snapshot.activeFrameIndex,
+    activeLayerId: result.snapshot.activeLayerId,
+    history: finishApplyingSpriteHistory(result.history),
+    dirty: true,
+  });
+
+  return { restored: true, summary: getSpriteHistorySummary(store.getState().history) };
+}
+
+export function storeRedo(store: HeadlessStore): { restored: boolean; summary: HistorySummary } {
+  const { history } = store.getState();
+  const result = redoSpriteHistory(history);
+
+  if (!result.snapshot) {
+    return { restored: false, summary: getSpriteHistorySummary(history) };
+  }
+
+  store.setState({
+    document: result.snapshot.document,
+    pixelBuffers: result.snapshot.pixelBuffers,
+    activeFrameIndex: result.snapshot.activeFrameIndex,
+    activeLayerId: result.snapshot.activeLayerId,
+    history: finishApplyingSpriteHistory(result.history),
+    dirty: true,
+  });
+
+  return { restored: true, summary: getSpriteHistorySummary(store.getState().history) };
+}
+
+// ── Batch operations ──
+
+export type BatchOperation =
+  | { type: 'draw'; pixels: Array<{ x: number; y: number; rgba: [number, number, number, number] }>; layerId?: string }
+  | { type: 'draw_line'; x0: number; y0: number; x1: number; y1: number; rgba: [number, number, number, number]; layerId?: string }
+  | { type: 'fill'; x: number; y: number; rgba: [number, number, number, number]; layerId?: string }
+  | { type: 'erase'; pixels: Array<{ x: number; y: number }>; layerId?: string };
+
+export interface BatchResult {
+  ok: boolean;
+  operationsApplied: number;
+  results: Array<{ index: number; type: string; ok: boolean; error?: string }>;
+  summary: HistorySummary;
+}
+
+/**
+ * Apply multiple drawing operations as a single undo step.
+ * Captures before/after snapshots and records one history entry for the whole batch.
+ */
+export function storeBatchApply(store: HeadlessStore, operations: BatchOperation[]): BatchResult {
+  const { history } = store.getState();
+  const before = captureCurrentSnapshot(store);
+
+  // Suppress individual history recording during batch
+  store.setState({ history: { ...history, isApplyingHistory: true } });
+
+  const results: BatchResult['results'] = [];
+
+  for (let i = 0; i < operations.length; i++) {
+    const op = operations[i];
+    let error: string | undefined;
+
+    switch (op.type) {
+      case 'draw': {
+        const r = storeDrawPixels(store, op.pixels, op.layerId);
+        if ('error' in r) error = r.error;
+        break;
+      }
+      case 'draw_line': {
+        const r = storeDrawLine(store, op.x0, op.y0, op.x1, op.y1, op.rgba, op.layerId);
+        if (typeof r === 'string') error = r;
+        break;
+      }
+      case 'fill': {
+        const r = storeFill(store, op.x, op.y, op.rgba, op.layerId);
+        if (typeof r === 'string') error = r;
+        break;
+      }
+      case 'erase': {
+        const r = storeErasePixels(store, op.pixels, op.layerId);
+        if ('error' in r) error = r.error;
+        break;
+      }
+    }
+
+    if (error) {
+      results.push({ index: i, type: op.type, ok: false, error });
+      // Restore history state and bail
+      store.setState({ history: { ...store.getState().history, isApplyingHistory: false } });
+      return { ok: false, operationsApplied: i, results, summary: getSpriteHistorySummary(store.getState().history) };
+    }
+    results.push({ index: i, type: op.type, ok: true });
+  }
+
+  // Re-enable history recording
+  store.setState({ history: { ...store.getState().history, isApplyingHistory: false } });
+
+  // Record a single history entry for the entire batch
+  const after = captureCurrentSnapshot(store);
+  if (before && after) {
+    const entry = createSpriteHistoryEntry('draw', before, after);
+    if (entry) {
+      store.setState({ history: recordSpriteHistoryEntry(store.getState().history, entry) });
+    }
+  }
+
+  return { ok: true, operationsApplied: operations.length, results, summary: getSpriteHistorySummary(store.getState().history) };
 }
 
 // ── Compact state snapshot ──
