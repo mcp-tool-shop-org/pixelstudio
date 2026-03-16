@@ -46,6 +46,11 @@ export interface SpriteEditorStoreState {
   // -- Clipboard (editor-only, survives frame switches) --
   clipboardBuffer: SpritePixelBuffer | null;
 
+  // -- Preview state (transient view state, never affects document) --
+  isPlaying: boolean;
+  isLooping: boolean;
+  previewFrameIndex: number;
+
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
   closeDocument: () => void;
@@ -104,6 +109,26 @@ export interface SpriteEditorStoreState {
   /** Export the active frame as a standalone pixel buffer. Returns buffer or null if no document. */
   exportCurrentFrame: () => SpritePixelBuffer | null;
 
+  // -- Actions: Preview --
+  /** Start animation playback. */
+  play: () => void;
+  /** Stop animation playback. */
+  stop: () => void;
+  /** Toggle play/stop. */
+  togglePlay: () => void;
+  /** Toggle loop mode. */
+  toggleLoop: () => void;
+  /** Advance preview by one frame (respects loop). Returns true if advanced, false if at end and not looping. */
+  advancePreview: () => boolean;
+  /** Step preview forward one frame (manual scrub). */
+  stepPreviewForward: () => void;
+  /** Step preview backward one frame (manual scrub). */
+  stepPreviewBackward: () => void;
+  /** Reset preview to first frame. */
+  resetPreview: () => void;
+  /** Set preview to a specific frame index (scrubbing). */
+  scrubPreview: (index: number) => void;
+
   // -- Actions: Viewport --
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
@@ -122,6 +147,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   selectionBuffer: null,
   clipboardBuffer: null,
   showGrid: true,
+  isPlaying: false,
+  isLooping: true,
+  previewFrameIndex: 0,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -138,6 +166,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       selectionRect: null,
       selectionBuffer: null,
       clipboardBuffer: null,
+      isPlaying: false,
+      isLooping: true,
+      previewFrameIndex: 0,
       zoom: 8,
       panX: 0,
       panY: 0,
@@ -152,6 +183,9 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       selectionRect: null,
       selectionBuffer: null,
       clipboardBuffer: null,
+      isPlaying: false,
+      isLooping: true,
+      previewFrameIndex: 0,
       ...createDefaultSpriteEditorState(),
     });
   },
@@ -470,6 +504,76 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!frame) return null;
     const buf = pixelBuffers[frame.id];
     return buf ? clonePixelBuffer(buf) : null;
+  },
+
+  // -- Preview --
+  play: () => {
+    const { document: doc } = get();
+    if (!doc || doc.frames.length < 2) return;
+    set({ isPlaying: true, previewFrameIndex: get().activeFrameIndex });
+  },
+
+  stop: () => {
+    const { isPlaying, previewFrameIndex } = get();
+    if (!isPlaying) return;
+    set({ isPlaying: false, activeFrameIndex: previewFrameIndex });
+  },
+
+  togglePlay: () => {
+    const { isPlaying } = get();
+    if (isPlaying) {
+      get().stop();
+    } else {
+      get().play();
+    }
+  },
+
+  toggleLoop: () => set((s) => ({ isLooping: !s.isLooping })),
+
+  advancePreview: () => {
+    const { document: doc, previewFrameIndex, isLooping } = get();
+    if (!doc) return false;
+    const next = previewFrameIndex + 1;
+    if (next >= doc.frames.length) {
+      if (isLooping) {
+        set({ previewFrameIndex: 0 });
+        return true;
+      }
+      // Not looping — stop playback at last frame
+      set({ isPlaying: false, activeFrameIndex: previewFrameIndex });
+      return false;
+    }
+    set({ previewFrameIndex: next });
+    return true;
+  },
+
+  stepPreviewForward: () => {
+    const { document: doc, activeFrameIndex, isPlaying } = get();
+    if (!doc || isPlaying) return;
+    const next = activeFrameIndex + 1;
+    if (next < doc.frames.length) {
+      set({ activeFrameIndex: next, previewFrameIndex: next });
+    }
+  },
+
+  stepPreviewBackward: () => {
+    const { document: doc, activeFrameIndex, isPlaying } = get();
+    if (!doc || isPlaying) return;
+    if (activeFrameIndex > 0) {
+      const prev = activeFrameIndex - 1;
+      set({ activeFrameIndex: prev, previewFrameIndex: prev });
+    }
+  },
+
+  resetPreview: () => {
+    set({ previewFrameIndex: 0, activeFrameIndex: 0, isPlaying: false });
+  },
+
+  scrubPreview: (index) => {
+    const { document: doc, isPlaying } = get();
+    if (!doc || isPlaying) return;
+    if (index < 0 || index >= doc.frames.length) return;
+    set({ activeFrameIndex: index, previewFrameIndex: index });
   },
 
   // -- Viewport --

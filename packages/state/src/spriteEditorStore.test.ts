@@ -605,6 +605,219 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Preview / Animation ──
+
+  describe('preview', () => {
+    it('starts not playing, looping, at frame 0', () => {
+      openTestDoc();
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(false);
+      expect(s.isLooping).toBe(true);
+      expect(s.previewFrameIndex).toBe(0);
+    });
+
+    it('play sets isPlaying and syncs previewFrameIndex to activeFrameIndex', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(1);
+      useSpriteEditorStore.getState().play();
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(true);
+      expect(s.previewFrameIndex).toBe(1);
+    });
+
+    it('play is no-op with fewer than 2 frames', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().play();
+      expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+    });
+
+    it('stop sets isPlaying false and syncs activeFrameIndex to previewFrameIndex', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview(); // now at frame 1
+      useSpriteEditorStore.getState().stop();
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(false);
+      expect(s.activeFrameIndex).toBe(1);
+    });
+
+    it('togglePlay starts and stops', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().togglePlay();
+      expect(useSpriteEditorStore.getState().isPlaying).toBe(true);
+      useSpriteEditorStore.getState().togglePlay();
+      expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+    });
+
+    it('toggleLoop flips loop state', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().isLooping).toBe(true);
+      useSpriteEditorStore.getState().toggleLoop();
+      expect(useSpriteEditorStore.getState().isLooping).toBe(false);
+      useSpriteEditorStore.getState().toggleLoop();
+      expect(useSpriteEditorStore.getState().isLooping).toBe(true);
+    });
+
+    it('advancePreview moves to next frame', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().play();
+      const result = useSpriteEditorStore.getState().advancePreview();
+      expect(result).toBe(true);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(1);
+    });
+
+    it('advancePreview loops when at end and looping', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview(); // frame 1
+      const result = useSpriteEditorStore.getState().advancePreview(); // should loop to 0
+      expect(result).toBe(true);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(0);
+    });
+
+    it('advancePreview stops when at end and not looping', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().toggleLoop(); // disable loop
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview(); // frame 1 (last)
+      const result = useSpriteEditorStore.getState().advancePreview(); // end
+      expect(result).toBe(false);
+      expect(useSpriteEditorStore.getState().isPlaying).toBe(false);
+    });
+
+    it('stepPreviewForward advances activeFrameIndex (when stopped)', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().stepPreviewForward();
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(1);
+    });
+
+    it('stepPreviewForward is no-op during playback', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().stepPreviewForward();
+      // previewFrameIndex unchanged from play start (0)
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(0);
+    });
+
+    it('stepPreviewBackward decreases activeFrameIndex (when stopped)', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      // active = 1
+      useSpriteEditorStore.getState().stepPreviewBackward();
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(0);
+    });
+
+    it('stepPreviewBackward is no-op at frame 0', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().stepPreviewBackward();
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+    });
+
+    it('resetPreview stops and goes to frame 0', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview();
+      useSpriteEditorStore.getState().advancePreview();
+      useSpriteEditorStore.getState().resetPreview();
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(false);
+      expect(s.previewFrameIndex).toBe(0);
+      expect(s.activeFrameIndex).toBe(0);
+    });
+
+    it('scrubPreview sets both indices (when stopped)', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().scrubPreview(2);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(2);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(2);
+    });
+
+    it('scrubPreview is no-op during playback', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().scrubPreview(2);
+      expect(useSpriteEditorStore.getState().previewFrameIndex).toBe(0);
+    });
+
+    it('scrubPreview rejects out-of-bounds', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().scrubPreview(5);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1); // unchanged from addFrame
+    });
+
+    it('newDocument resets preview state', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview();
+      useSpriteEditorStore.getState().toggleLoop(); // set to false
+      openTestDoc(); // re-open
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(false);
+      expect(s.isLooping).toBe(true);
+      expect(s.previewFrameIndex).toBe(0);
+    });
+
+    it('closeDocument resets preview state', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().toggleLoop();
+      useSpriteEditorStore.getState().closeDocument();
+      const s = useSpriteEditorStore.getState();
+      expect(s.isPlaying).toBe(false);
+      expect(s.isLooping).toBe(true);
+      expect(s.previewFrameIndex).toBe(0);
+    });
+
+    it('advancePreview does not mutate pixel buffers', () => {
+      openTestDoc(4, 4);
+      const store = useSpriteEditorStore.getState();
+      const f0Id = store.document!.frames[0].id;
+      const buf = store.pixelBuffers[f0Id];
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      store.commitPixels(buf);
+
+      store.addFrame();
+      useSpriteEditorStore.getState().play();
+      useSpriteEditorStore.getState().advancePreview();
+      useSpriteEditorStore.getState().advancePreview(); // loop back
+
+      // Pixel data unchanged
+      const afterBuf = useSpriteEditorStore.getState().pixelBuffers[f0Id];
+      expect(samplePixel(afterBuf, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+  });
+
   // ── Selection state ──
 
   describe('selection', () => {
