@@ -12,6 +12,17 @@ export { useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS, S
 export type { BrushSettings } from './brushSettingsStore';
 export { expandDab, expandStrokeDabs } from './sketchDab';
 export type { DabParams } from './sketchDab';
+export { useTranslationStore, TRANSLATION_RESOLUTIONS } from './translationStore';
+export type { TranslationSession, TranslationResolution } from './translationStore';
+export {
+  nearestNeighborDownscale,
+  countFilledPixels,
+  analyzeSilhouetteSurvival,
+  computeComparisonScale,
+  pixelPerfectUpscale,
+  generateComparisonLayout,
+} from './translationComparison';
+export type { SilhouetteSurvivalResult } from './translationComparison';
 export { useSelectionStore } from './selectionStore';
 export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
