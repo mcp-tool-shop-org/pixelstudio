@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   createSpriteDocument,
   createSpriteFrame,
+  createBlankPixelBuffer,
 } from '@glyphstudio/domain';
-import type { SpriteDocument, SpriteSheetMeta } from '@glyphstudio/domain';
-import { generateSpriteSheetMeta } from './spriteExport';
+import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta } from '@glyphstudio/domain';
+import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
 import { isImportExportError } from './spriteImportExport';
 
 /** Helper: create a document with N frames at given durations. */
@@ -113,6 +114,107 @@ describe('spriteExport', () => {
       expect(parsed.frames).toHaveLength(2);
       expect(parsed.frames[0].durationMs).toBe(100);
       expect(parsed.frames[1].durationMs).toBe(200);
+    });
+  });
+
+  // ── GIF encoding ──
+
+  /** Helper: create a solid-color frame buffer. */
+  function makeSolidFrame(
+    w: number,
+    h: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
+  ): SpritePixelBuffer {
+    const buf = createBlankPixelBuffer(w, h);
+    for (let i = 0; i < buf.data.length; i += 4) {
+      buf.data[i] = r;
+      buf.data[i + 1] = g;
+      buf.data[i + 2] = b;
+      buf.data[i + 3] = a;
+    }
+    return buf;
+  }
+
+  describe('encodeAnimatedGif', () => {
+    it('returns error for empty frame list', () => {
+      const result = encodeAnimatedGif([], []);
+      expect(isImportExportError(result)).toBe(true);
+      if (isImportExportError(result)) {
+        expect(result.error).toContain('No frames');
+      }
+    });
+
+    it('returns error when buffer count does not match duration count', () => {
+      const frame = makeSolidFrame(4, 4, 255, 0, 0, 255);
+      const result = encodeAnimatedGif([frame], [100, 200]);
+      expect(isImportExportError(result)).toBe(true);
+      if (isImportExportError(result)) {
+        expect(result.error).toContain('does not match');
+      }
+    });
+
+    it('returns error for mismatched frame dimensions', () => {
+      const f1 = makeSolidFrame(4, 4, 255, 0, 0, 255);
+      const f2 = makeSolidFrame(8, 8, 0, 255, 0, 255);
+      const result = encodeAnimatedGif([f1, f2], [100, 100]);
+      expect(isImportExportError(result)).toBe(true);
+      if (isImportExportError(result)) {
+        expect(result.error).toContain('dimensions');
+      }
+    });
+
+    it('encodes a single opaque frame', () => {
+      const frame = makeSolidFrame(4, 4, 255, 0, 0, 255);
+      const result = encodeAnimatedGif([frame], [100]);
+      expect(result).toBeInstanceOf(Uint8Array);
+
+      const bytes = result as Uint8Array;
+      // GIF89a magic bytes
+      expect(bytes[0]).toBe(0x47); // G
+      expect(bytes[1]).toBe(0x49); // I
+      expect(bytes[2]).toBe(0x46); // F
+      expect(bytes[3]).toBe(0x38); // 8
+      expect(bytes[4]).toBe(0x39); // 9
+      expect(bytes[5]).toBe(0x61); // a
+      // Trailer byte at end
+      expect(bytes[bytes.length - 1]).toBe(0x3b);
+    });
+
+    it('encodes multiple frames with different durations', () => {
+      const f1 = makeSolidFrame(4, 4, 255, 0, 0, 255);
+      const f2 = makeSolidFrame(4, 4, 0, 255, 0, 255);
+      const f3 = makeSolidFrame(4, 4, 0, 0, 255, 255);
+      const result = encodeAnimatedGif([f1, f2, f3], [100, 200, 50]);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      const bytes = result as Uint8Array;
+      expect(bytes.length).toBeGreaterThan(0);
+      // Valid GIF header
+      expect(bytes[0]).toBe(0x47);
+      expect(bytes[bytes.length - 1]).toBe(0x3b);
+    });
+
+    it('handles transparent pixels', () => {
+      const frame = makeSolidFrame(4, 4, 0, 0, 0, 0); // fully transparent
+      const result = encodeAnimatedGif([frame], [100]);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      const bytes = result as Uint8Array;
+      expect(bytes[0]).toBe(0x47);
+      expect(bytes[bytes.length - 1]).toBe(0x3b);
+    });
+
+    it('respects loop=false for single play', () => {
+      const frame = makeSolidFrame(4, 4, 128, 128, 128, 255);
+      const result = encodeAnimatedGif([frame], [100], false);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      // Should still produce valid GIF
+      const bytes = result as Uint8Array;
+      expect(bytes[0]).toBe(0x47);
     });
   });
 });

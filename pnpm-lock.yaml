@@ -106,6 +106,9 @@ importers:
       '@glyphstudio/domain':
         specifier: workspace:*
         version: link:../domain
+      gifenc:
+        specifier: ^1.0.3
+        version: 1.0.3
       immer:
         specifier: ^10.1.1
         version: 10.2.0
@@ -807,6 +810,9 @@ packages:
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
+
+  gifenc@1.0.3:
+    resolution: {integrity: sha512-xdr6AdrfGBcfzncONUOlXMBuc5wJDtOueE3c5rdG0oNgtINLD+f2iFZltrBRZYzACRbKr+mSVU/x98zv2u3jmw==}
 
   happy-dom@20.8.4:
     resolution: {integrity: sha512-GKhjq4OQCYB4VLFBzv8mmccUadwlAusOZOI7hC1D9xDIT5HhzkJK17c4el2f6R6C715P9xB4uiMxeKUa2nHMwQ==}
@@ -1659,6 +1665,8 @@ snapshots:
     optional: true
 
   gensync@1.0.0-beta.2: {}
+
+  gifenc@1.0.3: {}
 
   happy-dom@20.8.4:
     dependencies:

@@ -11,6 +11,7 @@
   "dependencies": {
     "@glyphstudio/api-contract": "workspace:*",
     "@glyphstudio/domain": "workspace:*",
+    "gifenc": "^1.0.3",
     "immer": "^10.1.1",
     "zustand": "^5.0.3"
   },

@@ -250,4 +250,4 @@ export {
   isImportExportError,
 } from './spriteImportExport';
 export type { SheetValidationResult } from './spriteImportExport';
-export { generateSpriteSheetMeta } from './spriteExport';
+export { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
