@@ -123,6 +123,8 @@ export function SpriteCanvasArea() {
   const setForegroundColorByRgba = useSpriteEditorStore((s) => s.setForegroundColorByRgba);
   const setSelection = useSpriteEditorStore((s) => s.setSelection);
   const clearSelection = useSpriteEditorStore((s) => s.clearSelection);
+  const setZoom = useSpriteEditorStore((s) => s.setZoom);
+  const setPan = useSpriteEditorStore((s) => s.setPan);
   const zoomIn = useSpriteEditorStore((s) => s.zoomIn);
   const zoomOut = useSpriteEditorStore((s) => s.zoomOut);
   const activeLayerId = useSpriteEditorStore((s) => s.activeLayerId);
@@ -581,6 +583,14 @@ export function SpriteCanvasArea() {
           {doc.width} x {doc.height}
         </span>
         <span data-testid="canvas-zoom">{zoom}x</span>
+        <button
+          className="sprite-reset-view-btn"
+          onClick={() => { setZoom(8); setPan(0, 0); }}
+          title="Reset view (zoom 8x, centered)"
+          data-testid="reset-view-btn"
+        >
+          Reset
+        </button>
         <span data-testid="canvas-frame">
           Frame {displayFrameIndex + 1}/{doc.frames.length}
         </span>

@@ -1,5 +1,5 @@
 import { useSpriteEditorStore } from '@glyphstudio/state';
-import type { SpriteToolId } from '@glyphstudio/domain';
+import type { SpriteToolId, SpriteBrushShape } from '@glyphstudio/domain';
 
 const TOOLS: { id: SpriteToolId; label: string; shortcut: string }[] = [
   { id: 'select', label: 'Select', shortcut: 'M' },
@@ -14,6 +14,10 @@ export function SpriteToolRail() {
   const brushSize = useSpriteEditorStore((s) => s.tool.brushSize);
   const setTool = useSpriteEditorStore((s) => s.setTool);
   const setBrushSize = useSpriteEditorStore((s) => s.setBrushSize);
+  const brushShape = useSpriteEditorStore((s) => s.tool.brushShape);
+  const pixelPerfect = useSpriteEditorStore((s) => s.tool.pixelPerfect);
+  const setBrushShape = useSpriteEditorStore((s) => s.setBrushShape);
+  const setPixelPerfect = useSpriteEditorStore((s) => s.setPixelPerfect);
   const onionSkin = useSpriteEditorStore((s) => s.onionSkin);
   const setOnionSkin = useSpriteEditorStore((s) => s.setOnionSkin);
 
@@ -44,6 +48,28 @@ export function SpriteToolRail() {
             onChange={(e) => setBrushSize(Number(e.target.value))}
             data-testid="brush-size-input"
           />
+        </label>
+        <div className="sprite-brush-shape" data-testid="brush-shape-control">
+          {(['square', 'circle'] as SpriteBrushShape[]).map((shape) => (
+            <button
+              key={shape}
+              className={`sprite-shape-btn${brushShape === shape ? ' active' : ''}`}
+              onClick={() => setBrushShape(shape)}
+              title={`Brush shape: ${shape}`}
+              data-testid={`brush-shape-${shape}`}
+            >
+              {shape === 'square' ? '\u25a0' : '\u25cf'}
+            </button>
+          ))}
+        </div>
+        <label className="sprite-pixel-perfect-label" data-testid="pixel-perfect-control">
+          <input
+            type="checkbox"
+            checked={pixelPerfect}
+            onChange={(e) => setPixelPerfect(e.target.checked)}
+            data-testid="pixel-perfect-toggle"
+          />
+          Pixel Perfect
         </label>
       </div>
       <div className="sprite-tool-rail-onion" data-testid="onion-skin-controls">
