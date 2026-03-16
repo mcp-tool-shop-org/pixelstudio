@@ -1,6 +1,6 @@
 {
   "name": "@glyphstudio/state",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",

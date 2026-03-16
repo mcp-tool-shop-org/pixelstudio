@@ -196,7 +196,6 @@ Near-term priorities:
 - AI assist integration (local Ollama + ComfyUI for bounded generation tasks)
 - Locomotion analysis workspace with stride/contact/CoM overlays
 - Validation engine with repair actions
-- Sprite editor persistence (save/load .pxs from sprite editor)
 
 ## Non-Goals
 
@@ -206,3 +205,18 @@ GlyphStudio is not aiming to be:
 - A browser-first toy app
 - An AI prompt wrapper that guesses at art
 - A mushy canvas where frontend state and backend truth drift apart
+
+## Security
+
+GlyphStudio is a **desktop-only** application. It does not make network requests, collect telemetry, or handle secrets.
+
+- **Data touched:** local sprite files (.glyph, .pxs, .png), autosave/recovery files in the app data directory
+- **Data NOT touched:** no network, no cloud, no remote APIs, no user accounts
+- **Permissions:** filesystem access scoped to user-selected directories via Tauri v2 native file dialogs
+- **No telemetry** is collected or sent
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+
+## License
+
+[MIT](LICENSE)

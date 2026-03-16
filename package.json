@@ -1,5 +1,6 @@
 {
   "name": "glyphstudio",
+  "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
@@ -7,6 +8,7 @@
     "build": "pnpm --filter @glyphstudio/desktop build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "verify": "pnpm test",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,json,css,md}\""
   },
