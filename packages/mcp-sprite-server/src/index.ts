@@ -9,6 +9,6 @@
 export { createGlyphStudioServer } from './server.js';
 export { SessionManager } from './session/sessionManager.js';
 export type { SessionInfo } from './session/sessionManager.js';
-export type { DocumentSummary } from './adapters/storeAdapter.js';
+export type { DocumentSummary, SessionStateSummary, PlaybackConfig, PreviewState, ChangedBounds, PixelEntry } from './adapters/storeAdapter.js';
 export { success, fail, ErrorCode } from './schemas/result.js';
 export type { ToolResult } from './schemas/result.js';

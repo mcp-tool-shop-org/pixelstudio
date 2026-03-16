@@ -9,7 +9,12 @@ import { registerDocumentTools } from './tools/documentTools.js';
 import { registerFrameTools } from './tools/frameTools.js';
 import { registerLayerTools } from './tools/layerTools.js';
 import { registerPaletteTools } from './tools/paletteTools.js';
+import { registerDrawingTools } from './tools/drawingTools.js';
+import { registerSelectionTools } from './tools/selectionTools.js';
+import { registerToolSettingsTools } from './tools/toolSettingsTools.js';
+import { registerPlaybackTools } from './tools/playbackTools.js';
 import { registerResources } from './resources/documentResource.js';
+import { registerStateResource } from './resources/stateResource.js';
 
 export interface GlyphStudioServerOptions {
   /** Custom session manager (for testing). If omitted, a new one is created. */
@@ -40,9 +45,14 @@ export function createGlyphStudioServer(options?: GlyphStudioServerOptions): Gly
   registerFrameTools(server, sessions);
   registerLayerTools(server, sessions);
   registerPaletteTools(server, sessions);
+  registerDrawingTools(server, sessions);
+  registerSelectionTools(server, sessions);
+  registerToolSettingsTools(server, sessions);
+  registerPlaybackTools(server, sessions);
 
   // Register resources
   registerResources(server, sessions);
+  registerStateResource(server, sessions);
 
   return { server, sessions };
 }

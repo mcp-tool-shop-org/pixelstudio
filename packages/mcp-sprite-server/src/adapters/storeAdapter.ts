@@ -33,7 +33,15 @@ import {
   flipBufferHorizontal,
   flipBufferVertical,
   flattenLayers,
+  setPixel,
+  samplePixel,
+  bresenhamLine,
+  floodFill,
+  extractSelection,
+  blitSelection,
+  isInBounds,
 } from '@glyphstudio/state';
+import type { Rgba } from '@glyphstudio/state';
 import {
   sliceSpriteSheet,
   assembleSpriteSheet,
@@ -518,4 +526,402 @@ export function storeExportGif(store: HeadlessStore, loop = true): Uint8Array | 
   const result = encodeAnimatedGif(frameBuffers, durations, loop);
   if (result && typeof result === 'object' && 'error' in result) return { error: (result as { error: string }).error };
   return result as Uint8Array;
+}
+
+// ── Drawing / raster operations ──
+
+export interface PixelEntry { x: number; y: number; rgba: [number, number, number, number] }
+export interface ChangedBounds { minX: number; minY: number; maxX: number; maxY: number; pixelCount: number }
+
+/** Resolve the active layer buffer, returning an error string if anything is missing. */
+function resolveActiveBuffer(store: HeadlessStore, layerId?: string): { buf: SpritePixelBuffer; id: string; doc: SpriteDocument } | { error: string } {
+  const state = store.getState();
+  if (!state.document) return { error: 'No document open' };
+  const targetLayerId = layerId ?? state.activeLayerId;
+  if (!targetLayerId) return { error: 'No active layer' };
+  const buf = state.pixelBuffers[targetLayerId];
+  if (!buf) return { error: `Layer buffer not found: ${targetLayerId}` };
+  return { buf, id: targetLayerId, doc: state.document };
+}
+
+export function storeDrawPixels(store: HeadlessStore, pixels: PixelEntry[], layerId?: string): { bounds: ChangedBounds } | { error: string } {
+  const resolved = resolveActiveBuffer(store, layerId);
+  if ('error' in resolved) return resolved;
+  const { buf, id, doc } = resolved;
+
+  const updated = clonePixelBuffer(buf);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let count = 0;
+
+  for (const p of pixels) {
+    if (!isInBounds(p.x, p.y, updated.width, updated.height)) continue;
+    setPixel(updated, p.x, p.y, p.rgba as Rgba);
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+    count++;
+  }
+
+  if (count === 0) return { bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0, pixelCount: 0 } };
+
+  store.setState({
+    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+    document: { ...doc, updatedAt: new Date().toISOString() },
+    dirty: true,
+  });
+  return { bounds: { minX, minY, maxX, maxY, pixelCount: count } };
+}
+
+export function storeDrawLine(store: HeadlessStore, x0: number, y0: number, x1: number, y1: number, rgba: Rgba, layerId?: string): { bounds: ChangedBounds } | { error: string } {
+  const resolved = resolveActiveBuffer(store, layerId);
+  if ('error' in resolved) return resolved;
+  const { buf, id, doc } = resolved;
+
+  const updated = clonePixelBuffer(buf);
+  const points = bresenhamLine(x0, y0, x1, y1);
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let count = 0;
+
+  for (const [px, py] of points) {
+    if (!isInBounds(px, py, updated.width, updated.height)) continue;
+    setPixel(updated, px, py, rgba);
+    minX = Math.min(minX, px);
+    minY = Math.min(minY, py);
+    maxX = Math.max(maxX, px);
+    maxY = Math.max(maxY, py);
+    count++;
+  }
+
+  store.setState({
+    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+    document: { ...doc, updatedAt: new Date().toISOString() },
+    dirty: true,
+  });
+  return { bounds: { minX: count ? minX : 0, minY: count ? minY : 0, maxX: count ? maxX : 0, maxY: count ? maxY : 0, pixelCount: count } };
+}
+
+export function storeFill(store: HeadlessStore, x: number, y: number, rgba: Rgba, layerId?: string): { error: string } | { filled: true } {
+  const resolved = resolveActiveBuffer(store, layerId);
+  if ('error' in resolved) return resolved;
+  const { buf, id, doc } = resolved;
+
+  if (!isInBounds(x, y, buf.width, buf.height)) return { error: `Coordinates out of bounds: (${x}, ${y})` };
+
+  const updated = clonePixelBuffer(buf);
+  floodFill(updated, x, y, rgba);
+
+  store.setState({
+    pixelBuffers: { ...store.getState().pixelBuffers, [id]: updated },
+    document: { ...doc, updatedAt: new Date().toISOString() },
+    dirty: true,
+  });
+  return { filled: true };
+}
+
+export function storeErasePixels(store: HeadlessStore, pixels: { x: number; y: number }[], layerId?: string): { bounds: ChangedBounds } | { error: string } {
+  const entries: PixelEntry[] = pixels.map((p) => ({ x: p.x, y: p.y, rgba: [0, 0, 0, 0] as [number, number, number, number] }));
+  return storeDrawPixels(store, entries, layerId);
+}
+
+export function storeSamplePixel(store: HeadlessStore, x: number, y: number, layerId?: string): { rgba: Rgba } | { error: string } {
+  const resolved = resolveActiveBuffer(store, layerId);
+  if ('error' in resolved) return resolved;
+  const { buf } = resolved;
+
+  if (!isInBounds(x, y, buf.width, buf.height)) return { error: `Coordinates out of bounds: (${x}, ${y})` };
+  const color = samplePixel(buf, x, y);
+  if (!color) return { error: 'Sample failed' };
+  return { rgba: color };
+}
+
+// ── Selection / clipboard operations ──
+
+export function storeSetSelection(store: HeadlessStore, rect: SpriteSelectionRect): string | null {
+  const state = store.getState();
+  if (!state.document) return 'No document open';
+  if (!state.activeLayerId) return 'No active layer';
+
+  const buf = state.pixelBuffers[state.activeLayerId];
+  if (!buf) return 'No active layer buffer';
+
+  const extracted = extractSelection(buf, rect);
+  store.setState({ selectionRect: rect, selectionBuffer: extracted });
+  return null;
+}
+
+export function storeClearSelection(store: HeadlessStore): void {
+  store.setState({ selectionRect: null, selectionBuffer: null });
+}
+
+export function storeGetSelection(store: HeadlessStore): { rect: SpriteSelectionRect; width: number; height: number } | null {
+  const state = store.getState();
+  if (!state.selectionRect || !state.selectionBuffer) return null;
+  return {
+    rect: state.selectionRect,
+    width: state.selectionBuffer.width,
+    height: state.selectionBuffer.height,
+  };
+}
+
+export function storeCopySelection(store: HeadlessStore): string | null {
+  const { selectionBuffer } = store.getState();
+  if (!selectionBuffer) return 'No selection';
+  store.setState({ clipboardBuffer: clonePixelBuffer(selectionBuffer) });
+  return null;
+}
+
+export function storeCutSelection(store: HeadlessStore): string | null {
+  const state = store.getState();
+  if (!state.selectionRect || !state.selectionBuffer) return 'No selection';
+  if (!state.document || !state.activeLayerId) return 'No document open';
+
+  const buf = state.pixelBuffers[state.activeLayerId];
+  if (!buf) return 'No active layer buffer';
+
+  const clipboard = clonePixelBuffer(state.selectionBuffer);
+  const updated = clonePixelBuffer(buf);
+  clearSelectionArea(updated, state.selectionRect);
+
+  store.setState({
+    clipboardBuffer: clipboard,
+    pixelBuffers: { ...state.pixelBuffers, [state.activeLayerId]: updated },
+    document: { ...state.document, updatedAt: new Date().toISOString() },
+    selectionRect: null,
+    selectionBuffer: null,
+    dirty: true,
+  });
+  return null;
+}
+
+export function storePasteSelection(store: HeadlessStore): string | null {
+  const { clipboardBuffer, document: doc } = store.getState();
+  if (!clipboardBuffer) return 'Clipboard is empty';
+  if (!doc) return 'No document open';
+
+  const rect: SpriteSelectionRect = {
+    x: 0,
+    y: 0,
+    width: clipboardBuffer.width,
+    height: clipboardBuffer.height,
+  };
+  store.setState({
+    selectionRect: rect,
+    selectionBuffer: clonePixelBuffer(clipboardBuffer),
+  });
+  return null;
+}
+
+export function storeFlipSelectionHorizontal(store: HeadlessStore): string | null {
+  const { selectionBuffer } = store.getState();
+  if (!selectionBuffer) return 'No selection';
+  store.setState({ selectionBuffer: flipBufferHorizontal(selectionBuffer) });
+  return null;
+}
+
+export function storeFlipSelectionVertical(store: HeadlessStore): string | null {
+  const { selectionBuffer } = store.getState();
+  if (!selectionBuffer) return 'No selection';
+  store.setState({ selectionBuffer: flipBufferVertical(selectionBuffer) });
+  return null;
+}
+
+export function storeCommitSelection(store: HeadlessStore): string | null {
+  const state = store.getState();
+  if (!state.selectionRect || !state.selectionBuffer) return 'No selection';
+  if (!state.document || !state.activeLayerId) return 'No document open';
+
+  const buf = state.pixelBuffers[state.activeLayerId];
+  if (!buf) return 'No active layer buffer';
+
+  const updated = clonePixelBuffer(buf);
+  blitSelection(updated, state.selectionBuffer, state.selectionRect.x, state.selectionRect.y);
+
+  store.setState({
+    pixelBuffers: { ...state.pixelBuffers, [state.activeLayerId]: updated },
+    document: { ...state.document, updatedAt: new Date().toISOString() },
+    selectionRect: null,
+    selectionBuffer: null,
+    dirty: true,
+  });
+  return null;
+}
+
+// ── Tool settings operations ──
+
+export function storeSetTool(store: HeadlessStore, tool: SpriteToolId): string | null {
+  const validTools: SpriteToolId[] = ['pencil', 'eraser', 'fill', 'eyedropper', 'select'];
+  if (!validTools.includes(tool)) return `Invalid tool: ${tool}`;
+  const state = store.getState();
+  store.setState({ tool: { ...state.tool, activeTool: tool } });
+  return null;
+}
+
+export function storeGetTool(store: HeadlessStore): SpriteToolConfig {
+  return store.getState().tool;
+}
+
+export function storeSetBrushSize(store: HeadlessStore, size: number): string | null {
+  if (size < 1) return 'Brush size must be at least 1';
+  const state = store.getState();
+  store.setState({ tool: { ...state.tool, brushSize: size } });
+  return null;
+}
+
+export function storeSetBrushShape(store: HeadlessStore, shape: SpriteBrushShape): string | null {
+  if (shape !== 'square' && shape !== 'circle') return `Invalid brush shape: ${shape}`;
+  const state = store.getState();
+  store.setState({ tool: { ...state.tool, brushShape: shape } });
+  return null;
+}
+
+export function storeSetPixelPerfect(store: HeadlessStore, enabled: boolean): void {
+  const state = store.getState();
+  store.setState({ tool: { ...state.tool, pixelPerfect: enabled } });
+}
+
+export function storeSetOnionSkin(store: HeadlessStore, config: Partial<SpriteOnionSkin>): void {
+  const state = store.getState();
+  store.setState({ onionSkin: { ...state.onionSkin, ...config } });
+}
+
+export function storeGetOnionSkin(store: HeadlessStore): SpriteOnionSkin {
+  return store.getState().onionSkin;
+}
+
+export function storeSetZoom(store: HeadlessStore, zoom: number): string | null {
+  if (zoom < 1 || zoom > 64) return 'Zoom must be between 1 and 64';
+  store.setState({ zoom });
+  return null;
+}
+
+export function storeSetPan(store: HeadlessStore, x: number, y: number): void {
+  store.setState({ panX: x, panY: y });
+}
+
+export function storeResetView(store: HeadlessStore): void {
+  store.setState({ zoom: 8, panX: 0, panY: 0 });
+}
+
+// ── Playback — authored config ──
+
+export interface PlaybackConfig {
+  isLooping: boolean;
+  frameDurations: { frameId: string; durationMs: number }[];
+}
+
+export function storeGetPlaybackConfig(store: HeadlessStore): PlaybackConfig | { error: string } {
+  const { document: doc, isLooping } = store.getState();
+  if (!doc) return { error: 'No document open' };
+  return {
+    isLooping,
+    frameDurations: doc.frames.map((f) => ({ frameId: f.id, durationMs: f.durationMs })),
+  };
+}
+
+export function storeSetPlaybackConfig(store: HeadlessStore, config: { isLooping?: boolean }): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+  if (config.isLooping !== undefined) {
+    store.setState({ isLooping: config.isLooping });
+  }
+  return null;
+}
+
+// ── Playback — transient preview ──
+
+export interface PreviewState {
+  isPlaying: boolean;
+  previewFrameIndex: number;
+  isLooping: boolean;
+}
+
+export function storeGetPreviewState(store: HeadlessStore): PreviewState {
+  const state = store.getState();
+  return {
+    isPlaying: state.isPlaying,
+    previewFrameIndex: state.previewFrameIndex,
+    isLooping: state.isLooping,
+  };
+}
+
+export function storePreviewPlay(store: HeadlessStore): string | null {
+  const { document: doc } = store.getState();
+  if (!doc) return 'No document open';
+  if (doc.frames.length < 2) return 'Need at least 2 frames to play';
+  store.setState({ isPlaying: true, previewFrameIndex: store.getState().activeFrameIndex });
+  return null;
+}
+
+export function storePreviewStop(store: HeadlessStore): void {
+  const { isPlaying, previewFrameIndex } = store.getState();
+  if (!isPlaying) return;
+  store.setState({ isPlaying: false, activeFrameIndex: previewFrameIndex });
+}
+
+export function storePreviewSetFrame(store: HeadlessStore, index: number): string | null {
+  const { document: doc, isPlaying } = store.getState();
+  if (!doc) return 'No document open';
+  if (isPlaying) return 'Cannot scrub while playing';
+  if (index < 0 || index >= doc.frames.length) return `Frame index out of range: ${index}`;
+  store.setState({ activeFrameIndex: index, previewFrameIndex: index });
+  return null;
+}
+
+export function storePreviewStepNext(store: HeadlessStore): string | null {
+  const { document: doc, activeFrameIndex, isPlaying } = store.getState();
+  if (!doc) return 'No document open';
+  if (isPlaying) return 'Cannot step while playing';
+  const next = activeFrameIndex + 1;
+  if (next >= doc.frames.length) return 'Already at last frame';
+  store.setState({ activeFrameIndex: next, previewFrameIndex: next });
+  return null;
+}
+
+export function storePreviewStepPrev(store: HeadlessStore): string | null {
+  const { document: doc, activeFrameIndex, isPlaying } = store.getState();
+  if (!doc) return 'No document open';
+  if (isPlaying) return 'Cannot step while playing';
+  if (activeFrameIndex <= 0) return 'Already at first frame';
+  const prev = activeFrameIndex - 1;
+  store.setState({ activeFrameIndex: prev, previewFrameIndex: prev });
+  return null;
+}
+
+// ── Compact state snapshot ──
+
+export interface SessionStateSummary {
+  document: { id: string; name: string; width: number; height: number; frameCount: number } | null;
+  activeFrameIndex: number;
+  activeLayerId: string | null;
+  tool: SpriteToolConfig;
+  onionSkin: SpriteOnionSkin;
+  selection: { rect: SpriteSelectionRect; width: number; height: number } | null;
+  hasClipboard: boolean;
+  playbackConfig: { isLooping: boolean };
+  preview: PreviewState;
+  dirty: boolean;
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+export function storeGetStateSummary(store: HeadlessStore): SessionStateSummary {
+  const s = store.getState();
+  return {
+    document: s.document ? { id: s.document.id, name: s.document.name, width: s.document.width, height: s.document.height, frameCount: s.document.frames.length } : null,
+    activeFrameIndex: s.activeFrameIndex,
+    activeLayerId: s.activeLayerId,
+    tool: s.tool,
+    onionSkin: s.onionSkin,
+    selection: s.selectionRect && s.selectionBuffer ? { rect: s.selectionRect, width: s.selectionBuffer.width, height: s.selectionBuffer.height } : null,
+    hasClipboard: s.clipboardBuffer !== null,
+    playbackConfig: { isLooping: s.isLooping },
+    preview: { isPlaying: s.isPlaying, previewFrameIndex: s.previewFrameIndex, isLooping: s.isLooping },
+    dirty: s.dirty,
+    zoom: s.zoom,
+    panX: s.panX,
+    panY: s.panY,
+  };
 }
