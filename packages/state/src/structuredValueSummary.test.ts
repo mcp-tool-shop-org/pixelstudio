@@ -358,8 +358,8 @@ describe('keyframe structured summary integration', () => {
   });
 
   it('keyframe name addition shows name transition', () => {
-    const before = { x: 0, y: 0, zoom: 1.0, interpolation: 'linear', name: undefined };
-    const after = { x: 0, y: 0, zoom: 1.0, interpolation: 'linear', name: 'Hero Shot' };
+    const before = { x: 0, y: 0, zoom: 1.0, interpolation: 'linear', name: undefined as string | undefined };
+    const after = { x: 0, y: 0, zoom: 1.0, interpolation: 'linear', name: 'Hero Shot' as string | undefined };
     const summary = summarizeMultiFieldChange(before, after, KEYFRAME_FIELD_CONFIGS);
     expect(summary.changedFieldKeys).toEqual(['name']);
     expect(summary.changes[0].before).toBe('');

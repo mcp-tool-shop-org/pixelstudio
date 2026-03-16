@@ -182,7 +182,7 @@ describe('exportSettings persistence', () => {
     store.set(STORAGE_KEY, JSON.stringify({ scopeChoice: 'all_clips', unknownField: 999 }));
     const result = loadExportSettings();
     expect(result.scopeChoice).toBe('all_clips');
-    expect((result as Record<string, unknown>)['unknownField']).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>)['unknownField']).toBeUndefined();
   });
 
   // ── empty object ───────────────────────────────────────────

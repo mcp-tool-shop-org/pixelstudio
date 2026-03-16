@@ -361,7 +361,7 @@ describe('characterBuildStorage', () => {
       const extended = { ...VALID_SAVED_BUILD, mystery: 'value' };
       store.set(STORAGE_KEY, JSON.stringify({ schemaVersion: 1, builds: [extended] }));
       const lib = loadCharacterBuildLibrary();
-      expect((lib.builds[0] as Record<string, unknown>)['mystery']).toBeUndefined();
+      expect((lib.builds[0] as unknown as Record<string, unknown>)['mystery']).toBeUndefined();
     });
   });
 

@@ -9,6 +9,7 @@ function makeAnchor(id: string, overrides?: Partial<Anchor>): Anchor {
     kind: 'custom',
     x: 0,
     y: 0,
+    bounds: null,
     ...overrides,
   };
 }

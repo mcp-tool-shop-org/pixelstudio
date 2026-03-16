@@ -33,7 +33,7 @@ describe('sandboxStore', () => {
     } as any);
 
     const s = useSandboxStore.getState();
-    expect(s.session?.id).toBe('sess1');
+    expect(s.session?.sessionId).toBe('sess1');
     expect(s.currentFrame).toBe(0);
     expect(s.playing).toBe(false);
     expect(s.lastError).toBeNull();

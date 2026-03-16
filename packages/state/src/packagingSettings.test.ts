@@ -202,6 +202,6 @@ describe('packagingSettings persistence', () => {
     store.set(STORAGE_KEY, JSON.stringify({ bundleFormat: 'zip', mystery: 'value' }));
     const result = loadPackagingSettings();
     expect(result.bundleFormat).toBe('zip');
-    expect((result as Record<string, unknown>)['mystery']).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>)['mystery']).toBeUndefined();
   });
 });

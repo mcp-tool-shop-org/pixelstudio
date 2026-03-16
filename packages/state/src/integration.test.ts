@@ -99,12 +99,9 @@ describe('export tick matches resolved preview', () => {
         storeState.baseCameraZoom,
       );
 
-      expect(storeState.cameraX).toBeCloseTo(pure.x, 10,
-        `cameraX mismatch at tick ${tick}`);
-      expect(storeState.cameraY).toBeCloseTo(pure.y, 10,
-        `cameraY mismatch at tick ${tick}`);
-      expect(storeState.cameraZoom).toBeCloseTo(pure.zoom, 10,
-        `cameraZoom mismatch at tick ${tick}`);
+      expect(storeState.cameraX).toBeCloseTo(pure.x, 10);
+      expect(storeState.cameraY).toBeCloseTo(pure.y, 10);
+      expect(storeState.cameraZoom).toBeCloseTo(pure.zoom, 10);
     }
   });
 });
@@ -290,8 +287,8 @@ describe('sandbox session → analysis → paths lifecycle', () => {
 
   it('full sandbox lifecycle: session → play → analyze → paths → apply', () => {
     // Start session
-    useSandboxStore.getState().setSession({ id: 'sess1' } as any);
-    expect(useSandboxStore.getState().session?.id).toBe('sess1');
+    useSandboxStore.getState().setSession({ sessionId: 'sess1' } as any);
+    expect(useSandboxStore.getState().session?.sessionId).toBe('sess1');
     expect(useSandboxStore.getState().playing).toBe(false);
 
     // Play
@@ -351,10 +348,10 @@ describe('motion + anchor + provenance coordination', () => {
   it('motion session uses anchors from anchor store', () => {
     // Set up anchors
     useAnchorStore.getState().addAnchor({
-      id: 'a1', name: 'Torso', kind: 'torso', x: 16, y: 24,
+      id: 'a1', name: 'Torso', kind: 'torso', x: 16, y: 24, bounds: null,
     });
     useAnchorStore.getState().addAnchor({
-      id: 'a2', name: 'Head', kind: 'head', x: 16, y: 8, parentName: 'Torso',
+      id: 'a2', name: 'Head', kind: 'head', x: 16, y: 8, bounds: null, parentName: 'Torso',
     });
 
     // Start motion session targeting the torso anchor
