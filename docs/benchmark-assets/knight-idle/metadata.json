@@ -2,10 +2,9 @@
   "name": "Knight Idle",
   "width": 16,
   "height": 24,
-  "frameCount": 2,
+  "frameCount": 1,
   "frameDurations": [
-    500,
-    500
+    100
   ],
   "palette": {
     "colorCount": 16,
@@ -200,16 +199,16 @@
       }
     ]
   },
-  "workflow": "new-animation-sprite",
+  "workflow": "new-static-sprite",
   "validation": {
     "errors": 0,
-    "warnings": 1,
-    "info": 0,
+    "warnings": 0,
+    "info": 1,
     "issues": [
       {
-        "severity": "warning",
-        "rule": "animation-inconsistent-layers",
-        "message": "Frame layer counts vary (2, 1) — this may cause unexpected compositing"
+        "severity": "info",
+        "rule": "animation-single-frame",
+        "message": "Document has only 1 frame — animations require multiple frames"
       }
     ]
   },
@@ -217,36 +216,20 @@
     {
       "frame": 0,
       "bounds": {
-        "minX": 4,
+        "minX": 2,
         "minY": 1,
-        "maxX": 11,
-        "maxY": 19,
-        "width": 8,
-        "height": 19,
-        "opaquePixelCount": 126,
+        "maxX": 14,
+        "maxY": 21,
+        "width": 13,
+        "height": 21,
+        "opaquePixelCount": 173,
         "empty": false
       },
       "colors": {
-        "uniqueColors": 6
-      }
-    },
-    {
-      "frame": 1,
-      "bounds": {
-        "minX": 4,
-        "minY": 2,
-        "maxX": 11,
-        "maxY": 19,
-        "width": 8,
-        "height": 18,
-        "opaquePixelCount": 120,
-        "empty": false
-      },
-      "colors": {
-        "uniqueColors": 5
+        "uniqueColors": 8
       }
     }
   ],
-  "generatedAt": "2026-03-16T18:49:05.068Z",
+  "generatedAt": "2026-03-16T19:42:54.543Z",
   "generator": "Stage 37 — Benchmark Asset Materialization"
 }

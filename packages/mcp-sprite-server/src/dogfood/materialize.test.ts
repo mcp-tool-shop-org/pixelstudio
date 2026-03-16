@@ -237,49 +237,78 @@ function buildWoodenCrate(): HeadlessStore {
   return store;
 }
 
+// ── Hero knight palette (7 colors + transparent) ──
+
+const KNIGHT_PAL = {
+  o: [20, 12, 28, 255] as RGBA,     // outline — near-black
+  D: [55, 65, 85, 255] as RGBA,     // armor dark (shadow)
+  M: [90, 110, 140, 255] as RGBA,   // armor mid (base)
+  L: [145, 165, 195, 255] as RGBA,  // armor light (lit)
+  S: [224, 180, 140, 255] as RGBA,  // skin
+  s: [184, 140, 108, 255] as RGBA,  // skin shadow
+  G: [230, 190, 50, 255] as RGBA,   // gold accent
+};
+
+/**
+ * Stage 38 — Hero Knight (16×24, static, front-facing idle)
+ *
+ * Design: armored knight with helmet, pauldrons, breastplate,
+ * gold crest + belt, greaves, boots. Light from top-left.
+ *
+ * Grid key:
+ *   . = transparent   o = outline      D = armor dark
+ *   M = armor mid     L = armor light  S = skin
+ *   s = skin shadow   G = gold accent
+ */
+const KNIGHT_GRID: string[] = [
+  // 0123456789ABCDEF
+  '................', // 0
+  '.......oGo......', // 1  crest tip
+  '......oGGGo.....', // 2  crest
+  '.....oLLMMDo....', // 3  helmet top
+  '.....oLMMDDo....', // 4  helmet
+  '....oLMMMMDDo...', // 5  helmet wide (brow)
+  '....oDDSsSDDo...', // 6  visor: dark frame, skin eyes
+  '.....oLMMDDo....', // 7  chin guard
+  '......oMDDo.....', // 8  gorget
+  '....oLLMMDDDo...', // 9  shoulders
+  '...oLMDoMMDoDDo.', // 10 pauldron|chest|pauldron
+  '..oLDoLMMDoDDo..', // 11 arm|chest|arm (connected)
+  '..oLDoLMMDoDDo..', // 12 arm|chest|arm
+  '..oooooGGGooooo.', // 13 hands + gold belt
+  '.....oLMMDDo....', // 14 tasset
+  '....oLMDooDDo...', // 15 upper legs
+  '....oLMo..oDo...', // 16 legs
+  '....oLMo..oDo...', // 17 legs
+  '....oMDo..oDo...', // 18 knees (darker)
+  '....oLMo..oDo...', // 19 greaves
+  '...oLMDo..oDDo..', // 20 boots (wider)
+  '...ooooo..ooooo.', // 21 soles
+  '................', // 22
+  '................', // 23
+];
+
+function gridToPixels(grid: string[], pal: Record<string, RGBA>): PixelEntry[] {
+  const pixels: PixelEntry[] = [];
+  for (let y = 0; y < grid.length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      const rgba = pal[ch];
+      if (rgba) pixels.push({ x, y, rgba });
+    }
+  }
+  return pixels;
+}
+
 function buildKnightIdle(): HeadlessStore {
   const store = createHeadlessStore();
   storeNewDocument(store, 'Knight Idle', 16, 24);
   setupPalette(store);
 
-  storeAddFrame(store);
-  const doc = store.getState().document!;
-  storeSetFrameDuration(store, doc.frames[0].id, 500);
-  storeSetFrameDuration(store, doc.frames[1].id, 500);
-
-  // Frame 0
-  storeSetActiveFrame(store, 0);
-  storeAddLayer(store);
-  const f0 = store.getState().document!.frames[0];
-  storeRenameLayer(store, f0.layers[0].id, 'Body');
-  storeRenameLayer(store, f0.layers[1].id, 'Detail');
-
-  storeSetActiveLayer(store, f0.layers[0].id);
-  storeDrawPixels(store, rect(5, 1, 6, 6, PAL.peach));
-  storeDrawPixels(store, outlineRect(5, 1, 6, 6, PAL.black));
-  storeDrawPixels(store, rect(4, 7, 8, 6, PAL.blue));
-  storeDrawPixels(store, outlineRect(4, 7, 8, 6, PAL.black));
-  storeDrawPixels(store, rect(5, 13, 3, 7, PAL.darkBlue));
-  storeDrawPixels(store, rect(8, 13, 3, 7, PAL.darkBlue));
-
-  storeSetActiveLayer(store, f0.layers[1].id);
-  storeDrawPixels(store, [
-    { x: 6, y: 3, rgba: PAL.black },
-    { x: 9, y: 3, rgba: PAL.black },
-    { x: 7, y: 8, rgba: PAL.white },
-    { x: 8, y: 8, rgba: PAL.white },
-  ]);
-
-  // Frame 1 (bob)
-  storeSetActiveFrame(store, 1);
-  const f1 = store.getState().document!.frames[1];
-  storeSetActiveLayer(store, f1.layers[0].id);
-  storeDrawPixels(store, rect(5, 2, 6, 6, PAL.peach));
-  storeDrawPixels(store, outlineRect(5, 2, 6, 6, PAL.black));
-  storeDrawPixels(store, rect(4, 8, 8, 6, PAL.blue));
-  storeDrawPixels(store, outlineRect(4, 8, 8, 6, PAL.black));
-  storeDrawPixels(store, rect(5, 13, 3, 7, PAL.darkBlue));
-  storeDrawPixels(store, rect(8, 13, 3, 7, PAL.darkBlue));
+  // Single frame, no animation — this is a hero quality test
+  storeDrawPixels(store, gridToPixels(KNIGHT_GRID, KNIGHT_PAL));
 
   return store;
 }
@@ -416,7 +445,7 @@ interface AssetDef {
 
 const ASSETS: AssetDef[] = [
   { slug: 'wooden-crate', build: buildWoodenCrate, workflow: 'new-static-sprite', animated: false },
-  { slug: 'knight-idle', build: buildKnightIdle, workflow: 'new-animation-sprite', animated: true },
+  { slug: 'knight-idle', build: buildKnightIdle, workflow: 'new-static-sprite', animated: false },
   { slug: 'knight-walk', build: buildKnightWalk, workflow: 'new-animation-sprite', animated: true },
   { slug: 'spark-hit', build: buildSparkHit, workflow: 'new-animation-sprite', animated: true },
   { slug: 'grass-tiles', build: buildGrassTiles, workflow: 'new-static-sprite', animated: false },
@@ -533,7 +562,7 @@ describe('Regression checks', () => {
 
   it('animated assets produce GIFs with correct frame count encoding', () => {
     const animated = ASSETS.filter((a) => a.animated);
-    expect(animated.length).toBe(3);
+    expect(animated.length).toBe(2);
 
     for (const asset of animated) {
       const store = asset.build();
@@ -550,7 +579,7 @@ describe('Regression checks', () => {
 
   it('static assets have exactly 1 frame', () => {
     const statics = ASSETS.filter((a) => !a.animated);
-    expect(statics.length).toBe(2);
+    expect(statics.length).toBe(3);
 
     for (const asset of statics) {
       const store = asset.build();

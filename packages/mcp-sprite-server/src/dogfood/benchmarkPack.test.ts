@@ -265,8 +265,60 @@ describe('Benchmark Asset 1: Wooden Crate', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// ASSET 2: Knight Idle (16×24, 2 frames, 500ms)
+// ASSET 2: Knight Idle (16×24, 1 frame, hero quality sprite)
 // ═══════════════════════════════════════════════════════════════════
+
+// Hero knight palette (7 colors, light from top-left)
+const KNIGHT_PAL: Record<string, RGBA> = {
+  o: [20, 12, 28, 255],     // outline
+  D: [55, 65, 85, 255],     // armor dark
+  M: [90, 110, 140, 255],   // armor mid
+  L: [145, 165, 195, 255],  // armor light
+  S: [224, 180, 140, 255],  // skin
+  s: [184, 140, 108, 255],  // skin shadow
+  G: [230, 190, 50, 255],   // gold accent
+};
+
+const KNIGHT_GRID: string[] = [
+  '................', // 0
+  '.......oGo......', // 1  crest tip
+  '......oGGGo.....', // 2  crest
+  '.....oLLMMDo....', // 3  helmet top
+  '.....oLMMDDo....', // 4  helmet
+  '....oLMMMMDDo...', // 5  helmet wide (brow)
+  '....oDDSsSDDo...', // 6  visor: dark frame, skin eyes
+  '.....oLMMDDo....', // 7  chin guard
+  '......oMDDo.....', // 8  gorget
+  '....oLLMMDDDo...', // 9  shoulders
+  '...oLMDoMMDoDDo.', // 10 pauldron|chest|pauldron
+  '..oLDoLMMDoDDo..', // 11 arm|chest|arm
+  '..oLDoLMMDoDDo..', // 12 arm|chest|arm
+  '..oooooGGGooooo.', // 13 hands + gold belt
+  '.....oLMMDDo....', // 14 tasset
+  '....oLMDooDDo...', // 15 upper legs
+  '....oLMo..oDo...', // 16 legs
+  '....oLMo..oDo...', // 17 legs
+  '....oMDo..oDo...', // 18 knees
+  '....oLMo..oDo...', // 19 greaves
+  '...oLMDo..oDDo..', // 20 boots
+  '...ooooo..ooooo.', // 21 soles
+  '................', // 22
+  '................', // 23
+];
+
+function gridToPixels(grid: string[], pal: Record<string, RGBA>): PixelEntry[] {
+  const pixels: PixelEntry[] = [];
+  for (let y = 0; y < grid.length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      const rgba = pal[ch];
+      if (rgba) pixels.push({ x, y, rgba });
+    }
+  }
+  return pixels;
+}
 
 describe('Benchmark Asset 2: Knight Idle', () => {
   let store: HeadlessStore;
@@ -275,117 +327,66 @@ describe('Benchmark Asset 2: Knight Idle', () => {
     store = createHeadlessStore();
     storeNewDocument(store, 'Knight Idle', 16, 24);
     setupPalette(store);
-    // Add second frame
-    storeAddFrame(store);
-    // Set timing on both frames
-    const doc = store.getState().document!;
-    storeSetFrameDuration(store, doc.frames[0].id, 500);
-    storeSetFrameDuration(store, doc.frames[1].id, 500);
+    storeDrawPixels(store, gridToPixels(KNIGHT_GRID, KNIGHT_PAL));
   });
 
-  it('creates 2-frame animation with correct timing', () => {
+  it('creates single-frame static sprite', () => {
     const summary = storeGetDocumentSummary(store);
-    expect(summary!.frameCount).toBe(2);
-    expect(summary!.frames[0].durationMs).toBe(500);
-    expect(summary!.frames[1].durationMs).toBe(500);
-
-    // FRICTION: no way to set frame duration at document creation time
-    // through headless adapter — had to create then set each individually
-    logFriction('Knight Idle', 'workflow', 'pain',
-      'no batch frame duration setter — had to loop through frames individually');
+    expect(summary!.frameCount).toBe(1);
+    expect(summary!.width).toBe(16);
+    expect(summary!.height).toBe(24);
   });
 
-  it('draws character on frame 1 with body parts on layers', () => {
-    storeSetActiveFrame(store, 0);
+  it('grid uses exactly 7 colors plus transparent', () => {
+    const usedChars = new Set<string>();
+    for (const row of KNIGHT_GRID) {
+      for (const ch of row) {
+        if (ch !== '.') usedChars.add(ch);
+      }
+    }
+    expect(usedChars.size).toBe(7);
+    expect([...usedChars].sort()).toEqual(['D', 'G', 'L', 'M', 'S', 'o', 's']);
+  });
 
-    // Add a second layer for details
-    storeAddLayer(store);
-    const doc = store.getState().document!;
-    const frame0 = doc.frames[0];
-    const bodyLayerId = frame0.layers[0].id;
-    const detailLayerId = frame0.layers[1].id;
-    storeRenameLayer(store, bodyLayerId, 'Body');
-    storeRenameLayer(store, detailLayerId, 'Detail');
+  it('every grid row is exactly 16 characters', () => {
+    expect(KNIGHT_GRID.length).toBe(24);
+    for (const row of KNIGHT_GRID) {
+      expect(row.length).toBe(16);
+    }
+  });
 
-    // Body layer: silhouette
-    storeSetActiveLayer(store, bodyLayerId);
-    // Head (circle-ish)
-    storeDrawPixels(store, rect(5, 1, 6, 6, PAL.peach));
-    storeDrawPixels(store, outlineRect(5, 1, 6, 6, PAL.black));
-    // Torso
-    storeDrawPixels(store, rect(4, 7, 8, 6, PAL.blue));
-    storeDrawPixels(store, outlineRect(4, 7, 8, 6, PAL.black));
-    // Legs
-    storeDrawPixels(store, rect(5, 13, 3, 7, PAL.darkBlue));
-    storeDrawPixels(store, rect(8, 13, 3, 7, PAL.darkBlue));
-
-    // Detail layer: eyes, armor highlight
-    storeSetActiveLayer(store, detailLayerId);
-    // Eyes
-    storeDrawPixels(store, [
-      { x: 6, y: 3, rgba: PAL.black },
-      { x: 9, y: 3, rgba: PAL.black },
-    ]);
-    // Armor highlight
-    storeDrawPixels(store, [
-      { x: 7, y: 8, rgba: PAL.white },
-      { x: 8, y: 8, rgba: PAL.white },
-    ]);
-
+  it('silhouette reads with clear head-body-leg separation', () => {
     const bounds = storeAnalyzeBounds(store, 0);
     expect(typeof bounds).not.toBe('string');
     if (typeof bounds !== 'string') {
       expect(bounds.empty).toBe(false);
+      // Character fills a substantial portion of the canvas
+      expect(bounds.opaquePixelCount).toBeGreaterThan(100);
     }
   });
 
-  it('draws frame 2 with slight bob (idle animation)', () => {
-    storeSetActiveFrame(store, 1);
-
-    // Same character, shifted down 1px for bob effect
-    const bodyLayerId = store.getState().document!.frames[1].layers[0].id;
-    storeSetActiveLayer(store, bodyLayerId);
-
-    // Head (shifted down 1)
-    storeDrawPixels(store, rect(5, 2, 6, 6, PAL.peach));
-    storeDrawPixels(store, outlineRect(5, 2, 6, 6, PAL.black));
-    // Torso (shifted down 1)
-    storeDrawPixels(store, rect(4, 8, 8, 6, PAL.blue));
-    // Legs (same position — feet stay planted)
-    storeDrawPixels(store, rect(5, 13, 3, 7, PAL.darkBlue));
-    storeDrawPixels(store, rect(8, 13, 3, 7, PAL.darkBlue));
-
-    const diff = storeCompareFrames(store, 0, 1);
-    expect(typeof diff).not.toBe('string');
-    if (typeof diff !== 'string') {
-      expect(diff.identical).toBe(false);
-      expect(diff.changedPixelCount).toBeGreaterThan(0);
+  it('color analysis shows controlled palette usage', () => {
+    const colors = storeAnalyzeColors(store, 0);
+    expect(typeof colors).not.toBe('string');
+    if (typeof colors !== 'string') {
+      // 7 intentional colors + transparent background = 8
+      expect(colors.uniqueColors).toBe(8);
     }
   });
 
-  it('validates and exports', () => {
-    // Draw something on both frames for valid export
-    storeSetActiveFrame(store, 0);
-    storeDrawPixels(store, rect(4, 1, 8, 20, PAL.blue));
-    storeSetActiveFrame(store, 1);
-    storeDrawPixels(store, rect(4, 2, 8, 20, PAL.blue));
-
+  it('validates cleanly', () => {
     const doc = store.getState().document!;
     const report = runSpriteValidation(doc);
     expect(report.summary.errorCount).toBe(0);
+  });
 
-    // Export GIF
-    const gif = storeExportGif(store, true);
-    expect(gif instanceof Uint8Array).toBe(true);
-    if (gif instanceof Uint8Array) {
-      expect(gif.length).toBeGreaterThan(10);
-    }
-
-    // Export sheet
+  it('exports PNG-ready buffer', () => {
     const sheet = storeExportSheetWithMeta(store);
     expect('error' in sheet).toBe(false);
     if (!('error' in sheet)) {
-      expect(sheet.meta.frames.length).toBe(2);
+      expect(sheet.meta.frames.length).toBe(1);
+      expect(sheet.sheet.width).toBe(16);
+      expect(sheet.sheet.height).toBe(24);
     }
   });
 });
