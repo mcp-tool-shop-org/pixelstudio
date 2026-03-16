@@ -1045,11 +1045,11 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 
 | Export | Type | Purpose |
 |--------|------|---------|
-| `SceneHistoryOperationKind` | type | Union of 16 operation kind strings |
+| `SceneHistoryOperationKind` | type | Union of 20 operation kind strings |
 | `SceneHistorySnapshot` | type | `{ instances: SceneAssetInstance[], camera?: SceneCamera }` |
 | `SceneHistoryEntry` | type | Before/after snapshots + kind + metadata + timestamp |
 | `SceneHistoryOperationMetadata` | type | Optional instanceId, camera, override metadata |
-| `ALL_SCENE_HISTORY_OPERATION_KINDS` | const | Array of all 16 operation kind strings |
+| `ALL_SCENE_HISTORY_OPERATION_KINDS` | const | Array of all 20 operation kind strings |
 | `describeSceneHistoryOperation` | fn | Human-readable label for an operation kind |
 | `isSceneHistoryChange` | fn | Detect no-op (identical before/after instances) |
 | `createSceneHistoryEntry` | fn | Build a history entry from before/after + kind + metadata |
@@ -1084,9 +1084,9 @@ Pure functions and types exported from `@glyphstudio/state` for the scene undo/r
 
 | Export | Type | Purpose |
 |--------|------|---------|
-| `SceneProvenanceDiff` | type | Discriminated union — 16 diff variants keyed by `type` |
+| `SceneProvenanceDiff` | type | Discriminated union — 20 diff variants keyed by `type` |
 | `SceneProvenanceDrilldown` | type | Diff + entry metadata (label, timestamp, sequence) |
-| `SceneProvenanceDrilldownSource` | type | Captured before/after instance slices + kind + metadata + optional `beforeCamera`/`afterCamera` |
+| `SceneProvenanceDrilldownSource` | type | Captured before/after instance slices + kind + metadata + optional `beforeCamera`/`afterCamera` + optional `beforeKeyframe`/`afterKeyframe` |
 | `captureProvenanceDrilldownSource` | fn | Extract focused before/after slices at edit seam (by metadata instanceId) |
 | `deriveProvenanceDiff` | fn | Derive typed diff from captured source slices |
 | `deriveProvenanceDrilldown` | fn | Wrap diff with provenance entry metadata |
@@ -1111,6 +1111,7 @@ Store state:
 | `canUndo` | `boolean` | Whether undo is available |
 | `canRedo` | `boolean` | Whether redo is available |
 | `camera` | `SceneCamera \| undefined` | Last committed camera state (for history snapshots) |
+| `keyframes` | `SceneCameraKeyframe[]` | Authored camera keyframes (for history snapshots) |
 
 Store actions:
 
@@ -1118,11 +1119,49 @@ Store actions:
 |--------|-----------|-------------|
 | `loadInstances` | `(instances) → void` | Load from backend without history or provenance (refresh, initial load) |
 | `loadCamera` | `(camera) → void` | Load camera state without history (initial load, backend sync) |
-| `applyEdit` | `(kind, nextInstances, metadata?, nextCamera?) → void` | Record edit with history, provenance, and drilldown capture. Camera edits pass `nextCamera` for snapshot + drilldown. |
+| `loadKeyframes` | `(keyframes) → void` | Load keyframes without history (initial load, backend sync) |
+| `applyEdit` | `(kind, nextInstances, metadata?, nextCamera?, nextKeyframes?) → void` | Record edit with history, provenance, and drilldown capture. Camera edits pass `nextCamera`; keyframe edits pass `nextKeyframes`. |
 | `undo` | `() → SceneUndoRedoResult \| undefined` | Undo with rollback closure for backend sync failure |
 | `redo` | `() → SceneUndoRedoResult \| undefined` | Redo with rollback closure for backend sync failure |
 | `loadPersistedProvenance` | `(provenance, drilldownBySequence) → void` | Hydrate persisted provenance and drilldown into the store; sets sequence counter to max(persisted) + 1 |
 | `resetHistory` | `() → void` | Clear history stacks, provenance log, drilldown captures, and sequence counter (scene change / new scene) |
+
+### Authored operation parity coverage
+
+All 20 scene operation kinds are fully covered across history, provenance, drilldown, UI rendering, and persistence. No operation falls through to generic labeling.
+
+**Operation kinds by family:**
+
+| Family | Operation kind | Metadata | Drilldown renderer |
+|--------|---------------|----------|-------------------|
+| Instance | `add-instance` | `instanceId` | `InstanceDiffView` |
+| Instance | `remove-instance` | `instanceId` | `InstanceDiffView` |
+| Instance | `move-instance` | `instanceId` | `InstanceDiffView` |
+| Instance | `set-instance-visibility` | `instanceId` | `InstanceDiffView` |
+| Instance | `set-instance-opacity` | `instanceId` | `InstanceDiffView` |
+| Instance | `set-instance-layer` | `instanceId` | `InstanceDiffView` |
+| Instance | `set-instance-clip` | `instanceId` | `InstanceDiffView` |
+| Instance | `set-instance-parallax` | `instanceId` | `InstanceDiffView` |
+| Character source | `reapply-character-source` | `instanceId` | `InstanceDiffView` |
+| Character source | `unlink-character-source` | `instanceId` | `InstanceDiffView` |
+| Character source | `relink-character-source` | `instanceId` | `InstanceDiffView` |
+| Character override | `set-character-override` | `instanceId`, `slotId` | `CharacterOverrideDiffView` |
+| Character override | `remove-character-override` | `instanceId`, `slotId` | `CharacterOverrideDiffView` |
+| Character override | `clear-all-character-overrides` | `instanceId` | `CharacterOverrideDiffView` |
+| Camera | `set-scene-camera` | camera fields | `CameraDiffView` |
+| Playback config | `set-scene-playback` | — | `CameraPlaybackDiffView` |
+| Keyframe | `add-camera-keyframe` | `tick` | `KeyframeDiffView` |
+| Keyframe | `remove-camera-keyframe` | `tick` | `KeyframeDiffView` |
+| Keyframe | `move-camera-keyframe` | `tick`, `previousTick` | `KeyframeDiffView` |
+| Keyframe | `edit-camera-keyframe` | `tick`, `changedFields` | `KeyframeDiffView` |
+
+**Persistence shapes:**
+
+| Drilldown field | Used by | Contents |
+|----------------|---------|----------|
+| `beforeInstance` / `afterInstance` | Instance, character, override ops | Full `SceneAssetInstance` snapshot |
+| `beforeCamera` / `afterCamera` | Camera ops | `SceneCamera` (x, y, zoom) |
+| `beforeKeyframe` / `afterKeyframe` | Keyframe ops | `SceneCameraKeyframe` (tick, x, y, zoom, interpolation, name?) |
 
 ### SceneTimelineSummary
 

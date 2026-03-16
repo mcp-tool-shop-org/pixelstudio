@@ -397,18 +397,31 @@ Selection is keyed by provenance `sequence` number (stable, monotonically increa
 | Playback state | No | Not included in provenance, history, or drilldown |
 | Restore-from-entry | No | Does not exist — drilldown is read-only inspection |
 | Generic raw diff | No | Does not exist — drilldown shows operation-aware focused diffs only |
-| Camera keyframe provenance | Yes | Keyframe add/remove/move/edit produce provenance entries with drilldown sources |
 
-### Authored timeline parity
+### Authored operation parity
 
-All authored scene state participates equally in history, provenance, and drilldown:
+All 20 authored scene operation kinds participate equally in history, provenance, drilldown, UI rendering, and persistence. No operation kind falls through to generic labeling or silent no-ops.
 
-| Domain | History (undo/redo) | Provenance | Drilldown | Persists |
-|--------|-------------------|------------|-----------|----------|
-| Instances | Yes | Yes | Yes | Yes |
-| Camera | Yes | Yes | Yes (pan/zoom/reset) | Yes |
-| Keyframes | Yes | Yes | Yes (add/remove/move/edit) | Yes |
-| Playback | No (transient) | No | No | No |
+| Domain | Ops | History | Provenance | Drilldown | UI | Persistence |
+|--------|-----|---------|------------|-----------|-----|-------------|
+| Instance (8) | add/remove/move/visibility/opacity/layer/clip/parallax | Yes | Yes | Yes | Yes | Yes |
+| Character source (3) | reapply/unlink/relink | Yes | Yes | Yes | Yes | Yes |
+| Character overrides (3) | set/remove/clear-all | Yes | Yes | Yes | Yes | Yes |
+| Camera (1) | set-scene-camera | Yes | Yes | Yes (pan/zoom/reset) | Yes | Yes |
+| Authored playback config (1) | set-scene-playback (FPS/looping) | Yes | Yes | Yes | Yes | Yes |
+| Keyframes (4) | add/remove/move/edit | Yes | Yes | Yes (tick/position/zoom/interpolation) | Yes | Yes |
+
+**Intentional exclusions (transient preview state):**
+
+| Concern | In law? | Reason |
+|---------|---------|--------|
+| Current tick position | No | Runtime playhead, not authored truth |
+| Play/pause state | No | Preview control, not persisted config |
+| Scrub head position | No | Transient UI interaction |
+| Camera resolver output | No | Derived from keyframes at runtime |
+| Shot derivation | No | Computed from keyframe positions |
+
+`set-scene-playback` is the authored playback configuration (FPS, looping) — it persists with the scene document and flows through the lawful seam. Tick, play/pause, and scrub are transient preview state that remains outside.
 
 Keyframe drilldown sources include `beforeKeyframe` and `afterKeyframe` slices containing `tick`, `x`, `y`, `zoom`, `interpolation`, and optional `name`.
 
@@ -419,6 +432,12 @@ Keyframe drilldown sources include `beforeKeyframe` and `afterKeyframe` slices c
 - Provenance is scene-only, not project-wide
 - Camera drilldown shows exact before/after values for pan, zoom, and reset; keyframe drilldown shows tick, position, zoom, and interpolation; playback drilldown shows metadata only
 - Undo/redo history does not persist — it resets on scene change or app restart
+
+### Parity closeout (Stage 22)
+
+Authored scene operation parity is complete across all six domains: instances (8 ops), character source relationships (3 ops), character overrides (3 ops), camera (1 op), authored playback configuration (1 op), and keyframes (4 ops). All 20 operation kinds share the same treatment: history, provenance, drilldown, UI rendering, and persistence. No operation kind falls through to generic labeling, silently drops state, or produces fake detail.
+
+Transient preview state (current tick, play/pause, scrub head, camera resolver output, shot derivation) remains intentionally outside the law. This boundary is load-bearing — blurring it would pollute the provenance log with noise that isn't authored truth.
 
 ## Character workflow
 
