@@ -67,7 +67,13 @@ export async function runWorkflow(
       // Extract text and image content from MCP response
       const contentBlocks = response.content as Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
       const text = contentBlocks.find((c) => c.type === 'text')?.text ?? '{}';
-      const parsed = JSON.parse(text) as Record<string, unknown>;
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        // MCP-level errors may return non-JSON text
+        parsed = { ok: false, code: 'mcp_error', message: text };
+      }
 
       // Attach image data if the tool returned an image content block
       const imageBlock = contentBlocks.find((c) => c.type === 'image');
