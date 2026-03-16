@@ -474,6 +474,34 @@ describe('SpriteEditor', () => {
     expect(screen.getByTestId('sprite-export-gif-btn')).toBeDefined();
   });
 
+  it('shows save button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-save-btn')).toBeDefined();
+  });
+
+  it('shows save-as button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-save-as-btn')).toBeDefined();
+  });
+
+  it('shows open button', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-open-btn')).toBeDefined();
+  });
+
+  it('save button shows dirty indicator when document is modified', () => {
+    openTestDoc(4, 4);
+    const buf = createBlankPixelBuffer(4, 4);
+    setPixel(buf, 0, 0, [255, 0, 0, 255]);
+    act(() => useSpriteEditorStore.getState().commitPixels(buf));
+    render(<SpriteEditor />);
+    const saveBtn = screen.getByTestId('sprite-save-btn');
+    expect(saveBtn.textContent).toContain('*');
+  });
+
   it('no import/export bar when no document', () => {
     render(<SpriteEditor />);
     expect(screen.queryByTestId('sprite-import-export-bar')).toBeNull();

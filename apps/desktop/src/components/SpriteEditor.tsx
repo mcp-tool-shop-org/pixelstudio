@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSpriteEditorStore } from '@glyphstudio/state';
+import { useSpriteEditorStore, serializeSpriteFile } from '@glyphstudio/state';
 import type { SpriteToolId } from '@glyphstudio/domain';
 import { SpriteToolRail } from './SpriteToolRail';
 import { SpritePalettePanel } from './SpritePalettePanel';
@@ -8,6 +8,7 @@ import { SpriteCanvasArea } from './SpriteCanvasArea';
 import { SpriteImportExportBar } from './SpriteImportExportBar';
 import { SpritePreviewBar } from './SpritePreviewBar';
 import { SpriteLayerPanel } from './SpriteLayerPanel';
+import { saveSpriteFile, saveSpriteFileAs, openSpriteFile } from '../lib/spriteFileHelpers';
 
 const TOOL_SHORTCUTS: Record<string, SpriteToolId> = {
   m: 'select',
@@ -37,6 +38,40 @@ export function SpriteEditor() {
 
       const key = e.key.toLowerCase();
       const store = useSpriteEditorStore.getState();
+
+      // Save/Open shortcuts (Ctrl key)
+      if (e.ctrlKey || e.metaKey) {
+        if (key === 's') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Ctrl+Shift+S: Save As
+            if (store.document) {
+              const json = serializeSpriteFile(store.document, store.pixelBuffers);
+              saveSpriteFileAs(json).then((path) => {
+                if (path) useSpriteEditorStore.setState({ filePath: path, dirty: false });
+              });
+            }
+          } else {
+            // Ctrl+S: Save
+            if (store.document) {
+              const json = serializeSpriteFile(store.document, store.pixelBuffers);
+              saveSpriteFile(json, store.filePath).then((path) => {
+                if (path) useSpriteEditorStore.setState({ filePath: path, dirty: false });
+              });
+            }
+          }
+          return;
+        }
+        if (key === 'o' && !e.shiftKey) {
+          e.preventDefault();
+          openSpriteFile().then((result) => {
+            if (result) {
+              useSpriteEditorStore.getState().loadDocument(result.json, result.filePath);
+            }
+          });
+          return;
+        }
+      }
 
       // Tool shortcuts (no modifiers)
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {

@@ -1,4 +1,59 @@
 import type { SpritePixelBuffer } from '@glyphstudio/domain';
+import { save, open } from '@tauri-apps/plugin-dialog';
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+
+/** File filter for .glyph files in Tauri dialogs. */
+const GLYPH_FILTER = { name: 'GlyphStudio Sprite', extensions: ['glyph'] };
+
+/**
+ * Save a sprite file using Tauri's native save dialog.
+ *
+ * If filePath is provided, saves directly without showing the dialog.
+ * Returns the saved path, or null if the user cancelled.
+ */
+export async function saveSpriteFile(
+  json: string,
+  existingPath: string | null,
+): Promise<string | null> {
+  const filePath = existingPath ?? await save({
+    filters: [GLYPH_FILTER],
+    defaultPath: 'sprite.glyph',
+  });
+  if (!filePath) return null;
+
+  await writeTextFile(filePath, json);
+  return filePath;
+}
+
+/**
+ * Save-as: always shows the dialog, even if a path already exists.
+ */
+export async function saveSpriteFileAs(json: string): Promise<string | null> {
+  const filePath = await save({
+    filters: [GLYPH_FILTER],
+    defaultPath: 'sprite.glyph',
+  });
+  if (!filePath) return null;
+
+  await writeTextFile(filePath, json);
+  return filePath;
+}
+
+/**
+ * Open a .glyph file using Tauri's native open dialog.
+ * Returns { json, filePath } or null if the user cancelled.
+ */
+export async function openSpriteFile(): Promise<{ json: string; filePath: string } | null> {
+  const selected = await open({
+    filters: [GLYPH_FILTER],
+    multiple: false,
+  });
+  if (!selected) return null;
+
+  const filePath = typeof selected === 'string' ? selected : selected;
+  const json = await readTextFile(filePath);
+  return { json, filePath };
+}
 
 /**
  * Encode a pixel buffer as a PNG blob using an offscreen canvas.

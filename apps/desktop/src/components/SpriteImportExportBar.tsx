@@ -1,10 +1,18 @@
 import { useRef, useState } from 'react';
-import { useSpriteEditorStore } from '@glyphstudio/state';
-import { pixelBufferToPngBlob, decodeImageFile, downloadBlob } from '../lib/spriteFileHelpers';
+import { useSpriteEditorStore, serializeSpriteFile } from '@glyphstudio/state';
+import {
+  pixelBufferToPngBlob,
+  decodeImageFile,
+  downloadBlob,
+  saveSpriteFile,
+  saveSpriteFileAs,
+  openSpriteFile,
+} from '../lib/spriteFileHelpers';
 
 /**
  * Import/export controls for the sprite editor.
  *
+ * - Save / Open / Save As: native .glyph file persistence
  * - Import sprite sheet: reads a PNG, slices into frames
  * - Export sprite sheet: assembles frames into a horizontal strip PNG
  * - Export sheet + JSON: sprite sheet PNG + metadata manifest
@@ -13,6 +21,8 @@ import { pixelBufferToPngBlob, decodeImageFile, downloadBlob } from '../lib/spri
  */
 export function SpriteImportExportBar() {
   const doc = useSpriteEditorStore((s) => s.document);
+  const dirty = useSpriteEditorStore((s) => s.dirty);
+  const filePath = useSpriteEditorStore((s) => s.filePath);
   const importSpriteSheet = useSpriteEditorStore((s) => s.importSpriteSheet);
   const exportSpriteSheet = useSpriteEditorStore((s) => s.exportSpriteSheet);
   const exportCurrentFrame = useSpriteEditorStore((s) => s.exportCurrentFrame);
@@ -24,6 +34,57 @@ export function SpriteImportExportBar() {
   if (!doc) return null;
 
   const safeName = doc.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  // ── Persistence ──
+
+  const handleSave = async () => {
+    setError(null);
+    const state = useSpriteEditorStore.getState();
+    if (!state.document) return;
+
+    const json = serializeSpriteFile(state.document, state.pixelBuffers);
+    try {
+      const savedPath = await saveSpriteFile(json, state.filePath);
+      if (savedPath) {
+        useSpriteEditorStore.setState({ filePath: savedPath, dirty: false });
+      }
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : 'Failed to save');
+    }
+  };
+
+  const handleSaveAs = async () => {
+    setError(null);
+    const state = useSpriteEditorStore.getState();
+    if (!state.document) return;
+
+    const json = serializeSpriteFile(state.document, state.pixelBuffers);
+    try {
+      const savedPath = await saveSpriteFileAs(json);
+      if (savedPath) {
+        useSpriteEditorStore.setState({ filePath: savedPath, dirty: false });
+      }
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : 'Failed to save');
+    }
+  };
+
+  const handleOpen = async () => {
+    setError(null);
+    try {
+      const result = await openSpriteFile();
+      if (!result) return;
+
+      const err = useSpriteEditorStore.getState().loadDocument(result.json, result.filePath);
+      if (err) {
+        setError(err);
+      }
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : 'Failed to open file');
+    }
+  };
+
+  // ── Import/Export ──
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -112,6 +173,36 @@ export function SpriteImportExportBar() {
 
   return (
     <div className="sprite-import-export-bar" data-testid="sprite-import-export-bar">
+      {/* Persistence */}
+      <button
+        className="sprite-save-btn"
+        onClick={handleSave}
+        title={filePath ? `Save to ${filePath}` : 'Save sprite (Ctrl+S)'}
+        data-testid="sprite-save-btn"
+      >
+        {dirty ? 'Save *' : 'Save'}
+      </button>
+      <button
+        className="sprite-save-as-btn"
+        onClick={handleSaveAs}
+        title="Save as new file (Ctrl+Shift+S)"
+        data-testid="sprite-save-as-btn"
+      >
+        Save As
+      </button>
+      <button
+        className="sprite-open-btn"
+        onClick={handleOpen}
+        title="Open sprite file (Ctrl+O)"
+        data-testid="sprite-open-btn"
+      >
+        Open
+      </button>
+
+      {/* Separator */}
+      <span className="sprite-toolbar-separator" aria-hidden="true">|</span>
+
+      {/* Import/Export */}
       <input
         ref={fileInputRef}
         type="file"
