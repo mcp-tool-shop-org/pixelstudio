@@ -191,8 +191,8 @@ describe('SceneProvenance — exhaustiveness', () => {
     }
   });
 
-  it('all 20 operation kinds are covered', () => {
-    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(20);
+  it('all 21 operation kinds are covered', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(21);
   });
 });
 

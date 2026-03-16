@@ -29,7 +29,8 @@ export type SceneHistoryOperationKind =
   | 'add-camera-keyframe'
   | 'remove-camera-keyframe'
   | 'move-camera-keyframe'
-  | 'edit-camera-keyframe';
+  | 'edit-camera-keyframe'
+  | 'restore-entry';
 
 // ── Operation metadata ──
 
@@ -65,11 +66,19 @@ export interface SceneHistoryKeyframeMeta {
   previousTick?: number;
 }
 
+export interface SceneHistoryRestoreMeta {
+  /** The provenance sequence number of the entry being restored. */
+  sourceSequence: number;
+  /** Restore scope. */
+  scope: 'full';
+}
+
 export type SceneHistoryOperationMetadata =
   | SceneHistoryInstanceMeta
   | SceneHistoryOverrideMeta
   | SceneHistoryCameraMeta
   | SceneHistoryKeyframeMeta
+  | SceneHistoryRestoreMeta
   | undefined;
 
 // ── Snapshot ──
@@ -142,6 +151,7 @@ const OPERATION_LABELS: Record<SceneHistoryOperationKind, string> = {
   'remove-camera-keyframe': 'Remove Camera Keyframe',
   'move-camera-keyframe': 'Move Camera Keyframe',
   'edit-camera-keyframe': 'Edit Camera Keyframe',
+  'restore-entry': 'Restore Entry',
 };
 
 /**
@@ -253,4 +263,5 @@ export const ALL_SCENE_HISTORY_OPERATION_KINDS: SceneHistoryOperationKind[] = [
   'remove-camera-keyframe',
   'move-camera-keyframe',
   'edit-camera-keyframe',
+  'restore-entry',
 ];

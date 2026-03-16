@@ -481,8 +481,12 @@ describe('SceneHistory — keyframe operation kinds', () => {
     expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('edit-camera-keyframe');
   });
 
-  it('total operation kinds is 20', () => {
-    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(20);
+  it('total operation kinds is 21', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toHaveLength(21);
+  });
+
+  it('ALL_SCENE_HISTORY_OPERATION_KINDS includes restore-entry', () => {
+    expect(ALL_SCENE_HISTORY_OPERATION_KINDS).toContain('restore-entry');
   });
 
   it('keyframe kinds have distinct labels', () => {

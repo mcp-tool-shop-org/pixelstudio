@@ -171,7 +171,8 @@ export type PersistedSceneOperationKind =
   | 'add-camera-keyframe'
   | 'remove-camera-keyframe'
   | 'move-camera-keyframe'
-  | 'edit-camera-keyframe';
+  | 'edit-camera-keyframe'
+  | 'restore-entry';
 
 /**
  * Persisted provenance metadata — serializable subset of SceneHistoryOperationMetadata.
