@@ -5,10 +5,10 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
 import type { SessionManager } from '../session/sessionManager.js';
 import { success, fail, ErrorCode } from '../schemas/result.js';
-import { SessionIdSchema } from '../schemas/toolSchemas.js';
+import { sessionId } from '../schemas/toolSchemas.js';
+import { jsonResult } from './shared.js';
 
 export function registerSessionTools(server: McpServer, sessions: SessionManager): void {
   server.tool(
@@ -17,8 +17,7 @@ export function registerSessionTools(server: McpServer, sessions: SessionManager
     {},
     async () => {
       const id = sessions.create();
-      const result = success({ sessionId: id });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      return jsonResult(success({ sessionId: id }));
     },
   );
 
@@ -28,23 +27,20 @@ export function registerSessionTools(server: McpServer, sessions: SessionManager
     {},
     async () => {
       const list = sessions.list();
-      const result = success({ sessions: list, count: list.length });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      return jsonResult(success({ sessions: list, count: list.length }));
     },
   );
 
   server.tool(
     'sprite_session_close',
     'Close and destroy a sprite editing session. Unsaved changes are lost.',
-    { sessionId: z.string().describe('The session ID to close') },
+    { sessionId: sessionId.describe('The session ID to close') },
     async ({ sessionId }) => {
       if (!sessions.has(sessionId)) {
-        const result = fail(ErrorCode.NO_SESSION, `Session not found: ${sessionId}`);
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        return jsonResult(fail(ErrorCode.NO_SESSION, `Session not found: ${sessionId}`));
       }
       sessions.destroy(sessionId);
-      const result = success({ closed: sessionId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      return jsonResult(success({ closed: sessionId }));
     },
   );
 }

@@ -11,6 +11,8 @@ import { z } from 'zod';
 import { encode } from 'fast-png';
 import type { SessionManager } from '../session/sessionManager.js';
 import { success, fail, ErrorCode } from '../schemas/result.js';
+import { sessionId, frameIndexOptional } from '../schemas/toolSchemas.js';
+import { requireSession, jsonResult } from './shared.js';
 import {
   storeRenderFrame,
   storeRenderSheet,
@@ -19,12 +21,6 @@ import {
   storeExportGif,
   storeGetDocumentSummary,
 } from '../adapters/storeAdapter.js';
-
-function requireSession(sessions: SessionManager, sessionId: string) {
-  const store = sessions.getStore(sessionId);
-  if (!store) return { error: fail(ErrorCode.NO_SESSION, `Session not found: ${sessionId}`) };
-  return { store };
-}
 
 /** Encode raw RGBA buffer to PNG bytes and return as base64 data URI. */
 function rgbaToPngBase64(rgba: Uint8ClampedArray, width: number, height: number): string {
@@ -40,15 +36,15 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
     'sprite_render_frame',
     'Flatten a frame\'s visible layers into a single composited image. Returns PNG as base64 data URI.',
     {
-      sessionId: z.string().describe('The session ID'),
-      frameIndex: z.number().int().min(0).optional().describe('Frame index (defaults to active frame)'),
+      sessionId,
+      frameIndex: frameIndexOptional,
     },
     async ({ sessionId, frameIndex }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeRenderFrame(req.store, frameIndex);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_FRAME, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.NO_FRAME, result.error));
 
       const dataUri = rgbaToPngBase64(result.rgba, result.width, result.height);
       return { content: [
@@ -66,15 +62,13 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
   server.tool(
     'sprite_render_sheet',
     'Assemble all frames into a horizontal sprite sheet. Returns PNG as base64 data URI.',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeRenderSheet(req.store);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_DOCUMENT, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.NO_DOCUMENT, result.error));
 
       const dataUri = rgbaToPngBase64(result.rgba, result.width, result.height);
       return { content: [
@@ -91,15 +85,13 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
   server.tool(
     'sprite_render_overview',
     'Get a structured document overview with rendered thumbnails for each frame.',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const summary = storeGetDocumentSummary(req.store);
-      if (!summary) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_DOCUMENT, 'No document open')) }] };
+      if (!summary) return jsonResult(fail(ErrorCode.NO_DOCUMENT, 'No document open'));
 
       const frameImages: { type: 'image'; data: string; mimeType: string }[] = [];
       for (let i = 0; i < summary.frameCount; i++) {
@@ -125,14 +117,14 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
     'sprite_import_sheet',
     'Import a horizontal sprite sheet PNG (base64) by slicing it into frames. Frame dimensions must match the document.',
     {
-      sessionId: z.string().describe('The session ID'),
+      sessionId,
       pngBase64: z.string().describe('PNG image as base64 string (no data URI prefix)'),
       frameWidth: z.number().int().min(1).describe('Width of each frame in the sheet'),
       frameHeight: z.number().int().min(1).describe('Height of each frame in the sheet'),
     },
     async ({ sessionId, pngBase64, frameWidth, frameHeight }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       let sheetWidth: number;
       let sheetHeight: number;
@@ -145,20 +137,20 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
         sheetHeight = decoded.height;
         sheetData = new Uint8ClampedArray(decoded.data.buffer, decoded.data.byteOffset, decoded.data.byteLength);
       } catch {
-        return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.INVALID_INPUT, 'Failed to decode PNG')) }] };
+        return jsonResult(fail(ErrorCode.INVALID_INPUT, 'Failed to decode PNG'));
       }
       const result = storeImportSheet(req.store, sheetData, sheetWidth, sheetHeight, frameWidth, frameHeight);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.INVALID_INPUT, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.INVALID_INPUT, result.error));
 
       const summary = storeGetDocumentSummary(req.store);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
+      return jsonResult(success({
         frameCount: result.frameCount,
         sheetWidth,
         sheetHeight,
         frameWidth,
         frameHeight,
         document: summary,
-      })) }] };
+      }));
     },
   );
 
@@ -168,53 +160,51 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
     'sprite_export_frame_png',
     'Export a single frame as PNG (base64). Returns raw base64 string suitable for file writing.',
     {
-      sessionId: z.string().describe('The session ID'),
-      frameIndex: z.number().int().min(0).optional().describe('Frame index (defaults to active frame)'),
+      sessionId,
+      frameIndex: frameIndexOptional,
     },
     async ({ sessionId, frameIndex }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeRenderFrame(req.store, frameIndex);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_FRAME, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.NO_FRAME, result.error));
 
       const pngBytes = encode({ width: result.width, height: result.height, data: result.rgba, channels: 4, depth: 8 });
       const base64 = Buffer.from(pngBytes).toString('base64');
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
+      return jsonResult(success({
         frameIndex: result.frameIndex,
         frameId: result.frameId,
         width: result.width,
         height: result.height,
         pngBase64: base64,
         byteLength: pngBytes.length,
-      })) }] };
+      }));
     },
   );
 
   server.tool(
     'sprite_export_sheet_png',
     'Export all frames as a horizontal sprite sheet PNG (base64).',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeRenderSheet(req.store);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_DOCUMENT, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.NO_DOCUMENT, result.error));
 
       const pngBytes = encode({ width: result.width, height: result.height, data: result.rgba, channels: 4, depth: 8 });
       const base64 = Buffer.from(pngBytes).toString('base64');
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
+      return jsonResult(success({
         width: result.width,
         height: result.height,
         frameCount: result.frameCount,
         pngBase64: base64,
         byteLength: pngBytes.length,
-      })) }] };
+      }));
     },
   );
 
@@ -222,44 +212,40 @@ export function registerRenderTools(server: McpServer, sessions: SessionManager)
     'sprite_export_gif',
     'Export the animation as an animated GIF (base64).',
     {
-      sessionId: z.string().describe('The session ID'),
+      sessionId,
       loop: z.boolean().optional().describe('Loop the GIF (default: true)'),
     },
     async ({ sessionId, loop }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeExportGif(req.store, loop ?? true);
       if (result && typeof result === 'object' && 'error' in result) {
-        return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_DOCUMENT, (result as { error: string }).error)) }] };
+        return jsonResult(fail(ErrorCode.NO_DOCUMENT, (result as { error: string }).error));
       }
 
       const gifBytes = result as Uint8Array;
       const base64 = Buffer.from(gifBytes).toString('base64');
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
+      return jsonResult(success({
         gifBase64: base64,
         byteLength: gifBytes.length,
-      })) }] };
+      }));
     },
   );
 
   server.tool(
     'sprite_export_metadata_json',
     'Export sprite sheet metadata as JSON (frame positions, timing, layout for game engines).',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeExportMetadataJson(req.store);
-      if ('error' in result) return { content: [{ type: 'text' as const, text: JSON.stringify(fail(ErrorCode.NO_DOCUMENT, result.error)) }] };
+      if ('error' in result) return jsonResult(fail(ErrorCode.NO_DOCUMENT, result.error));
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
-        metadata: result.meta,
-      })) }] };
+      return jsonResult(success({ metadata: result.meta }));
     },
   );
 }

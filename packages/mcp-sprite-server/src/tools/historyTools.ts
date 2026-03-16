@@ -7,7 +7,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { SessionManager } from '../session/sessionManager.js';
-import { success, fail, ErrorCode } from '../schemas/result.js';
+import { success, fail } from '../schemas/result.js';
+import { sessionId, RgbaSchema } from '../schemas/toolSchemas.js';
+import { requireSession, jsonResult } from './shared.js';
 import {
   storeGetHistorySummary,
   storeUndo,
@@ -17,33 +19,18 @@ import {
 } from '../adapters/storeAdapter.js';
 import type { BatchOperation } from '../adapters/storeAdapter.js';
 
-function requireSession(sessions: SessionManager, sessionId: string) {
-  const store = sessions.getStore(sessionId);
-  if (!store) return { error: fail(ErrorCode.NO_SESSION, `Session not found: ${sessionId}`) };
-  return { store };
-}
-
-const RgbaSchema = z.tuple([
-  z.number().int().min(0).max(255),
-  z.number().int().min(0).max(255),
-  z.number().int().min(0).max(255),
-  z.number().int().min(0).max(255),
-]);
-
 export function registerHistoryTools(server: McpServer, sessions: SessionManager): void {
   // ── sprite_history_get_summary ──
   server.tool(
     'sprite_history_get_summary',
     'Get the current undo/redo history summary: stack sizes, can-undo/redo, latest operation.',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const summary = storeGetHistorySummary(req.store);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({ ...summary })) }] };
+      return jsonResult(success({ ...summary }));
     },
   );
 
@@ -51,15 +38,13 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
   server.tool(
     'sprite_history_undo',
     'Undo the last sprite editing operation. Returns whether the undo was applied and the updated history summary.',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeUndo(req.store);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({ ...result, summary: { ...result.summary } })) }] };
+      return jsonResult(success({ ...result, summary: { ...result.summary } }));
     },
   );
 
@@ -67,15 +52,13 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
   server.tool(
     'sprite_history_redo',
     'Redo a previously undone sprite editing operation. Returns whether the redo was applied and the updated history summary.',
-    {
-      sessionId: z.string().describe('The session ID'),
-    },
+    { sessionId },
     async ({ sessionId }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const result = storeRedo(req.store);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({ ...result, summary: { ...result.summary } })) }] };
+      return jsonResult(success({ ...result, summary: { ...result.summary } }));
     },
   );
 
@@ -84,7 +67,7 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
     'sprite_batch_apply',
     'Apply multiple drawing operations as a single undo step. Supports draw, draw_line, fill, and erase. Stops on first error.',
     {
-      sessionId: z.string().describe('The session ID'),
+      sessionId,
       operations: z.array(z.discriminatedUnion('type', [
         z.object({
           type: z.literal('draw'),
@@ -123,7 +106,7 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
     },
     async ({ sessionId, operations }) => {
       const req = requireSession(sessions, sessionId);
-      if ('error' in req) return { content: [{ type: 'text' as const, text: JSON.stringify(req.error) }] };
+      if ('error' in req) return jsonResult(req.error);
 
       const batchOps: BatchOperation[] = operations.map((op) => {
         switch (op.type) {
@@ -142,21 +125,21 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
 
       if (!result.ok) {
         const lastResult = result.results[result.results.length - 1];
-        return { content: [{ type: 'text' as const, text: JSON.stringify(fail(
+        return jsonResult(fail(
           'batch_failed',
           `Batch failed at operation ${lastResult.index}: ${lastResult.error}`,
-        )) }] };
+        ));
       }
 
       const docSummary = storeGetDocumentSummary(req.store);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(success({
+      return jsonResult(success({
         operationsApplied: result.operationsApplied,
         results: result.results,
         history: result.summary,
         activeFrameIndex: docSummary?.activeFrameIndex,
         activeLayerId: docSummary?.activeLayerId,
         dirty: docSummary?.dirty,
-      })) }] };
+      }));
     },
   );
 }
