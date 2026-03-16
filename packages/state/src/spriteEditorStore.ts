@@ -21,6 +21,8 @@ import {
 } from '@glyphstudio/domain';
 import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
+import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
+import type { SpriteSheetMeta } from '@glyphstudio/domain';
 
 // ── Store state ──
 
@@ -125,6 +127,10 @@ export interface SpriteEditorStoreState {
   exportSpriteSheet: () => SpritePixelBuffer | string;
   /** Export the active frame as a standalone pixel buffer. Returns buffer or null if no document. */
   exportCurrentFrame: () => SpritePixelBuffer | null;
+  /** Export sprite sheet with JSON metadata. Returns { sheet, meta } or error string. */
+  exportSheetWithMeta: () => { sheet: SpritePixelBuffer; meta: SpriteSheetMeta } | string;
+  /** Export animated GIF. Returns Uint8Array of GIF binary or error string. */
+  exportGif: (loop?: boolean) => Uint8Array | string;
 
   // -- Actions: Preview --
   /** Start animation playback. */
@@ -668,6 +674,36 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     const frame = doc.frames[activeFrameIndex];
     if (!frame) return null;
     return flattenLayers(frame.layers, pixelBuffers, doc.width, doc.height);
+  },
+
+  exportSheetWithMeta: () => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return 'No document open';
+
+    const frameBuffers = doc.frames.map((f) =>
+      flattenLayers(f.layers, pixelBuffers, doc.width, doc.height),
+    );
+    const sheet = assembleSpriteSheet(frameBuffers);
+    if (isImportExportError(sheet)) return sheet.error;
+
+    const meta = generateSpriteSheetMeta(doc);
+    if (isImportExportError(meta)) return meta.error;
+
+    return { sheet, meta };
+  },
+
+  exportGif: (loop = true) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return 'No document open';
+
+    const frameBuffers = doc.frames.map((f) =>
+      flattenLayers(f.layers, pixelBuffers, doc.width, doc.height),
+    );
+    const durations = doc.frames.map((f) => f.durationMs);
+
+    const result = encodeAnimatedGif(frameBuffers, durations, loop);
+    if (isImportExportError(result)) return (result as { error: string }).error;
+    return result as Uint8Array;
   },
 
   // -- Preview --

@@ -1258,6 +1258,78 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Export with metadata ──
+
+  describe('exportSheetWithMeta', () => {
+    it('returns error when no document is open', () => {
+      const result = useSpriteEditorStore.getState().exportSheetWithMeta();
+      expect(typeof result).toBe('string');
+    });
+
+    it('returns sheet and meta for a single frame', () => {
+      openTestDoc(8, 8);
+      const result = useSpriteEditorStore.getState().exportSheetWithMeta();
+      expect(typeof result).not.toBe('string');
+      if (typeof result !== 'string') {
+        expect(result.sheet.width).toBe(8);
+        expect(result.sheet.height).toBe(8);
+        expect(result.meta.format).toBe('glyphstudio-sprite-sheet');
+        expect(result.meta.frameCount).toBe(1);
+        expect(result.meta.frames[0].durationMs).toBe(100);
+      }
+    });
+
+    it('returns sheet and meta for multiple frames', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      const result = useSpriteEditorStore.getState().exportSheetWithMeta();
+      expect(typeof result).not.toBe('string');
+      if (typeof result !== 'string') {
+        expect(result.sheet.width).toBe(12); // 4 * 3
+        expect(result.meta.frameCount).toBe(3);
+        expect(result.meta.frames).toHaveLength(3);
+      }
+    });
+  });
+
+  describe('exportGif', () => {
+    it('returns error when no document is open', () => {
+      const result = useSpriteEditorStore.getState().exportGif();
+      expect(typeof result).toBe('string');
+    });
+
+    it('returns GIF bytes for a single frame', () => {
+      openTestDoc(4, 4);
+      // Paint a pixel so quantize has something to work with
+      const lid = layerId(0);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const result = useSpriteEditorStore.getState().exportGif();
+      expect(result).toBeInstanceOf(Uint8Array);
+      const bytes = result as Uint8Array;
+      expect(bytes[0]).toBe(0x47); // G
+      expect(bytes[bytes.length - 1]).toBe(0x3b); // trailer
+    });
+
+    it('returns GIF bytes for multiple frames', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addFrame();
+      const result = useSpriteEditorStore.getState().exportGif();
+      expect(result).toBeInstanceOf(Uint8Array);
+    });
+
+    it('uses authored durations from frames', () => {
+      openTestDoc(4, 4);
+      const doc = useSpriteEditorStore.getState().document!;
+      useSpriteEditorStore.getState().setFrameDuration(doc.frames[0].id, 250);
+      const result = useSpriteEditorStore.getState().exportGif();
+      expect(result).toBeInstanceOf(Uint8Array);
+    });
+  });
+
   // ── Clipboard ──
 
   describe('copySelection', () => {
