@@ -712,6 +712,24 @@ export function Canvas() {
         return;
       }
 
+      // Flip/rotate shortcuts during transform
+      if (useSelectionStore.getState().isTransforming && !e.ctrlKey && !e.metaKey) {
+        const transformCmd =
+          e.code === 'KeyH' ? 'flip_selection_horizontal' :
+          e.code === 'KeyV' ? 'flip_selection_vertical' :
+          e.code === 'KeyR' && !e.shiftKey ? 'rotate_selection_90_cw' :
+          e.code === 'KeyR' && e.shiftKey ? 'rotate_selection_90_ccw' :
+          null;
+        if (transformCmd) {
+          e.preventDefault();
+          try {
+            const result = await invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>(transformCmd);
+            setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
+          } catch (err) { console.error(`${transformCmd} failed:`, err); }
+          return;
+        }
+      }
+
       // Delete/Backspace clears selected pixels
       if ((e.code === 'Delete' || e.code === 'Backspace') && useSelectionStore.getState().hasSelection) {
         e.preventDefault();

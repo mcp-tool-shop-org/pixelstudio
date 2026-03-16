@@ -6406,3 +6406,72 @@
 .camkf-field-wide {
   grid-column: 1 / -1;
 }
+
+/* ── TransformBar ── */
+
+.transform-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px;
+  background: var(--bg-panel, #222226);
+  border-bottom: 1px solid var(--border-subtle, #333);
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.transform-bar-label {
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.transform-bar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.transform-bar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle, #333);
+  margin: 0 4px;
+}
+
+.transform-bar-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary, #ccc);
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.transform-bar-btn:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-subtle, #444);
+}
+
+.transform-bar-commit {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.transform-bar-commit-btn {
+  color: var(--accent, #5599ee);
+}
+
+.transform-bar-cancel-btn {
+  color: var(--text-muted, #999);
+}
+
+.transform-bar-error {
+  font-size: 10px;
+  color: var(--error, #e55);
+  margin-left: 8px;
+}
