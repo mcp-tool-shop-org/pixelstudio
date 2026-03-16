@@ -150,7 +150,7 @@ export function SpriteImportExportBar() {
       setError(result);
       return;
     }
-    const blob = new Blob([result], { type: 'image/gif' });
+    const blob = new Blob([new Uint8Array(result)], { type: 'image/gif' });
     downloadBlob(blob, `${safeName}.gif`);
   };
 
