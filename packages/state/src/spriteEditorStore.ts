@@ -66,6 +66,20 @@ export interface SpriteEditorStoreState {
   setFrameDuration: (frameId: string, durationMs: number) => void;
   moveFrame: (fromIndex: number, toIndex: number) => void;
 
+  // -- Actions: Layer management --
+  /** Add a new blank layer to the active frame. */
+  addLayer: () => void;
+  /** Remove a layer from the active frame. Must keep at least one. */
+  removeLayer: (layerId: string) => void;
+  /** Set the active layer for editing. */
+  setActiveLayer: (layerId: string) => void;
+  /** Toggle a layer's visibility. */
+  toggleLayerVisibility: (layerId: string) => void;
+  /** Rename a layer. */
+  renameLayer: (layerId: string, name: string) => void;
+  /** Move a layer within the active frame's layer stack. */
+  moveLayer: (fromIndex: number, toIndex: number) => void;
+
   // -- Actions: Tool --
   setTool: (tool: SpriteToolId) => void;
   setBrushSize: (size: number) => void;
@@ -336,6 +350,127 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
       activeFrameIndex: newActiveIndex,
+      dirty: true,
+    });
+  },
+
+  // -- Layer management --
+  addLayer: () => {
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+
+    const newLayer = createSpriteLayer(frame.layers.length);
+    const updatedLayers = [...frame.layers, newLayer];
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: { ...pixelBuffers, [newLayer.id]: createBlankPixelBuffer(doc.width, doc.height) },
+      activeLayerId: newLayer.id,
+      dirty: true,
+    });
+  },
+
+  removeLayer: (layerId) => {
+    const { document: doc, pixelBuffers, activeFrameIndex, activeLayerId } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame || frame.layers.length <= 1) return;
+
+    const layerIndex = frame.layers.findIndex((l) => l.id === layerId);
+    if (layerIndex === -1) return;
+
+    const updatedLayers = frame.layers
+      .filter((l) => l.id !== layerId)
+      .map((l, i) => ({ ...l, index: i }));
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+
+    // Remove layer buffer
+    const remainingBuffers: Record<string, SpritePixelBuffer> = {};
+    for (const [key, buf] of Object.entries(pixelBuffers)) {
+      if (key !== layerId) remainingBuffers[key] = buf;
+    }
+
+    // If we removed the active layer, switch to the nearest remaining layer
+    const newActiveLayerId = activeLayerId === layerId
+      ? updatedLayers[Math.min(layerIndex, updatedLayers.length - 1)]?.id ?? null
+      : activeLayerId;
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: remainingBuffers,
+      activeLayerId: newActiveLayerId,
+      dirty: true,
+    });
+  },
+
+  setActiveLayer: (layerId) => {
+    const { document: doc, activeFrameIndex } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+    if (!frame.layers.some((l) => l.id === layerId)) return;
+    set({ activeLayerId: layerId });
+  },
+
+  toggleLayerVisibility: (layerId) => {
+    const { document: doc, activeFrameIndex } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+
+    const updatedLayers = frame.layers.map((l) =>
+      l.id === layerId ? { ...l, visible: !l.visible } : l,
+    );
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+  },
+
+  renameLayer: (layerId, name) => {
+    const { document: doc, activeFrameIndex } = get();
+    if (!doc || !name.trim()) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+
+    const updatedLayers = frame.layers.map((l) =>
+      l.id === layerId ? { ...l, name: name.trim() } : l,
+    );
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+  },
+
+  moveLayer: (fromIndex, toIndex) => {
+    const { document: doc, activeFrameIndex } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+    if (fromIndex < 0 || fromIndex >= frame.layers.length) return;
+    if (toIndex < 0 || toIndex >= frame.layers.length) return;
+    if (fromIndex === toIndex) return;
+
+    const layers = [...frame.layers];
+    const [moved] = layers.splice(fromIndex, 1);
+    layers.splice(toIndex, 0, moved);
+    const updatedLayers = layers.map((l, i) => ({ ...l, index: i }));
+    const updatedFrame = { ...frame, layers: updatedLayers };
+    const updatedFrames = doc.frames.map((f) => f.id === frame.id ? updatedFrame : f);
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
       dirty: true,
     });
   },

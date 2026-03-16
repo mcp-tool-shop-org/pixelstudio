@@ -283,6 +283,141 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Layer management ──
+
+  describe('layer management', () => {
+    it('addLayer creates a new layer in the active frame', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      expect(frame.layers).toHaveLength(2);
+      expect(frame.layers[1].name).toBe('Layer 2');
+    });
+
+    it('addLayer creates a pixel buffer for the new layer', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      const newLayerId = frame.layers[1].id;
+      expect(useSpriteEditorStore.getState().pixelBuffers[newLayerId]).toBeDefined();
+    });
+
+    it('addLayer sets activeLayerId to new layer', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      expect(useSpriteEditorStore.getState().activeLayerId).toBe(frame.layers[1].id);
+    });
+
+    it('addLayer marks document dirty', () => {
+      openTestDoc(4, 4);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+      useSpriteEditorStore.getState().addLayer();
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('removeLayer removes a layer and its buffer', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      const removedId = frame.layers[0].id;
+      useSpriteEditorStore.getState().removeLayer(removedId);
+
+      const updated = useSpriteEditorStore.getState().document!.frames[0];
+      expect(updated.layers).toHaveLength(1);
+      expect(useSpriteEditorStore.getState().pixelBuffers[removedId]).toBeUndefined();
+    });
+
+    it('removeLayer prevents removing the last layer', () => {
+      openTestDoc(4, 4);
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      useSpriteEditorStore.getState().removeLayer(frame.layers[0].id);
+      // Should still have 1 layer
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers).toHaveLength(1);
+    });
+
+    it('removeLayer switches active layer when removing active', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const secondLayerId = useSpriteEditorStore.getState().document!.frames[0].layers[1].id;
+      useSpriteEditorStore.getState().setActiveLayer(secondLayerId);
+      useSpriteEditorStore.getState().removeLayer(secondLayerId);
+      // Should fallback to the remaining layer
+      const remaining = useSpriteEditorStore.getState().document!.frames[0].layers[0];
+      expect(useSpriteEditorStore.getState().activeLayerId).toBe(remaining.id);
+    });
+
+    it('setActiveLayer changes active layer', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      const firstLayerId = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      useSpriteEditorStore.getState().setActiveLayer(firstLayerId);
+      expect(useSpriteEditorStore.getState().activeLayerId).toBe(firstLayerId);
+    });
+
+    it('setActiveLayer rejects layer not in current frame', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().setActiveLayer('nonexistent');
+      // Should remain on the default layer
+      const firstLayerId = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      expect(useSpriteEditorStore.getState().activeLayerId).toBe(firstLayerId);
+    });
+
+    it('toggleLayerVisibility toggles visible flag', () => {
+      openTestDoc(4, 4);
+      const lid = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].visible).toBe(true);
+      useSpriteEditorStore.getState().toggleLayerVisibility(lid);
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].visible).toBe(false);
+      useSpriteEditorStore.getState().toggleLayerVisibility(lid);
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].visible).toBe(true);
+    });
+
+    it('renameLayer changes layer name', () => {
+      openTestDoc(4, 4);
+      const lid = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      useSpriteEditorStore.getState().renameLayer(lid, 'Background');
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].name).toBe('Background');
+    });
+
+    it('renameLayer rejects empty names', () => {
+      openTestDoc(4, 4);
+      const lid = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      useSpriteEditorStore.getState().renameLayer(lid, '   ');
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].name).toBe('Layer 1');
+    });
+
+    it('moveLayer reorders layers in the stack', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      useSpriteEditorStore.getState().addLayer();
+      // 3 layers: Layer 1, Layer 2, Layer 3
+      const frame = useSpriteEditorStore.getState().document!.frames[0];
+      expect(frame.layers[0].name).toBe('Layer 1');
+      expect(frame.layers[2].name).toBe('Layer 3');
+
+      // Move Layer 1 to top
+      useSpriteEditorStore.getState().moveLayer(0, 2);
+      const updated = useSpriteEditorStore.getState().document!.frames[0];
+      expect(updated.layers[2].name).toBe('Layer 1');
+      expect(updated.layers[0].name).toBe('Layer 2');
+    });
+
+    it('moveLayer no-ops with invalid indices', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addLayer();
+      useSpriteEditorStore.getState().moveLayer(-1, 0);
+      useSpriteEditorStore.getState().moveLayer(0, 5);
+      // No crash, layers unchanged
+      expect(useSpriteEditorStore.getState().document!.frames[0].layers).toHaveLength(2);
+    });
+
+    it('addLayer is no-op without document', () => {
+      useSpriteEditorStore.getState().addLayer();
+      expect(useSpriteEditorStore.getState().document).toBeNull();
+    });
+  });
+
   // ── Tool ──
 
   describe('tool management', () => {

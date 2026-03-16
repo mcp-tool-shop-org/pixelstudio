@@ -763,6 +763,48 @@ describe('SpriteEditor', () => {
     expect(screen.getByTestId('move-frame-right-btn').hasAttribute('disabled')).toBe(true);
   });
 
+  // ── Layer panel ──
+
+  it('shows layer panel when document is open', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('sprite-layer-panel')).toBeDefined();
+  });
+
+  it('shows default layer in layer list', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const layerList = screen.getByTestId('sprite-layer-list');
+    expect(layerList.children.length).toBe(1);
+  });
+
+  it('add layer button creates a new layer', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    await userEvent.click(screen.getByTestId('add-layer-btn'));
+    const layerList = screen.getByTestId('sprite-layer-list');
+    expect(layerList.children.length).toBe(2);
+  });
+
+  it('clicking a layer makes it active', async () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().addLayer());
+    render(<SpriteEditor />);
+    const frame = useSpriteEditorStore.getState().document!.frames[0];
+    const firstLayerId = frame.layers[0].id;
+    await userEvent.click(screen.getByTestId(`layer-item-${firstLayerId}`));
+    expect(useSpriteEditorStore.getState().activeLayerId).toBe(firstLayerId);
+  });
+
+  it('visibility toggle hides layer', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const frame = useSpriteEditorStore.getState().document!.frames[0];
+    const layerId = frame.layers[0].id;
+    await userEvent.click(screen.getByTestId(`layer-visibility-${layerId}`));
+    expect(useSpriteEditorStore.getState().document!.frames[0].layers[0].visible).toBe(false);
+  });
+
   it('export after frame operations reflects final state', () => {
     openTestDoc(2, 2);
     // Paint frame 0

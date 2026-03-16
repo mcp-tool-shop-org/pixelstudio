@@ -7,6 +7,7 @@ import { SpriteFrameStrip } from './SpriteFrameStrip';
 import { SpriteCanvasArea } from './SpriteCanvasArea';
 import { SpriteImportExportBar } from './SpriteImportExportBar';
 import { SpritePreviewBar } from './SpritePreviewBar';
+import { SpriteLayerPanel } from './SpriteLayerPanel';
 
 const TOOL_SHORTCUTS: Record<string, SpriteToolId> = {
   m: 'select',
@@ -131,7 +132,10 @@ export function SpriteEditor() {
       <div className="sprite-editor-top">
         <SpriteToolRail />
         <SpriteCanvasArea />
-        <SpritePalettePanel />
+        <div className="sprite-editor-sidebar">
+          <SpritePalettePanel />
+          <SpriteLayerPanel />
+        </div>
       </div>
       <SpritePreviewBar />
       <SpriteFrameStrip />
