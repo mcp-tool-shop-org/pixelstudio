@@ -254,4 +254,121 @@ describe('SpriteEditor', () => {
     await user.click(screen.getByText('Pencil'));
     expect(useSpriteEditorStore.getState().tool.activeTool).toBe('pencil');
   });
+
+  // ── Frame strip ──
+
+  it('duplicate frame button exists', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('duplicate-frame-btn')).toBeDefined();
+  });
+
+  it('clicking duplicate frame creates a new frame', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('duplicate-frame-btn'));
+    expect(useSpriteEditorStore.getState().document!.frames).toHaveLength(2);
+  });
+
+  it('frame strip reflects current frame count after adding frames', () => {
+    openTestDoc();
+    act(() => {
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+    });
+    render(<SpriteEditor />);
+    const thumbs = screen.getAllByText(/^\d+$/);
+    expect(thumbs.length).toBe(3);
+  });
+
+  it('delete frame disabled when only one frame', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.queryByTestId('remove-frame-btn')).toBeNull();
+  });
+
+  it('drawing on frame A does not affect frame B', () => {
+    openTestDoc(4, 4);
+    act(() => useSpriteEditorStore.getState().addFrame());
+    // Active is now frame 1. Paint red at (1,1)
+    const frame1Id = useSpriteEditorStore.getState().document!.frames[1].id;
+    const buf = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame1Id]);
+    setPixel(buf, 1, 1, [255, 0, 0, 255]);
+    act(() => useSpriteEditorStore.getState().commitPixels(buf));
+
+    // Frame 0 should be untouched
+    const frame0Id = useSpriteEditorStore.getState().document!.frames[0].id;
+    const buf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+    expect(samplePixel(buf0, 1, 1)).toEqual([0, 0, 0, 0]);
+  });
+
+  // ── Onion skin controls ──
+
+  it('shows onion skin controls', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('onion-skin-controls')).toBeDefined();
+  });
+
+  it('onion skin toggle changes store state', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const user = userEvent.setup();
+    const toggle = screen.getByTestId('onion-skin-toggle');
+    await user.click(toggle);
+    expect(useSpriteEditorStore.getState().onionSkin.enabled).toBe(true);
+  });
+
+  it('onion skin controls show before/after/opacity when enabled', async () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().setOnionSkin({ enabled: true }));
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('onion-frames-before')).toBeDefined();
+    expect(screen.getByTestId('onion-frames-after')).toBeDefined();
+    expect(screen.getByTestId('onion-opacity')).toBeDefined();
+  });
+
+  it('onion skin controls hidden when disabled', () => {
+    openTestDoc();
+    act(() => useSpriteEditorStore.getState().setOnionSkin({ enabled: false }));
+    render(<SpriteEditor />);
+    expect(screen.queryByTestId('onion-frames-before')).toBeNull();
+  });
+
+  // ── Onion skin safety ──
+
+  it('onion skin rendering does not alter frame buffers', () => {
+    openTestDoc(4, 4);
+    // Paint frame 0 red
+    const frame0Id = useSpriteEditorStore.getState().document!.frames[0].id;
+    const buf0 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame0Id]);
+    setPixel(buf0, 0, 0, [255, 0, 0, 255]);
+    act(() => {
+      useSpriteEditorStore.getState().commitPixels(buf0);
+    });
+
+    // Add frame 1 and paint green
+    act(() => useSpriteEditorStore.getState().addFrame());
+    const frame1Id = useSpriteEditorStore.getState().document!.frames[1].id;
+    const buf1 = clonePixelBuffer(useSpriteEditorStore.getState().pixelBuffers[frame1Id]);
+    setPixel(buf1, 1, 1, [0, 255, 0, 255]);
+    act(() => {
+      useSpriteEditorStore.getState().commitPixels(buf1);
+      useSpriteEditorStore.getState().setOnionSkin({ enabled: true, framesBefore: 1 });
+    });
+
+    // Render the editor (which triggers canvas render with onion skin)
+    render(<SpriteEditor />);
+
+    // Verify frame 0 buffer is unmodified
+    const storedBuf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+    expect(samplePixel(storedBuf0, 0, 0)).toEqual([255, 0, 0, 255]);
+    expect(samplePixel(storedBuf0, 1, 1)).toEqual([0, 0, 0, 0]);
+
+    // Verify frame 1 buffer is unmodified
+    const storedBuf1 = useSpriteEditorStore.getState().pixelBuffers[frame1Id];
+    expect(samplePixel(storedBuf1, 1, 1)).toEqual([0, 255, 0, 255]);
+    expect(samplePixel(storedBuf1, 0, 0)).toEqual([0, 0, 0, 0]);
+  });
 });

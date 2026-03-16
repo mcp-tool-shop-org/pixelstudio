@@ -19,6 +19,37 @@ const CHECK_DARK = '#222226';
 const CHECK_SIZE = 8;
 const GRID_COLOR = 'rgba(255,255,255,0.12)';
 const GRID_ZOOM_THRESHOLD = 4;
+const ONION_BEFORE_TINT = [0, 120, 255]; // blue tint for previous frames
+const ONION_AFTER_TINT = [255, 80, 0];   // orange tint for next frames
+
+/** Render a pixel buffer as an onion skin overlay with tinting and opacity. */
+function renderOnionBuffer(
+  ctx: CanvasRenderingContext2D,
+  buf: SpritePixelBuffer,
+  spriteWidth: number,
+  spriteHeight: number,
+  originX: number,
+  originY: number,
+  zoom: number,
+  opacity: number,
+  tint: number[],
+): void {
+  ctx.globalAlpha = opacity;
+  for (let py = 0; py < spriteHeight; py++) {
+    for (let px = 0; px < spriteWidth; px++) {
+      const i = (py * buf.width + px) * 4;
+      const a = buf.data[i + 3];
+      if (a === 0) continue;
+      // Blend original color with tint (50/50)
+      const r = Math.round((buf.data[i] + tint[0]) / 2);
+      const g = Math.round((buf.data[i + 1] + tint[1]) / 2);
+      const b = Math.round((buf.data[i + 2] + tint[2]) / 2);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(originX + px * zoom, originY + py * zoom, zoom, zoom);
+    }
+  }
+  ctx.globalAlpha = 1.0;
+}
 
 /**
  * Real pixel canvas with nearest-neighbor rendering, pixel grid,
@@ -41,6 +72,7 @@ export function SpriteCanvasArea() {
   const panX = useSpriteEditorStore((s) => s.panX);
   const panY = useSpriteEditorStore((s) => s.panY);
   const tool = useSpriteEditorStore((s) => s.tool);
+  const onionSkin = useSpriteEditorStore((s) => s.onionSkin);
   const commitPixels = useSpriteEditorStore((s) => s.commitPixels);
   const setForegroundColorByRgba = useSpriteEditorStore((s) => s.setForegroundColorByRgba);
 
@@ -127,7 +159,36 @@ export function SpriteCanvasArea() {
         }
       }
 
-      // Pixel data — nearest neighbor
+      // Onion skin overlays (rendered BEFORE active frame so active stays dominant)
+      const currentOnionSkin = useSpriteEditorStore.getState().onionSkin;
+      if (currentOnionSkin.enabled && doc.frames.length > 1) {
+        const currentBuffers = useSpriteEditorStore.getState().pixelBuffers;
+        const afi = useSpriteEditorStore.getState().activeFrameIndex;
+
+        // Previous frames (blue tint)
+        for (let delta = 1; delta <= currentOnionSkin.framesBefore; delta++) {
+          const fi = afi - delta;
+          if (fi < 0) break;
+          const frame = doc.frames[fi];
+          const frameBuf = frame ? currentBuffers[frame.id] : undefined;
+          if (!frameBuf) continue;
+          const fadeOpacity = currentOnionSkin.opacity / delta;
+          renderOnionBuffer(ctx, frameBuf, doc.width, doc.height, originX, originY, zoom, fadeOpacity, ONION_BEFORE_TINT);
+        }
+
+        // Next frames (orange tint)
+        for (let delta = 1; delta <= currentOnionSkin.framesAfter; delta++) {
+          const fi = afi + delta;
+          if (fi >= doc.frames.length) break;
+          const frame = doc.frames[fi];
+          const frameBuf = frame ? currentBuffers[frame.id] : undefined;
+          if (!frameBuf) continue;
+          const fadeOpacity = currentOnionSkin.opacity / delta;
+          renderOnionBuffer(ctx, frameBuf, doc.width, doc.height, originX, originY, zoom, fadeOpacity, ONION_AFTER_TINT);
+        }
+      }
+
+      // Pixel data — nearest neighbor (active frame, always on top of onion skin)
       for (let py = 0; py < doc.height; py++) {
         for (let px = 0; px < doc.width; px++) {
           const i = (py * buf.width + px) * 4;
@@ -161,7 +222,7 @@ export function SpriteCanvasArea() {
         ctx.stroke();
       }
     },
-    [doc, activeBuffer, viewport, zoom, canvasSize],
+    [doc, activeBuffer, viewport, zoom, canvasSize, onionSkin],
   );
 
   // Re-render when state changes

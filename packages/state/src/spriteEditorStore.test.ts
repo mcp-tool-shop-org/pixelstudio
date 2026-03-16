@@ -166,6 +166,99 @@ describe('spriteEditorStore', () => {
       useSpriteEditorStore.getState().setFrameDuration(frameId, 0);
       expect(useSpriteEditorStore.getState().document!.frames[0].durationMs).toBe(100);
     });
+
+    it('addFrame inserts after current frame', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame(); // frame 1
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().addFrame(); // should insert at index 1, pushing old frame 1 to index 2
+      const frames = useSpriteEditorStore.getState().document!.frames;
+      expect(frames).toHaveLength(3);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1);
+    });
+  });
+
+  // ── Duplicate frame ──
+
+  describe('duplicateFrame', () => {
+    it('clones exact pixel data', () => {
+      openTestDoc(4, 4);
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const buf = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      setPixel(buf, 2, 2, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().duplicateFrame();
+
+      const { document: doc, pixelBuffers } = useSpriteEditorStore.getState();
+      expect(doc!.frames).toHaveLength(2);
+      const dupId = doc!.frames[1].id;
+      expect(samplePixel(pixelBuffers[dupId], 2, 2)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('cloned buffer is independent from source', () => {
+      openTestDoc(4, 4);
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const buf = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      setPixel(buf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().duplicateFrame();
+
+      // Modify original frame
+      const origBuf = useSpriteEditorStore.getState().pixelBuffers[
+        useSpriteEditorStore.getState().document!.frames[0].id
+      ];
+      setPixel(origBuf, 0, 0, [0, 0, 255, 255]);
+
+      // Duplicate should still have green
+      const dupBuf = useSpriteEditorStore.getState().pixelBuffers[
+        useSpriteEditorStore.getState().document!.frames[1].id
+      ];
+      expect(samplePixel(dupBuf, 0, 0)).toEqual([0, 255, 0, 255]);
+    });
+
+    it('clones frame duration', () => {
+      openTestDoc();
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      useSpriteEditorStore.getState().setFrameDuration(frameId, 250);
+      useSpriteEditorStore.getState().setActiveFrame(0);
+      useSpriteEditorStore.getState().duplicateFrame();
+      const dup = useSpriteEditorStore.getState().document!.frames[1];
+      expect(dup.durationMs).toBe(250);
+    });
+
+    it('inserts after current frame', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      // 3 frames, active = 2
+      useSpriteEditorStore.getState().setActiveFrame(1);
+      useSpriteEditorStore.getState().duplicateFrame();
+      // Should be 4 frames, duplicate at index 2
+      expect(useSpriteEditorStore.getState().document!.frames).toHaveLength(4);
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(2);
+    });
+
+    it('selects duplicated frame', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().duplicateFrame();
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(1);
+    });
+
+    it('marks document dirty', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+      useSpriteEditorStore.getState().duplicateFrame();
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('is no-op without document', () => {
+      useSpriteEditorStore.getState().duplicateFrame();
+      expect(useSpriteEditorStore.getState().document).toBeNull();
+    });
   });
 
   // ── Tool ──

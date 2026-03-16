@@ -17,6 +17,7 @@ import {
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
+import { clonePixelBuffer } from './spriteRaster';
 
 // ── Store state ──
 
@@ -41,6 +42,7 @@ export interface SpriteEditorStoreState {
 
   // -- Actions: Frame management --
   addFrame: () => void;
+  duplicateFrame: () => void;
   removeFrame: (frameId: string) => void;
   setActiveFrame: (index: number) => void;
   setFrameDuration: (frameId: string, durationMs: number) => void;
@@ -106,18 +108,47 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
   // -- Frame management --
   addFrame: () => {
-    const { document: doc, pixelBuffers } = get();
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
     if (!doc) return;
 
-    const newIndex = doc.frames.length;
-    const frame = createSpriteFrame(newIndex);
+    const insertAt = activeFrameIndex + 1;
+    const frame = createSpriteFrame(insertAt);
     const buffer = createBlankPixelBuffer(doc.width, doc.height);
-    const updatedFrames = [...doc.frames, frame];
+    const updatedFrames = [
+      ...doc.frames.slice(0, insertAt),
+      frame,
+      ...doc.frames.slice(insertAt),
+    ].map((f, i) => ({ ...f, index: i }));
 
     set({
       document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
       pixelBuffers: { ...pixelBuffers, [frame.id]: buffer },
-      activeFrameIndex: newIndex,
+      activeFrameIndex: insertAt,
+      dirty: true,
+    });
+  },
+
+  duplicateFrame: () => {
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!doc) return;
+    const sourceFrame = doc.frames[activeFrameIndex];
+    if (!sourceFrame) return;
+
+    const insertAt = activeFrameIndex + 1;
+    const newFrame = createSpriteFrame(insertAt, sourceFrame.durationMs);
+    const sourceBuffer = pixelBuffers[sourceFrame.id];
+    const newBuffer = sourceBuffer ? clonePixelBuffer(sourceBuffer) : createBlankPixelBuffer(doc.width, doc.height);
+
+    const updatedFrames = [
+      ...doc.frames.slice(0, insertAt),
+      newFrame,
+      ...doc.frames.slice(insertAt),
+    ].map((f, i) => ({ ...f, index: i }));
+
+    set({
+      document: { ...doc, frames: updatedFrames, updatedAt: new Date().toISOString() },
+      pixelBuffers: { ...pixelBuffers, [newFrame.id]: newBuffer },
+      activeFrameIndex: insertAt,
       dirty: true,
     });
   },
