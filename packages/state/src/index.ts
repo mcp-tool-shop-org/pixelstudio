@@ -232,6 +232,7 @@ export {
   colorsEqual,
   drawBrushDab,
   bresenhamLine,
+  removeCorners,
   floodFill,
   clonePixelBuffer,
   normalizeRect,

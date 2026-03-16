@@ -126,6 +126,41 @@ export function bresenhamLine(
   return points;
 }
 
+/**
+ * Remove L-shaped corners from a point sequence to produce pixel-perfect lines.
+ *
+ * An L-corner is three consecutive points where the middle one creates an
+ * unnecessary right-angle step (the line goes horizontal then vertical, or vice versa).
+ * Removing the middle point produces cleaner 1px strokes typical of pixel art.
+ */
+export function removeCorners(points: [number, number][]): [number, number][] {
+  if (points.length <= 2) return points;
+  const result: [number, number][] = [points[0]];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    const dx1 = curr[0] - prev[0];
+    const dy1 = curr[1] - prev[1];
+    const dx2 = next[0] - curr[0];
+    const dy2 = next[1] - curr[1];
+
+    // L-corner: one step is horizontal and the next is vertical (or vice versa)
+    const isLCorner =
+      (dx1 !== 0 && dy1 === 0 && dx2 === 0 && dy2 !== 0) ||
+      (dx1 === 0 && dy1 !== 0 && dx2 !== 0 && dy2 === 0);
+
+    if (!isLCorner) {
+      result.push(curr);
+    }
+  }
+
+  result.push(points[points.length - 1]);
+  return result;
+}
+
 // ── Flood fill ──
 
 /**

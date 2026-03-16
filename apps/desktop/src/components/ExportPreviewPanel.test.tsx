@@ -110,15 +110,17 @@ describe('ExportPreviewPanel', () => {
       ]);
       seedStores({ frameCount: 8 });
       render(<ExportPreviewPanel />);
-      // Wait for clips to load
+      // Wait for clips to fully load into state (not just the invoke call)
       await waitFor(() => {
         expect(mock.fn).toHaveBeenCalledWith('list_clips');
       });
+      // Allow the .then() state update to flush
+      await act(async () => {});
       const scopeSelect = screen.getAllByRole('combobox')[0];
       await act(async () => {
         await userEvent.selectOptions(scopeSelect, 'current_clip');
       });
-      // Clip selector should appear
+      // Clip selector should appear with clip names
       await waitFor(() => {
         expect(screen.getByText(/Walk/)).toBeInTheDocument();
       });

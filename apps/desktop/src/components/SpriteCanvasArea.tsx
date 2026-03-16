@@ -4,6 +4,7 @@ import {
   samplePixel,
   drawBrushDab,
   bresenhamLine,
+  removeCorners,
   floodFill,
   clonePixelBuffer,
   normalizeRect,
@@ -494,10 +495,13 @@ export function SpriteCanvasArea() {
 
       const activeTool = useSpriteEditorStore.getState().tool.activeTool;
       const color: Rgba = activeTool === 'eraser' ? TRANSPARENT : getForegroundRgba();
-      const { brushSize, brushShape } = useSpriteEditorStore.getState().tool;
+      const { brushSize, brushShape, pixelPerfect } = useSpriteEditorStore.getState().tool;
 
       // Bresenham interpolation between last and current pixel
-      const points = bresenhamLine(draft.lastPixelX, draft.lastPixelY, pixel.x, pixel.y);
+      let points = bresenhamLine(draft.lastPixelX, draft.lastPixelY, pixel.x, pixel.y);
+      if (pixelPerfect && brushSize === 1) {
+        points = removeCorners(points);
+      }
       for (const [px, py] of points) {
         drawBrushDab(draft.buffer, px, py, color, brushSize, brushShape);
       }
