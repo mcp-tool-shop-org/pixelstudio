@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3331%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3353%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 35 shipped stages, an MCP server with 76 programmable tools, and 3,331 tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 36 shipped stages, an MCP server with 76 programmable tools, and 3,353 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -149,12 +149,12 @@ glyphstudio/
     domain/               Types and contracts (18 tests)
     api-contract/         Tauri IPC types
     state/                State management, raster, history (1,778 tests)
-    mcp-sprite-server/    MCP server — 76 tools (239 tests)
+    mcp-sprite-server/    MCP server — 76 tools (261 tests)
   site/                   Landing page (Astro)
 ```
 
 ### Stages 31–34 — Sprite Export, Persistence, Desktop Parity, and Workspace Authority
-Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button. Stage 34 adds palette workspace (slot editing, lock, semantic roles, color groups), validation workspace (rule engine with 8 rules across 3 categories, issue list with severity, category filters, detail pane), and real pixel-perfect stroke behavior (L-corner removal for 1px lines). Stage 35 adds production workflows: workflow engine with domain types and Zustand store, 5 workflows (New Static Sprite, New Animation Sprite, Analyze, Validate, Export Review Pack), step-by-step runner UI, and ProjectHome rewrite with real create form and workflow discovery.
+Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button. Stage 34 adds palette workspace (slot editing, lock, semantic roles, color groups), validation workspace (rule engine with 8 rules across 3 categories, issue list with severity, category filters, detail pane), and real pixel-perfect stroke behavior (L-corner removal for 1px lines). Stage 35 adds production workflows: workflow engine with domain types and Zustand store, 5 workflows (New Static Sprite, New Animation Sprite, Analyze, Validate, Export Review Pack), step-by-step runner UI, and ProjectHome rewrite with real create form and workflow discovery. Stage 36 is a production dogfood: 5 benchmark sprites (crate, knight idle, walk cycle, spark hit, grass tiles) created through the real headless store paths, exercising palette groups, multi-frame animation, analysis, validation, and export. Friction log identifies repeated blockers for Stage 37.
 
 ### MCP Server (MCP.1–MCP.6)
 Headless MCP server with 76 tools and 6 resources: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, canvas transforms, structured error model, and machine-readable tool catalog.
