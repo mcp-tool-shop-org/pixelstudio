@@ -312,6 +312,42 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
 └─────────────────────────────────────────────┘
 ```
 
+## Dogfood Workflows
+
+The `examples/` directory contains end-to-end workflow scripts that exercise the MCP tools through the real protocol. Each workflow produces artifacts (PNGs, metadata JSON, `.glyph` documents) and a manifest for regression verification.
+
+### Running workflows
+
+```bash
+# Run all workflows
+npx tsx packages/mcp-sprite-server/examples/run-workflows.ts
+
+# Run a specific workflow
+npx tsx packages/mcp-sprite-server/examples/run-workflows.ts walk-cycle
+
+# Update golden fixtures after intentional changes
+npx tsx packages/mcp-sprite-server/examples/run-workflows.ts --update-goldens
+
+# Verify output against golden fixtures
+npx tsx packages/mcp-sprite-server/examples/run-workflows.ts --verify
+```
+
+### Directory structure
+
+```text
+fixtures/
+  inputs/       Checked-in test inputs (sprite sheets, .glyph files)
+  golden/       Checked-in expected outputs (verified by CI)
+  output/       Generated at runtime (.gitignored)
+```
+
+### How golden verification works
+
+- **JSON and manifests** — exact byte equality via SHA-256
+- **PNG images** — SHA-256 comparison (deterministic rendering)
+- Missing golden files are warnings, not failures (non-strict by default)
+- Run `--update-goldens` to promote current output to golden after intentional changes
+
 ## Related Packages
 
 | Package | Description |

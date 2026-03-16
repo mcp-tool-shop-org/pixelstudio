@@ -1,0 +1,4 @@
+# Workflow output is generated — not checked in.
+# Run workflows to regenerate. Golden copies live in fixtures/golden/.
+*
+!.gitignore
