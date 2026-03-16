@@ -11,7 +11,7 @@
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/MCP-75%20tools-blueviolet?style=flat-square" alt="75 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-156%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-193%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
@@ -316,20 +316,25 @@ Error codes: `no_session`, `no_document`, `no_frame`, `invalid_input`, `not_foun
 
 The `examples/` directory contains end-to-end workflow scripts that exercise the MCP tools through the real protocol. Each workflow produces artifacts (PNGs, metadata JSON, `.glyph` documents) and a manifest for regression verification.
 
+### Workflows
+
+| Workflow | What it proves |
+|----------|---------------|
+| `walk-cycle` | Create 4-frame animated sprite from scratch — draw, duplicate, edit, set durations, export sheet + metadata + .glyph |
+| `cleanup-sheet` | Import sheet → analyze bounds/colors/diff → crop canvas → re-export cleaned sheet |
+| `stress-test` | Draw, duplicate, batch, rotate, flip, move, 3× undo, 3× redo — verifies redo restores exact byte-identical state |
+
 ### Running workflows
 
 ```bash
-# Run all workflows
-npx tsx packages/mcp-sprite-server/examples/run-workflows.ts
-
-# Run a specific workflow
-npx tsx packages/mcp-sprite-server/examples/run-workflows.ts walk-cycle
-
-# Update golden fixtures after intentional changes
-npx tsx packages/mcp-sprite-server/examples/run-workflows.ts --update-goldens
+# Run all dogfood workflows (as part of test suite)
+pnpm --filter @glyphstudio/mcp-sprite-server run dogfood
 
 # Verify output against golden fixtures
-npx tsx packages/mcp-sprite-server/examples/run-workflows.ts --verify
+pnpm --filter @glyphstudio/mcp-sprite-server test -- src/workflows/generateGoldens.test.ts
+
+# Update golden fixtures after intentional changes
+UPDATE_GOLDENS=1 pnpm --filter @glyphstudio/mcp-sprite-server test -- src/workflows/generateGoldens.test.ts
 ```
 
 ### Directory structure
@@ -343,10 +348,11 @@ fixtures/
 
 ### How golden verification works
 
-- **JSON and manifests** — exact byte equality via SHA-256
-- **PNG images** — SHA-256 comparison (deterministic rendering)
+- **PNG images** — exact SHA-256 comparison (deterministic rendering)
+- **JSON files** — SHA-256 after stripping volatile fields (IDs, timestamps, durations)
+- **Manifest** — summary shape comparison (tool count, artifact count, pass/fail)
 - Missing golden files are warnings, not failures (non-strict by default)
-- Run `--update-goldens` to promote current output to golden after intentional changes
+- Set `UPDATE_GOLDENS=1` to promote current output to golden after intentional changes
 
 ## Related Packages
 

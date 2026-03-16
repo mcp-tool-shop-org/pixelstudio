@@ -1,0 +1,148 @@
+{
+  "format": "glyphstudio-sprite",
+  "schemaVersion": 1,
+  "document": {
+    "id": "sprite_1773672788841_qpx93i",
+    "name": "Cleanup",
+    "width": 7,
+    "height": 6,
+    "frames": [
+      {
+        "id": "sf_1773672788842_ikgoq6",
+        "index": 0,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773672788842_guzl6d",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788842_a6bdsu",
+        "index": 1,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773672788842_ghkdov",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colors": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "name": "Transparent"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "name": "Black"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "name": "White"
+        },
+        {
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "name": "Red"
+        },
+        {
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "name": "Green"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "name": "Blue"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "name": "Yellow"
+        },
+        {
+          "rgba": [
+            255,
+            0,
+            255,
+            255
+          ],
+          "name": "Magenta"
+        },
+        {
+          "rgba": [
+            0,
+            255,
+            255,
+            255
+          ],
+          "name": "Cyan"
+        },
+        {
+          "rgba": [
+            128,
+            128,
+            128,
+            255
+          ],
+          "name": "Gray"
+        }
+      ],
+      "foregroundIndex": 1,
+      "backgroundIndex": 0
+    },
+    "createdAt": "2026-03-16T14:53:08.841Z",
+    "updatedAt": "2026-03-16T14:53:08.855Z"
+  },
+  "pixelBuffers": {
+    "sl_1773672788842_guzl6d": {
+      "width": 7,
+      "height": 6,
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAD//wAA//8AAP8AAAAAAAAAAAAAAAAAAAAA/wAA//8AAP//AAD/AAAAAAAAAAAAAAAAAAAAAP8AAP//AAD//wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "sl_1773672788842_ghkdov": {
+      "width": 7,
+      "height": 6,
+      "data": "AMgA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAP//AAD//wAAAAAAAAAAAAAAAAAAAAAAAP//AAD//wAA//8AAAAAAAAAAAAAAAAAAAAAAAD//wAA//8AAP//"
+    }
+  }
+}

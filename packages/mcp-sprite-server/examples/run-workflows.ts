@@ -18,13 +18,16 @@ import { runWorkflow } from '../src/workflows/runner.js';
 import { verifyGoldens, updateGoldens } from '../src/workflows/verify.js';
 import type { WorkflowDefinition, WorkflowManifest } from '../src/workflows/types.js';
 
-// Workflow registry — workflows are added here as they're built
-const registry: WorkflowDefinition[] = [];
+import { walkCycleWorkflow } from '../src/workflows/walkCycle.js';
+import { cleanupSheetWorkflow } from '../src/workflows/cleanupSheet.js';
+import { stressTestWorkflow } from '../src/workflows/stressTest.js';
 
-/** Register a workflow. Called by workflow modules. */
-export function registerWorkflow(def: WorkflowDefinition): void {
-  registry.push(def);
-}
+// Workflow registry
+const registry: WorkflowDefinition[] = [
+  walkCycleWorkflow,
+  cleanupSheetWorkflow,
+  stressTestWorkflow,
+];
 
 // ── Paths ──
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,20 +43,9 @@ const verifyFlag = args.includes('--verify');
 const workflowFilter = args.find((a) => !a.startsWith('--'));
 
 async function main() {
-  // Dynamic imports of workflow modules (they self-register)
-  // Added in MCP.5.2–5.4 slices:
-  // await import('../src/workflows/walkCycle.js');
-  // await import('../src/workflows/cleanupSheet.js');
-  // await import('../src/workflows/stressTest.js');
-
   const workflows = workflowFilter
     ? registry.filter((w) => w.name === workflowFilter)
     : registry;
-
-  if (workflows.length === 0 && registry.length === 0) {
-    console.log('No workflows registered yet. Workflows are added in MCP.5.2–5.4.');
-    process.exit(0);
-  }
 
   if (workflows.length === 0) {
     console.error(`Unknown workflow: ${workflowFilter}`);

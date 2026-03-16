@@ -28,6 +28,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "dogfood": "vitest run --reporter=verbose src/workflows/walkCycle.test.ts src/workflows/cleanupSheet.test.ts src/workflows/stressTest.test.ts",
     "prepublishOnly": "pnpm run build"
   },
   "engines": {

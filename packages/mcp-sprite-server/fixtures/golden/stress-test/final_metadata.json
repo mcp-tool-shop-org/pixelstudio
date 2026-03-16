@@ -1,0 +1,29 @@
+{
+  "format": "glyphstudio-sprite-sheet",
+  "version": 1,
+  "name": "StressTest",
+  "sheetWidth": 16,
+  "sheetHeight": 8,
+  "frameWidth": 8,
+  "frameHeight": 8,
+  "frameCount": 2,
+  "layout": "horizontal",
+  "frames": [
+    {
+      "index": 0,
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 8,
+      "durationMs": 100
+    },
+    {
+      "index": 1,
+      "x": 8,
+      "y": 0,
+      "w": 8,
+      "h": 8,
+      "durationMs": 100
+    }
+  ]
+}

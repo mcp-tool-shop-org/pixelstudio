@@ -1,0 +1,1009 @@
+{
+  "workflow": "cleanup-sheet",
+  "startedAt": "2026-03-16T14:53:08.837Z",
+  "completedAt": "2026-03-16T14:53:08.858Z",
+  "totalDurationMs": 21,
+  "steps": [
+    {
+      "step": 0,
+      "tool": "sprite_session_new",
+      "args": {},
+      "result": {
+        "ok": true,
+        "sessionId": "session_1"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 1,
+      "tool": "sprite_document_new",
+      "args": {
+        "sessionId": "session_1",
+        "name": "Source",
+        "width": 8,
+        "height": 8
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788837_s1xjx6",
+          "name": "Source",
+          "width": 8,
+          "height": 8,
+          "frameCount": 1,
+          "frames": [
+            {
+              "id": "sf_1773672788837_q1y8ql",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788837_ztta5y",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788837_ztta5y",
+          "dirty": false,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.837Z",
+          "updatedAt": "2026-03-16T14:53:08.837Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 2,
+      "tool": "sprite_draw_pixels",
+      "args": {
+        "sessionId": "session_1",
+        "pixels": [
+          {
+            "x": 1,
+            "y": 1,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 2,
+            "y": 1,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 1,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 1,
+            "y": 2,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 2,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 2,
+            "y": 3,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "bounds": {
+          "minX": 1,
+          "minY": 1,
+          "maxX": 3,
+          "maxY": 3,
+          "pixelCount": 9
+        },
+        "activeFrameIndex": 0,
+        "activeLayerId": "sl_1773672788837_ztta5y",
+        "dirty": true
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 3,
+      "tool": "sprite_frame_add",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788837_s1xjx6",
+          "name": "Source",
+          "width": 8,
+          "height": 8,
+          "frameCount": 2,
+          "frames": [
+            {
+              "id": "sf_1773672788837_q1y8ql",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788837_ztta5y",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            },
+            {
+              "id": "sf_1773672788838_54g6oy",
+              "index": 1,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788838_qdw8yr",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 1,
+          "activeLayerId": "sl_1773672788838_qdw8yr",
+          "dirty": true,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.837Z",
+          "updatedAt": "2026-03-16T14:53:08.838Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 4,
+      "tool": "sprite_draw_pixels",
+      "args": {
+        "sessionId": "session_1",
+        "pixels": [
+          {
+            "x": 4,
+            "y": 3,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 3,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 3,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 4,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 4,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 5,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 5,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 0,
+            "y": 0,
+            "rgba": [
+              0,
+              200,
+              0,
+              255
+            ]
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "bounds": {
+          "minX": 0,
+          "minY": 0,
+          "maxX": 6,
+          "maxY": 5,
+          "pixelCount": 10
+        },
+        "activeFrameIndex": 1,
+        "activeLayerId": "sl_1773672788838_qdw8yr",
+        "dirty": true
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 5,
+      "tool": "sprite_export_sheet_png",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "width": 16,
+        "height": 8,
+        "frameCount": 2,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAICAYAAADwdn+XAAAAJ0lEQVR4XmMgCE4w/EcXwgBAFf9hGF2OKEBnA+BKiVCLFQy8AVQGAElYJaQyb4YzAAAAAElFTkSuQmCC",
+        "byteLength": 96
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 6,
+      "tool": "sprite_session_close",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "closed": "session_1"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 7,
+      "tool": "sprite_session_new",
+      "args": {},
+      "result": {
+        "ok": true,
+        "sessionId": "session_2"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 8,
+      "tool": "sprite_document_new",
+      "args": {
+        "sessionId": "session_2",
+        "name": "Cleanup",
+        "width": 8,
+        "height": 8
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788841_qpx93i",
+          "name": "Cleanup",
+          "width": 8,
+          "height": 8,
+          "frameCount": 1,
+          "frames": [
+            {
+              "id": "sf_1773672788841_zayadw",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788841_f8ls56",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788841_f8ls56",
+          "dirty": false,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.841Z",
+          "updatedAt": "2026-03-16T14:53:08.841Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 9,
+      "tool": "sprite_import_sheet",
+      "args": {
+        "sessionId": "session_2",
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAICAYAAADwdn+XAAAAJ0lEQVR4XmMgCE4w/EcXwgBAFf9hGF2OKEBnA+BKiVCLFQy8AVQGAElYJaQyb4YzAAAAAElFTkSuQmCC",
+        "frameWidth": 8,
+        "frameHeight": 8
+      },
+      "result": {
+        "ok": true,
+        "frameCount": 2,
+        "sheetWidth": 16,
+        "sheetHeight": 8,
+        "frameWidth": 8,
+        "frameHeight": 8,
+        "document": {
+          "id": "sprite_1773672788841_qpx93i",
+          "name": "Cleanup",
+          "width": 8,
+          "height": 8,
+          "frameCount": 2,
+          "frames": [
+            {
+              "id": "sf_1773672788842_ikgoq6",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_guzl6d",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            },
+            {
+              "id": "sf_1773672788842_a6bdsu",
+              "index": 1,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_ghkdov",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788842_guzl6d",
+          "dirty": true,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.841Z",
+          "updatedAt": "2026-03-16T14:53:08.842Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 2
+    },
+    {
+      "step": 10,
+      "tool": "sprite_document_summary",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788841_qpx93i",
+          "name": "Cleanup",
+          "width": 8,
+          "height": 8,
+          "frameCount": 2,
+          "frames": [
+            {
+              "id": "sf_1773672788842_ikgoq6",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_guzl6d",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            },
+            {
+              "id": "sf_1773672788842_a6bdsu",
+              "index": 1,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_ghkdov",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788842_guzl6d",
+          "dirty": true,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.841Z",
+          "updatedAt": "2026-03-16T14:53:08.842Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 11,
+      "tool": "sprite_analyze_bounds",
+      "args": {
+        "sessionId": "session_2",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "minX": 1,
+        "minY": 1,
+        "maxX": 3,
+        "maxY": 3,
+        "width": 3,
+        "height": 3,
+        "opaquePixelCount": 9,
+        "empty": false
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 12,
+      "tool": "sprite_analyze_bounds",
+      "args": {
+        "sessionId": "session_2",
+        "frameIndex": 1
+      },
+      "result": {
+        "ok": true,
+        "minX": 0,
+        "minY": 0,
+        "maxX": 6,
+        "maxY": 5,
+        "width": 7,
+        "height": 6,
+        "opaquePixelCount": 10,
+        "empty": false
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 13,
+      "tool": "sprite_analyze_colors",
+      "args": {
+        "sessionId": "session_2",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "uniqueColors": 2,
+        "histogram": [
+          {
+            "rgba": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "hex": "#00000000",
+            "count": 55
+          },
+          {
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ],
+            "hex": "#ff0000ff",
+            "count": 9
+          }
+        ],
+        "opaquePixelCount": 9,
+        "transparentPixelCount": 55,
+        "totalPixels": 64
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 14,
+      "tool": "sprite_compare_frames",
+      "args": {
+        "sessionId": "session_2",
+        "frameA": 0,
+        "frameB": 1
+      },
+      "result": {
+        "ok": true,
+        "changedPixelCount": 19,
+        "totalPixels": 64,
+        "changedBounds": {
+          "minX": 0,
+          "minY": 0,
+          "maxX": 6,
+          "maxY": 5
+        },
+        "identical": false,
+        "changedPercent": 29.69
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 15,
+      "tool": "sprite_resize_canvas",
+      "args": {
+        "sessionId": "session_2",
+        "width": 7,
+        "height": 6
+      },
+      "result": {
+        "ok": true,
+        "id": "sprite_1773672788841_qpx93i",
+        "name": "Cleanup",
+        "width": 7,
+        "height": 6,
+        "frameCount": 2,
+        "frames": [
+          {
+            "id": "sf_1773672788842_ikgoq6",
+            "index": 0,
+            "durationMs": 100,
+            "layerCount": 1,
+            "layers": [
+              {
+                "id": "sl_1773672788842_guzl6d",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              }
+            ]
+          },
+          {
+            "id": "sf_1773672788842_a6bdsu",
+            "index": 1,
+            "durationMs": 100,
+            "layerCount": 1,
+            "layers": [
+              {
+                "id": "sl_1773672788842_ghkdov",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              }
+            ]
+          }
+        ],
+        "palette": {
+          "colorCount": 10,
+          "foregroundIndex": 1,
+          "backgroundIndex": 0
+        },
+        "activeFrameIndex": 0,
+        "activeLayerId": "sl_1773672788842_guzl6d",
+        "dirty": true,
+        "filePath": null,
+        "createdAt": "2026-03-16T14:53:08.841Z",
+        "updatedAt": "2026-03-16T14:53:08.848Z",
+        "history": {
+          "canUndo": true,
+          "canRedo": false,
+          "pastCount": 2,
+          "futureCount": 0,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 16,
+      "tool": "sprite_export_frame_png",
+      "args": {
+        "sessionId": "session_2",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "frameIndex": 0,
+        "frameId": "sf_1773672788842_ikgoq6",
+        "width": 7,
+        "height": 6,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAGCAYAAAAPDoR2AAAAFUlEQVR4XmMgCP4DEQyjy1EgSRYAAGSsEe84Xk/XAAAAAElFTkSuQmCC",
+        "byteLength": 78
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 17,
+      "tool": "sprite_export_frame_png",
+      "args": {
+        "sessionId": "session_2",
+        "frameIndex": 1
+      },
+      "result": {
+        "ok": true,
+        "frameIndex": 1,
+        "frameId": "sf_1773672788842_a6bdsu",
+        "width": 7,
+        "height": 6,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAGCAYAAAAPDoR2AAAAGUlEQVR4XmNgOMHwn4Ee4D/QGhjGAERKAgCbJBO2QF2CvgAAAABJRU5ErkJggg==",
+        "byteLength": 82
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 18,
+      "tool": "sprite_export_sheet_png",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "width": 14,
+        "height": 6,
+        "frameCount": 2,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAA4AAAAGCAYAAADzG6+8AAAAJElEQVR4XmPAC04w/EcXQgFA2f8wjC6HF9BBI1wZAXUYgAoaAcdrJaRe07tbAAAAAElFTkSuQmCC",
+        "byteLength": 93
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 19,
+      "tool": "sprite_export_metadata_json",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "metadata": {
+          "format": "glyphstudio-sprite-sheet",
+          "version": 1,
+          "name": "Cleanup",
+          "sheetWidth": 14,
+          "sheetHeight": 6,
+          "frameWidth": 7,
+          "frameHeight": 6,
+          "frameCount": 2,
+          "layout": "horizontal",
+          "frames": [
+            {
+              "index": 0,
+              "x": 0,
+              "y": 0,
+              "w": 7,
+              "h": 6,
+              "durationMs": 100
+            },
+            {
+              "index": 1,
+              "x": 7,
+              "y": 0,
+              "w": 7,
+              "h": 6,
+              "durationMs": 100
+            }
+          ]
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 20,
+      "tool": "sprite_document_save",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "json": "{\n  \"format\": \"glyphstudio-sprite\",\n  \"schemaVersion\": 1,\n  \"document\": {\n    \"id\": \"sprite_1773672788841_qpx93i\",\n    \"name\": \"Cleanup\",\n    \"width\": 7,\n    \"height\": 6,\n    \"frames\": [\n      {\n        \"id\": \"sf_1773672788842_ikgoq6\",\n        \"index\": 0,\n        \"durationMs\": 100,\n        \"layers\": [\n          {\n            \"id\": \"sl_1773672788842_guzl6d\",\n            \"name\": \"Layer 1\",\n            \"visible\": true,\n            \"index\": 0\n          }\n        ]\n      },\n      {\n        \"id\": \"sf_1773672788842_a6bdsu\",\n        \"index\": 1,\n        \"durationMs\": 100,\n        \"layers\": [\n          {\n            \"id\": \"sl_1773672788842_ghkdov\",\n            \"name\": \"Layer 1\",\n            \"visible\": true,\n            \"index\": 0\n          }\n        ]\n      }\n    ],\n    \"palette\": {\n      \"colors\": [\n        {\n          \"rgba\": [\n            0,\n            0,\n            0,\n            0\n          ],\n          \"name\": \"Transparent\"\n        },\n        {\n          \"rgba\": [\n            0,\n            0,\n            0,\n            255\n          ],\n          \"name\": \"Black\"\n        },\n        {\n          \"rgba\": [\n            255,\n            255,\n            255,\n            255\n          ],\n          \"name\": \"White\"\n        },\n        {\n          \"rgba\": [\n            255,\n            0,\n            0,\n            255\n          ],\n          \"name\": \"Red\"\n        },\n        {\n          \"rgba\": [\n            0,\n            255,\n            0,\n            255\n          ],\n          \"name\": \"Green\"\n        },\n        {\n          \"rgba\": [\n            0,\n            0,\n            255,\n            255\n          ],\n          \"name\": \"Blue\"\n        },\n        {\n          \"rgba\": [\n            255,\n            255,\n            0,\n            255\n          ],\n          \"name\": \"Yellow\"\n        },\n        {\n          \"rgba\": [\n            255,\n            0,\n            255,\n            255\n          ],\n          \"name\": \"Magenta\"\n        },\n        {\n          \"rgba\": [\n            0,\n            255,\n            255,\n            255\n          ],\n          \"name\": \"Cyan\"\n        },\n        {\n          \"rgba\": [\n            128,\n            128,\n            128,\n            255\n          ],\n          \"name\": \"Gray\"\n        }\n      ],\n      \"foregroundIndex\": 1,\n      \"backgroundIndex\": 0\n    },\n    \"createdAt\": \"2026-03-16T14:53:08.841Z\",\n    \"updatedAt\": \"2026-03-16T14:53:08.855Z\"\n  },\n  \"pixelBuffers\": {\n    \"sl_1773672788842_guzl6d\": {\n      \"width\": 7,\n      \"height\": 6,\n      \"data\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAD//wAA//8AAP8AAAAAAAAAAAAAAAAAAAAA/wAA//8AAP//AAD/AAAAAAAAAAAAAAAAAAAAAP8AAP//AAD//wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n    },\n    \"sl_1773672788842_ghkdov\": {\n      \"width\": 7,\n      \"height\": 6,\n      \"data\": \"AMgA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAP//AAD//wAAAAAAAAAAAAAAAAAAAAAAAP//AAD//wAA//8AAAAAAAAAAAAAAAAAAAAAAAD//wAA//8AAP//\"\n    }\n  }\n}"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 21,
+      "tool": "sprite_document_summary",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788841_qpx93i",
+          "name": "Cleanup",
+          "width": 7,
+          "height": 6,
+          "frameCount": 2,
+          "frames": [
+            {
+              "id": "sf_1773672788842_ikgoq6",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_guzl6d",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            },
+            {
+              "id": "sf_1773672788842_a6bdsu",
+              "index": 1,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788842_ghkdov",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788842_guzl6d",
+          "dirty": false,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.841Z",
+          "updatedAt": "2026-03-16T14:53:08.848Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 22,
+      "tool": "sprite_session_close",
+      "args": {
+        "sessionId": "session_2"
+      },
+      "result": {
+        "ok": true,
+        "closed": "session_2"
+      },
+      "ok": true,
+      "durationMs": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "source_sheet.png",
+      "path": "source_sheet.png",
+      "mimeType": "image/png",
+      "byteLength": 96,
+      "sha256": "553376db61145d4098d36fe034a4aa0bda50c78036f20b3b9bafdf8caa16717a"
+    },
+    {
+      "name": "post_import_summary.json",
+      "path": "post_import_summary.json",
+      "mimeType": "application/json",
+      "byteLength": 1109,
+      "sha256": "863ba731314e3ccfc8aaa89e2434bb5b0f29a89bc0e7e34465b913ce63f3b487"
+    },
+    {
+      "name": "analysis_report.json",
+      "path": "analysis_report.json",
+      "mimeType": "application/json",
+      "byteLength": 1066,
+      "sha256": "b159ba2346e9b860f04b0c3dd1e0b776b13dc39d494d02435e08f659bf2b3934"
+    },
+    {
+      "name": "cleaned_frame_0.png",
+      "path": "cleaned_frame_0.png",
+      "mimeType": "image/png",
+      "byteLength": 78,
+      "sha256": "259d86057d143558622093368625ad9da119cc764cdde3a7ad9edb7cb3ca14fb"
+    },
+    {
+      "name": "cleaned_frame_1.png",
+      "path": "cleaned_frame_1.png",
+      "mimeType": "image/png",
+      "byteLength": 82,
+      "sha256": "7c378f2ef263e2e3b5a2c3f5aaf0400fe66f740a8d502dd577de51ec90ddb63a"
+    },
+    {
+      "name": "cleaned_sheet.png",
+      "path": "cleaned_sheet.png",
+      "mimeType": "image/png",
+      "byteLength": 93,
+      "sha256": "a59f6958fed7a125e4399c81183ad1d1a77d3bbb37320e1ca306fe665ec48d4c"
+    },
+    {
+      "name": "cleaned_metadata.json",
+      "path": "cleaned_metadata.json",
+      "mimeType": "application/json",
+      "byteLength": 443,
+      "sha256": "551d1c52db8ccb97e0e4316d6800a8c18429d771dce03ee18dfd8eb4a7c7b521"
+    },
+    {
+      "name": "cleaned_document.glyph",
+      "path": "cleaned_document.glyph",
+      "mimeType": "application/json",
+      "byteLength": 3068,
+      "sha256": "b233237be14678c57b6da1da40375542b42be3284628815670f0e74ca97217bc"
+    },
+    {
+      "name": "final_summary.json",
+      "path": "final_summary.json",
+      "mimeType": "application/json",
+      "byteLength": 1110,
+      "sha256": "2e4e156b0a4d5efea3e44a4b5ca19f134176251e4eda900c83b3a6c8afe7ef71"
+    }
+  ],
+  "summary": {
+    "toolCalls": 23,
+    "succeeded": 23,
+    "failed": 0,
+    "artifactCount": 9
+  }
+}

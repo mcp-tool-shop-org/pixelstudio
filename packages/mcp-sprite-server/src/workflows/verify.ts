@@ -75,9 +75,22 @@ export async function verifyGoldens(
       continue;
     }
 
-    // Compare by SHA-256
-    const goldenBuf = await readFile(goldenPath);
-    const outputBuf = await readFile(outputPath);
+    // For JSON files: normalize volatile fields before comparing.
+    // For binary files (PNG): byte-exact SHA-256.
+    const isJson = artifact.mimeType === 'application/json';
+    let goldenBuf: Buffer;
+    let outputBuf: Buffer;
+
+    if (isJson) {
+      const goldenRaw = await readFile(goldenPath, 'utf-8');
+      const outputRaw = await readFile(outputPath, 'utf-8');
+      goldenBuf = Buffer.from(normalizeJson(goldenRaw), 'utf-8');
+      outputBuf = Buffer.from(normalizeJson(outputRaw), 'utf-8');
+    } else {
+      goldenBuf = await readFile(goldenPath);
+      outputBuf = await readFile(outputPath);
+    }
+
     const goldenHash = createHash('sha256').update(goldenBuf).digest('hex');
     const outputHash = createHash('sha256').update(outputBuf).digest('hex');
 
@@ -157,6 +170,58 @@ function verifySummaryShape(actual: WorkflowManifest, golden: WorkflowManifest):
     status: 'mismatch',
     detail: `Summary mismatch: expected ${g.toolCalls} calls/${g.artifactCount} artifacts, got ${a.toolCalls} calls/${a.artifactCount} artifacts`,
   };
+}
+
+/** Volatile JSON fields that change between runs (IDs, timestamps, durations). */
+const VOLATILE_KEYS = new Set([
+  'id', 'sessionId', 'documentId', 'frameId', 'activeLayerId',
+  'createdAt', 'updatedAt', 'startedAt', 'completedAt',
+  'totalDurationMs', 'durationMs',
+]);
+
+/**
+ * Strip volatile fields from JSON so that structural comparison is stable.
+ * Replaces volatile values with placeholder strings.
+ */
+function normalizeJson(raw: string): string {
+  const obj = JSON.parse(raw);
+  stripVolatile(obj);
+  return JSON.stringify(obj, null, 2);
+}
+
+/** Pattern for generated IDs: sl_, sf_, sd_, session_ */
+const VOLATILE_ID_PATTERN = /^(sl_|sf_|sd_|session_)/;
+
+function stripVolatile(obj: unknown): void {
+  if (obj === null || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) stripVolatile(item);
+    return;
+  }
+  const record = obj as Record<string, unknown>;
+
+  // Normalize object keys that are volatile IDs (e.g. pixelBuffers keyed by layer ID)
+  const volatileKeys = Object.keys(record).filter((k) => VOLATILE_ID_PATTERN.test(k));
+  if (volatileKeys.length > 0) {
+    const entries = volatileKeys.map((k, i) => {
+      const val = record[k];
+      delete record[k];
+      return [`<<id_${i}>>`, val] as const;
+    });
+    for (const [newKey, val] of entries) {
+      record[newKey] = val;
+    }
+  }
+
+  for (const key of Object.keys(record)) {
+    if (VOLATILE_KEYS.has(key)) {
+      record[key] = '<<volatile>>';
+    } else if (typeof record[key] === 'string' && VOLATILE_ID_PATTERN.test(record[key] as string)) {
+      record[key] = '<<volatile_id>>';
+    } else {
+      stripVolatile(record[key]);
+    }
+  }
 }
 
 async function fileExists(path: string): Promise<boolean> {

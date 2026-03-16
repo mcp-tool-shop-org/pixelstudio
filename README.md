@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-2216%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-2253%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 75 programmable tools, and 2,216 tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 32 shipped stages, an MCP server with 75 programmable tools, and 2,253 tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -144,7 +144,7 @@ glyphstudio/
     domain/               Types and contracts (18 tests)
     api-contract/         Tauri IPC types
     state/                State management, raster, history (1,744 tests)
-    mcp-sprite-server/    MCP server — 75 tools (156 tests)
+    mcp-sprite-server/    MCP server — 75 tools (193 tests)
   site/                   Landing page (Astro)
 ```
 

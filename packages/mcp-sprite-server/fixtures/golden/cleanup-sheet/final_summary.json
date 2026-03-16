@@ -1,0 +1,51 @@
+{
+  "ok": true,
+  "document": {
+    "id": "sprite_1773672788841_qpx93i",
+    "name": "Cleanup",
+    "width": 7,
+    "height": 6,
+    "frameCount": 2,
+    "frames": [
+      {
+        "id": "sf_1773672788842_ikgoq6",
+        "index": 0,
+        "durationMs": 100,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788842_guzl6d",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788842_a6bdsu",
+        "index": 1,
+        "durationMs": 100,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788842_ghkdov",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colorCount": 10,
+      "foregroundIndex": 1,
+      "backgroundIndex": 0
+    },
+    "activeFrameIndex": 0,
+    "activeLayerId": "sl_1773672788842_guzl6d",
+    "dirty": false,
+    "filePath": null,
+    "createdAt": "2026-03-16T14:53:08.841Z",
+    "updatedAt": "2026-03-16T14:53:08.848Z"
+  }
+}

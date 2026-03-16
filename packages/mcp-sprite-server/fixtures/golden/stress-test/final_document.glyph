@@ -1,0 +1,159 @@
+{
+  "format": "glyphstudio-sprite",
+  "schemaVersion": 1,
+  "document": {
+    "id": "sprite_1773672788873_5v94av",
+    "name": "StressTest",
+    "width": 8,
+    "height": 8,
+    "frames": [
+      {
+        "id": "sf_1773672788875_wf4vke",
+        "index": 0,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773672788875_bz6988",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          },
+          {
+            "id": "sl_1773672788876_177gxp",
+            "name": "Layer 1 copy",
+            "visible": true,
+            "index": 1
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788873_wmkb64",
+        "index": 1,
+        "durationMs": 100,
+        "layers": [
+          {
+            "id": "sl_1773672788873_ltc6tl",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colors": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "name": "Transparent"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "name": "Black"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "name": "White"
+        },
+        {
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "name": "Red"
+        },
+        {
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "name": "Green"
+        },
+        {
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "name": "Blue"
+        },
+        {
+          "rgba": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "name": "Yellow"
+        },
+        {
+          "rgba": [
+            255,
+            0,
+            255,
+            255
+          ],
+          "name": "Magenta"
+        },
+        {
+          "rgba": [
+            0,
+            255,
+            255,
+            255
+          ],
+          "name": "Cyan"
+        },
+        {
+          "rgba": [
+            128,
+            128,
+            128,
+            255
+          ],
+          "name": "Gray"
+        }
+      ],
+      "foregroundIndex": 1,
+      "backgroundIndex": 0
+    },
+    "createdAt": "2026-03-16T14:53:08.873Z",
+    "updatedAt": "2026-03-16T14:53:08.893Z"
+  },
+  "pixelBuffers": {
+    "sl_1773672788873_ltc6tl": {
+      "width": 8,
+      "height": 8,
+      "data": "/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w=="
+    },
+    "sl_1773672788875_bz6988": {
+      "width": 8,
+      "height": 8,
+      "data": "/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w=="
+    },
+    "sl_1773672788876_177gxp": {
+      "width": 8,
+      "height": 8,
+      "data": "/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAyGQy/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyGQy/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMhkMv8AAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMmTI/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMmTI/wAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w=="
+    }
+  }
+}

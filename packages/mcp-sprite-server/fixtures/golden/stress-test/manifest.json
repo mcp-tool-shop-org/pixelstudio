@@ -1,0 +1,895 @@
+{
+  "workflow": "stress-test",
+  "startedAt": "2026-03-16T14:53:08.872Z",
+  "completedAt": "2026-03-16T14:53:08.894Z",
+  "totalDurationMs": 22,
+  "steps": [
+    {
+      "step": 0,
+      "tool": "sprite_session_new",
+      "args": {},
+      "result": {
+        "ok": true,
+        "sessionId": "session_1"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 1,
+      "tool": "sprite_document_new",
+      "args": {
+        "sessionId": "session_1",
+        "name": "StressTest",
+        "width": 8,
+        "height": 8
+      },
+      "result": {
+        "ok": true,
+        "document": {
+          "id": "sprite_1773672788873_5v94av",
+          "name": "StressTest",
+          "width": 8,
+          "height": 8,
+          "frameCount": 1,
+          "frames": [
+            {
+              "id": "sf_1773672788873_wmkb64",
+              "index": 0,
+              "durationMs": 100,
+              "layerCount": 1,
+              "layers": [
+                {
+                  "id": "sl_1773672788873_ltc6tl",
+                  "name": "Layer 1",
+                  "visible": true,
+                  "index": 0
+                }
+              ]
+            }
+          ],
+          "palette": {
+            "colorCount": 10,
+            "foregroundIndex": 1,
+            "backgroundIndex": 0
+          },
+          "activeFrameIndex": 0,
+          "activeLayerId": "sl_1773672788873_ltc6tl",
+          "dirty": false,
+          "filePath": null,
+          "createdAt": "2026-03-16T14:53:08.873Z",
+          "updatedAt": "2026-03-16T14:53:08.873Z"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 2,
+      "tool": "sprite_draw_pixels",
+      "args": {
+        "sessionId": "session_1",
+        "pixels": [
+          {
+            "x": 0,
+            "y": 0,
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 0,
+            "rgba": [
+              0,
+              255,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 0,
+            "y": 7,
+            "rgba": [
+              0,
+              0,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 7,
+            "rgba": [
+              255,
+              255,
+              0,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "rgba": [
+              255,
+              255,
+              255,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "rgba": [
+              128,
+              128,
+              128,
+              255
+            ]
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "bounds": {
+          "minX": 0,
+          "minY": 0,
+          "maxX": 7,
+          "maxY": 7,
+          "pixelCount": 6
+        },
+        "activeFrameIndex": 0,
+        "activeLayerId": "sl_1773672788873_ltc6tl",
+        "dirty": true
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 3,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": false,
+        "pastCount": 1,
+        "futureCount": 0,
+        "latestOperation": "Draw"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 4,
+      "tool": "sprite_frame_duplicate",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "frameCount": 2,
+        "activeFrameIndex": 1,
+        "activeLayerId": "sl_1773672788875_bz6988"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 5,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": false,
+        "pastCount": 2,
+        "futureCount": 0,
+        "latestOperation": "Duplicate frame"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 6,
+      "tool": "sprite_layer_duplicate",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "layerCount": 2,
+        "activeLayerId": "sl_1773672788876_177gxp"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 7,
+      "tool": "sprite_batch_apply",
+      "args": {
+        "sessionId": "session_1",
+        "operations": [
+          {
+            "type": "draw",
+            "pixels": [
+              {
+                "x": 1,
+                "y": 1,
+                "rgba": [
+                  200,
+                  100,
+                  50,
+                  255
+                ]
+              },
+              {
+                "x": 2,
+                "y": 2,
+                "rgba": [
+                  200,
+                  100,
+                  50,
+                  255
+                ]
+              },
+              {
+                "x": 3,
+                "y": 1,
+                "rgba": [
+                  200,
+                  100,
+                  50,
+                  255
+                ]
+              }
+            ]
+          },
+          {
+            "type": "draw",
+            "pixels": [
+              {
+                "x": 5,
+                "y": 5,
+                "rgba": [
+                  50,
+                  100,
+                  200,
+                  255
+                ]
+              },
+              {
+                "x": 6,
+                "y": 6,
+                "rgba": [
+                  50,
+                  100,
+                  200,
+                  255
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "operationsApplied": 2,
+        "results": [
+          {
+            "index": 0,
+            "type": "draw",
+            "ok": true
+          },
+          {
+            "index": 1,
+            "type": "draw",
+            "ok": true
+          }
+        ],
+        "history": {
+          "canUndo": true,
+          "canRedo": false,
+          "pastCount": 4,
+          "futureCount": 0,
+          "latestOperation": "Draw"
+        },
+        "activeFrameIndex": 1,
+        "activeLayerId": "sl_1773672788876_177gxp",
+        "dirty": true
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 8,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": false,
+        "pastCount": 4,
+        "futureCount": 0,
+        "latestOperation": "Draw"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 9,
+      "tool": "sprite_rotate_canvas",
+      "args": {
+        "sessionId": "session_1",
+        "angle": 90
+      },
+      "result": {
+        "ok": true,
+        "angle": 90,
+        "id": "sprite_1773672788873_5v94av",
+        "name": "StressTest",
+        "width": 8,
+        "height": 8,
+        "frameCount": 2,
+        "frames": [
+          {
+            "id": "sf_1773672788873_wmkb64",
+            "index": 0,
+            "durationMs": 100,
+            "layerCount": 1,
+            "layers": [
+              {
+                "id": "sl_1773672788873_ltc6tl",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              }
+            ]
+          },
+          {
+            "id": "sf_1773672788875_wf4vke",
+            "index": 1,
+            "durationMs": 100,
+            "layerCount": 2,
+            "layers": [
+              {
+                "id": "sl_1773672788875_bz6988",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              },
+              {
+                "id": "sl_1773672788876_177gxp",
+                "name": "Layer 1 copy",
+                "visible": true,
+                "index": 1
+              }
+            ]
+          }
+        ],
+        "palette": {
+          "colorCount": 10,
+          "foregroundIndex": 1,
+          "backgroundIndex": 0
+        },
+        "activeFrameIndex": 1,
+        "activeLayerId": "sl_1773672788876_177gxp",
+        "dirty": true,
+        "filePath": null,
+        "createdAt": "2026-03-16T14:53:08.873Z",
+        "updatedAt": "2026-03-16T14:53:08.880Z",
+        "history": {
+          "canUndo": true,
+          "canRedo": false,
+          "pastCount": 5,
+          "futureCount": 0,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 10,
+      "tool": "sprite_flip_canvas",
+      "args": {
+        "sessionId": "session_1",
+        "direction": "horizontal"
+      },
+      "result": {
+        "ok": true,
+        "direction": "horizontal",
+        "id": "sprite_1773672788873_5v94av",
+        "name": "StressTest",
+        "width": 8,
+        "height": 8,
+        "frameCount": 2,
+        "frames": [
+          {
+            "id": "sf_1773672788873_wmkb64",
+            "index": 0,
+            "durationMs": 100,
+            "layerCount": 1,
+            "layers": [
+              {
+                "id": "sl_1773672788873_ltc6tl",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              }
+            ]
+          },
+          {
+            "id": "sf_1773672788875_wf4vke",
+            "index": 1,
+            "durationMs": 100,
+            "layerCount": 2,
+            "layers": [
+              {
+                "id": "sl_1773672788875_bz6988",
+                "name": "Layer 1",
+                "visible": true,
+                "index": 0
+              },
+              {
+                "id": "sl_1773672788876_177gxp",
+                "name": "Layer 1 copy",
+                "visible": true,
+                "index": 1
+              }
+            ]
+          }
+        ],
+        "palette": {
+          "colorCount": 10,
+          "foregroundIndex": 1,
+          "backgroundIndex": 0
+        },
+        "activeFrameIndex": 1,
+        "activeLayerId": "sl_1773672788876_177gxp",
+        "dirty": true,
+        "filePath": null,
+        "createdAt": "2026-03-16T14:53:08.873Z",
+        "updatedAt": "2026-03-16T14:53:08.880Z",
+        "history": {
+          "canUndo": true,
+          "canRedo": false,
+          "pastCount": 6,
+          "futureCount": 0,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 11,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": false,
+        "pastCount": 6,
+        "futureCount": 0,
+        "latestOperation": "Draw"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 12,
+      "tool": "sprite_frame_move",
+      "args": {
+        "sessionId": "session_1",
+        "fromIndex": 1,
+        "toIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "frameCount": 2,
+        "activeFrameIndex": 0
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 13,
+      "tool": "sprite_export_frame_png",
+      "args": {
+        "sessionId": "session_1",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "frameIndex": 0,
+        "frameId": "sf_1773672788875_wf4vke",
+        "width": 8,
+        "height": 8,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAANElEQVR4XmP4zwBCuMB/iNyJFCM8iqAAryKY5H8gQJPCBA0NDYQVGaWcIEXRf9zeBLroPwDizhtEz5PzOAAAAABJRU5ErkJggg==",
+        "byteLength": 109
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 14,
+      "tool": "sprite_history_undo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": true,
+          "pastCount": 6,
+          "futureCount": 1,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 1
+    },
+    {
+      "step": 15,
+      "tool": "sprite_history_undo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": true,
+          "pastCount": 5,
+          "futureCount": 2,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 16,
+      "tool": "sprite_history_undo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": true,
+          "pastCount": 4,
+          "futureCount": 3,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 17,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": true,
+        "pastCount": 4,
+        "futureCount": 3,
+        "latestOperation": "Draw"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 18,
+      "tool": "sprite_export_frame_png",
+      "args": {
+        "sessionId": "session_1",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "frameIndex": 0,
+        "frameId": "sf_1773672788873_wmkb64",
+        "width": 8,
+        "height": 8,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAJklEQVR4XmP4zwBCOMB/PHLkgf9AgC6GARoaGggrIhXgthco8x8Aj4cPcyL0Pz8AAAAASUVORK5CYII=",
+        "byteLength": 95
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 19,
+      "tool": "sprite_history_redo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": true,
+          "pastCount": 5,
+          "futureCount": 2,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 20,
+      "tool": "sprite_history_redo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": true,
+          "pastCount": 6,
+          "futureCount": 1,
+          "latestOperation": "Draw"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 21,
+      "tool": "sprite_history_redo",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "restored": true,
+        "summary": {
+          "canUndo": true,
+          "canRedo": false,
+          "pastCount": 7,
+          "futureCount": 0,
+          "latestOperation": "Move frame"
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 22,
+      "tool": "sprite_history_get_summary",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "canUndo": true,
+        "canRedo": false,
+        "pastCount": 7,
+        "futureCount": 0,
+        "latestOperation": "Move frame"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 23,
+      "tool": "sprite_export_frame_png",
+      "args": {
+        "sessionId": "session_1",
+        "frameIndex": 0
+      },
+      "result": {
+        "ok": true,
+        "frameIndex": 0,
+        "frameId": "sf_1773672788875_wf4vke",
+        "width": 8,
+        "height": 8,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAANElEQVR4XmP4zwBCuMB/iNyJFCM8iqAAryKY5H8gQJPCBA0NDYQVGaWcIEXRf9zeBLroPwDizhtEz5PzOAAAAABJRU5ErkJggg==",
+        "byteLength": 109
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 24,
+      "tool": "sprite_export_sheet_png",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "width": 16,
+        "height": 8,
+        "frameCount": 2,
+        "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAICAYAAADwdn+XAAAARklEQVR4XmP4zwBCuMD//4TkwdSJFCM8iogEFBkC0wx0MF5DCMmDQUNDA15FhOTBwCjlBGFFhADxhvzHHU1AH0MgDgCSBwABhiq2BVijdQAAAABJRU5ErkJggg==",
+        "byteLength": 127
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 25,
+      "tool": "sprite_export_metadata_json",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "metadata": {
+          "format": "glyphstudio-sprite-sheet",
+          "version": 1,
+          "name": "StressTest",
+          "sheetWidth": 16,
+          "sheetHeight": 8,
+          "frameWidth": 8,
+          "frameHeight": 8,
+          "frameCount": 2,
+          "layout": "horizontal",
+          "frames": [
+            {
+              "index": 0,
+              "x": 0,
+              "y": 0,
+              "w": 8,
+              "h": 8,
+              "durationMs": 100
+            },
+            {
+              "index": 1,
+              "x": 8,
+              "y": 0,
+              "w": 8,
+              "h": 8,
+              "durationMs": 100
+            }
+          ]
+        }
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 26,
+      "tool": "sprite_document_save",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "json": "{\n  \"format\": \"glyphstudio-sprite\",\n  \"schemaVersion\": 1,\n  \"document\": {\n    \"id\": \"sprite_1773672788873_5v94av\",\n    \"name\": \"StressTest\",\n    \"width\": 8,\n    \"height\": 8,\n    \"frames\": [\n      {\n        \"id\": \"sf_1773672788875_wf4vke\",\n        \"index\": 0,\n        \"durationMs\": 100,\n        \"layers\": [\n          {\n            \"id\": \"sl_1773672788875_bz6988\",\n            \"name\": \"Layer 1\",\n            \"visible\": true,\n            \"index\": 0\n          },\n          {\n            \"id\": \"sl_1773672788876_177gxp\",\n            \"name\": \"Layer 1 copy\",\n            \"visible\": true,\n            \"index\": 1\n          }\n        ]\n      },\n      {\n        \"id\": \"sf_1773672788873_wmkb64\",\n        \"index\": 1,\n        \"durationMs\": 100,\n        \"layers\": [\n          {\n            \"id\": \"sl_1773672788873_ltc6tl\",\n            \"name\": \"Layer 1\",\n            \"visible\": true,\n            \"index\": 0\n          }\n        ]\n      }\n    ],\n    \"palette\": {\n      \"colors\": [\n        {\n          \"rgba\": [\n            0,\n            0,\n            0,\n            0\n          ],\n          \"name\": \"Transparent\"\n        },\n        {\n          \"rgba\": [\n            0,\n            0,\n            0,\n            255\n          ],\n          \"name\": \"Black\"\n        },\n        {\n          \"rgba\": [\n            255,\n            255,\n            255,\n            255\n          ],\n          \"name\": \"White\"\n        },\n        {\n          \"rgba\": [\n            255,\n            0,\n            0,\n            255\n          ],\n          \"name\": \"Red\"\n        },\n        {\n          \"rgba\": [\n            0,\n            255,\n            0,\n            255\n          ],\n          \"name\": \"Green\"\n        },\n        {\n          \"rgba\": [\n            0,\n            0,\n            255,\n            255\n          ],\n          \"name\": \"Blue\"\n        },\n        {\n          \"rgba\": [\n            255,\n            255,\n            0,\n            255\n          ],\n          \"name\": \"Yellow\"\n        },\n        {\n          \"rgba\": [\n            255,\n            0,\n            255,\n            255\n          ],\n          \"name\": \"Magenta\"\n        },\n        {\n          \"rgba\": [\n            0,\n            255,\n            255,\n            255\n          ],\n          \"name\": \"Cyan\"\n        },\n        {\n          \"rgba\": [\n            128,\n            128,\n            128,\n            255\n          ],\n          \"name\": \"Gray\"\n        }\n      ],\n      \"foregroundIndex\": 1,\n      \"backgroundIndex\": 0\n    },\n    \"createdAt\": \"2026-03-16T14:53:08.873Z\",\n    \"updatedAt\": \"2026-03-16T14:53:08.893Z\"\n  },\n  \"pixelBuffers\": {\n    \"sl_1773672788873_ltc6tl\": {\n      \"width\": 8,\n      \"height\": 8,\n      \"data\": \"/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w==\"\n    },\n    \"sl_1773672788875_bz6988\": {\n      \"width\": 8,\n      \"height\": 8,\n      \"data\": \"/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w==\"\n    },\n    \"sl_1773672788876_177gxp\": {\n      \"width\": 8,\n      \"height\": 8,\n      \"data\": \"/wAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAyGQy/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyGQy/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMhkMv8AAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMmTI/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMmTI/wAAAAAA/wD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8A/w==\"\n    }\n  }\n}"
+      },
+      "ok": true,
+      "durationMs": 0
+    },
+    {
+      "step": 27,
+      "tool": "sprite_session_close",
+      "args": {
+        "sessionId": "session_1"
+      },
+      "result": {
+        "ok": true,
+        "closed": "session_1"
+      },
+      "ok": true,
+      "durationMs": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "history_0_after_draw.json",
+      "path": "history_0_after_draw.json",
+      "mimeType": "application/json",
+      "byteLength": 122,
+      "sha256": "ced4f33d1e1227bbc8687985fff6e9164df9c8899d0e1ab854195c4b65c3fd35"
+    },
+    {
+      "name": "history_1_after_dup_frame.json",
+      "path": "history_1_after_dup_frame.json",
+      "mimeType": "application/json",
+      "byteLength": 133,
+      "sha256": "daa10618982184606ed7d06b15e7297e1f68d753a90a6560496f2b0d8a2b8f88"
+    },
+    {
+      "name": "history_2_after_batch.json",
+      "path": "history_2_after_batch.json",
+      "mimeType": "application/json",
+      "byteLength": 122,
+      "sha256": "f999fd8bf10077fdf18cf293d3162f05f7e874967f0ef55e67526eba3bf1f5b6"
+    },
+    {
+      "name": "history_3_after_transforms.json",
+      "path": "history_3_after_transforms.json",
+      "mimeType": "application/json",
+      "byteLength": 122,
+      "sha256": "8dd17da9c9c0d19ed7895791d26bdd7502012431d4a22f175bff0bec424a49a5"
+    },
+    {
+      "name": "before_undo_frame0.png",
+      "path": "before_undo_frame0.png",
+      "mimeType": "image/png",
+      "byteLength": 109,
+      "sha256": "1b67070fa7b56b1b6a976444ed469b9860eeac65192361c1958debfeab5e1166"
+    },
+    {
+      "name": "history_4_after_3_undos.json",
+      "path": "history_4_after_3_undos.json",
+      "mimeType": "application/json",
+      "byteLength": 121,
+      "sha256": "295c71e32625faa10924a1ead38be2c88e0f4a32b72403841fa07309c8e82388"
+    },
+    {
+      "name": "after_undo_frame0.png",
+      "path": "after_undo_frame0.png",
+      "mimeType": "image/png",
+      "byteLength": 95,
+      "sha256": "9df86e4dc92f07cd3c5c6abfe416bbb4936f62dec4094df03c79e45afb87b2cd"
+    },
+    {
+      "name": "history_5_after_3_redos.json",
+      "path": "history_5_after_3_redos.json",
+      "mimeType": "application/json",
+      "byteLength": 128,
+      "sha256": "365e394a83407ad31dcddf662d1b1a142b95f52602e5e870c809661bcb3fae7d"
+    },
+    {
+      "name": "after_redo_frame0.png",
+      "path": "after_redo_frame0.png",
+      "mimeType": "image/png",
+      "byteLength": 109,
+      "sha256": "1b67070fa7b56b1b6a976444ed469b9860eeac65192361c1958debfeab5e1166"
+    },
+    {
+      "name": "final_sheet.png",
+      "path": "final_sheet.png",
+      "mimeType": "image/png",
+      "byteLength": 127,
+      "sha256": "fa28a2ad29d2e8529047bf73a710a4833ba06e6b52fb16785f71408db2ca0f9b"
+    },
+    {
+      "name": "final_metadata.json",
+      "path": "final_metadata.json",
+      "mimeType": "application/json",
+      "byteLength": 446,
+      "sha256": "173e99ea9aa3feb1b750f53a8d0fc4c89cebf125ae07d16ccceb3ecabe0b4ab3"
+    },
+    {
+      "name": "final_document.glyph",
+      "path": "final_document.glyph",
+      "mimeType": "application/json",
+      "byteLength": 3907,
+      "sha256": "d7e64a6b9da1df30fd3d893adf135d7b43d02553ef424e4b9b96038f2f4dad95"
+    }
+  ],
+  "summary": {
+    "toolCalls": 28,
+    "succeeded": 28,
+    "failed": 0,
+    "artifactCount": 12
+  }
+}

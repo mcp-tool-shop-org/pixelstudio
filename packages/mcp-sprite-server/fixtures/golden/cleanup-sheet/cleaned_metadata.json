@@ -1,0 +1,29 @@
+{
+  "format": "glyphstudio-sprite-sheet",
+  "version": 1,
+  "name": "Cleanup",
+  "sheetWidth": 14,
+  "sheetHeight": 6,
+  "frameWidth": 7,
+  "frameHeight": 6,
+  "frameCount": 2,
+  "layout": "horizontal",
+  "frames": [
+    {
+      "index": 0,
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 6,
+      "durationMs": 100
+    },
+    {
+      "index": 1,
+      "x": 7,
+      "y": 0,
+      "w": 7,
+      "h": 6,
+      "durationMs": 100
+    }
+  ]
+}

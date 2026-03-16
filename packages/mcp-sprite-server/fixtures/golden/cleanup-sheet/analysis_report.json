@@ -1,0 +1,66 @@
+{
+  "frame0Bounds": {
+    "ok": true,
+    "minX": 1,
+    "minY": 1,
+    "maxX": 3,
+    "maxY": 3,
+    "width": 3,
+    "height": 3,
+    "opaquePixelCount": 9,
+    "empty": false
+  },
+  "frame1Bounds": {
+    "ok": true,
+    "minX": 0,
+    "minY": 0,
+    "maxX": 6,
+    "maxY": 5,
+    "width": 7,
+    "height": 6,
+    "opaquePixelCount": 10,
+    "empty": false
+  },
+  "frame0Colors": {
+    "ok": true,
+    "uniqueColors": 2,
+    "histogram": [
+      {
+        "rgba": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "hex": "#00000000",
+        "count": 55
+      },
+      {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "hex": "#ff0000ff",
+        "count": 9
+      }
+    ],
+    "opaquePixelCount": 9,
+    "transparentPixelCount": 55,
+    "totalPixels": 64
+  },
+  "frameDiff": {
+    "ok": true,
+    "changedPixelCount": 19,
+    "totalPixels": 64,
+    "changedBounds": {
+      "minX": 0,
+      "minY": 0,
+      "maxX": 6,
+      "maxY": 5
+    },
+    "identical": false,
+    "changedPercent": 29.69
+  }
+}

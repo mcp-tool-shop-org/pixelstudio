@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "canUndo": true,
+  "canRedo": true,
+  "pastCount": 4,
+  "futureCount": 3,
+  "latestOperation": "Draw"
+}

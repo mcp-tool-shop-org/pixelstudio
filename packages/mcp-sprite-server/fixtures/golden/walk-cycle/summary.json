@@ -1,0 +1,79 @@
+{
+  "ok": true,
+  "document": {
+    "id": "sprite_1773672788791_wbw10w",
+    "name": "WalkCycle",
+    "width": 16,
+    "height": 16,
+    "frameCount": 4,
+    "frames": [
+      {
+        "id": "sf_1773672788791_gmbqu6",
+        "index": 0,
+        "durationMs": 150,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788791_6maph1",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788794_k03pbf",
+        "index": 1,
+        "durationMs": 150,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788794_8pszkr",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788796_obylki",
+        "index": 2,
+        "durationMs": 150,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788796_puthzb",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      },
+      {
+        "id": "sf_1773672788798_1jfqkh",
+        "index": 3,
+        "durationMs": 150,
+        "layerCount": 1,
+        "layers": [
+          {
+            "id": "sl_1773672788798_5toob8",
+            "name": "Layer 1",
+            "visible": true,
+            "index": 0
+          }
+        ]
+      }
+    ],
+    "palette": {
+      "colorCount": 10,
+      "foregroundIndex": 1,
+      "backgroundIndex": 0
+    },
+    "activeFrameIndex": 3,
+    "activeLayerId": "sl_1773672788798_5toob8",
+    "dirty": false,
+    "filePath": null,
+    "createdAt": "2026-03-16T14:53:08.791Z",
+    "updatedAt": "2026-03-16T14:53:08.799Z"
+  }
+}
