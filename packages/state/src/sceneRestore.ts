@@ -10,13 +10,10 @@ import type { SceneHistorySnapshot } from './sceneHistory';
  * and playback config. Domain-scoped restores restore only the selected
  * authored domain and preserve all others.
  *
- * `playback` is intentionally excluded as a standalone scope because
- * playbackConfig is not yet part of SceneHistorySnapshot. Playback-only
- * edits are invisible to the history engine, so standalone playback
- * restore cannot participate honestly in undo/redo/provenance.
- * Playback is still restored as part of `full`.
+ * `playback` restores only authored playback config (fps, looping).
+ * Transient playback state (isPlaying, currentTick) is never restored.
  */
-export type SceneRestoreScope = 'full' | 'camera' | 'keyframes' | 'instances';
+export type SceneRestoreScope = 'full' | 'camera' | 'keyframes' | 'instances' | 'playback';
 
 // ── Restore request ──
 
@@ -122,6 +119,7 @@ export const RESTORE_SCOPE_LABELS: Record<SceneRestoreScope, string> = {
   camera: 'Camera',
   keyframes: 'Keyframes',
   instances: 'Instances',
+  playback: 'Playback',
 };
 
 /** The domain-scoped restore scopes (excludes 'full'). */
@@ -129,6 +127,7 @@ export const SELECTIVE_RESTORE_SCOPES: SceneRestoreScope[] = [
   'instances',
   'camera',
   'keyframes',
+  'playback',
 ];
 
 // ── Derivation ──
@@ -160,6 +159,8 @@ export function deriveSceneRestore(request: SceneRestoreRequest): SceneRestoreRe
       return deriveKeyframesRestore(sourceSequence, sourceSnapshot, currentSnapshot);
     case 'instances':
       return deriveInstancesRestore(sourceSequence, sourceSnapshot, currentSnapshot);
+    case 'playback':
+      return derivePlaybackRestore(sourceSequence, sourceSnapshot, currentSnapshot);
     default:
       return {
         status: 'unavailable',
@@ -206,6 +207,7 @@ function deriveFullRestore(
     instances: restoredInstances,
     camera: restoredCamera,
     keyframes: restoredKeyframes,
+    playbackConfig: restoredPlayback,
   });
 
   if (isNoOp(before, after, restoredPlayback, currentSnapshot.playbackConfig)) {
@@ -382,6 +384,57 @@ function deriveInstancesRestore(
   };
 }
 
+// ── Playback-only restore ──
+
+function derivePlaybackRestore(
+  sourceSequence: number,
+  sourceSnapshot: SceneRestoreSnapshot,
+  currentSnapshot: SceneRestoreSnapshot,
+): SceneRestoreResult {
+  if (sourceSnapshot.playbackConfig === undefined) {
+    return {
+      status: 'unavailable',
+      reason: 'missing-domain-data',
+      label: `Restore #${sourceSequence} (Playback): no playback data in source entry.`,
+    };
+  }
+
+  const restoredPlayback = { ...sourceSnapshot.playbackConfig };
+  const currentInstances = deepCloneInstances(currentSnapshot.instances);
+  const currentCamera = currentSnapshot.camera !== undefined
+    ? { ...currentSnapshot.camera } : undefined;
+  const currentKeyframes = currentSnapshot.keyframes !== undefined
+    ? deepCloneKeyframes(currentSnapshot.keyframes) : undefined;
+
+  const before = buildHistorySnapshot(currentSnapshot);
+  const after = buildHistorySnapshot({
+    instances: currentInstances,
+    camera: currentCamera,
+    keyframes: currentKeyframes,
+  });
+
+  if (
+    JSON.stringify(currentSnapshot.playbackConfig) === JSON.stringify(restoredPlayback)
+  ) {
+    return {
+      status: 'unavailable',
+      reason: 'source-matches-current',
+      label: `Restore #${sourceSequence} (Playback): playback config already matches source.`,
+    };
+  }
+
+  return {
+    status: 'success',
+    before,
+    after,
+    instances: currentInstances,
+    camera: currentCamera,
+    keyframes: currentKeyframes,
+    playbackConfig: restoredPlayback,
+    label: describeSceneRestore(sourceSequence, 'playback'),
+  };
+}
+
 // ── Label helper ──
 
 /**
@@ -416,6 +469,9 @@ function buildHistorySnapshot(snapshot: SceneRestoreSnapshot): SceneHistorySnaps
   }
   if (snapshot.keyframes !== undefined) {
     result.keyframes = deepCloneKeyframes(snapshot.keyframes);
+  }
+  if (snapshot.playbackConfig !== undefined) {
+    result.playbackConfig = { ...snapshot.playbackConfig };
   }
   return result;
 }

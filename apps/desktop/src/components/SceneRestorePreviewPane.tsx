@@ -258,7 +258,7 @@ export function SceneRestorePreviewPane({
             {(scope === 'full' || scope === 'keyframes') && (
               <KeyframeSectionView section={result.comparison.keyframes} />
             )}
-            {scope === 'full' && (
+            {(scope === 'full' || scope === 'playback') && (
               <PlaybackSectionView section={result.comparison.playback} />
             )}
             {scope === 'full' && <UnavailableSections result={result.comparison} />}

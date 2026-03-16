@@ -2451,23 +2451,21 @@ describe('SceneProvenancePanel — scoped restore UI', () => {
     expect(useSceneEditorStore.getState().camera).toEqual(preCam);
   });
 
-  it('no playback-only scope button exists in UI', () => {
+  it('playback scope button exists in UI', () => {
     setupForScopedRestore();
     render(<SceneProvenancePanel />);
     const rows = document.querySelectorAll('.scene-provenance-row');
     fireEvent.click(rows[rows.length - 1]);
     fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
-    expect(document.querySelector('[data-scope="playback"]')).toBeNull();
+    expect(document.querySelector('[data-scope="playback"]')).not.toBeNull();
   });
 
-  it('playback section only appears in full scope preview', () => {
+  it('playback section hidden in non-playback non-full scope', () => {
     setupForScopedRestore();
     render(<SceneProvenancePanel />);
     const rows = document.querySelectorAll('.scene-provenance-row');
     fireEvent.click(rows[rows.length - 1]);
     fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
-    // Full scope: playback section may or may not render depending on data,
-    // but switching to instances scope must not show playback
     fireEvent.click(document.querySelector('[data-scope="instances"]')!);
     expect(document.querySelector('[data-domain="playback"]')).toBeNull();
   });

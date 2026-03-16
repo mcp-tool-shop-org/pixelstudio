@@ -4319,10 +4319,13 @@ describe('SceneEditorStore — scoped restore', () => {
     expect(useSceneEditorStore.getState().drilldownBySequence[lastSeq]).toBeDefined();
   });
 
-  it('playback-only scoped restore is honestly unavailable', () => {
+  it('playback-only scoped restore unavailable when no playback data in source', () => {
     setupForCameraRestore();
-    const result = useSceneEditorStore.getState().restoreEntry(1, 'playback' as any);
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'playback');
     expect(result.status).toBe('unavailable');
+    if (result.status === 'unavailable') {
+      expect(result.label).toContain('Playback');
+    }
   });
 });
 

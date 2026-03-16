@@ -411,23 +411,22 @@ describe('restore scope labels and constants', () => {
     expect(RESTORE_SCOPE_LABELS.camera).toBe('Camera');
     expect(RESTORE_SCOPE_LABELS.keyframes).toBe('Keyframes');
     expect(RESTORE_SCOPE_LABELS.instances).toBe('Instances');
+    expect(RESTORE_SCOPE_LABELS.playback).toBe('Playback');
   });
 
-  it('SELECTIVE_RESTORE_SCOPES excludes full', () => {
+  it('SELECTIVE_RESTORE_SCOPES excludes full but includes all domain scopes', () => {
     expect(SELECTIVE_RESTORE_SCOPES).not.toContain('full');
     expect(SELECTIVE_RESTORE_SCOPES).toContain('instances');
     expect(SELECTIVE_RESTORE_SCOPES).toContain('camera');
     expect(SELECTIVE_RESTORE_SCOPES).toContain('keyframes');
-  });
-
-  it('SELECTIVE_RESTORE_SCOPES does not include playback', () => {
-    expect(SELECTIVE_RESTORE_SCOPES).not.toContain('playback');
+    expect(SELECTIVE_RESTORE_SCOPES).toContain('playback');
   });
 
   it('describeSceneRestore includes scope label for non-full scopes', () => {
     expect(describeSceneRestore(3, 'camera')).toBe('Restore #3 (Camera)');
     expect(describeSceneRestore(7, 'keyframes')).toBe('Restore #7 (Keyframes)');
     expect(describeSceneRestore(1, 'instances')).toBe('Restore #1 (Instances)');
+    expect(describeSceneRestore(2, 'playback')).toBe('Restore #2 (Playback)');
   });
 
   it('describeSceneRestore omits scope label for full', () => {
@@ -806,8 +805,8 @@ describe('deriveSceneRestore cross-scope isolation', () => {
     expect(result.keyframes).toEqual([KF_A]); // restored
   });
 
-  it('selective restore never mutates authored playback config', () => {
-    for (const scope of SELECTIVE_RESTORE_SCOPES) {
+  it('non-playback selective restore preserves authored playback config', () => {
+    for (const scope of SELECTIVE_RESTORE_SCOPES.filter(s => s !== 'playback')) {
       const result = deriveSceneRestore(makeRequest(
         { instances: [INST_A], camera: CAM_A, keyframes: [KF_A], playbackConfig: PB_A },
         { instances: [INST_B], camera: CAM_B, keyframes: [KF_B], playbackConfig: PB_B },
@@ -815,7 +814,7 @@ describe('deriveSceneRestore cross-scope isolation', () => {
         scope,
       ));
       if (result.status !== 'success') continue;
-      // Playback config always preserved from current
+      // Playback config preserved from current for non-playback scopes
       expect(result.playbackConfig).toEqual(PB_B);
     }
   });
@@ -832,15 +831,41 @@ describe('deriveSceneRestore cross-scope isolation', () => {
     expect(result.playbackConfig).toEqual(PB_A);
   });
 
-  it('playback scope is not a valid SceneRestoreScope', () => {
+  it('playback scope restores only playback config', () => {
     const result = deriveSceneRestore(makeRequest(
       { instances: [INST_A], camera: CAM_A, playbackConfig: PB_A },
       { instances: [INST_B], camera: CAM_B, playbackConfig: PB_B },
       5,
-      'playback' as any,
+      'playback',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.playbackConfig).toEqual(PB_A);
+    expect(result.instances[0].instanceId).toBe('i2'); // current preserved
+    expect(result.camera).toEqual(CAM_B); // current preserved
+  });
+
+  it('playback scope unavailable when no playback data in source', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B, playbackConfig: PB_B },
+      5,
+      'playback',
     ));
     expect(result.status).toBe('unavailable');
     if (result.status !== 'unavailable') return;
-    expect(result.reason).toBe('scope-not-supported');
+    expect(result.reason).toBe('missing-domain-data');
+  });
+
+  it('playback scope no-op when source matches current', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], playbackConfig: PB_A },
+      { instances: [INST_B], playbackConfig: PB_A },
+      5,
+      'playback',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('source-matches-current');
   });
 });
