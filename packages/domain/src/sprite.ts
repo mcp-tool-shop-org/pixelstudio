@@ -152,6 +152,53 @@ export interface SpriteEditorState {
   dirty: boolean;
 }
 
+// ── Export metadata ──
+
+/** Per-frame metadata in a sprite sheet export manifest. */
+export interface SpriteSheetFrameMeta {
+  /** 0-based index in the frame sequence. */
+  index: number;
+  /** X offset of this frame in the sheet (pixels). */
+  x: number;
+  /** Y offset of this frame in the sheet (pixels). */
+  y: number;
+  /** Frame width in pixels. */
+  w: number;
+  /** Frame height in pixels. */
+  h: number;
+  /** Frame duration in milliseconds. */
+  durationMs: number;
+}
+
+/**
+ * JSON metadata manifest for a sprite sheet export.
+ *
+ * Describes the layout, timing, and dimensions of an exported sprite sheet
+ * so that runtimes and tools can load it without guessing.
+ */
+export interface SpriteSheetMeta {
+  /** Format identifier — always "glyphstudio-sprite-sheet". */
+  format: 'glyphstudio-sprite-sheet';
+  /** Schema version for forward compatibility. */
+  version: 1;
+  /** Sprite document name. */
+  name: string;
+  /** Total sheet width in pixels. */
+  sheetWidth: number;
+  /** Total sheet height in pixels. */
+  sheetHeight: number;
+  /** Individual frame width in pixels. */
+  frameWidth: number;
+  /** Individual frame height in pixels. */
+  frameHeight: number;
+  /** Number of frames in the sheet. */
+  frameCount: number;
+  /** Layout direction — currently always "horizontal". */
+  layout: 'horizontal';
+  /** Per-frame metadata in sequence order. */
+  frames: SpriteSheetFrameMeta[];
+}
+
 // ── Defaults ──
 
 export const DEFAULT_SPRITE_TOOL_CONFIG: SpriteToolConfig = {
