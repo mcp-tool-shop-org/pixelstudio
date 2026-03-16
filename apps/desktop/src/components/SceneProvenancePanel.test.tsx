@@ -61,7 +61,9 @@ beforeEach(() => {
   resetProvenanceSequence();
   useSceneEditorStore.setState({
     instances: [],
+    camera: undefined,
     keyframes: [],
+    playbackConfig: undefined,
     history: createEmptySceneHistoryState(),
     provenance: [],
     drilldownBySequence: {},
@@ -1962,7 +1964,7 @@ describe('SceneProvenancePanel — restore preview impact', () => {
     // Pane should render without crash — may show no-impact or minimal changes
   });
 
-  it('restore preview is read-only — no mutation buttons', () => {
+  it('restore preview with no impact shows only Close button', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
     render(<SceneProvenancePanel />);
@@ -1970,7 +1972,7 @@ describe('SceneProvenancePanel — restore preview impact', () => {
     fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
     const pane = document.querySelector('.restore-preview-pane');
     expect(pane).not.toBeNull();
-    // Only Close button should exist
+    // Only Close button should exist (no Restore Entry when noImpact)
     const buttons = pane!.querySelectorAll('button');
     expect(buttons).toHaveLength(1);
     expect(buttons[0].textContent).toContain('Close');
@@ -2168,5 +2170,171 @@ describe('SceneProvenancePanel — inspection mode provenance safety', () => {
     fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
     fireEvent.click(document.querySelector('.restore-preview-close')!);
     expect(useSceneEditorStore.getState().history).toBe(historyBefore);
+  });
+});
+
+// ── Restore action tests ──
+
+describe('SceneProvenancePanel — restore action', () => {
+  it('restore button appears in preview mode when there is impact', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    // Make another edit so entry #1 differs from current
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    // Select first entry (sequence 1) — it's the last row since newest-first
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]); // oldest = last row in newest-first
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const restoreBtn = document.querySelector('[data-action="restore-entry"]');
+    expect(restoreBtn).not.toBeNull();
+    expect(restoreBtn!.textContent).toContain('Restore Entry');
+  });
+
+  it('restore button does not appear when there is no impact', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
+  });
+
+  it('clicking Restore Entry creates one provenance entry', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    const provBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    expect(useSceneEditorStore.getState().provenance.length).toBe(provBefore + 1);
+  });
+
+  it('clicking Restore Entry creates provenance with kind restore-entry', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    const prov = useSceneEditorStore.getState().provenance;
+    expect(prov[prov.length - 1].kind).toBe('restore-entry');
+  });
+
+  it('successful restore exits preview mode', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Preview pane should close after successful restore
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+  });
+
+  it('restore does not occur on preview open alone', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    const provBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    // Opening preview should not create provenance
+    expect(useSceneEditorStore.getState().provenance.length).toBe(provBefore);
+  });
+
+  it('preview → restore creates exactly one restore entry', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    const provBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Exactly one new entry
+    expect(useSceneEditorStore.getState().provenance.length).toBe(provBefore + 1);
+    // And it's kind restore-entry
+    const prov = useSceneEditorStore.getState().provenance;
+    const restoreEntries = prov.filter((e) => e.kind === 'restore-entry');
+    expect(restoreEntries).toHaveLength(1);
+  });
+
+  it('compare mode does not show restore button', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="compare-current"]')!);
+    expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
+  });
+
+  it('drilldown mode does not show restore button', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
+  });
+});
+
+// ── Restore UI sanity after undo ──
+
+describe('SceneProvenancePanel — restore UI sanity', () => {
+  it('successful restore exits preview mode, undo does not resurrect preview mode', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    applyTestEdit('set-instance-opacity', [{ ...INST_A, x: 200, opacity: 0.5 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Preview mode exited
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+
+    // Undo the restore via store
+    act(() => {
+      useSceneEditorStore.getState().undo();
+    });
+    // Preview mode should NOT reappear
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+  });
+
+  it('failed restore leaves preview mode honest and state unchanged', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const provBefore = useSceneEditorStore.getState().provenance.length;
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    // noImpact → no restore button → preview stays honest
+    expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
+    expect(useSceneEditorStore.getState().provenance.length).toBe(provBefore);
   });
 });
