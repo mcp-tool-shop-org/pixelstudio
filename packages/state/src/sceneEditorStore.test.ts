@@ -4115,3 +4115,186 @@ describe('SceneEditorStore — restore playback boundary', () => {
     expect('currentTick' in state).toBe(false);
   });
 });
+
+// ── Scoped restore (selective) ──
+
+describe('SceneEditorStore — scoped restore', () => {
+  const CAM_A: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_B: SceneCamera = { x: 100, y: 50, zoom: 2.0 };
+  const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+  const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+
+  // Helper: setup scene with a camera edit that also captures afterCamera
+  // Entry 1: camera change (CAM_A → CAM_B), then entry 2 changes camera further
+  // so entry 1's afterCamera (CAM_B) differs from current camera (CAM_C)
+  const CAM_C: SceneCamera = { x: 999, y: 999, zoom: 5.0 };
+
+  function setupForCameraRestore() {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadCamera(CAM_A);
+    // Entry 1: camera change + instance move (history needs instance diff)
+    store.applyEdit('set-scene-camera', [{ ...INST_ASSET, x: 200 }], { changedFields: ['x', 'y'] }, CAM_B);
+    // Entry 2: camera changes again — so entry 1's afterCamera (CAM_B) ≠ current (CAM_C)
+    store.applyEdit('set-scene-camera', [{ ...INST_ASSET, x: 200 }], { changedFields: ['zoom'] }, CAM_C);
+  }
+
+  // Helper: setup scene with instance edits that capture afterInstance
+  // Entry 1: move instance (x:50→200), then entry 2 moves further (200→500)
+  function setupForInstanceRestore() {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadCamera(CAM_A);
+    // Entry 1: move instance — drilldown captures afterInstance with x:200
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' }, CAM_A);
+    // Entry 2: move instance further — so entry 1's afterInstance differs from current
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 500 }], { instanceId: 'i1' }, CAM_A);
+  }
+
+  // ── Camera-scoped restore ──
+
+  it('camera-scoped restore mutates only camera', () => {
+    setupForCameraRestore();
+    const preInstances = useSceneEditorStore.getState().instances;
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    // Camera restored to CAM_B (entry 1's afterCamera)
+    expect(result.camera).toEqual(CAM_B);
+    // Instances unchanged from pre-restore
+    expect(useSceneEditorStore.getState().instances).toEqual(preInstances);
+  });
+
+  it('camera-scoped restore creates history/provenance entry', () => {
+    setupForCameraRestore();
+    const prevProvLen = useSceneEditorStore.getState().provenance.length;
+    const prevHistLen = useSceneEditorStore.getState().history.past.length;
+    useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(useSceneEditorStore.getState().provenance.length).toBe(prevProvLen + 1);
+    expect(useSceneEditorStore.getState().history.past.length).toBe(prevHistLen + 1);
+  });
+
+  it('camera-scoped restore is undoable', () => {
+    setupForCameraRestore();
+    const preCam = useSceneEditorStore.getState().camera;
+    useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().camera).toEqual(preCam);
+  });
+
+  it('camera-scoped restore undo → redo round-trips', () => {
+    setupForCameraRestore();
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    const postCam = useSceneEditorStore.getState().camera;
+    useSceneEditorStore.getState().undo();
+    useSceneEditorStore.getState().redo();
+    expect(useSceneEditorStore.getState().camera).toEqual(postCam);
+  });
+
+  it('camera-scoped restore fails honestly when no camera data in source', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    // Entry 1: instance-only edit — no camera captured in drilldown
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 500 }], { instanceId: 'i1' });
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.label).toContain('Camera');
+  });
+
+  // ── Instances-scoped restore ──
+
+  it('instances-scoped restore mutates only instances', () => {
+    setupForInstanceRestore();
+    const preCam = useSceneEditorStore.getState().camera;
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'instances');
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    // Camera unchanged
+    expect(useSceneEditorStore.getState().camera).toEqual(preCam);
+    // Instance restored to entry 1's afterInstance position
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(200);
+  });
+
+  it('instances-scoped restore is undoable', () => {
+    setupForInstanceRestore();
+    const preInst = useSceneEditorStore.getState().instances;
+    useSceneEditorStore.getState().restoreEntry(1, 'instances');
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().instances).toEqual(preInst);
+  });
+
+  it('instances-scoped restore creates one provenance entry', () => {
+    setupForInstanceRestore();
+    const prevLen = useSceneEditorStore.getState().provenance.length;
+    useSceneEditorStore.getState().restoreEntry(1, 'instances');
+    expect(useSceneEditorStore.getState().provenance.length).toBe(prevLen + 1);
+  });
+
+  // ── Keyframes-scoped restore ──
+
+  it('keyframes-scoped restore mutates only keyframes', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.loadCamera(CAM_A);
+    // Entry 1: add keyframe + move instance
+    store.applyEdit('add-camera-keyframe', [{ ...INST_ASSET, x: 200 }], { tick: 0 }, CAM_A, [KF_A]);
+    // Entry 2: change keyframe
+    store.applyEdit('edit-camera-keyframe', [{ ...INST_ASSET, x: 200 }], { tick: 0 }, CAM_A, [KF_B]);
+    const preInstances = useSceneEditorStore.getState().instances;
+    const preCam = useSceneEditorStore.getState().camera;
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'keyframes');
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(useSceneEditorStore.getState().instances).toEqual(preInstances);
+    expect(useSceneEditorStore.getState().camera).toEqual(preCam);
+    // Keyframes restored to entry 1's value
+    expect(result.keyframes).toBeDefined();
+  });
+
+  it('keyframes-scoped restore fails when no keyframe data', () => {
+    const store = useSceneEditorStore.getState();
+    store.loadInstances([INST_ASSET]);
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 200 }], { instanceId: 'i1' });
+    store.applyEdit('move-instance', [{ ...INST_ASSET, x: 500 }], { instanceId: 'i1' });
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'keyframes');
+    expect(result.status).toBe('unavailable');
+  });
+
+  // ── Honest playback limitation ──
+
+  it('full restore still works with default scope', () => {
+    setupForInstanceRestore();
+    const result = useSceneEditorStore.getState().restoreEntry(1);
+    expect(result.status).toBe('success');
+  });
+
+  it('scope metadata is recorded in provenance drilldown', () => {
+    setupForCameraRestore();
+    useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    const prov = useSceneEditorStore.getState().provenance;
+    const lastEntry = prov[prov.length - 1];
+    const source = useSceneEditorStore.getState().drilldownBySequence[lastEntry.sequence];
+    expect(source).toBeDefined();
+    expect(source.metadata).toBeDefined();
+    if (source.metadata && 'scope' in source.metadata) {
+      expect(source.metadata.scope).toBe('camera');
+    }
+  });
+
+  it('scoped restore rollback restores exact pre-restore state', () => {
+    setupForCameraRestore();
+    const pre = {
+      instances: useSceneEditorStore.getState().instances,
+      camera: useSceneEditorStore.getState().camera,
+    };
+    const result = useSceneEditorStore.getState().restoreEntry(1, 'camera');
+    expect(result.status).toBe('success');
+    if (result.status === 'success') result.rollback();
+    expect(useSceneEditorStore.getState().instances).toEqual(pre.instances);
+    expect(useSceneEditorStore.getState().camera).toEqual(pre.camera);
+  });
+});

@@ -1964,7 +1964,7 @@ describe('SceneProvenancePanel — restore preview impact', () => {
     // Pane should render without crash — may show no-impact or minimal changes
   });
 
-  it('restore preview with no impact shows only Close button', () => {
+  it('restore preview with no impact shows no restore action button', () => {
     useSceneEditorStore.getState().loadInstances([INST_A]);
     applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
     render(<SceneProvenancePanel />);
@@ -1972,10 +1972,9 @@ describe('SceneProvenancePanel — restore preview impact', () => {
     fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
     const pane = document.querySelector('.restore-preview-pane');
     expect(pane).not.toBeNull();
-    // Only Close button should exist (no Restore Entry when noImpact)
-    const buttons = pane!.querySelectorAll('button');
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0].textContent).toContain('Close');
+    // No restore action button when noImpact (scope selector + close still present)
+    expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
+    expect(document.querySelector('.restore-preview-close')).not.toBeNull();
   });
 
   it('restore preview does not alter provenance state', () => {
@@ -2336,5 +2335,119 @@ describe('SceneProvenancePanel — restore UI sanity', () => {
     // noImpact → no restore button → preview stays honest
     expect(document.querySelector('[data-action="restore-entry"]')).toBeNull();
     expect(useSceneEditorStore.getState().provenance.length).toBe(provBefore);
+  });
+});
+
+// ── Scoped restore UI ──
+
+describe('SceneProvenancePanel — scoped restore UI', () => {
+  function setupForScopedRestore() {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    useSceneEditorStore.getState().loadCamera({ x: 0, y: 0, zoom: 1.0 });
+    // Entry 1: move instance + camera change
+    useSceneEditorStore.getState().applyEdit(
+      'move-instance' as any,
+      [{ ...INST_A, x: 200 }],
+      { instanceId: 'i1' } as any,
+      { x: 100, y: 50, zoom: 2.0 },
+    );
+    // Entry 2: move further so entry 1 differs from current
+    useSceneEditorStore.getState().applyEdit(
+      'move-instance' as any,
+      [{ ...INST_A, x: 500 }],
+      { instanceId: 'i1' } as any,
+      { x: 999, y: 999, zoom: 5.0 },
+    );
+  }
+
+  it('restore preview pane shows scope selector', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]); // select oldest entry
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('[data-testid="scope-selector"]')).not.toBeNull();
+  });
+
+  it('scope selector has all expected scope buttons', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('[data-scope="full"]')).not.toBeNull();
+    expect(document.querySelector('[data-scope="instances"]')).not.toBeNull();
+    expect(document.querySelector('[data-scope="camera"]')).not.toBeNull();
+    expect(document.querySelector('[data-scope="keyframes"]')).not.toBeNull();
+  });
+
+  it('full scope is active by default', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const fullBtn = document.querySelector('[data-scope="full"]');
+    expect(fullBtn?.classList.contains('active')).toBe(true);
+  });
+
+  it('clicking a scope button activates it', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('[data-scope="camera"]')!);
+    const cameraBtn = document.querySelector('[data-scope="camera"]');
+    expect(cameraBtn?.classList.contains('active')).toBe(true);
+    const fullBtn = document.querySelector('.restore-scope-btn[data-scope="full"]');
+    expect(fullBtn?.classList.contains('active')).toBe(false);
+  });
+
+  it('restore button reflects selected scope', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    // Default: full
+    const restoreBtn = document.querySelector('[data-action="restore-entry"]');
+    expect(restoreBtn?.textContent).toBe('Restore Entry');
+    // Switch to camera
+    fireEvent.click(document.querySelector('[data-scope="camera"]')!);
+    const restoreBtnAfter = document.querySelector('[data-action="restore-entry"]');
+    expect(restoreBtnAfter?.getAttribute('data-scope')).toBe('camera');
+    expect(restoreBtnAfter?.textContent).toBe('Restore Camera');
+  });
+
+  it('scoped restore executes and exits preview', () => {
+    setupForScopedRestore();
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('[data-scope="instances"]')!);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Preview pane closed
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    // Instance was restored to entry 1 position (x:200)
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(200);
+  });
+
+  it('scoped restore preserves non-selected domains', () => {
+    setupForScopedRestore();
+    const preCam = useSceneEditorStore.getState().camera;
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[rows.length - 1]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    fireEvent.click(document.querySelector('[data-scope="instances"]')!);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-action="restore-entry"]')!);
+    });
+    // Camera unchanged after instance-scoped restore
+    expect(useSceneEditorStore.getState().camera).toEqual(preCam);
   });
 });

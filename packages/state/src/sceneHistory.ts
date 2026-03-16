@@ -69,8 +69,8 @@ export interface SceneHistoryKeyframeMeta {
 export interface SceneHistoryRestoreMeta {
   /** The provenance sequence number of the entry being restored. */
   sourceSequence: number;
-  /** Restore scope. */
-  scope: 'full';
+  /** Restore scope — which authored domain(s) are being restored. */
+  scope: 'full' | 'camera' | 'keyframes' | 'instances';
 }
 
 export type SceneHistoryOperationMetadata =

@@ -4,11 +4,14 @@ import {
   deriveSceneRestore,
   describeSceneRestore,
   FULL_RESTORE_DOMAINS,
+  RESTORE_SCOPE_LABELS,
+  SELECTIVE_RESTORE_SCOPES,
 } from './sceneRestore';
 import type {
   SceneRestoreRequest,
   SceneRestoreSnapshot,
   SceneRestoreResult,
+  SceneRestoreScope,
 } from './sceneRestore';
 
 // ── Fixtures ──
@@ -56,9 +59,10 @@ function makeRequest(
   source: Partial<SceneRestoreSnapshot>,
   current: Partial<SceneRestoreSnapshot>,
   sequence = 5,
+  scope: SceneRestoreScope = 'full',
 ): SceneRestoreRequest {
   return {
-    scope: 'full',
+    scope,
     sourceSequence: sequence,
     sourceSnapshot: {
       instances: [],
@@ -396,5 +400,409 @@ describe('deriveSceneRestore history snapshots', () => {
     result.after.instances[0].x = -999;
     expect(current.instances[0].x).toBe(200);
     expect(source.instances[0].x).toBe(50);
+  });
+});
+
+// ── Scope labels and constants ──
+
+describe('restore scope labels and constants', () => {
+  it('RESTORE_SCOPE_LABELS has operator-readable labels', () => {
+    expect(RESTORE_SCOPE_LABELS.full).toBe('Full Scene');
+    expect(RESTORE_SCOPE_LABELS.camera).toBe('Camera');
+    expect(RESTORE_SCOPE_LABELS.keyframes).toBe('Keyframes');
+    expect(RESTORE_SCOPE_LABELS.instances).toBe('Instances');
+  });
+
+  it('SELECTIVE_RESTORE_SCOPES excludes full', () => {
+    expect(SELECTIVE_RESTORE_SCOPES).not.toContain('full');
+    expect(SELECTIVE_RESTORE_SCOPES).toContain('instances');
+    expect(SELECTIVE_RESTORE_SCOPES).toContain('camera');
+    expect(SELECTIVE_RESTORE_SCOPES).toContain('keyframes');
+  });
+
+  it('SELECTIVE_RESTORE_SCOPES does not include playback', () => {
+    expect(SELECTIVE_RESTORE_SCOPES).not.toContain('playback');
+  });
+
+  it('describeSceneRestore includes scope label for non-full scopes', () => {
+    expect(describeSceneRestore(3, 'camera')).toBe('Restore #3 (Camera)');
+    expect(describeSceneRestore(7, 'keyframes')).toBe('Restore #7 (Keyframes)');
+    expect(describeSceneRestore(1, 'instances')).toBe('Restore #1 (Instances)');
+  });
+
+  it('describeSceneRestore omits scope label for full', () => {
+    expect(describeSceneRestore(5, 'full')).toBe('Restore #5');
+  });
+});
+
+// ── Camera-scoped restore ──
+
+describe('deriveSceneRestore camera scope', () => {
+  it('restores only camera from source, preserves current instances', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.camera).toEqual(CAM_A);
+    expect(result.instances).toEqual([INST_B]); // current preserved
+  });
+
+  it('preserves current keyframes when restoring camera', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, keyframes: [KF_A] },
+      { instances: [INST_B], camera: CAM_B, keyframes: [KF_B] },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.keyframes).toEqual([KF_B]); // current preserved
+  });
+
+  it('preserves current playback config when restoring camera', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, playbackConfig: PB_A },
+      { instances: [INST_B], camera: CAM_B, playbackConfig: PB_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.playbackConfig).toEqual(PB_B); // current preserved
+  });
+
+  it('returns missing-domain-data when source has no camera', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A] },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('missing-domain-data');
+    expect(result.label).toContain('Camera');
+  });
+
+  it('returns source-matches-current when camera already matches', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_A },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('source-matches-current');
+  });
+
+  it('camera restore does not fail because keyframes are missing', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+  });
+
+  it('history snapshots reflect only camera change', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    // Instances identical in before and after
+    expect(result.before.instances).toEqual(result.after.instances);
+    expect(result.before.camera).toEqual(CAM_B);
+    expect(result.after.camera).toEqual(CAM_A);
+  });
+
+  it('label includes scope name', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      3,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.label).toBe('Restore #3 (Camera)');
+  });
+});
+
+// ── Keyframes-scoped restore ──
+
+describe('deriveSceneRestore keyframes scope', () => {
+  it('restores only keyframes from source, preserves current instances', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A] },
+      { instances: [INST_B], keyframes: [KF_B] },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.keyframes).toEqual([KF_A]);
+    expect(result.instances).toEqual([INST_B]); // current preserved
+  });
+
+  it('preserves current camera when restoring keyframes', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A], camera: CAM_A },
+      { instances: [INST_B], keyframes: [KF_B], camera: CAM_B },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.camera).toEqual(CAM_B); // current preserved
+  });
+
+  it('preserves current playback config when restoring keyframes', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A], playbackConfig: PB_A },
+      { instances: [INST_B], keyframes: [KF_B], playbackConfig: PB_B },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.playbackConfig).toEqual(PB_B); // current preserved
+  });
+
+  it('returns missing-domain-data when source has no keyframes', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], keyframes: [KF_B] },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('missing-domain-data');
+    expect(result.label).toContain('Keyframes');
+  });
+
+  it('returns source-matches-current when keyframes already match', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A] },
+      { instances: [INST_B], keyframes: [KF_A] },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('source-matches-current');
+  });
+
+  it('keyframes restore does not fail because camera is missing', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A] },
+      { instances: [INST_B], keyframes: [KF_B] },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+  });
+
+  it('label includes scope name', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A] },
+      { instances: [INST_B], keyframes: [KF_B] },
+      3,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.label).toBe('Restore #3 (Keyframes)');
+  });
+});
+
+// ── Instances-scoped restore ──
+
+describe('deriveSceneRestore instances scope', () => {
+  it('restores only instances from source, preserves current camera', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.instances).toEqual([INST_A]);
+    expect(result.camera).toEqual(CAM_B); // current preserved
+  });
+
+  it('preserves current keyframes when restoring instances', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], keyframes: [KF_A] },
+      { instances: [INST_B], keyframes: [KF_B] },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.keyframes).toEqual([KF_B]); // current preserved
+  });
+
+  it('preserves current playback config when restoring instances', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], playbackConfig: PB_A },
+      { instances: [INST_B], playbackConfig: PB_B },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.playbackConfig).toEqual(PB_B); // current preserved
+  });
+
+  it('returns missing-domain-data when source has empty instances', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [] },
+      { instances: [INST_B] },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('missing-domain-data');
+    expect(result.label).toContain('Instances');
+  });
+
+  it('returns source-matches-current when instances already match', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A] },
+      { instances: [INST_A] },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('unavailable');
+    if (result.status !== 'unavailable') return;
+    expect(result.reason).toBe('source-matches-current');
+  });
+
+  it('instances restore does not fail because playback is missing', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A] },
+      { instances: [INST_B] },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+  });
+
+  it('history snapshots reflect only instances change', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    // Camera identical in before and after
+    expect(result.before.camera).toEqual(CAM_B);
+    expect(result.after.camera).toEqual(CAM_B);
+    // Instances differ
+    expect(result.before.instances[0].instanceId).toBe('i2');
+    expect(result.after.instances[0].instanceId).toBe('i1');
+  });
+
+  it('includes character fields in scoped instance restore', () => {
+    const charInstance: SceneAssetInstance = {
+      ...INST_A,
+      instanceKind: 'character',
+      sourceCharacterBuildId: 'build-1',
+      characterLinkMode: 'linked',
+      characterSlotSnapshot: { slots: { head: 'p1' }, equippedCount: 1, totalSlots: 3 },
+    };
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [charInstance] },
+      { instances: [INST_B] },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.instances[0].sourceCharacterBuildId).toBe('build-1');
+  });
+
+  it('label includes scope name', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A] },
+      { instances: [INST_B] },
+      3,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.label).toBe('Restore #3 (Instances)');
+  });
+});
+
+// ── Cross-scope isolation ──
+
+describe('deriveSceneRestore cross-scope isolation', () => {
+  it('full scope restores all domains', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, keyframes: [KF_A], playbackConfig: PB_A },
+      { instances: [INST_B], camera: CAM_B, keyframes: [KF_B], playbackConfig: PB_B },
+      5,
+      'full',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.instances).toEqual([INST_A]);
+    expect(result.camera).toEqual(CAM_A);
+    expect(result.keyframes).toEqual([KF_A]);
+    expect(result.playbackConfig).toEqual(PB_A);
+  });
+
+  it('camera scope does not touch instances even when source has different ones', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'camera',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.instances[0].instanceId).toBe('i2'); // current, not source
+  });
+
+  it('instances scope does not touch camera even when source has different one', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A },
+      { instances: [INST_B], camera: CAM_B },
+      5,
+      'instances',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.camera).toEqual(CAM_B); // current, not source
+  });
+
+  it('keyframes scope does not touch instances or camera', () => {
+    const result = deriveSceneRestore(makeRequest(
+      { instances: [INST_A], camera: CAM_A, keyframes: [KF_A] },
+      { instances: [INST_B], camera: CAM_B, keyframes: [KF_B] },
+      5,
+      'keyframes',
+    ));
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    expect(result.instances[0].instanceId).toBe('i2'); // current
+    expect(result.camera).toEqual(CAM_B); // current
+    expect(result.keyframes).toEqual([KF_A]); // restored
   });
 });

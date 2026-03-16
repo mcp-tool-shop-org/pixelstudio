@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useSceneEditorStore,
   createEntryAnchor,
   deriveRestorePreview,
+  RESTORE_SCOPE_LABELS,
+  SELECTIVE_RESTORE_SCOPES,
 } from '@glyphstudio/state';
 import type {
   RestorePreviewResult,
@@ -14,6 +16,7 @@ import type {
   KeyframeComparisonEntry,
   PlaybackComparisonSection,
   SceneComparisonSnapshot,
+  SceneRestoreScope,
 } from '@glyphstudio/state';
 
 // ── Shared rendering helpers ──
@@ -170,16 +173,20 @@ function UnavailableSections({ result }: { result: SceneComparisonResult }) {
 export interface SceneRestorePreviewPaneProps {
   sequence: number;
   onClose: () => void;
-  onRestore: (sequence: number) => void;
+  onRestore: (sequence: number, scope: SceneRestoreScope) => void;
 }
 
 // ── Pane ──
+
+/** All scope options including full. */
+const ALL_SCOPES: SceneRestoreScope[] = ['full', ...SELECTIVE_RESTORE_SCOPES];
 
 export function SceneRestorePreviewPane({
   sequence,
   onClose,
   onRestore,
 }: SceneRestorePreviewPaneProps) {
+  const [scope, setScope] = useState<SceneRestoreScope>('full');
   const provenance = useSceneEditorStore((s) => s.provenance);
   const drilldownBySequence = useSceneEditorStore((s) => s.drilldownBySequence);
   const instances = useSceneEditorStore((s) => s.instances);
@@ -223,6 +230,18 @@ export function SceneRestorePreviewPane({
         <span className="restore-preview-title">{result.label}</span>
         <button className="restore-preview-close" onClick={onClose}>Close</button>
       </div>
+      <div className="restore-preview-scope-selector" data-testid="scope-selector">
+        {ALL_SCOPES.map((s) => (
+          <button
+            key={s}
+            className={`restore-scope-btn${scope === s ? ' active' : ''}`}
+            data-scope={s}
+            onClick={() => setScope(s)}
+          >
+            {RESTORE_SCOPE_LABELS[s]}
+          </button>
+        ))}
+      </div>
       {result.noImpact ? (
         <div className="restore-preview-no-impact">
           Restoring this entry would make no authored changes.
@@ -230,19 +249,28 @@ export function SceneRestorePreviewPane({
       ) : (
         <>
           <div className="restore-preview-body">
-            <InstanceSectionView section={result.comparison.instances} />
-            <CameraSectionView section={result.comparison.camera} />
-            <KeyframeSectionView section={result.comparison.keyframes} />
-            <PlaybackSectionView section={result.comparison.playback} />
-            <UnavailableSections result={result.comparison} />
+            {(scope === 'full' || scope === 'instances') && (
+              <InstanceSectionView section={result.comparison.instances} />
+            )}
+            {(scope === 'full' || scope === 'camera') && (
+              <CameraSectionView section={result.comparison.camera} />
+            )}
+            {(scope === 'full' || scope === 'keyframes') && (
+              <KeyframeSectionView section={result.comparison.keyframes} />
+            )}
+            {scope === 'full' && (
+              <PlaybackSectionView section={result.comparison.playback} />
+            )}
+            {scope === 'full' && <UnavailableSections result={result.comparison} />}
           </div>
           <div className="restore-preview-actions">
             <button
               className="restore-preview-restore-btn"
               data-action="restore-entry"
-              onClick={() => onRestore(sequence)}
+              data-scope={scope}
+              onClick={() => onRestore(sequence, scope)}
             >
-              Restore Entry
+              {scope === 'full' ? 'Restore Entry' : `Restore ${RESTORE_SCOPE_LABELS[scope]}`}
             </button>
           </div>
         </>

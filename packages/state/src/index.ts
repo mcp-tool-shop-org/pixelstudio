@@ -210,6 +210,8 @@ export {
   deriveSceneRestore,
   describeSceneRestore,
   FULL_RESTORE_DOMAINS,
+  RESTORE_SCOPE_LABELS,
+  SELECTIVE_RESTORE_SCOPES,
 } from './sceneRestore';
 export type {
   SceneRestoreScope,

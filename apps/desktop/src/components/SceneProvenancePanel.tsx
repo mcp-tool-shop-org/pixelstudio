@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSceneEditorStore } from '@glyphstudio/state';
-import type { SceneProvenanceEntry } from '@glyphstudio/state';
-import type { SceneRestoreActionResult } from '@glyphstudio/state';
+import type { SceneProvenanceEntry, SceneRestoreActionResult, SceneRestoreScope } from '@glyphstudio/state';
 import { SceneProvenanceDrilldownPane } from './SceneProvenanceDrilldownPane';
 import { SceneComparisonPane } from './SceneComparisonPane';
 import { SceneRestorePreviewPane } from './SceneRestorePreviewPane';
@@ -93,9 +92,9 @@ export function SceneProvenancePanel() {
 
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
-  const handleRestore = useCallback((sequence: number) => {
+  const handleRestore = useCallback((sequence: number, scope: SceneRestoreScope = 'full') => {
     setRestoreError(null);
-    const result: SceneRestoreActionResult = useSceneEditorStore.getState().restoreEntry(sequence);
+    const result: SceneRestoreActionResult = useSceneEditorStore.getState().restoreEntry(sequence, scope);
     if (result.status === 'success') {
       // Exit preview mode — return to drilldown
       setPanelMode({ type: 'drilldown' });

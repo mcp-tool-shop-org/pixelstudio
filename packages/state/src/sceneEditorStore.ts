@@ -23,7 +23,7 @@ import {
 } from './sceneProvenance';
 import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
 import { captureProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
-import type { SceneRestoreResult } from './sceneRestore';
+import type { SceneRestoreResult, SceneRestoreScope } from './sceneRestore';
 import { deriveSceneRestore } from './sceneRestore';
 
 // ── Undo/redo result with rollback ──
@@ -151,7 +151,7 @@ export interface SceneEditorState {
    * Returns the restore result so the UI can react to success or unavailable.
    * Does NOT touch transient playback state (isPlaying, currentTick).
    */
-  restoreEntry: (sequence: number) => SceneRestoreActionResult;
+  restoreEntry: (sequence: number, scope?: SceneRestoreScope) => SceneRestoreActionResult;
 
   // ── Undo / Redo ──
 
@@ -262,20 +262,24 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     });
   },
 
-  restoreEntry: (sequence) => {
+  restoreEntry: (sequence, scope = 'full') => {
     const state = get();
     const { instances, camera, keyframes, playbackConfig, drilldownBySequence, history, provenance } = state;
     const source = drilldownBySequence[sequence];
 
     // Build the source snapshot from drilldown data
+    // Note: drilldown captures afterKeyframe (singular) not the full array.
+    // Keyframe-scoped restore from a single-keyframe drilldown is inherently
+    // limited — the full keyframes array is only available in history snapshots.
     const sourceSnapshot = {
       instances: source?.afterInstance ? [source.afterInstance] : [],
       camera: source?.afterCamera,
+      keyframes: source?.afterKeyframe ? [source.afterKeyframe] : undefined,
       playbackConfig: source?.afterPlayback,
     };
 
     const result = deriveSceneRestore({
-      scope: 'full',
+      scope,
       sourceSequence: sequence,
       sourceSnapshot,
       currentSnapshot: { instances, camera, keyframes, playbackConfig },
@@ -295,7 +299,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     const prevDrilldown = drilldownBySequence;
 
     // Route through the lawful seam — one edit, one history entry, one provenance entry
-    const meta: SceneHistoryRestoreMeta = { sourceSequence: sequence, scope: 'full' };
+    const meta: SceneHistoryRestoreMeta = { sourceSequence: sequence, scope };
     state.applyEdit(
       'restore-entry',
       result.instances,

@@ -7,9 +7,16 @@ import type { SceneHistorySnapshot } from './sceneHistory';
  * Which domains to include in a restore operation.
  *
  * `full` restores all authored domains: instances, camera, keyframes,
- * and playback config. Selective scopes will be added in a later commit.
+ * and playback config. Domain-scoped restores restore only the selected
+ * authored domain and preserve all others.
+ *
+ * `playback` is intentionally excluded as a standalone scope because
+ * playbackConfig is not yet part of SceneHistorySnapshot. Playback-only
+ * edits are invisible to the history engine, so standalone playback
+ * restore cannot participate honestly in undo/redo/provenance.
+ * Playback is still restored as part of `full`.
  */
-export type SceneRestoreScope = 'full';
+export type SceneRestoreScope = 'full' | 'camera' | 'keyframes' | 'instances';
 
 // ── Restore request ──
 
@@ -55,7 +62,8 @@ export interface SceneRestoreSnapshot {
 export type SceneRestoreUnavailableReason =
   | 'no-source-snapshot'
   | 'source-matches-current'
-  | 'scope-not-supported';
+  | 'scope-not-supported'
+  | 'missing-domain-data';
 
 /**
  * The result of a restore derivation.
@@ -106,6 +114,23 @@ export const FULL_RESTORE_DOMAINS = [
 
 export type FullRestoreDomain = (typeof FULL_RESTORE_DOMAINS)[number];
 
+// ── Scope labels ──
+
+/** Operator-readable labels for restore scopes. */
+export const RESTORE_SCOPE_LABELS: Record<SceneRestoreScope, string> = {
+  full: 'Full Scene',
+  camera: 'Camera',
+  keyframes: 'Keyframes',
+  instances: 'Instances',
+};
+
+/** The domain-scoped restore scopes (excludes 'full'). */
+export const SELECTIVE_RESTORE_SCOPES: SceneRestoreScope[] = [
+  'instances',
+  'camera',
+  'keyframes',
+];
+
 // ── Derivation ──
 
 /**
@@ -119,20 +144,38 @@ export type FullRestoreDomain = (typeof FULL_RESTORE_DOMAINS)[number];
  * When the source snapshot lacks a domain (e.g., camera is undefined),
  * the current value for that domain is preserved — restore never
  * destructively clears data that wasn't captured in the source.
+ *
+ * Domain-scoped restore replaces only the selected domain and preserves
+ * all other domains exactly as-is.
  */
 export function deriveSceneRestore(request: SceneRestoreRequest): SceneRestoreResult {
   const { scope, sourceSequence, sourceSnapshot, currentSnapshot } = request;
 
-  // Scope guard — only 'full' is supported in this commit
-  if (scope !== 'full') {
-    return {
-      status: 'unavailable',
-      reason: 'scope-not-supported',
-      label: `Restore #${sourceSequence}: scope "${scope}" not yet supported.`,
-    };
+  switch (scope) {
+    case 'full':
+      return deriveFullRestore(sourceSequence, sourceSnapshot, currentSnapshot);
+    case 'camera':
+      return deriveCameraRestore(sourceSequence, sourceSnapshot, currentSnapshot);
+    case 'keyframes':
+      return deriveKeyframesRestore(sourceSequence, sourceSnapshot, currentSnapshot);
+    case 'instances':
+      return deriveInstancesRestore(sourceSequence, sourceSnapshot, currentSnapshot);
+    default:
+      return {
+        status: 'unavailable',
+        reason: 'scope-not-supported',
+        label: `Restore #${sourceSequence}: scope "${scope as string}" not supported.`,
+      };
   }
+}
 
-  // Source must have at least instances
+// ── Full restore ──
+
+function deriveFullRestore(
+  sourceSequence: number,
+  sourceSnapshot: SceneRestoreSnapshot,
+  currentSnapshot: SceneRestoreSnapshot,
+): SceneRestoreResult {
   if (!sourceSnapshot.instances) {
     return {
       status: 'unavailable',
@@ -141,7 +184,6 @@ export function deriveSceneRestore(request: SceneRestoreRequest): SceneRestoreRe
     };
   }
 
-  // Derive the "after" state: source snapshot merged with current for missing domains
   const restoredInstances = deepCloneInstances(sourceSnapshot.instances);
   const restoredCamera = sourceSnapshot.camera !== undefined
     ? { ...sourceSnapshot.camera }
@@ -159,34 +201,14 @@ export function deriveSceneRestore(request: SceneRestoreRequest): SceneRestoreRe
       ? { ...currentSnapshot.playbackConfig }
       : undefined;
 
-  // Build history snapshots
-  const before: SceneHistorySnapshot = {
-    instances: deepCloneInstances(currentSnapshot.instances),
-  };
-  if (currentSnapshot.camera !== undefined) {
-    before.camera = { ...currentSnapshot.camera };
-  }
-  if (currentSnapshot.keyframes !== undefined) {
-    before.keyframes = deepCloneKeyframes(currentSnapshot.keyframes);
-  }
+  const before = buildHistorySnapshot(currentSnapshot);
+  const after = buildHistorySnapshot({
+    instances: restoredInstances,
+    camera: restoredCamera,
+    keyframes: restoredKeyframes,
+  });
 
-  const after: SceneHistorySnapshot = {
-    instances: deepCloneInstances(restoredInstances),
-  };
-  if (restoredCamera !== undefined) {
-    after.camera = { ...restoredCamera };
-  }
-  if (restoredKeyframes !== undefined) {
-    after.keyframes = deepCloneKeyframes(restoredKeyframes);
-  }
-
-  // No-op guard: if before and after are identical, this is a no-change restore
-  if (
-    JSON.stringify(before.instances) === JSON.stringify(after.instances) &&
-    JSON.stringify(before.camera) === JSON.stringify(after.camera) &&
-    JSON.stringify(before.keyframes) === JSON.stringify(after.keyframes) &&
-    JSON.stringify(restoredPlayback) === JSON.stringify(currentSnapshot.playbackConfig)
-  ) {
+  if (isNoOp(before, after, restoredPlayback, currentSnapshot.playbackConfig)) {
     return {
       status: 'unavailable',
       reason: 'source-matches-current',
@@ -202,7 +224,161 @@ export function deriveSceneRestore(request: SceneRestoreRequest): SceneRestoreRe
     camera: restoredCamera,
     keyframes: restoredKeyframes,
     playbackConfig: restoredPlayback,
-    label: describeSceneRestore(sourceSequence, scope),
+    label: describeSceneRestore(sourceSequence, 'full'),
+  };
+}
+
+// ── Camera-only restore ──
+
+function deriveCameraRestore(
+  sourceSequence: number,
+  sourceSnapshot: SceneRestoreSnapshot,
+  currentSnapshot: SceneRestoreSnapshot,
+): SceneRestoreResult {
+  if (sourceSnapshot.camera === undefined) {
+    return {
+      status: 'unavailable',
+      reason: 'missing-domain-data',
+      label: `Restore #${sourceSequence} (Camera): no camera data in source entry.`,
+    };
+  }
+
+  const restoredCamera = { ...sourceSnapshot.camera };
+  const currentInstances = deepCloneInstances(currentSnapshot.instances);
+  const currentKeyframes = currentSnapshot.keyframes !== undefined
+    ? deepCloneKeyframes(currentSnapshot.keyframes) : undefined;
+  const currentPlayback = currentSnapshot.playbackConfig !== undefined
+    ? { ...currentSnapshot.playbackConfig } : undefined;
+
+  const before = buildHistorySnapshot(currentSnapshot);
+  const after = buildHistorySnapshot({
+    instances: currentInstances,
+    camera: restoredCamera,
+    keyframes: currentKeyframes,
+  });
+
+  if (
+    JSON.stringify(before.camera) === JSON.stringify(after.camera)
+  ) {
+    return {
+      status: 'unavailable',
+      reason: 'source-matches-current',
+      label: `Restore #${sourceSequence} (Camera): camera already matches source.`,
+    };
+  }
+
+  return {
+    status: 'success',
+    before,
+    after,
+    instances: currentInstances,
+    camera: restoredCamera,
+    keyframes: currentKeyframes,
+    playbackConfig: currentPlayback,
+    label: describeSceneRestore(sourceSequence, 'camera'),
+  };
+}
+
+// ── Keyframes-only restore ──
+
+function deriveKeyframesRestore(
+  sourceSequence: number,
+  sourceSnapshot: SceneRestoreSnapshot,
+  currentSnapshot: SceneRestoreSnapshot,
+): SceneRestoreResult {
+  if (sourceSnapshot.keyframes === undefined) {
+    return {
+      status: 'unavailable',
+      reason: 'missing-domain-data',
+      label: `Restore #${sourceSequence} (Keyframes): no keyframe data in source entry.`,
+    };
+  }
+
+  const restoredKeyframes = deepCloneKeyframes(sourceSnapshot.keyframes);
+  const currentInstances = deepCloneInstances(currentSnapshot.instances);
+  const currentCamera = currentSnapshot.camera !== undefined
+    ? { ...currentSnapshot.camera } : undefined;
+  const currentPlayback = currentSnapshot.playbackConfig !== undefined
+    ? { ...currentSnapshot.playbackConfig } : undefined;
+
+  const before = buildHistorySnapshot(currentSnapshot);
+  const after = buildHistorySnapshot({
+    instances: currentInstances,
+    camera: currentCamera,
+    keyframes: restoredKeyframes,
+  });
+
+  if (
+    JSON.stringify(before.keyframes) === JSON.stringify(after.keyframes)
+  ) {
+    return {
+      status: 'unavailable',
+      reason: 'source-matches-current',
+      label: `Restore #${sourceSequence} (Keyframes): keyframes already match source.`,
+    };
+  }
+
+  return {
+    status: 'success',
+    before,
+    after,
+    instances: currentInstances,
+    camera: currentCamera,
+    keyframes: restoredKeyframes,
+    playbackConfig: currentPlayback,
+    label: describeSceneRestore(sourceSequence, 'keyframes'),
+  };
+}
+
+// ── Instances-only restore ──
+
+function deriveInstancesRestore(
+  sourceSequence: number,
+  sourceSnapshot: SceneRestoreSnapshot,
+  currentSnapshot: SceneRestoreSnapshot,
+): SceneRestoreResult {
+  if (!sourceSnapshot.instances || sourceSnapshot.instances.length === 0) {
+    return {
+      status: 'unavailable',
+      reason: 'missing-domain-data',
+      label: `Restore #${sourceSequence} (Instances): no instance data in source entry.`,
+    };
+  }
+
+  const restoredInstances = deepCloneInstances(sourceSnapshot.instances);
+  const currentCamera = currentSnapshot.camera !== undefined
+    ? { ...currentSnapshot.camera } : undefined;
+  const currentKeyframes = currentSnapshot.keyframes !== undefined
+    ? deepCloneKeyframes(currentSnapshot.keyframes) : undefined;
+  const currentPlayback = currentSnapshot.playbackConfig !== undefined
+    ? { ...currentSnapshot.playbackConfig } : undefined;
+
+  const before = buildHistorySnapshot(currentSnapshot);
+  const after = buildHistorySnapshot({
+    instances: restoredInstances,
+    camera: currentCamera,
+    keyframes: currentKeyframes,
+  });
+
+  if (
+    JSON.stringify(before.instances) === JSON.stringify(after.instances)
+  ) {
+    return {
+      status: 'unavailable',
+      reason: 'source-matches-current',
+      label: `Restore #${sourceSequence} (Instances): instances already match source.`,
+    };
+  }
+
+  return {
+    status: 'success',
+    before,
+    after,
+    instances: restoredInstances,
+    camera: currentCamera,
+    keyframes: currentKeyframes,
+    playbackConfig: currentPlayback,
+    label: describeSceneRestore(sourceSequence, 'instances'),
   };
 }
 
@@ -218,10 +394,10 @@ export function describeSceneRestore(
   if (scope === 'full') {
     return `Restore #${sourceSequence}`;
   }
-  return `Restore #${sourceSequence} (${scope})`;
+  return `Restore #${sourceSequence} (${RESTORE_SCOPE_LABELS[scope]})`;
 }
 
-// ── Deep clone helpers ──
+// ── Internal helpers ──
 
 function deepCloneInstances(instances: SceneAssetInstance[]): SceneAssetInstance[] {
   return JSON.parse(JSON.stringify(instances)) as SceneAssetInstance[];
@@ -229,4 +405,31 @@ function deepCloneInstances(instances: SceneAssetInstance[]): SceneAssetInstance
 
 function deepCloneKeyframes(keyframes: SceneCameraKeyframe[]): SceneCameraKeyframe[] {
   return JSON.parse(JSON.stringify(keyframes)) as SceneCameraKeyframe[];
+}
+
+function buildHistorySnapshot(snapshot: SceneRestoreSnapshot): SceneHistorySnapshot {
+  const result: SceneHistorySnapshot = {
+    instances: deepCloneInstances(snapshot.instances),
+  };
+  if (snapshot.camera !== undefined) {
+    result.camera = { ...snapshot.camera };
+  }
+  if (snapshot.keyframes !== undefined) {
+    result.keyframes = deepCloneKeyframes(snapshot.keyframes);
+  }
+  return result;
+}
+
+function isNoOp(
+  before: SceneHistorySnapshot,
+  after: SceneHistorySnapshot,
+  restoredPlayback: ScenePlaybackConfig | undefined,
+  currentPlayback: ScenePlaybackConfig | undefined,
+): boolean {
+  return (
+    JSON.stringify(before.instances) === JSON.stringify(after.instances) &&
+    JSON.stringify(before.camera) === JSON.stringify(after.camera) &&
+    JSON.stringify(before.keyframes) === JSON.stringify(after.keyframes) &&
+    JSON.stringify(restoredPlayback) === JSON.stringify(currentPlayback)
+  );
 }
