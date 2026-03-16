@@ -1149,7 +1149,7 @@ All 20 scene operation kinds are fully covered across history, provenance, drill
 | Character override | `remove-character-override` | `instanceId`, `slotId` | `CharacterOverrideDiffView` |
 | Character override | `clear-all-character-overrides` | `instanceId` | `CharacterOverrideDiffView` |
 | Camera | `set-scene-camera` | camera fields | `CameraDiffView` |
-| Playback config | `set-scene-playback` | — | `CameraPlaybackDiffView` |
+| Playback config | `set-scene-playback` | `beforePlayback`, `afterPlayback` | `PlaybackDiffView` |
 | Keyframe | `add-camera-keyframe` | `tick` | `KeyframeDiffView` |
 | Keyframe | `remove-camera-keyframe` | `tick` | `KeyframeDiffView` |
 | Keyframe | `move-camera-keyframe` | `tick`, `previousTick` | `KeyframeDiffView` |
@@ -1162,6 +1162,7 @@ All 20 scene operation kinds are fully covered across history, provenance, drill
 | `beforeInstance` / `afterInstance` | Instance, character, override ops | Full `SceneAssetInstance` snapshot |
 | `beforeCamera` / `afterCamera` | Camera ops | `SceneCamera` (x, y, zoom) |
 | `beforeKeyframe` / `afterKeyframe` | Keyframe ops | `SceneCameraKeyframe` (tick, x, y, zoom, interpolation, name?) |
+| `beforePlayback` / `afterPlayback` | Playback ops | `ScenePlaybackConfig` (fps, looping) |
 
 ### Structured value summary helpers (`structuredValueSummary`)
 
@@ -1176,6 +1177,9 @@ All 20 scene operation kinds are fully covered across history, provenance, drill
 | `summarizeScalarChange` | fn | Single-field before/after summary |
 | `fallbackSummary` | fn | Honest fallback when structure is unknown |
 | `classifySummaryFamily` | fn | Classify field configs into a summary family |
+| `fmtNumber` | fn | Format number with up to 1 decimal |
+| `fmtPercent` | fn | Format 0–1 value as percentage |
+| `fmtBool` | fn | Format boolean as Yes/No |
 | `CAMERA_FIELD_CONFIGS` | const | Camera fields: Pan X, Pan Y, Zoom |
 | `KEYFRAME_FIELD_CONFIGS` | const | Keyframe fields: X, Y, Zoom, Interpolation, Name |
 | `POSITION_FIELD_CONFIGS` | const | Position fields: X, Y |

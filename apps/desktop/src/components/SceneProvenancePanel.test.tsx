@@ -1542,4 +1542,38 @@ describe('SceneProvenancePanel — playback drilldown with values', () => {
     expect(text).toContain('24');
     expect(text).not.toContain('60');
   });
+
+  it('legacy persisted playback entry without config shows honest fallback', () => {
+    // Simulate a pre-Stage-23 persisted entry with no playback config captured
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'set-scene-playback', label: 'Edit Playback', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'set-scene-playback' } },
+    );
+    render(<SceneProvenancePanel />);
+    const row = document.querySelector('.scene-provenance-row');
+    fireEvent.click(row!);
+
+    const detail = document.querySelector('[data-family="playback"]');
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain('Playback settings changed');
+    // Should NOT contain FPS or Looping labels — no fake detail
+    const baLabels = detail!.querySelectorAll('.provenance-drilldown-ba-label');
+    expect(baLabels).toHaveLength(0);
+  });
+
+  it('restored playback entry stays fixed after later playback config change', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'set-scene-playback', label: 'Edit Playback', timestamp: '2026-03-15T12:00:00Z' }],
+      { 1: { kind: 'set-scene-playback', beforePlayback: { fps: 12, looping: false }, afterPlayback: { fps: 24, looping: true } } },
+    );
+    // Later playback config change (should not affect restored entry)
+    useSceneEditorStore.getState().loadPlaybackConfig({ fps: 60, looping: false });
+
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+
+    const source = useSceneEditorStore.getState().drilldownBySequence[1];
+    expect(source.beforePlayback?.fps).toBe(12);
+    expect(source.afterPlayback?.fps).toBe(24);
+  });
 });

@@ -367,7 +367,7 @@ Drilldown is built on three layers in `@glyphstudio/state`:
 | Capture | `sceneProvenanceDrilldown.ts` | `captureProvenanceDrilldownSource` — extract focused before/after slices at edit seam |
 | Store | `sceneEditorStore.ts` | Store captured slices in `drilldownBySequence`, keyed by provenance sequence |
 
-The capture step runs inside `applyEdit` at the same seam as provenance append. It extracts only the targeted instance (by metadata `instanceId`) from the before and after instance arrays — not the full scene. Camera operations capture exact `beforeCamera` and `afterCamera` values from the edit seam. Playback operations capture metadata only.
+The capture step runs inside `applyEdit` at the same seam as provenance append. It extracts only the targeted instance (by metadata `instanceId`) from the before and after instance arrays — not the full scene. Camera operations capture exact `beforeCamera` and `afterCamera` values from the edit seam. Playback operations capture `beforePlayback` and `afterPlayback` `ScenePlaybackConfig` values (FPS, looping). All captured values are shallow copies — never aliased to live state.
 
 #### Diff derivation
 
@@ -378,8 +378,8 @@ The capture step runs inside `applyEdit` at the same seam as provenance append. 
 - **Property** — visibility (Visible/Hidden), opacity (percentage), layer, clip path, parallax
 - **Source relationship** — unlink/relink/reapply with link mode transitions and slot-level changes
 - **Override** — set/remove/clear-all with slot, mode, and replacement details
-- **Camera** — changed fields list with exact before/after camera coordinates (pan, zoom, reset)
-- **Playback** — settings-changed note
+- **Camera** — changed fields list with exact before/after camera coordinates (Pan X, Pan Y, Zoom)
+- **Playback** — before/after FPS and looping values (or honest fallback for legacy entries)
 
 Each diff type is a discriminated union variant keyed by `type`, enabling type-safe rendering in specialized family components.
 
@@ -430,7 +430,7 @@ Keyframe drilldown sources include `beforeKeyframe` and `afterKeyframe` slices c
 - No restore-from-entry or jump-to-state action
 - No generic raw scene diff viewer — drilldown shows operation-aware focused diffs only
 - Provenance is scene-only, not project-wide
-- Camera drilldown shows exact before/after values for pan, zoom, and reset; keyframe drilldown shows tick, position, zoom, and interpolation; playback drilldown shows metadata only
+- Camera drilldown shows exact before/after values with structured labels (Pan X, Pan Y, Zoom); keyframe drilldown shows tick, position, zoom, and interpolation; playback drilldown shows FPS and looping before/after when captured, with honest fallback for legacy entries
 - Undo/redo history does not persist — it resets on scene change or app restart
 
 ### Parity closeout (Stage 22)
@@ -439,11 +439,65 @@ Authored scene operation parity is complete across all six domains: instances (8
 
 Transient preview state (current tick, play/pause, scrub head, camera resolver output, shot derivation) remains intentionally outside the law. This boundary is load-bearing — blurring it would pollute the provenance log with noise that isn't authored truth.
 
+### Diff-depth closeout (Stage 23)
+
+Stage 23 audited drilldown depth across all 20 operation kinds and found parity already complete. The one shallow family (playback — empty payload with no before/after values) was deepened to carry real FPS and looping config. Camera and keyframe renderers were moved onto shared field-config contracts for stable labels and ordering. Keyframe-moved was tightened to show only the tick transition. Legacy or partial persisted entries degrade honestly. Coverage did not change; legibility improved.
+
 ### Structured value summary contract (Stage 23)
 
 The `structuredValueSummary` module provides reusable helpers for multi-field before/after summaries in drilldown rendering. Pre-defined field configs exist for camera (`CAMERA_FIELD_CONFIGS`), keyframe (`KEYFRAME_FIELD_CONFIGS`), position (`POSITION_FIELD_CONFIGS`), and playback (`PLAYBACK_FIELD_CONFIGS`). Changed-field extraction produces stable, config-ordered results. Unknown or partial payloads degrade to an honest fallback summary.
 
-Diff-depth audit: 19/20 operation kinds are good enough; playback is the one shallow case (empty payload, no before/after values). Improvement targets: deepen playback diff, adopt human-readable field labels for camera/keyframe renderers, suppress unchanged fields in keyframe-moved.
+### Diff depth (Stage 23)
+
+Coverage parity was already complete before Stage 23. Stage 23 improves explanation depth — how clearly each drilldown entry communicates what changed — without adding new operation kinds or altering coverage.
+
+| Concern | Status | Stage |
+|---------|--------|-------|
+| Coverage parity (all 20 ops) | Complete | Stage 22 |
+| Diff depth (structured rendering) | Improved | Stage 23 |
+| Fallback behavior (legacy/partial) | Honest | All stages |
+
+Structured diff summaries now drive three drilldown families:
+
+- **Playback authored config** — `PlaybackDiff` carries `before`/`after` `ScenePlaybackConfig` (FPS, looping). The store tracks `playbackConfig` and passes it through `applyEdit`. Legacy entries without captured config fall back to "Playback settings changed."
+- **Camera field labeling** — `CameraDiffView` uses `CAMERA_FIELD_CONFIGS` via `extractChangedFields` for stable label order (Pan X, Pan Y, Zoom) instead of ad-hoc inline checks. Legacy entries without `before`/`after` camera fall back to metadata-only display.
+- **Keyframe editing** — `KeyframeDiffView` for edited keyframes uses `KEYFRAME_FIELD_CONFIGS` for stable changed-field extraction. Keyframe-moved now shows only the tick transition, suppressing unchanged x/y/zoom/interpolation noise.
+
+#### Authored playback vs transient playback
+
+Only authored playback configuration gets deep drilldown:
+
+| Playback concept | In drilldown? | Why |
+|-----------------|---------------|-----|
+| FPS (authored) | Yes | Persisted scene config, changed via `set-scene-playback` |
+| Looping (authored) | Yes | Persisted scene config, changed via `set-scene-playback` |
+| Current tick | No | Runtime playhead, transient preview state |
+| Play/pause | No | Preview control, not authored truth |
+| Scrub position | No | Transient UI interaction |
+
+#### Legacy fallback behavior
+
+Persisted playback entries created before Stage 23 have no captured `beforePlayback`/`afterPlayback`. These entries degrade honestly:
+
+- Drilldown shows "Playback settings changed." (generic note, no fake detail)
+- Camera entries without captured before/after fall back to metadata-only field names
+- The system never invents values that were not captured at the edit seam
+
+**Pinned law:** Absence of captured config is not permission to guess. Older entries remain truthful by showing less, not by fabricating detail.
+
+### Drilldown rendering rules
+
+Drilldown renderers are keyed by `data-family` attribute:
+
+| Family | `data-family` | Structured? | Config used |
+|--------|---------------|-------------|-------------|
+| Camera | `camera` | Yes | `CAMERA_FIELD_CONFIGS` (Pan X, Pan Y, Zoom) |
+| Playback | `playback` | Yes | `PLAYBACK_FIELD_CONFIGS` (FPS, Looping) |
+| Keyframe edited | `keyframe` | Yes | `KEYFRAME_FIELD_CONFIGS` (X, Y, Zoom, Interpolation, Name) |
+| Keyframe moved | `keyframe` | Tick-only | Suppresses unchanged position/zoom/interpolation |
+| Instance/character/override | various | Direct | Field-specific inline rendering |
+
+All structured renderers use `extractChangedFields` from `structuredValueSummary.ts`, which returns fields in config-defined order. This guarantees stable, predictable label ordering regardless of which fields changed.
 
 ## Character workflow
 
