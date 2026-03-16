@@ -69,6 +69,13 @@ export function SpriteEditor() {
           return;
         }
 
+        // Swap colors: X
+        if (key === 'x') {
+          e.preventDefault();
+          store.swapColors();
+          return;
+        }
+
         // Zoom: +/= to zoom in, - to zoom out
         if (key === '=' || key === '+') {
           e.preventDefault();

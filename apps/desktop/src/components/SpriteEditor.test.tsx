@@ -553,6 +553,30 @@ describe('SpriteEditor', () => {
     expect(useSpriteEditorStore.getState().document!.frames.length).toBe(2);
   });
 
+  it('X key swaps foreground and background colors', async () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    const before = useSpriteEditorStore.getState().document!.palette;
+    const origFg = before.foregroundIndex;
+    const origBg = before.backgroundIndex;
+    await userEvent.keyboard('x');
+    const after = useSpriteEditorStore.getState().document!.palette;
+    expect(after.foregroundIndex).toBe(origBg);
+    expect(after.backgroundIndex).toBe(origFg);
+  });
+
+  it('shows RGBA label for foreground color', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('palette-rgba-label')).toBeDefined();
+  });
+
+  it('shows color picker input', () => {
+    openTestDoc();
+    render(<SpriteEditor />);
+    expect(screen.getByTestId('palette-color-picker')).toBeDefined();
+  });
+
   it('= key zooms in', async () => {
     openTestDoc();
     render(<SpriteEditor />);
