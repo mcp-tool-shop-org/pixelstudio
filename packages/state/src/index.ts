@@ -251,3 +251,11 @@ export {
 } from './spriteImportExport';
 export type { SheetValidationResult } from './spriteImportExport';
 export { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
+export {
+  serializeSpriteFile,
+  deserializeSpriteFile,
+  encodePixelData,
+  decodePixelData,
+  GLYPH_SCHEMA_VERSION,
+  GLYPH_FORMAT,
+} from './spritePersistence';
