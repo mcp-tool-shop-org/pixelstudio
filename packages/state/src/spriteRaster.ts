@@ -359,6 +359,27 @@ export function clonePixelBuffer(buffer: SpritePixelBuffer): SpritePixelBuffer {
 }
 
 /**
+ * Create a silhouette buffer: every non-transparent pixel is replaced with
+ * a single flat color, preserving original alpha. Fully pure — returns a new buffer.
+ */
+export function silhouetteBuffer(
+  buffer: SpritePixelBuffer,
+  color: Rgba,
+): SpritePixelBuffer {
+  const { width, height, data } = buffer;
+  const out = new Uint8ClampedArray(data.length);
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0) continue;
+    out[i] = color[0];
+    out[i + 1] = color[1];
+    out[i + 2] = color[2];
+    out[i + 3] = a;
+  }
+  return { width, height, data: out };
+}
+
+/**
  * Flatten visible layers into a single pixel buffer using simple alpha compositing.
  * Layers are composited in order (index 0 = bottom, last = top).
  * Hidden layers are skipped. Returns a blank buffer if no visible layers.

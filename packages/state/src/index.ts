@@ -5,6 +5,7 @@ export { useProjectStore } from './projectStore';
 export { useWorkspaceStore } from './workspaceStore';
 export { useWorkflowStore } from './workflowStore';
 export { useCanvasViewStore, ZOOM_STEPS } from './canvasViewStore';
+export type { SilhouetteColor } from './canvasViewStore';
 export { useToolStore } from './toolStore';
 export type { RgbaColor } from './toolStore';
 export { useSelectionStore } from './selectionStore';
@@ -245,6 +246,7 @@ export {
   flipBufferHorizontal,
   flipBufferVertical,
   flattenLayers,
+  silhouetteBuffer,
   TRANSPARENT,
 } from './spriteRaster';
 export type { Rgba } from './spriteRaster';

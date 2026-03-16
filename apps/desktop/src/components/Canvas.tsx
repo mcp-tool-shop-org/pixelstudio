@@ -67,6 +67,8 @@ export function Canvas() {
   const panX = useCanvasViewStore((s) => s.panX);
   const panY = useCanvasViewStore((s) => s.panY);
   const showPixelGrid = useCanvasViewStore((s) => s.showPixelGrid);
+  const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
+  const silhouetteColor = useCanvasViewStore((s) => s.silhouetteColor);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
   const panBy = useCanvasViewStore((s) => s.panBy);
   const zoomIn = useCanvasViewStore((s) => s.zoomIn);
@@ -269,6 +271,9 @@ export function Canvas() {
 
     // --- Active frame pixels ---
     const frameData = frame.data;
+    const silR = silhouetteColor[0];
+    const silG = silhouetteColor[1];
+    const silB = silhouetteColor[2];
     for (let py = 0; py < frame.height; py++) {
       for (let px = 0; px < frame.width; px++) {
         const i = (py * frame.width + px) * 4;
@@ -277,10 +282,13 @@ export function Canvas() {
         const sx = originX + px * zoom;
         const sy = originY + py * zoom;
         if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
+        const r = showSilhouette ? silR : frameData[i];
+        const g = showSilhouette ? silG : frameData[i + 1];
+        const b = showSilhouette ? silB : frameData[i + 2];
         if (a === 255) {
-          ctx.fillStyle = `rgb(${frameData[i]},${frameData[i + 1]},${frameData[i + 2]})`;
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
         } else {
-          ctx.fillStyle = `rgba(${frameData[i]},${frameData[i + 1]},${frameData[i + 2]},${a / 255})`;
+          ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`;
         }
         ctx.fillRect(sx, sy, zoom, zoom);
       }
@@ -371,7 +379,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
 
   useEffect(() => { render(); }, [render]);
 

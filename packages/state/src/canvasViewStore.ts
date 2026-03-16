@@ -12,7 +12,11 @@ type OverlayKey =
   | 'showSockets'
   | 'showPivot'
   | 'showPaletteIndices'
-  | 'showOnionSkin';
+  | 'showOnionSkin'
+  | 'showSilhouette';
+
+/** RGBA silhouette color — each channel 0–255. */
+export type SilhouetteColor = [number, number, number, number];
 
 interface CanvasViewState {
   zoom: number;
@@ -26,6 +30,8 @@ interface CanvasViewState {
   showPivot: boolean;
   showPaletteIndices: boolean;
   showOnionSkin: boolean;
+  showSilhouette: boolean;
+  silhouetteColor: SilhouetteColor;
   previewBackground: 'dark' | 'light' | 'checker';
 
   setZoom: (zoom: number) => void;
@@ -35,6 +41,7 @@ interface CanvasViewState {
   setPan: (x: number, y: number) => void;
   panBy: (dx: number, dy: number) => void;
   toggleOverlay: (key: OverlayKey) => void;
+  setSilhouetteColor: (color: SilhouetteColor) => void;
   setPreviewBackground: (bg: 'dark' | 'light' | 'checker') => void;
 }
 
@@ -64,6 +71,8 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   showPivot: true,
   showPaletteIndices: false,
   showOnionSkin: false,
+  showSilhouette: false,
+  silhouetteColor: [30, 30, 40, 255] as SilhouetteColor,
   previewBackground: 'checker',
 
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
@@ -83,6 +92,7 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   setPan: (x, y) => set({ panX: x, panY: y }),
   panBy: (dx, dy) => set((s) => ({ panX: s.panX + dx, panY: s.panY + dy })),
   toggleOverlay: (key) => set((s) => ({ [key]: !s[key] })),
+  setSilhouetteColor: (color) => set({ silhouetteColor: color }),
   setPreviewBackground: (bg) => set({ previewBackground: bg }),
 }));
 

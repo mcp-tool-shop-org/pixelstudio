@@ -6,6 +6,7 @@ import { useTimelineStore } from '@glyphstudio/state';
 import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useScenePlaybackStore } from '@glyphstudio/state';
+import { useCanvasViewStore } from '@glyphstudio/state';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { MotionPanel } from './MotionPanel';
@@ -47,6 +48,9 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const toggleOnionSkin = useTimelineStore((s) => s.toggleOnionSkin);
   const setOnionSkinShowPrev = useTimelineStore((s) => s.setOnionSkinShowPrev);
   const setOnionSkinShowNext = useTimelineStore((s) => s.setOnionSkinShowNext);
+
+  const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
+  const toggleSilhouette = useCanvasViewStore((s) => s.toggleOverlay);
 
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
@@ -428,6 +432,15 @@ export function BottomDock({ activeMode }: BottomDockProps) {
               </label>
             </>
           )}
+        </div>
+        <div className="timeline-view-toggles">
+          <button
+            className={`timeline-btn ${showSilhouette ? 'active' : ''}`}
+            title="Toggle silhouette view — flatten to single-color outline"
+            onClick={() => toggleSilhouette('showSilhouette')}
+          >
+            Sil
+          </button>
         </div>
         <div className="timeline-info">
           <span>{frames.length} frame{frames.length !== 1 ? 's' : ''}</span>

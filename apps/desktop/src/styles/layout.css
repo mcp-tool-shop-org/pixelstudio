@@ -781,6 +781,14 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.timeline-view-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .timeline-btn.active {
   background: var(--accent-primary);
   color: var(--bg-base);
