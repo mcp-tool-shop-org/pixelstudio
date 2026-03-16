@@ -1,6 +1,17 @@
 import type { SceneAssetInstance, SceneCamera, SceneCameraKeyframe, ScenePlaybackConfig } from '@glyphstudio/domain';
 import type { SceneProvenanceEntry } from './sceneProvenance';
 import type { SceneProvenanceDrilldownSource } from './sceneProvenanceDrilldown';
+import type { FieldConfig } from './structuredValueSummary';
+import {
+  extractChangedFields,
+  CAMERA_FIELD_CONFIGS,
+  KEYFRAME_FIELD_CONFIGS,
+  PLAYBACK_FIELD_CONFIGS,
+  fmtNumber,
+  fmtPercent,
+  fmtBool,
+  fmtString,
+} from './structuredValueSummary';
 
 // ── Comparison modes ──
 
@@ -275,4 +286,327 @@ export function resolveComparisonScopes(
   }
 
   return scopes;
+}
+
+// ── Instance field configs for comparison ──
+
+const INSTANCE_FIELD_CONFIGS: FieldConfig[] = [
+  { key: 'x', label: 'X', format: fmtNumber },
+  { key: 'y', label: 'Y', format: fmtNumber },
+  { key: 'zOrder', label: 'Layer', format: fmtNumber },
+  { key: 'visible', label: 'Visible', format: fmtBool },
+  { key: 'opacity', label: 'Opacity', format: fmtPercent },
+  { key: 'parallax', label: 'Parallax', format: fmtNumber },
+  { key: 'clipId', label: 'Clip', format: (v) => String(v ?? 'none') },
+  { key: 'characterLinkMode', label: 'Link Mode', format: (v) => String(v ?? 'linked') },
+];
+
+// ── Derivation engine ──
+
+/**
+ * Derive a full scene comparison from a resolved request.
+ *
+ * Pure function — no store access, no UI logic. Compares each authored
+ * domain independently and returns a stable, structured result.
+ */
+export function deriveSceneComparison(request: SceneComparisonRequest): SceneComparisonResult {
+  const scopes = resolveComparisonScopes(request);
+  const label = describeComparison(request);
+
+  const instances = deriveInstanceComparison(
+    request.left.snapshot.instances,
+    request.right.snapshot.instances,
+  );
+
+  const camera = scopes.has('camera')
+    ? deriveCameraComparison(request.left.snapshot.camera, request.right.snapshot.camera)
+    : { type: 'camera' as const, status: 'unavailable' as const, changedFields: [] };
+
+  const keyframes = scopes.has('keyframes')
+    ? deriveKeyframeComparison(request.left.snapshot.keyframes, request.right.snapshot.keyframes)
+    : { type: 'keyframes' as const, status: 'unavailable' as const, entries: [] };
+
+  const playback = scopes.has('playback')
+    ? derivePlaybackComparison(request.left.snapshot.playbackConfig, request.right.snapshot.playbackConfig)
+    : { type: 'playback' as const, status: 'unavailable' as const, changedFields: [] };
+
+  const hasChanges =
+    instances.status === 'changed' ||
+    camera.status === 'changed' ||
+    keyframes.status === 'changed' ||
+    playback.status === 'changed';
+
+  return {
+    mode: request.mode,
+    instances,
+    camera,
+    keyframes,
+    playback,
+    hasChanges,
+    label,
+  };
+}
+
+// ── Instance comparison ──
+
+/**
+ * Compare two instance arrays by instanceId.
+ *
+ * Stable ordering: sorted by instanceId for deterministic output.
+ */
+function deriveInstanceComparison(
+  leftInstances: SceneAssetInstance[],
+  rightInstances: SceneAssetInstance[],
+): InstanceComparisonSection {
+  const leftById = new Map(leftInstances.map((i) => [i.instanceId, i]));
+  const rightById = new Map(rightInstances.map((i) => [i.instanceId, i]));
+
+  // Collect all instance IDs, sorted for stable order
+  const allIds = [...new Set([...leftById.keys(), ...rightById.keys()])].sort();
+
+  const entries: InstanceComparisonEntry[] = [];
+  let added = 0;
+  let removed = 0;
+  let changed = 0;
+  let unchanged = 0;
+
+  for (const id of allIds) {
+    const left = leftById.get(id);
+    const right = rightById.get(id);
+
+    if (!left && right) {
+      // Added
+      entries.push({
+        instanceId: id,
+        name: right.name,
+        status: 'added',
+        fieldDiffs: [],
+      });
+      added++;
+    } else if (left && !right) {
+      // Removed
+      entries.push({
+        instanceId: id,
+        name: left.name,
+        status: 'removed',
+        fieldDiffs: [],
+      });
+      removed++;
+    } else if (left && right) {
+      // Both sides exist — compare fields
+      const fieldDiffs = deriveInstanceFieldDiffs(left, right);
+      const overrideDiffs = deriveOverrideDiffs(left, right);
+      const allDiffs = [...fieldDiffs, ...overrideDiffs];
+
+      if (allDiffs.length > 0) {
+        entries.push({
+          instanceId: id,
+          name: right.name,
+          status: 'changed',
+          fieldDiffs: allDiffs,
+        });
+        changed++;
+      } else {
+        unchanged++;
+      }
+    }
+  }
+
+  return {
+    type: 'instances',
+    status: added > 0 || removed > 0 || changed > 0 ? 'changed' : 'unchanged',
+    entries,
+    added,
+    removed,
+    changed,
+    unchanged,
+  };
+}
+
+/**
+ * Derive field-level diffs between two instances of the same ID.
+ *
+ * Uses INSTANCE_FIELD_CONFIGS for stable ordering.
+ */
+function deriveInstanceFieldDiffs(
+  left: SceneAssetInstance,
+  right: SceneAssetInstance,
+): InstanceFieldDiff[] {
+  return extractChangedFields(
+    left as unknown as Record<string, unknown>,
+    right as unknown as Record<string, unknown>,
+    INSTANCE_FIELD_CONFIGS,
+  );
+}
+
+/**
+ * Derive character override diffs between two instances.
+ *
+ * Reports individual slot override changes rather than collapsing
+ * into a generic "overrides changed" blob.
+ */
+function deriveOverrideDiffs(
+  left: SceneAssetInstance,
+  right: SceneAssetInstance,
+): InstanceFieldDiff[] {
+  const leftOverrides = left.characterOverrides ?? {};
+  const rightOverrides = right.characterOverrides ?? {};
+  const allSlots = [...new Set([...Object.keys(leftOverrides), ...Object.keys(rightOverrides)])].sort();
+
+  const diffs: InstanceFieldDiff[] = [];
+  for (const slot of allSlots) {
+    const lOverride = leftOverrides[slot];
+    const rOverride = rightOverrides[slot];
+    const lStr = lOverride ? `${lOverride.mode}${lOverride.replacementPartId ? `:${lOverride.replacementPartId}` : ''}` : 'none';
+    const rStr = rOverride ? `${rOverride.mode}${rOverride.replacementPartId ? `:${rOverride.replacementPartId}` : ''}` : 'none';
+    if (lStr !== rStr) {
+      diffs.push({
+        field: `override:${slot}`,
+        label: `Override (${slot})`,
+        before: lStr,
+        after: rStr,
+      });
+    }
+  }
+  return diffs;
+}
+
+// ── Camera comparison ──
+
+/**
+ * Compare two camera states using CAMERA_FIELD_CONFIGS for stable ordering.
+ */
+function deriveCameraComparison(
+  left?: SceneCamera,
+  right?: SceneCamera,
+): CameraComparisonSection {
+  if (left === undefined && right === undefined) {
+    return { type: 'camera', status: 'unavailable', changedFields: [] };
+  }
+  if (left === undefined || right === undefined) {
+    // One side has camera, the other doesn't — this is a meaningful change
+    return {
+      type: 'camera',
+      status: 'changed',
+      before: left,
+      after: right,
+      changedFields: left
+        ? CAMERA_FIELD_CONFIGS.map((c) => c.key)
+        : CAMERA_FIELD_CONFIGS.map((c) => c.key),
+    };
+  }
+
+  const changes = extractChangedFields(
+    left as unknown as Record<string, unknown>,
+    right as unknown as Record<string, unknown>,
+    CAMERA_FIELD_CONFIGS,
+  );
+
+  return {
+    type: 'camera',
+    status: changes.length > 0 ? 'changed' : 'unchanged',
+    before: left,
+    after: right,
+    changedFields: changes.map((c) => c.field),
+  };
+}
+
+// ── Keyframe comparison ──
+
+/**
+ * Compare two keyframe arrays by tick identity (not array position).
+ *
+ * Detects: added, removed, changed (value/interpolation at same tick).
+ * Stable ordering: sorted by tick.
+ */
+function deriveKeyframeComparison(
+  left?: SceneCameraKeyframe[],
+  right?: SceneCameraKeyframe[],
+): KeyframeComparisonSection {
+  if (left === undefined && right === undefined) {
+    return { type: 'keyframes', status: 'unavailable', entries: [] };
+  }
+
+  const leftArr = left ?? [];
+  const rightArr = right ?? [];
+  const leftByTick = new Map(leftArr.map((k) => [k.tick, k]));
+  const rightByTick = new Map(rightArr.map((k) => [k.tick, k]));
+
+  const allTicks = [...new Set([...leftByTick.keys(), ...rightByTick.keys()])].sort((a, b) => a - b);
+
+  const entries: KeyframeComparisonEntry[] = [];
+  let hasChange = false;
+
+  for (const tick of allTicks) {
+    const lkf = leftByTick.get(tick);
+    const rkf = rightByTick.get(tick);
+
+    if (!lkf && rkf) {
+      entries.push({ tick, status: 'added', after: rkf, changedFields: [] });
+      hasChange = true;
+    } else if (lkf && !rkf) {
+      entries.push({ tick, status: 'removed', before: lkf, changedFields: [] });
+      hasChange = true;
+    } else if (lkf && rkf) {
+      const changes = extractChangedFields(
+        lkf as unknown as Record<string, unknown>,
+        rkf as unknown as Record<string, unknown>,
+        KEYFRAME_FIELD_CONFIGS,
+      );
+      if (changes.length > 0) {
+        entries.push({
+          tick,
+          status: 'changed',
+          before: lkf,
+          after: rkf,
+          changedFields: changes.map((c) => c.field),
+        });
+        hasChange = true;
+      }
+      // Unchanged keyframes are omitted from entries
+    }
+  }
+
+  return {
+    type: 'keyframes',
+    status: hasChange ? 'changed' : 'unchanged',
+    entries,
+  };
+}
+
+// ── Playback comparison ──
+
+/**
+ * Compare two playback configs using PLAYBACK_FIELD_CONFIGS for stable ordering.
+ */
+function derivePlaybackComparison(
+  left?: ScenePlaybackConfig,
+  right?: ScenePlaybackConfig,
+): PlaybackComparisonSection {
+  if (left === undefined && right === undefined) {
+    return { type: 'playback', status: 'unavailable', changedFields: [] };
+  }
+  if (left === undefined || right === undefined) {
+    return {
+      type: 'playback',
+      status: 'changed',
+      before: left,
+      after: right,
+      changedFields: PLAYBACK_FIELD_CONFIGS.map((c) => c.key),
+    };
+  }
+
+  const changes = extractChangedFields(
+    left as unknown as Record<string, unknown>,
+    right as unknown as Record<string, unknown>,
+    PLAYBACK_FIELD_CONFIGS,
+  );
+
+  return {
+    type: 'playback',
+    status: changes.length > 0 ? 'changed' : 'unchanged',
+    before: left,
+    after: right,
+    changedFields: changes.map((c) => c.field),
+  };
 }

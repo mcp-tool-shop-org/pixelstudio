@@ -186,6 +186,7 @@ export {
   validateComparisonRequest,
   describeComparison,
   resolveComparisonScopes,
+  deriveSceneComparison,
 } from './sceneComparison';
 export type {
   SceneComparisonMode,
