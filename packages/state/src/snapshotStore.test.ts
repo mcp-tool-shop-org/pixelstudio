@@ -102,3 +102,35 @@ describe('snapshotStore — clearAll', () => {
     expect(getState().snapshots).toHaveLength(0);
   });
 });
+
+describe('snapshotStore — snapshot data integrity', () => {
+  it('stores full pixel data with correct length', () => {
+    const w = 4;
+    const h = 3;
+    const data = Array.from({ length: w * h * 4 }, (_, i) => i % 256);
+    getState().createSnapshot('Full', w, h, data);
+    const snap = getState().snapshots[0];
+    expect(snap.data).toHaveLength(w * h * 4);
+    expect(snap.data).toEqual(data);
+  });
+
+  it('multiple snapshots maintain separate data', () => {
+    const data1 = [255, 0, 0, 255];
+    const data2 = [0, 255, 0, 255];
+    getState().createSnapshot('Red', 1, 1, data1);
+    getState().createSnapshot('Green', 1, 1, data2);
+    expect(getState().snapshots[0].data).toEqual(data1);
+    expect(getState().snapshots[1].data).toEqual(data2);
+  });
+
+  it('snapshot id starts with snap-', () => {
+    const id = getState().createSnapshot('X', 1, 1, [0, 0, 0, 0]);
+    expect(id).toMatch(/^snap-/);
+  });
+
+  it('snapshot has ISO timestamp', () => {
+    getState().createSnapshot('Timed', 1, 1, [0, 0, 0, 0]);
+    const ts = getState().snapshots[0].createdAt;
+    expect(() => new Date(ts).toISOString()).not.toThrow();
+  });
+});

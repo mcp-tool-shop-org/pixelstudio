@@ -92,6 +92,32 @@ describe('silhouetteBuffer', () => {
     expect(result.data[2]).toBe(255);
     expect(result.data[3]).toBe(255);
   });
+
+  it('handles multiple different-colored pixels uniformly', () => {
+    const buf = createBlankPixelBuffer(3, 1);
+    setPixel(buf, 0, 0, RED);
+    setPixel(buf, 1, 0, GREEN);
+    setPixel(buf, 2, 0, [128, 64, 200, 255]);
+    const result = silhouetteBuffer(buf, SILHOUETTE_COLOR);
+    // All three should be the same silhouette color
+    for (let px = 0; px < 3; px++) {
+      const i = px * 4;
+      expect(result.data[i]).toBe(30);
+      expect(result.data[i + 1]).toBe(30);
+      expect(result.data[i + 2]).toBe(40);
+      expect(result.data[i + 3]).toBe(255);
+    }
+  });
+
+  it('handles 1x1 buffer', () => {
+    const buf = createBlankPixelBuffer(1, 1);
+    setPixel(buf, 0, 0, [42, 100, 200, 180]);
+    const result = silhouetteBuffer(buf, [0, 0, 0, 255]);
+    expect(result.data[0]).toBe(0);
+    expect(result.data[1]).toBe(0);
+    expect(result.data[2]).toBe(0);
+    expect(result.data[3]).toBe(180);
+  });
 });
 
 describe('canvasViewStore — silhouette toggle', () => {
