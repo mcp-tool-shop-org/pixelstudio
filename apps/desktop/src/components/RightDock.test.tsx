@@ -25,6 +25,9 @@ vi.mock('../components/AnalysisPanel', () => ({
 vi.mock('../components/PalettePropsPanel', () => ({
   PalettePropsPanel: () => <div data-testid="palette-props-panel">PalettePropsPanel</div>,
 }));
+vi.mock('../components/ValidationPanel', () => ({
+  ValidationPanel: () => <div data-testid="validation-panel">ValidationPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';
@@ -151,6 +154,19 @@ describe('RightDock', () => {
     it('palette mode first tab renders PalettePropsPanel', () => {
       render(<RightDock activeMode="palette" />);
       expect(screen.getByTestId('palette-props-panel')).toBeInTheDocument();
+    });
+
+    it('validate mode first tab renders ValidationPanel', () => {
+      render(<RightDock activeMode="validate" />);
+      expect(screen.getByTestId('validation-panel')).toBeInTheDocument();
+    });
+
+    it('palette mode second tab renders ValidationPanel', async () => {
+      render(<RightDock activeMode="palette" />);
+      await act(async () => {
+        await userEvent.click(screen.getByText('Validation'));
+      });
+      expect(screen.getByTestId('validation-panel')).toBeInTheDocument();
     });
 
     it('unhandled tab name renders placeholder', () => {

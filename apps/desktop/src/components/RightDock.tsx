@@ -8,6 +8,7 @@ import { CharacterBuilderPanel } from './CharacterBuilderPanel';
 import { SceneProvenancePanel } from './SceneProvenancePanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { PalettePropsPanel } from './PalettePropsPanel';
+import { ValidationPanel } from './ValidationPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -49,6 +50,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Palette Props') {
     return <PalettePropsPanel />;
+  }
+  if (tabName === 'Validation') {
+    return <ValidationPanel />;
   }
 
   return (
