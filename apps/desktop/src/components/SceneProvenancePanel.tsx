@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSceneEditorStore } from '@glyphstudio/state';
 import type { SceneProvenanceEntry } from '@glyphstudio/state';
 import { SceneProvenanceDrilldownPane } from './SceneProvenanceDrilldownPane';
+import { SceneComparisonPane } from './SceneComparisonPane';
+
+/** View mode for the detail pane. */
+type PanelMode =
+  | { type: 'drilldown' }
+  | { type: 'compare-current'; primarySequence: number }
+  | { type: 'compare-entry'; primarySequence: number; secondarySequence: number }
+  | { type: 'picking-target'; primarySequence: number };
 
 /** Format an ISO timestamp to a short HH:MM:SS display. */
 function formatTime(iso: string): string {
@@ -42,16 +50,60 @@ function metadataSummary(entry: SceneProvenanceEntry): string | null {
 export function SceneProvenancePanel() {
   const provenance = useSceneEditorStore((s) => s.provenance);
   const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
+  const [panelMode, setPanelMode] = useState<PanelMode>({ type: 'drilldown' });
 
-  // Clear selection when the selected entry no longer exists (e.g. after reset)
+  // Clear selection and exit compare when the selected entry no longer exists
   useEffect(() => {
     if (selectedSequence !== null) {
       const exists = provenance.some((e) => e.sequence === selectedSequence);
       if (!exists) {
         setSelectedSequence(null);
+        setPanelMode({ type: 'drilldown' });
       }
     }
   }, [provenance, selectedSequence]);
+
+  // Clear compare mode on scene reset (provenance goes empty)
+  useEffect(() => {
+    if (provenance.length === 0 && panelMode.type !== 'drilldown') {
+      setPanelMode({ type: 'drilldown' });
+    }
+  }, [provenance.length, panelMode.type]);
+
+  const handleCompareToCurrent = useCallback(() => {
+    if (selectedSequence !== null) {
+      setPanelMode({ type: 'compare-current', primarySequence: selectedSequence });
+    }
+  }, [selectedSequence]);
+
+  const handleCompareToEntry = useCallback(() => {
+    if (selectedSequence !== null) {
+      setPanelMode({ type: 'picking-target', primarySequence: selectedSequence });
+    }
+  }, [selectedSequence]);
+
+  const handleCloseCompare = useCallback(() => {
+    setPanelMode({ type: 'drilldown' });
+  }, []);
+
+  const handleRowClick = useCallback((sequence: number) => {
+    if (panelMode.type === 'picking-target') {
+      // In target-pick mode, clicking a row selects the secondary entry
+      if (sequence !== panelMode.primarySequence) {
+        setPanelMode({
+          type: 'compare-entry',
+          primarySequence: panelMode.primarySequence,
+          secondarySequence: sequence,
+        });
+      }
+      return;
+    }
+    setSelectedSequence(sequence);
+    // Exit compare mode when selecting a new row normally
+    if (panelMode.type !== 'drilldown') {
+      setPanelMode({ type: 'drilldown' });
+    }
+  }, [panelMode]);
 
   if (provenance.length === 0) {
     return (
@@ -70,22 +122,41 @@ export function SceneProvenancePanel() {
   // Render newest first — reversed copy, do not mutate store
   const reversed = [...provenance].reverse();
 
+  const isPickingTarget = panelMode.type === 'picking-target';
+  const isComparing = panelMode.type === 'compare-current' || panelMode.type === 'compare-entry';
+
   return (
     <div className="scene-provenance-panel">
       <div className="scene-provenance-header">
         <span className="scene-provenance-title">Activity</span>
         <span className="scene-provenance-count">{provenance.length}</span>
       </div>
+      {isPickingTarget && (
+        <div className="scene-provenance-pick-banner">
+          <span>Select another entry to compare</span>
+          <button className="scene-provenance-pick-cancel" onClick={handleCloseCompare}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="scene-provenance-body">
         <div className="scene-provenance-list">
           {reversed.map((entry) => {
             const meta = metadataSummary(entry);
             const isSelected = entry.sequence === selectedSequence;
+            const isPrimary = (panelMode.type === 'picking-target' || panelMode.type === 'compare-entry') &&
+              'primarySequence' in panelMode && panelMode.primarySequence === entry.sequence;
+            const isSecondary = panelMode.type === 'compare-entry' &&
+              panelMode.secondarySequence === entry.sequence;
+            let rowClass = 'scene-provenance-row';
+            if (isSelected && !isPickingTarget) rowClass += ' selected';
+            if (isPrimary) rowClass += ' compare-primary';
+            if (isSecondary) rowClass += ' compare-secondary';
             return (
               <div
                 key={entry.sequence}
-                className={`scene-provenance-row${isSelected ? ' selected' : ''}`}
-                onClick={() => setSelectedSequence(entry.sequence)}
+                className={rowClass}
+                onClick={() => handleRowClick(entry.sequence)}
                 data-sequence={entry.sequence}
               >
                 <div className="scene-provenance-row-primary">
@@ -102,8 +173,27 @@ export function SceneProvenancePanel() {
           })}
         </div>
         <div className="scene-provenance-drilldown">
-          {selectedSequence !== null ? (
-            <SceneProvenanceDrilldownPane sequence={selectedSequence} />
+          {isComparing ? (
+            <SceneComparisonPane
+              mode={panelMode.type === 'compare-current' ? 'compare-current' : 'compare-entry'}
+              primarySequence={'primarySequence' in panelMode ? panelMode.primarySequence : 0}
+              secondarySequence={panelMode.type === 'compare-entry' ? panelMode.secondarySequence : undefined}
+              onClose={handleCloseCompare}
+            />
+          ) : selectedSequence !== null ? (
+            <>
+              <SceneProvenanceDrilldownPane sequence={selectedSequence} />
+              {!isPickingTarget && (
+                <div className="provenance-compare-actions">
+                  <button className="provenance-compare-btn" data-action="compare-current" onClick={handleCompareToCurrent}>
+                    Compare to Current
+                  </button>
+                  <button className="provenance-compare-btn" data-action="compare-entry" onClick={handleCompareToEntry}>
+                    Compare to...
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="provenance-drilldown-pane">
               <div className="provenance-drilldown-placeholder">
