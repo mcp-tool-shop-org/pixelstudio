@@ -6,22 +6,42 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is already a real working editor with:
+GlyphStudio is a working desktop editor with 30 shipped stages and 1,149 tests green.
 
+### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
-- Layers with visibility, lock, opacity, rename, reorder, and selection
+- Layers with visibility, lock, opacity, rename, reorder
 - Stroke-based drawing with undo/redo
 - Rectangular selection, clipboard actions, and transform workflow
 - Multi-frame timeline with per-frame undo/redo isolation
 - Onion skin overlays for adjacent-frame editing
 - Playback controls with FPS and loop support
-- Export for:
-  - Current frame PNG
-  - Numbered PNG frame sequence
-  - Horizontal or vertical sprite strip
-- Project save/load, autosave recovery, and schema migration support
+- Motion assistance with deterministic proposal generation
+- Anchor system with hierarchy, falloff, and secondary motion templates
+- Motion presets with batch apply across frames
+- Clip definitions with pivot, tags, and validation
+- Sprite sheet export with manifest (native + generic runtime formats)
+- Asset catalog with thumbnails, search, and bundle packaging
+- Project save/load, autosave recovery, and schema migration
 
-This is not a browser toy or prompt-slot machine. It is a native desktop editor with Rust as the authority for canvas state and pixel truth.
+### Scene Compositor (frontend + Rust)
+- Scene composition with asset instances, z-ordering, visibility, opacity, parallax
+- Camera system with pan, zoom, keyframe animation, and shot derivation
+- Character build system with slots, presets, validation, and scene bridge
+- Scene undo/redo with full-snapshot history and rollback on sync failure
+- Persisted provenance with drilldown inspection across 20 operation kinds
+- Scene comparison and restore preview workflows
+
+### Sprite Editor (frontend-only)
+- Self-contained pixel editor with pencil, eraser, fill, eyedropper tools
+- Multi-layer editing with per-layer visibility, rename, reorder
+- Alpha compositing with real-time draft stroke preview across all layers
+- Frame management with onion skin, playback, scrubber, and per-frame duration
+- Rectangular selection with copy/cut/paste/delete
+- Sprite sheet import/export with multi-layer flattening
+- Palette panel with color picker and foreground/background swap
+
+This is not a browser toy or prompt-slot machine. It is a native desktop editor where Rust owns canvas pixel truth and the frontend owns sprite pixel truth.
 
 ## Product Philosophy
 
@@ -41,20 +61,22 @@ GlyphStudio is built around four principles:
 
 ## Architecture
 
-### Frontend
-- React
-- Zustand state stores
-- HTML canvas renderer
-- Timeline, layer, selection, and playback UI
+### Frontend (React + TypeScript)
+- 17+ Zustand stores organized by domain
+- HTML canvas renderer for both editors
+- Canvas editor UI: layers, timeline, selection, playback, character builder, scene compositor
+- Sprite editor: self-contained pixel editing with frontend-owned pixel buffers
+- Alpha compositing via `flattenLayers` for multi-layer sprite editing
 
-### Backend
-- Rust engine for:
-  - Pixel buffers
-  - Layer compositing
-  - Frame management
-  - Selection/transform sessions
-  - Persistence and recovery
-  - Export pipelines
+### Backend (Rust)
+- Authoritative pixel buffers and layer compositing for canvas editor
+- Stroke transactions with before/after patches
+- Selection/transform sessions
+- Project persistence, autosave, crash recovery
+- Export pipelines (PNG, sprite sheet, clip, bundle)
+- Scene composition engine with camera and playback
+- Asset catalog with thumbnail generation
+- 166 implemented Tauri commands
 
 ### Desktop Shell
 - Tauri v2
@@ -73,36 +95,40 @@ glyphstudio/
   site/
 ```
 
-## Implemented Milestones
+## Implemented Stages
 
-### Stage 1 — Editor Legitimacy
-- Breathing canvas
-- Real layers
-- Drawing tools
-- Undo/redo
-- Project save/load
-- Recovery and autosave
+### Stages 1–3 — Editor Foundation
+Canvas, layers, drawing tools, undo/redo, selection, transforms, timeline, onion skin, playback, frame operations, PNG/strip export, project persistence, autosave, crash recovery.
 
-### Stage 2 — Selection, Transform, Timeline
-- Rectangular marquee selection
-- Copy/cut/paste/delete
-- Transform preview + commit/cancel
-- Flip/rotate/nudge
-- Frame creation, duplication, deletion, renaming, switching
+### Stage 4A — Motion Assistance
+Bounded motion sessions, deterministic proposal generation, preview with mini frame strips, session safety, proposal commit to timeline.
 
-### Stage 3 — Animation Usability
-- Onion skin
-- Playback + FPS controls
-- Frame reorder/insert/duplicate polish
-- Per-frame duration metadata
-- PNG sequence and sprite strip export
+### Stages 5–8 — Motion Polish
+Anchors with hierarchy and falloff, secondary motion templates (wind, sway, swing, rustle), motion sandbox with analysis metrics, motion presets with batch apply.
 
-### Stage 4A — Motion Assistance Foothold (in progress)
-- Bounded motion session model (begin/generate/accept/reject/cancel)
-- Deterministic proposal generation (idle bob, walk, run, hop)
-- Proposal preview with mini frame strips and detail view
-- Session safety: blocked during stroke/transform, auto-pauses playback
-- Proposals are preview-only until accepted into timeline
+### Stages 9–10 — Clips, Export, Scene Foundation
+Clip definitions with pivot/tags/validation, sprite sheet export with manifests, asset catalog with thumbnails, bundle packaging, scene composition with instances and z-ordering.
+
+### Stages 11–14 — Character System
+Character builds with 12 body-region slots, preset picker with compatibility tiers, build validation, build library with persistence, character-to-scene bridge with snapshot placement.
+
+### Stages 15–16 — Scene Editing
+Scene camera with pan/zoom, camera keyframes with interpolation, scene undo/redo with full-snapshot history, rollback on backend sync failure.
+
+### Stages 17–24 — Provenance & Inspection
+Persisted scene provenance with 20 operation kinds, drilldown inspection with captured before/after slices, structured value summaries, scene comparison engine, restore preview workflows.
+
+### Stages 25–26 — Restore & Selective Restore
+Scene restore contract with pure derivation, selective restore per domain (instances, camera, keyframes, playback), playbackConfig through lawful seam with undo/redo.
+
+### Stages 27–28 — Sprite Editor
+Frontend-only sprite editor: document contract, pixel canvas with pencil/eraser/fill/eyedropper, frames with onion skin, selection with clipboard, sprite sheet import/export, keyboard shortcuts, zoom/grid, palette panel.
+
+### Stage 29 — Animation Preview
+Animation player contract, playback UI with scrubber and Space shortcut, inline frame duration editing with presets, onion skin suppression during playback.
+
+### Stage 30 — Layers and Layer Workflow
+SpriteLayer type, layerId-keyed pixel buffers, flattenLayers alpha compositing, activeLayerId tracking, layer panel with CRUD/visibility/rename/reorder, draft stroke compositing across all visible layers, multi-layer export.
 
 ## Running the App
 
@@ -139,11 +165,18 @@ cargo check
 
 ## Export Support
 
-GlyphStudio currently supports:
-
+### Canvas Editor (Rust)
 - **Current Frame PNG** — single composited image
 - **PNG Sequence** — numbered files (name_0001.png, name_0002.png, ...)
 - **Sprite Strip** — horizontal or vertical single-image strip
+- **Clip Sheet** — sprite sheet from clip definitions with optional manifest
+- **All Clips Sheet** — combined sheet from all valid clips
+- **Asset Bundle** — folder or zip with images, manifests, and preview thumbnail
+- **Catalog Bundle** — multi-asset packaging with per-asset subfolders
+
+### Sprite Editor (frontend)
+- **Sprite Strip** — horizontal strip with all visible layers flattened per frame
+- **Current Frame** — flattened composite of visible layers
 
 Exports use composited visible layers only. Onion skin, playback state, and transient editor overlays are not included in output.
 
@@ -159,11 +192,11 @@ See the [handbook](site/src/content/docs/handbook/) for deeper details:
 
 Near-term priorities:
 
-- Frame timing polish in UI
-- Animation workflow refinement
-- Stronger export ergonomics
-- Locomotion / motion-assistance foothold
-- Subordinate AI features that operate within deterministic editor constraints
+- Indexed palette mode with contract rules and ramp editing
+- AI assist integration (local Ollama + ComfyUI for bounded generation tasks)
+- Locomotion analysis workspace with stride/contact/CoM overlays
+- Validation engine with repair actions
+- Sprite editor persistence (save/load .pxs from sprite editor)
 
 ## Non-Goals
 
