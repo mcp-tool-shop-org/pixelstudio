@@ -1215,6 +1215,47 @@ describe('spriteEditorStore', () => {
       const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
       expect(samplePixel(exported, 0, 0)).toEqual([0, 255, 0, 255]);
     });
+
+    it('export flattens multiple layers', () => {
+      openTestDoc(4, 4);
+      // Paint bottom layer red at (0,0)
+      const buf0 = createBlankPixelBuffer(4, 4);
+      setPixel(buf0, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf0);
+
+      // Add top layer, paint green at (1,1)
+      useSpriteEditorStore.getState().addLayer();
+      const buf1 = createBlankPixelBuffer(4, 4);
+      setPixel(buf1, 1, 1, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf1);
+
+      const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
+      // Both layers should be composited
+      expect(samplePixel(exported, 0, 0)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(exported, 1, 1)).toEqual([0, 255, 0, 255]);
+    });
+
+    it('export skips hidden layers', () => {
+      openTestDoc(4, 4);
+      const buf0 = createBlankPixelBuffer(4, 4);
+      setPixel(buf0, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf0);
+
+      // Add visible top layer
+      useSpriteEditorStore.getState().addLayer();
+      const buf1 = createBlankPixelBuffer(4, 4);
+      setPixel(buf1, 1, 1, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf1);
+
+      // Hide bottom layer
+      const bottomId = useSpriteEditorStore.getState().document!.frames[0].layers[0].id;
+      useSpriteEditorStore.getState().toggleLayerVisibility(bottomId);
+
+      const exported = useSpriteEditorStore.getState().exportCurrentFrame()!;
+      // Bottom layer hidden — only green should be visible
+      expect(samplePixel(exported, 0, 0)).toEqual([0, 0, 0, 0]);
+      expect(samplePixel(exported, 1, 1)).toEqual([0, 255, 0, 255]);
+    });
   });
 
   // ── Clipboard ──
