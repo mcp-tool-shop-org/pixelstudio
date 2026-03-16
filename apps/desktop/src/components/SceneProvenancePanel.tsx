@@ -3,13 +3,15 @@ import { useSceneEditorStore } from '@glyphstudio/state';
 import type { SceneProvenanceEntry } from '@glyphstudio/state';
 import { SceneProvenanceDrilldownPane } from './SceneProvenanceDrilldownPane';
 import { SceneComparisonPane } from './SceneComparisonPane';
+import { SceneRestorePreviewPane } from './SceneRestorePreviewPane';
 
 /** View mode for the detail pane. */
 type PanelMode =
   | { type: 'drilldown' }
   | { type: 'compare-current'; primarySequence: number }
   | { type: 'compare-entry'; primarySequence: number; secondarySequence: number }
-  | { type: 'picking-target'; primarySequence: number };
+  | { type: 'picking-target'; primarySequence: number }
+  | { type: 'restore-preview'; sequence: number };
 
 /** Format an ISO timestamp to a short HH:MM:SS display. */
 function formatTime(iso: string): string {
@@ -82,6 +84,12 @@ export function SceneProvenancePanel() {
     }
   }, [selectedSequence]);
 
+  const handleRestorePreview = useCallback(() => {
+    if (selectedSequence !== null) {
+      setPanelMode({ type: 'restore-preview', sequence: selectedSequence });
+    }
+  }, [selectedSequence]);
+
   const handleCloseCompare = useCallback(() => {
     setPanelMode({ type: 'drilldown' });
   }, []);
@@ -124,6 +132,7 @@ export function SceneProvenancePanel() {
 
   const isPickingTarget = panelMode.type === 'picking-target';
   const isComparing = panelMode.type === 'compare-current' || panelMode.type === 'compare-entry';
+  const isRestorePreview = panelMode.type === 'restore-preview';
 
   return (
     <div className="scene-provenance-panel">
@@ -180,6 +189,11 @@ export function SceneProvenancePanel() {
               secondarySequence={panelMode.type === 'compare-entry' ? panelMode.secondarySequence : undefined}
               onClose={handleCloseCompare}
             />
+          ) : isRestorePreview ? (
+            <SceneRestorePreviewPane
+              sequence={panelMode.sequence}
+              onClose={handleCloseCompare}
+            />
           ) : selectedSequence !== null ? (
             <>
               <SceneProvenanceDrilldownPane sequence={selectedSequence} />
@@ -190,6 +204,9 @@ export function SceneProvenancePanel() {
                   </button>
                   <button className="provenance-compare-btn" data-action="compare-entry" onClick={handleCompareToEntry}>
                     Compare to...
+                  </button>
+                  <button className="provenance-compare-btn" data-action="restore-preview" onClick={handleRestorePreview}>
+                    Preview Restore Impact
                   </button>
                 </div>
               )}

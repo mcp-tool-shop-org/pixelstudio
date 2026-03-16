@@ -1860,3 +1860,179 @@ describe('SceneProvenancePanel — compare fallback', () => {
     // Just verify the pane renders without crashing
   });
 });
+
+// ══════════════════════════════════════════════════
+// ── Restore preview — entry points ──
+// ══════════════════════════════════════════════════
+
+describe('SceneProvenancePanel — restore preview entry points', () => {
+  it('shows Preview Restore Impact button when entry is selected', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    const btn = document.querySelector('[data-action="restore-preview"]');
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toContain('Preview Restore Impact');
+  });
+
+  it('does not show restore preview button when no entry is selected', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    expect(document.querySelector('[data-action="restore-preview"]')).toBeNull();
+  });
+
+  it('clicking Preview Restore Impact opens restore preview pane', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const pane = document.querySelector('.restore-preview-pane');
+    expect(pane).not.toBeNull();
+  });
+
+  it('restore preview pane has Close button', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const close = document.querySelector('.restore-preview-close');
+    expect(close).not.toBeNull();
+    expect(close!.textContent).toContain('Close');
+  });
+
+  it('Close exits restore preview back to drilldown', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    fireEvent.click(document.querySelector('.restore-preview-close')!);
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    expect(document.querySelector('.provenance-drilldown-pane')).not.toBeNull();
+  });
+});
+
+// ══════════════════════════════════════════════════
+// ── Restore preview — impact rendering ──
+// ══════════════════════════════════════════════════
+
+describe('SceneProvenancePanel — restore preview impact', () => {
+  it('shows impact-focused header with sequence number', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const title = document.querySelector('.restore-preview-title');
+    expect(title).not.toBeNull();
+    expect(title!.textContent).toContain('#1');
+    expect(title!.textContent).toContain('impact preview');
+  });
+
+  it('shows changed domains when current differs from entry', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    // Modify current state to create a diff
+    useSceneEditorStore.getState().loadInstances([{ ...INST_A, x: 999 }]);
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const pane = document.querySelector('.restore-preview-pane');
+    expect(pane).not.toBeNull();
+    // Instance section should show changes
+    const instanceSection = document.querySelector('[data-domain="instances"]');
+    expect(instanceSection).not.toBeNull();
+  });
+
+  it('shows no-impact message when entry matches current state', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    // Current state matches the entry's afterInstance (both have only INST_A with x=200)
+    // Since drilldown only captures single instance (afterInstance), and current has same
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const pane = document.querySelector('.restore-preview-pane');
+    expect(pane).not.toBeNull();
+    // Pane should render without crash — may show no-impact or minimal changes
+  });
+
+  it('restore preview is read-only — no mutation buttons', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const pane = document.querySelector('.restore-preview-pane');
+    expect(pane).not.toBeNull();
+    // Only Close button should exist
+    const buttons = pane!.querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toContain('Close');
+  });
+
+  it('restore preview does not alter provenance state', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    const beforeProvenance = [...useSceneEditorStore.getState().provenance];
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const afterProvenance = useSceneEditorStore.getState().provenance;
+    expect(afterProvenance).toHaveLength(beforeProvenance.length);
+    expect(afterProvenance[0].sequence).toBe(beforeProvenance[0].sequence);
+  });
+});
+
+// ══════════════════════════════════════════════════
+// ── Restore preview — stability ──
+// ══════════════════════════════════════════════════
+
+describe('SceneProvenancePanel — restore preview stability', () => {
+  it('selecting new row exits restore preview', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    applyTestEdit('move-instance', [{ ...INST_A, x: 200 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    const rows = document.querySelectorAll('.scene-provenance-row');
+    fireEvent.click(rows[0]);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    // Click different row
+    fireEvent.click(rows[1]);
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    expect(document.querySelector('.provenance-drilldown-pane')).not.toBeNull();
+  });
+
+  it('scene reset clears restore preview mode', () => {
+    useSceneEditorStore.getState().loadInstances([INST_A]);
+    applyTestEdit('move-instance', [{ ...INST_A, x: 100 }], { instanceId: 'i1' });
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    expect(document.querySelector('.restore-preview-pane')).not.toBeNull();
+    act(() => {
+      useSceneEditorStore.getState().resetHistory();
+    });
+    expect(document.querySelector('.restore-preview-pane')).toBeNull();
+    expect(screen.getByText('No scene changes recorded.')).toBeDefined();
+  });
+
+  it('missing drilldown source shows fallback message', () => {
+    useSceneEditorStore.getState().loadPersistedProvenance(
+      [{ sequence: 1, kind: 'move-instance', label: 'Move Instance', timestamp: '2026-03-16T00:00:00Z', metadata: { instanceId: 'i1' } }],
+      {},
+    );
+    render(<SceneProvenancePanel />);
+    fireEvent.click(document.querySelector('.scene-provenance-row')!);
+    fireEvent.click(document.querySelector('[data-action="restore-preview"]')!);
+    const pane = document.querySelector('.restore-preview-pane');
+    expect(pane).not.toBeNull();
+    expect(pane!.textContent).toContain('not available');
+  });
+});

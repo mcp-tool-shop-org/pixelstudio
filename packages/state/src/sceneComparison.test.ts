@@ -10,6 +10,7 @@ import {
   describeComparison,
   resolveComparisonScopes,
   deriveSceneComparison,
+  deriveRestorePreview,
 } from './sceneComparison';
 import type {
   SceneComparisonSnapshot,
@@ -878,5 +879,63 @@ describe('deriveSceneComparison — mixed domains', () => {
     const req = createComparisonRequest(left, right);
     const result = deriveSceneComparison(req);
     expect(result.label).toBe('#1 vs Current');
+  });
+});
+
+// ══════════════════════════════════════════════════
+// ── deriveRestorePreview ──
+// ══════════════════════════════════════════════════
+
+describe('deriveRestorePreview', () => {
+  it('returns noImpact:true when entry matches current', () => {
+    const entryAnchor = createEntryAnchor(ENTRY_1, SOURCE_1, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = { instances: [INST_A] };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.noImpact).toBe(true);
+    expect(result.comparison.hasChanges).toBe(false);
+  });
+
+  it('returns noImpact:false when entry differs from current', () => {
+    const entryAnchor = createEntryAnchor(ENTRY_1, SOURCE_1, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = { instances: [INST_B] };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.noImpact).toBe(false);
+    expect(result.comparison.hasChanges).toBe(true);
+  });
+
+  it('label contains entry sequence number and impact preview text', () => {
+    const entryAnchor = createEntryAnchor(ENTRY_1, SOURCE_1, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = { instances: [INST_A] };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.label).toContain('#1');
+    expect(result.label).toContain('impact preview');
+  });
+
+  it('comparison result contains instance diffs when present', () => {
+    const moved = { ...INST_A, x: 999 };
+    const entryAnchor = createEntryAnchor(ENTRY_1, SOURCE_1, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = { instances: [moved] };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.comparison.instances.status).toBe('changed');
+    expect(result.comparison.instances.entries.length).toBeGreaterThan(0);
+  });
+
+  it('camera domain is unavailable when neither side has camera data', () => {
+    const entryAnchor = createEntryAnchor(ENTRY_1, SOURCE_1, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = { instances: [INST_A] };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.comparison.camera.status).toBe('unavailable');
+  });
+
+  it('camera domain detects changes when current has different camera', () => {
+    const source = { ...SOURCE_1, afterCamera: { x: 0, y: 0, zoom: 1.0 } };
+    const entryAnchor = createEntryAnchor(ENTRY_1, source, [INST_A]);
+    const currentSnapshot: SceneComparisonSnapshot = {
+      instances: [INST_A],
+      camera: { x: 100, y: 50, zoom: 2.0 },
+    };
+    const result = deriveRestorePreview(entryAnchor, currentSnapshot);
+    expect(result.comparison.camera.status).toBe('changed');
+    expect(result.noImpact).toBe(false);
   });
 });

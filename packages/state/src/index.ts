@@ -187,9 +187,11 @@ export {
   describeComparison,
   resolveComparisonScopes,
   deriveSceneComparison,
+  deriveRestorePreview,
 } from './sceneComparison';
 export type {
   SceneComparisonMode,
+  RestorePreviewResult,
   SceneComparisonSnapshot,
   SceneComparisonAnchor,
   SceneComparisonRequest,

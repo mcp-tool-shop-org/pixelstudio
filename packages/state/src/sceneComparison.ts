@@ -288,6 +288,51 @@ export function resolveComparisonScopes(
   return scopes;
 }
 
+// ── Restore preview ──
+
+/**
+ * The result of a restore-preview analysis.
+ *
+ * Shows what would change if a historical entry's "after" state were
+ * restored into the current scene. Wraps the standard comparison result
+ * with a restore-specific label.
+ */
+export interface RestorePreviewResult {
+  /** The underlying comparison (entry after → current). */
+  comparison: SceneComparisonResult;
+  /** True when restoring would cause no authored changes. */
+  noImpact: boolean;
+  /** Human-readable restore label, e.g., "Restore #3 → impact preview". */
+  label: string;
+}
+
+/**
+ * Derive a restore-preview analysis for a given provenance entry.
+ *
+ * Compares the entry's "after" snapshot (what the scene looked like after
+ * that edit) against the current live scene state. The diff shows what
+ * would change if the user restored to that historical state.
+ *
+ * Pure function — no store access. The caller must provide both the
+ * entry anchor and the current snapshot.
+ */
+export function deriveRestorePreview(
+  entryAnchor: SceneComparisonAnchor,
+  currentSnapshot: SceneComparisonSnapshot,
+): RestorePreviewResult {
+  const currentAnchor = createCurrentAnchor(currentSnapshot);
+  const request = createComparisonRequest(entryAnchor, currentAnchor);
+  const comparison = deriveSceneComparison(request);
+  const entryLabel = entryAnchor.type === 'entry'
+    ? `#${entryAnchor.entry.sequence}`
+    : 'selected entry';
+  return {
+    comparison,
+    noImpact: !comparison.hasChanges,
+    label: `Restore ${entryLabel} \u2192 impact preview`,
+  };
+}
+
 // ── Instance field configs for comparison ──
 
 const INSTANCE_FIELD_CONFIGS: FieldConfig[] = [
