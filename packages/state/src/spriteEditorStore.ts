@@ -22,6 +22,7 @@ import {
 import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
+import { serializeSpriteFile, deserializeSpriteFile } from './spritePersistence';
 import type { SpriteSheetMeta } from '@glyphstudio/domain';
 
 // ── Store state ──
@@ -33,6 +34,8 @@ export interface SpriteEditorStoreState {
   pixelBuffers: Record<string, SpritePixelBuffer>;
   /** ID of the active layer in the current frame. */
   activeLayerId: string | null;
+  /** Path of the currently open .glyph file (null = never saved). */
+  filePath: string | null;
 
   // -- Editor state (transient) --
   activeFrameIndex: number;
@@ -59,6 +62,12 @@ export interface SpriteEditorStoreState {
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
   closeDocument: () => void;
+
+  // -- Actions: Persistence --
+  /** Serialize and save the current document. writeFn handles actual I/O. */
+  saveDocument: (filePath: string, writeFn: (path: string, content: string) => Promise<void>) => Promise<string | null>;
+  /** Load a .glyph file from JSON string. Returns error string or null. */
+  loadDocument: (json: string, filePath: string) => string | null;
 
   // -- Actions: Frame management --
   addFrame: () => void;
@@ -167,6 +176,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   document: null,
   pixelBuffers: {},
   activeLayerId: null,
+  filePath: null,
   selectionRect: null,
   selectionBuffer: null,
   clipboardBuffer: null,
@@ -186,6 +196,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       document: doc,
       pixelBuffers: { [firstLayer.id]: buffer },
       activeLayerId: firstLayer.id,
+      filePath: null,
       activeFrameIndex: 0,
       tool: { ...DEFAULT_SPRITE_TOOL_CONFIG },
       onionSkin: { ...DEFAULT_SPRITE_ONION_SKIN },
@@ -207,6 +218,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       document: null,
       pixelBuffers: {},
       activeLayerId: null,
+      filePath: null,
       selectionRect: null,
       selectionBuffer: null,
       clipboardBuffer: null,
@@ -215,6 +227,51 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       previewFrameIndex: 0,
       ...createDefaultSpriteEditorState(),
     });
+  },
+
+  // -- Persistence --
+  saveDocument: async (filePath, writeFn) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return 'No document open';
+
+    try {
+      const json = serializeSpriteFile(doc, pixelBuffers);
+      await writeFn(filePath, json);
+      set({ filePath, dirty: false });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Failed to save';
+    }
+  },
+
+  loadDocument: (json, filePath) => {
+    const result = deserializeSpriteFile(json);
+    if ('error' in result) return result.error;
+
+    const { document: doc, pixelBuffers } = result;
+    const firstFrame = doc.frames[0];
+    const firstLayer = firstFrame?.layers[0];
+
+    set({
+      document: doc,
+      pixelBuffers,
+      activeLayerId: firstLayer?.id ?? null,
+      filePath,
+      activeFrameIndex: 0,
+      tool: { ...DEFAULT_SPRITE_TOOL_CONFIG },
+      onionSkin: { ...DEFAULT_SPRITE_ONION_SKIN },
+      selectionRect: null,
+      selectionBuffer: null,
+      clipboardBuffer: null,
+      isPlaying: false,
+      isLooping: true,
+      previewFrameIndex: 0,
+      zoom: 8,
+      panX: 0,
+      panY: 0,
+      dirty: false,
+    });
+    return null;
   },
 
   // -- Frame management --

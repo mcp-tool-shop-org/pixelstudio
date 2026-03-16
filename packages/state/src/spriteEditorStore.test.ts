@@ -79,6 +79,123 @@ describe('spriteEditorStore', () => {
     });
   });
 
+  // ── Persistence ──
+
+  describe('saveDocument', () => {
+    it('calls writeFn with valid JSON and sets filePath', async () => {
+      openTestDoc(4, 4);
+      let writtenPath = '';
+      let writtenContent = '';
+      const writeFn = async (path: string, content: string) => {
+        writtenPath = path;
+        writtenContent = content;
+      };
+
+      const err = await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', writeFn);
+      expect(err).toBeNull();
+      expect(writtenPath).toBe('/tmp/test.glyph');
+
+      const parsed = JSON.parse(writtenContent);
+      expect(parsed.format).toBe('glyphstudio-sprite');
+      expect(parsed.schemaVersion).toBe(1);
+      expect(useSpriteEditorStore.getState().filePath).toBe('/tmp/test.glyph');
+    });
+
+    it('sets dirty to false after save', async () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+
+      const writeFn = async () => {};
+      await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', writeFn);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+    });
+
+    it('returns error when no document is open', async () => {
+      const writeFn = async () => {};
+      const err = await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', writeFn);
+      expect(err).toContain('No document');
+    });
+
+    it('returns error if writeFn throws', async () => {
+      openTestDoc(4, 4);
+      const writeFn = async () => { throw new Error('disk full'); };
+      const err = await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', writeFn);
+      expect(err).toContain('disk full');
+    });
+  });
+
+  describe('loadDocument', () => {
+    it('loads a saved document and restores pixel data', async () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [255, 0, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      // Save
+      let saved = '';
+      await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', async (_p, c) => { saved = c; });
+
+      // Close and reload
+      useSpriteEditorStore.getState().closeDocument();
+      expect(useSpriteEditorStore.getState().document).toBeNull();
+
+      const err = useSpriteEditorStore.getState().loadDocument(saved, '/tmp/test.glyph');
+      expect(err).toBeNull();
+
+      const state = useSpriteEditorStore.getState();
+      expect(state.document).not.toBeNull();
+      expect(state.document!.name).toBe('test');
+      expect(state.filePath).toBe('/tmp/test.glyph');
+      expect(state.dirty).toBe(false);
+    });
+
+    it('resets transient editor state on load', async () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().setZoom(16);
+      useSpriteEditorStore.getState().setTool('eraser');
+
+      let saved = '';
+      await useSpriteEditorStore.getState().saveDocument('/tmp/test.glyph', async (_p, c) => { saved = c; });
+
+      useSpriteEditorStore.getState().loadDocument(saved, '/tmp/test.glyph');
+      const state = useSpriteEditorStore.getState();
+      expect(state.zoom).toBe(8);
+      expect(state.tool.activeTool).toBe('pencil');
+      expect(state.isPlaying).toBe(false);
+      expect(state.selectionRect).toBeNull();
+    });
+
+    it('returns error for invalid JSON', () => {
+      const err = useSpriteEditorStore.getState().loadDocument('not json', '/tmp/bad.glyph');
+      expect(err).toContain('Invalid JSON');
+    });
+
+    it('returns error for future schema version', () => {
+      openTestDoc(4, 4);
+      const json = JSON.stringify({
+        format: 'glyphstudio-sprite',
+        schemaVersion: 999,
+        document: useSpriteEditorStore.getState().document,
+        pixelBuffers: {},
+      });
+      const err = useSpriteEditorStore.getState().loadDocument(json, '/tmp/future.glyph');
+      expect(err).toContain('999');
+    });
+
+    it('newDocument clears filePath', () => {
+      openTestDoc(4, 4);
+      // Manually set filePath to simulate a loaded file
+      useSpriteEditorStore.setState({ filePath: '/tmp/old.glyph' });
+      expect(useSpriteEditorStore.getState().filePath).toBe('/tmp/old.glyph');
+
+      openTestDoc(8, 8);
+      expect(useSpriteEditorStore.getState().filePath).toBeNull();
+    });
+  });
+
   // ── Frame management ──
 
   describe('frame management', () => {
