@@ -10,6 +10,7 @@ import { AnalysisPanel } from './AnalysisPanel';
 import { PalettePropsPanel } from './PalettePropsPanel';
 import { ValidationPanel } from './ValidationPanel';
 import { ReferencePanel } from './ReferencePanel';
+import { SnapshotPanel } from './SnapshotPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -17,8 +18,8 @@ interface RightDockProps {
 
 const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
-  animate: ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
+  edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
+  animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
   ai: ['AI Assist', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
@@ -48,6 +49,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Reference') {
     return <ReferencePanel />;
+  }
+  if (tabName === 'Snapshots') {
+    return <SnapshotPanel />;
   }
   if (tabName === 'Analysis') {
     return <AnalysisPanel />;

@@ -11,6 +11,8 @@ export type { RgbaColor } from './toolStore';
 export { useSelectionStore } from './selectionStore';
 export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
+export { useSnapshotStore } from './snapshotStore';
+export type { CanvasSnapshot } from './snapshotStore';
 export { usePaletteStore } from './paletteStore';
 export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';

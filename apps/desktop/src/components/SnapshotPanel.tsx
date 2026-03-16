@@ -1,0 +1,141 @@
+import { useCallback, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { useSnapshotStore } from '@glyphstudio/state';
+import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
+import { syncLayersFromFrame } from '../lib/syncLayers';
+
+export function SnapshotPanel() {
+  const snapshots = useSnapshotStore((s) => s.snapshots);
+  const createSnapshot = useSnapshotStore((s) => s.createSnapshot);
+  const deleteSnapshot = useSnapshotStore((s) => s.deleteSnapshot);
+  const renameSnapshot = useSnapshotStore((s) => s.renameSnapshot);
+  const clearAll = useSnapshotStore((s) => s.clearAll);
+
+  const frame = useCanvasFrameStore((s) => s.frame);
+  const setFrame = useCanvasFrameStore((s) => s.setFrame);
+
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const handleCapture = useCallback(() => {
+    if (!frame) return;
+    const name = `Snapshot ${snapshots.length + 1}`;
+    createSnapshot(name, frame.width, frame.height, frame.data);
+  }, [frame, snapshots.length, createSnapshot]);
+
+  const handleRestore = useCallback(
+    async (snapId: string) => {
+      const snap = snapshots.find((s) => s.id === snapId);
+      if (!snap) return;
+      try {
+        const restored = await invoke<CanvasFrameData>('restore_pixels', {
+          pixelData: snap.data,
+        });
+        setFrame(restored);
+        syncLayersFromFrame(restored);
+      } catch {
+        // If the backend command doesn't exist yet, apply client-side
+        if (frame) {
+          const updated: CanvasFrameData = {
+            ...frame,
+            data: [...snap.data],
+          };
+          setFrame(updated);
+        }
+      }
+    },
+    [snapshots, frame, setFrame],
+  );
+
+  const handleStartRename = useCallback((id: string, currentName: string) => {
+    setRenamingId(id);
+    setRenameValue(currentName);
+  }, []);
+
+  const handleCommitRename = useCallback(() => {
+    if (renamingId) {
+      renameSnapshot(renamingId, renameValue);
+    }
+    setRenamingId(null);
+  }, [renamingId, renameValue, renameSnapshot]);
+
+  return (
+    <div className="snapshot-panel">
+      <div className="snapshot-panel-header">
+        <span className="snapshot-panel-title">Snapshots</span>
+        <div className="snapshot-panel-header-actions">
+          <button
+            className="snapshot-capture-btn"
+            onClick={handleCapture}
+            disabled={!frame}
+            title="Capture current canvas state"
+          >
+            Capture
+          </button>
+          {snapshots.length > 0 && (
+            <button
+              className="snapshot-clear-btn"
+              onClick={clearAll}
+              title="Clear all snapshots"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="snapshot-list">
+        {snapshots.length === 0 && (
+          <div className="snapshot-empty">
+            No snapshots yet. Click Capture to save the current canvas state.
+          </div>
+        )}
+        {snapshots.map((snap) => (
+          <div key={snap.id} className="snapshot-item">
+            <div className="snapshot-item-info">
+              {renamingId === snap.id ? (
+                <input
+                  className="snapshot-rename-input"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={handleCommitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCommitRename();
+                    if (e.key === 'Escape') setRenamingId(null);
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="snapshot-name"
+                  onDoubleClick={() => handleStartRename(snap.id, snap.name)}
+                  title="Double-click to rename"
+                >
+                  {snap.name}
+                </span>
+              )}
+              <span className="snapshot-meta">
+                {snap.width}{'\u00d7'}{snap.height}
+              </span>
+            </div>
+            <div className="snapshot-item-actions">
+              <button
+                className="snapshot-restore-btn"
+                onClick={() => handleRestore(snap.id)}
+                title="Restore this snapshot to canvas"
+              >
+                Restore
+              </button>
+              <button
+                className="snapshot-delete-btn"
+                onClick={() => deleteSnapshot(snap.id)}
+                title="Delete snapshot"
+              >
+                {'\u00d7'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

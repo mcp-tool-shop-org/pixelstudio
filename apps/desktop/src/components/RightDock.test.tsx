@@ -34,6 +34,9 @@ vi.mock('../components/ReferencePanel', () => ({
 vi.mock('../components/SceneProvenancePanel', () => ({
   SceneProvenancePanel: () => <div data-testid="scene-provenance-panel">SceneProvenancePanel</div>,
 }));
+vi.mock('../components/SnapshotPanel', () => ({
+  SnapshotPanel: () => <div data-testid="snapshot-panel">SnapshotPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';
@@ -43,8 +46,8 @@ describe('RightDock', () => {
 
   describe('tab rendering per mode', () => {
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets']],
-      ['animate', ['Layers', 'Reference', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion']],
+      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets']],
+      ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion']],
       ['palette', ['Palette Props', 'Validation']],
       ['ai', ['AI Assist', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
@@ -69,7 +72,7 @@ describe('RightDock', () => {
   describe('tab count per mode', () => {
     it('edit has 6 tabs', () => {
       render(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(7);
+      expect(screen.getAllByRole('button')).toHaveLength(8);
     });
 
     it('export has 1 tab', () => {
@@ -206,7 +209,7 @@ describe('RightDock', () => {
     it('switching from project-home to edit works', () => {
       const { rerender } = render(<RightDock activeMode="project-home" />);
       rerender(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(7);
+      expect(screen.getAllByRole('button')).toHaveLength(8);
     });
 
     it('rapidly switching modes does not break active tab', () => {
