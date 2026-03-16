@@ -20,6 +20,7 @@ import { registerTransformTools } from './tools/transformTools.js';
 import { registerResources } from './resources/documentResource.js';
 import { registerStateResource } from './resources/stateResource.js';
 import { registerRenderResources } from './resources/renderResource.js';
+import { registerCatalogResource } from './resources/catalogResource.js';
 
 export interface GlyphStudioServerOptions {
   /** Custom session manager (for testing). If omitted, a new one is created. */
@@ -63,6 +64,7 @@ export function createGlyphStudioServer(options?: GlyphStudioServerOptions): Gly
   registerResources(server, sessions);
   registerStateResource(server, sessions);
   registerRenderResources(server, sessions);
+  registerCatalogResource(server);
 
   return { server, sessions };
 }
