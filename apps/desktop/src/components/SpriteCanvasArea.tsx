@@ -1,36 +1,298 @@
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
+import {
+  samplePixel,
+  drawBrushDab,
+  bresenhamLine,
+  floodFill,
+  clonePixelBuffer,
+  TRANSPARENT,
+} from '@glyphstudio/state';
+import type { Rgba } from '@glyphstudio/state';
+import type { SpritePixelBuffer } from '@glyphstudio/domain';
+import { pointerToPixel, getSpriteOrigin } from '../lib/spriteCanvasMath';
+import type { SpriteViewport } from '../lib/spriteCanvasMath';
+
+const CANVAS_BG = '#1a1a1e';
+const CHECK_LIGHT = '#2a2a2e';
+const CHECK_DARK = '#222226';
+const CHECK_SIZE = 8;
+const GRID_COLOR = 'rgba(255,255,255,0.12)';
+const GRID_ZOOM_THRESHOLD = 4;
 
 /**
- * Sprite canvas area — placeholder shell.
+ * Real pixel canvas with nearest-neighbor rendering, pixel grid,
+ * and tool interaction (pencil, eraser, fill, eyedropper).
  *
- * Stage 27.2 will add the actual pixel canvas with HTML5 Canvas rendering
- * and paint tool interaction. For now, this shows the document dimensions
- * and zoom level.
+ * Draft stroke state is local to this component. Pointer down starts
+ * a draft on a cloned buffer; pointer moves paint into the draft;
+ * pointer up commits the final buffer through the store once.
  */
 export function SpriteCanvasArea() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  // Store selectors
   const doc = useSpriteEditorStore((s) => s.document);
-  const zoom = useSpriteEditorStore((s) => s.zoom);
+  const pixelBuffers = useSpriteEditorStore((s) => s.pixelBuffers);
   const activeFrameIndex = useSpriteEditorStore((s) => s.activeFrameIndex);
+  const zoom = useSpriteEditorStore((s) => s.zoom);
+  const panX = useSpriteEditorStore((s) => s.panX);
+  const panY = useSpriteEditorStore((s) => s.panY);
+  const tool = useSpriteEditorStore((s) => s.tool);
+  const commitPixels = useSpriteEditorStore((s) => s.commitPixels);
+  const setForegroundColorByRgba = useSpriteEditorStore((s) => s.setForegroundColorByRgba);
+
+  // Draft stroke state — local, never in store
+  const draftRef = useRef<{
+    buffer: SpritePixelBuffer;
+    lastPixelX: number;
+    lastPixelY: number;
+  } | null>(null);
+
+  // Get active frame buffer
+  const activeFrame = doc?.frames[activeFrameIndex];
+  const activeBuffer = activeFrame ? pixelBuffers[activeFrame.id] : undefined;
+
+  // Build viewport
+  const viewport: SpriteViewport | null = doc && canvasSize.width > 0
+    ? {
+        zoom,
+        panX,
+        panY,
+        spriteWidth: doc.width,
+        spriteHeight: doc.height,
+        canvasWidth: canvasSize.width,
+        canvasHeight: canvasSize.height,
+      }
+    : null;
+
+  // Get current foreground color
+  const getForegroundRgba = useCallback((): Rgba => {
+    const d = useSpriteEditorStore.getState().document;
+    if (!d) return [0, 0, 0, 255];
+    const c = d.palette.colors[d.palette.foregroundIndex];
+    return c ? c.rgba : [0, 0, 0, 255];
+  }, []);
+
+  // ── Resize observer ──
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Render loop ──
+  const renderCanvas = useCallback(
+    (bufferToRender?: SpritePixelBuffer) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !doc || !viewport) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const buf = bufferToRender ?? activeBuffer;
+      if (!buf) return;
+
+      const { width: cw, height: ch } = canvasSize;
+      canvas.width = cw;
+      canvas.height = ch;
+
+      // Background
+      ctx.fillStyle = CANVAS_BG;
+      ctx.fillRect(0, 0, cw, ch);
+
+      const { originX, originY } = getSpriteOrigin(viewport);
+      const scaledW = doc.width * zoom;
+      const scaledH = doc.height * zoom;
+
+      // Checkerboard transparency pattern
+      for (let py = 0; py < doc.height; py++) {
+        for (let px = 0; px < doc.width; px++) {
+          const sx = originX + px * zoom;
+          const sy = originY + py * zoom;
+          const checkX = Math.floor(px / (CHECK_SIZE / zoom)) % 2;
+          const checkY = Math.floor(py / (CHECK_SIZE / zoom)) % 2;
+          ctx.fillStyle = (checkX + checkY) % 2 === 0 ? CHECK_LIGHT : CHECK_DARK;
+          ctx.fillRect(sx, sy, zoom, zoom);
+        }
+      }
+
+      // Pixel data — nearest neighbor
+      for (let py = 0; py < doc.height; py++) {
+        for (let px = 0; px < doc.width; px++) {
+          const i = (py * buf.width + px) * 4;
+          const a = buf.data[i + 3];
+          if (a === 0) continue;
+          const r = buf.data[i];
+          const g = buf.data[i + 1];
+          const b = buf.data[i + 2];
+          ctx.fillStyle = a === 255
+            ? `rgb(${r},${g},${b})`
+            : `rgba(${r},${g},${b},${a / 255})`;
+          ctx.fillRect(originX + px * zoom, originY + py * zoom, zoom, zoom);
+        }
+      }
+
+      // Pixel grid
+      if (zoom >= GRID_ZOOM_THRESHOLD) {
+        ctx.strokeStyle = GRID_COLOR;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let px = 0; px <= doc.width; px++) {
+          const x = Math.round(originX + px * zoom) + 0.5;
+          ctx.moveTo(x, originY);
+          ctx.lineTo(x, originY + scaledH);
+        }
+        for (let py = 0; py <= doc.height; py++) {
+          const y = Math.round(originY + py * zoom) + 0.5;
+          ctx.moveTo(originX, y);
+          ctx.lineTo(originX + scaledW, y);
+        }
+        ctx.stroke();
+      }
+    },
+    [doc, activeBuffer, viewport, zoom, canvasSize],
+  );
+
+  // Re-render when state changes
+  useEffect(() => {
+    renderCanvas();
+  }, [renderCanvas]);
+
+  // ── Pointer event helpers ──
+
+  const getPointerPixel = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!viewport) return null;
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const pointerX = e.clientX - rect.left;
+      const pointerY = e.clientY - rect.top;
+      return pointerToPixel(pointerX, pointerY, viewport);
+    },
+    [viewport],
+  );
+
+  // ── Tool handlers ──
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!doc || !activeBuffer || !viewport) return;
+
+      const pixel = getPointerPixel(e);
+      if (!pixel) return;
+
+      const activeTool = useSpriteEditorStore.getState().tool.activeTool;
+
+      if (activeTool === 'eyedropper') {
+        const color = samplePixel(activeBuffer, pixel.x, pixel.y);
+        if (color && color[3] > 0) {
+          setForegroundColorByRgba(color);
+        }
+        return;
+      }
+
+      if (activeTool === 'fill') {
+        const fillBuffer = clonePixelBuffer(activeBuffer);
+        const fillColor = getForegroundRgba();
+        floodFill(fillBuffer, pixel.x, pixel.y, fillColor);
+        commitPixels(fillBuffer);
+        return;
+      }
+
+      // Pencil or eraser — start draft stroke
+      const draft = clonePixelBuffer(activeBuffer);
+      const color: Rgba = activeTool === 'eraser' ? TRANSPARENT : getForegroundRgba();
+      const { brushSize, brushShape } = useSpriteEditorStore.getState().tool;
+      drawBrushDab(draft, pixel.x, pixel.y, color, brushSize, brushShape);
+
+      draftRef.current = { buffer: draft, lastPixelX: pixel.x, lastPixelY: pixel.y };
+
+      // Capture pointer for drag
+      (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+
+      // Render draft preview
+      renderCanvas(draft);
+    },
+    [doc, activeBuffer, viewport, getPointerPixel, commitPixels, setForegroundColorByRgba, getForegroundRgba, renderCanvas],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!draftRef.current || !viewport) return;
+
+      const pixel = getPointerPixel(e);
+      if (!pixel) return;
+
+      const draft = draftRef.current;
+      if (pixel.x === draft.lastPixelX && pixel.y === draft.lastPixelY) return;
+
+      const activeTool = useSpriteEditorStore.getState().tool.activeTool;
+      const color: Rgba = activeTool === 'eraser' ? TRANSPARENT : getForegroundRgba();
+      const { brushSize, brushShape } = useSpriteEditorStore.getState().tool;
+
+      // Bresenham interpolation between last and current pixel
+      const points = bresenhamLine(draft.lastPixelX, draft.lastPixelY, pixel.x, pixel.y);
+      for (const [px, py] of points) {
+        drawBrushDab(draft.buffer, px, py, color, brushSize, brushShape);
+      }
+
+      draft.lastPixelX = pixel.x;
+      draft.lastPixelY = pixel.y;
+
+      // Render draft preview
+      renderCanvas(draft.buffer);
+    },
+    [viewport, getPointerPixel, getForegroundRgba, renderCanvas],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!draftRef.current) return;
+
+      // Commit the final draft buffer — one authored edit
+      commitPixels(draftRef.current.buffer);
+      draftRef.current = null;
+    },
+    [commitPixels],
+  );
 
   if (!doc) return null;
 
-  const activeFrame = doc.frames[activeFrameIndex];
-
   return (
-    <div className="sprite-canvas-area" data-testid="sprite-canvas-area">
-      <div className="sprite-canvas-placeholder">
-        <div className="sprite-canvas-info">
-          <span data-testid="canvas-dimensions">
-            {doc.width} x {doc.height}
-          </span>
-          <span data-testid="canvas-zoom">{zoom}x</span>
-          <span data-testid="canvas-frame">
-            Frame {activeFrameIndex + 1}/{doc.frames.length}
-          </span>
-          {activeFrame && (
-            <span data-testid="canvas-frame-duration">{activeFrame.durationMs}ms</span>
-          )}
-        </div>
+    <div className="sprite-canvas-area" data-testid="sprite-canvas-area" ref={containerRef}>
+      <canvas
+        ref={canvasRef}
+        className="sprite-canvas"
+        data-testid="sprite-canvas"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        style={{ display: 'block', width: '100%', height: '100%', imageRendering: 'pixelated' }}
+      />
+      <div className="sprite-canvas-info" data-testid="sprite-canvas-info">
+        <span data-testid="canvas-dimensions">
+          {doc.width} x {doc.height}
+        </span>
+        <span data-testid="canvas-zoom">{zoom}x</span>
+        <span data-testid="canvas-frame">
+          Frame {activeFrameIndex + 1}/{doc.frames.length}
+        </span>
+        {activeFrame && (
+          <span data-testid="canvas-frame-duration">{activeFrame.durationMs}ms</span>
+        )}
       </div>
     </div>
   );

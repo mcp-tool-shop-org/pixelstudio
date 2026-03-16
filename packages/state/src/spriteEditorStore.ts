@@ -7,6 +7,7 @@ import type {
   SpriteToolConfig,
   SpriteOnionSkin,
   SpritePixelBuffer,
+  SpriteColor,
 } from '@glyphstudio/domain';
 import {
   createSpriteDocument,
@@ -57,6 +58,12 @@ export interface SpriteEditorStoreState {
 
   // -- Actions: Onion skin --
   setOnionSkin: (config: Partial<SpriteOnionSkin>) => void;
+
+  // -- Actions: Pixel editing --
+  /** Commit a finished pixel buffer to the active frame. One call per completed tool action. */
+  commitPixels: (buffer: SpritePixelBuffer) => void;
+  /** Set foreground color by RGBA value (for eyedropper). */
+  setForegroundColorByRgba: (rgba: [number, number, number, number]) => void;
 
   // -- Actions: Viewport --
   setZoom: (zoom: number) => void;
@@ -203,6 +210,40 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
   // -- Onion skin --
   setOnionSkin: (config) => set((s) => ({ onionSkin: { ...s.onionSkin, ...config } })),
+
+  // -- Pixel editing --
+  commitPixels: (buffer) => {
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!doc) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+    set({
+      pixelBuffers: { ...pixelBuffers, [frame.id]: buffer },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
+  },
+
+  setForegroundColorByRgba: (rgba) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    // Find exact match in palette, or add to palette
+    const existingIndex = doc.palette.colors.findIndex(
+      (c) => c.rgba[0] === rgba[0] && c.rgba[1] === rgba[1] && c.rgba[2] === rgba[2] && c.rgba[3] === rgba[3],
+    );
+    if (existingIndex >= 0) {
+      set({ document: { ...doc, palette: { ...doc.palette, foregroundIndex: existingIndex } } });
+    } else {
+      const newColor: SpriteColor = { rgba };
+      const newColors = [...doc.palette.colors, newColor];
+      set({
+        document: {
+          ...doc,
+          palette: { ...doc.palette, colors: newColors, foregroundIndex: newColors.length - 1 },
+        },
+      });
+    }
+  },
 
   // -- Viewport --
   setZoom: (zoom) => {

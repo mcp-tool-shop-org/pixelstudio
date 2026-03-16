@@ -223,3 +223,16 @@ export type {
 } from './sceneRestore';
 export { useSpriteEditorStore } from './spriteEditorStore';
 export type { SpriteEditorStoreState } from './spriteEditorStore';
+export {
+  getPixelIndex,
+  isInBounds,
+  samplePixel,
+  setPixel,
+  colorsEqual,
+  drawBrushDab,
+  bresenhamLine,
+  floodFill,
+  clonePixelBuffer,
+  TRANSPARENT,
+} from './spriteRaster';
+export type { Rgba } from './spriteRaster';

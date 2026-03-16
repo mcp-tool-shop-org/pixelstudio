@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { createBlankPixelBuffer } from '@glyphstudio/domain';
 import { useSpriteEditorStore } from './spriteEditorStore';
+import { setPixel, samplePixel } from './spriteRaster';
+import type { Rgba } from './spriteRaster';
 
 function resetStore() {
   useSpriteEditorStore.getState().closeDocument();
@@ -280,6 +283,87 @@ describe('spriteEditorStore', () => {
       useSpriteEditorStore.getState().setPan(50, -30);
       expect(useSpriteEditorStore.getState().panX).toBe(50);
       expect(useSpriteEditorStore.getState().panY).toBe(-30);
+    });
+  });
+
+  // ── Pixel editing ──
+
+  describe('pixel editing', () => {
+    it('commitPixels updates active frame buffer', () => {
+      openTestDoc(4, 4);
+      const buf = createBlankPixelBuffer(4, 4);
+      const RED: Rgba = [255, 0, 0, 255];
+      setPixel(buf, 1, 1, RED);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const frameId = useSpriteEditorStore.getState().document!.frames[0].id;
+      const stored = useSpriteEditorStore.getState().pixelBuffers[frameId];
+      expect(samplePixel(stored, 1, 1)).toEqual(RED);
+    });
+
+    it('commitPixels marks document dirty', () => {
+      openTestDoc(4, 4);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
+      const buf = createBlankPixelBuffer(4, 4);
+      useSpriteEditorStore.getState().commitPixels(buf);
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('commitPixels only affects active frame', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addFrame();
+      // Active is frame 1 (the new frame)
+      const frame0Id = useSpriteEditorStore.getState().document!.frames[0].id;
+      const frame1Id = useSpriteEditorStore.getState().document!.frames[1].id;
+
+      // Write red to frame 0's buffer manually for reference
+      const origBuf0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+      setPixel(origBuf0, 0, 0, [255, 0, 0, 255]);
+
+      // Commit green to active frame (frame 1)
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [0, 255, 0, 255]);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      // Frame 1 should have green
+      const stored1 = useSpriteEditorStore.getState().pixelBuffers[frame1Id];
+      expect(samplePixel(stored1, 0, 0)).toEqual([0, 255, 0, 255]);
+
+      // Frame 0 should still have red (unchanged by commit)
+      const stored0 = useSpriteEditorStore.getState().pixelBuffers[frame0Id];
+      expect(samplePixel(stored0, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('commitPixels is no-op without document', () => {
+      const buf = createBlankPixelBuffer(4, 4);
+      useSpriteEditorStore.getState().commitPixels(buf);
+      expect(useSpriteEditorStore.getState().document).toBeNull();
+    });
+  });
+
+  // ── Eyedropper color ──
+
+  describe('setForegroundColorByRgba', () => {
+    it('selects existing palette color by match', () => {
+      openTestDoc();
+      // Black is index 1 in default palette
+      useSpriteEditorStore.getState().setForegroundColorByRgba([0, 0, 0, 255]);
+      expect(useSpriteEditorStore.getState().document!.palette.foregroundIndex).toBe(1);
+    });
+
+    it('adds new color to palette when no match exists', () => {
+      openTestDoc();
+      const initialCount = useSpriteEditorStore.getState().document!.palette.colors.length;
+      useSpriteEditorStore.getState().setForegroundColorByRgba([42, 42, 42, 255]);
+      const palette = useSpriteEditorStore.getState().document!.palette;
+      expect(palette.colors.length).toBe(initialCount + 1);
+      expect(palette.foregroundIndex).toBe(palette.colors.length - 1);
+      expect(palette.colors[palette.foregroundIndex].rgba).toEqual([42, 42, 42, 255]);
+    });
+
+    it('is no-op without document', () => {
+      useSpriteEditorStore.getState().setForegroundColorByRgba([0, 0, 0, 255]);
+      expect(useSpriteEditorStore.getState().document).toBeNull();
     });
   });
 });
