@@ -14,6 +14,7 @@ export function LayerPanel() {
   const activeLayerId = useLayerStore((s) => s.activeLayerId);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
+  const toggleSketch = useLayerStore((s) => s.toggleSketch);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -85,6 +86,29 @@ export function LayerPanel() {
     }
   }, [applyFrame, notifyDirty]);
 
+  const handleAddSketchLayer = useCallback(async () => {
+    try {
+      const frame = await invoke<CanvasFrameData>('create_layer', { name: 'Sketch' });
+      applyFrame(frame);
+      // The new layer is now active — mark it as sketch
+      const newId = frame.activeLayerId;
+      if (newId) {
+        toggleSketch(newId);
+      }
+      notifyDirty();
+    } catch (err) {
+      console.error('create_layer (sketch) failed:', err);
+    }
+  }, [applyFrame, notifyDirty, toggleSketch]);
+
+  const handleToggleSketch = useCallback(
+    (layerId: string) => {
+      toggleSketch(layerId);
+      notifyDirty();
+    },
+    [toggleSketch, notifyDirty],
+  );
+
   const handleDeleteLayer = useCallback(
     async (layerId: string) => {
       try {
@@ -144,18 +168,28 @@ export function LayerPanel() {
     <div className="layer-panel">
       <div className="layer-panel-header">
         <span className="layer-panel-title">Layers</span>
-        <button className="layer-panel-add" onClick={handleAddLayer} title="Add layer">
-          +
-        </button>
+        <div className="layer-panel-header-actions">
+          <button
+            className="layer-panel-add sketch"
+            onClick={handleAddSketchLayer}
+            title="Add sketch layer (excluded from export)"
+          >
+            S+
+          </button>
+          <button className="layer-panel-add" onClick={handleAddLayer} title="Add layer">
+            +
+          </button>
+        </div>
       </div>
       <div className="layer-panel-list">
         {displayLayers.map((layer) => {
           if (!layer) return null;
           const isActive = layer.id === activeLayerId;
+          const isSketch = layer.type === 'sketch';
           return (
             <div
               key={layer.id}
-              className={`layer-item ${isActive ? 'active' : ''}`}
+              className={`layer-item ${isActive ? 'active' : ''} ${isSketch ? 'sketch' : ''}`}
               onClick={() => handleSelectLayer(layer.id)}
             >
               <button
@@ -199,6 +233,7 @@ export function LayerPanel() {
                     handleStartRename(layer.id, layer.name);
                   }}
                 >
+                  {isSketch && <span className="layer-sketch-badge" title="Sketch layer (excluded from export)">S</span>}
                   {layer.name}
                 </span>
               )}
@@ -215,22 +250,31 @@ export function LayerPanel() {
                 </button>
               )}
               {isActive && (
-                <div className="layer-opacity" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="range"
-                    className="layer-opacity-slider"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={Math.round(layer.opacity * 100)}
-                    onChange={(e) =>
-                      handleSetOpacity(layer.id, Number(e.target.value) / 100)
-                    }
-                    title={`Opacity: ${Math.round(layer.opacity * 100)}%`}
-                  />
-                  <span className="layer-opacity-value">
-                    {Math.round(layer.opacity * 100)}%
-                  </span>
+                <div className="layer-active-controls" onClick={(e) => e.stopPropagation()}>
+                  <div className="layer-opacity">
+                    <input
+                      type="range"
+                      className="layer-opacity-slider"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(layer.opacity * 100)}
+                      onChange={(e) =>
+                        handleSetOpacity(layer.id, Number(e.target.value) / 100)
+                      }
+                      title={`Opacity: ${Math.round(layer.opacity * 100)}%`}
+                    />
+                    <span className="layer-opacity-value">
+                      {Math.round(layer.opacity * 100)}%
+                    </span>
+                  </div>
+                  <button
+                    className={`layer-sketch-toggle ${isSketch ? 'on' : ''}`}
+                    onClick={() => handleToggleSketch(layer.id)}
+                    title={isSketch ? 'Convert to normal layer' : 'Convert to sketch layer'}
+                  >
+                    {isSketch ? 'Sketch' : 'Normal'}
+                  </button>
                 </div>
               )}
             </div>

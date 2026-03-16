@@ -374,6 +374,7 @@ export function flattenLayers(
 
   for (const layer of layers) {
     if (!layer.visible) continue;
+    if (layer.sketch) continue;
     const buf = pixelBuffers[layer.id];
     if (!buf) continue;
 

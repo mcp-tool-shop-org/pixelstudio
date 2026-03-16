@@ -13,6 +13,8 @@ interface LayerState {
   removeLayer: (id: string) => void;
   updateLayer: (id: string, updates: Partial<LayerNode>) => void;
   setLayerOrder: (rootIds: string[]) => void;
+  toggleSketch: (id: string) => void;
+  setSketchTint: (id: string, tint: string | null) => void;
 }
 
 export const useLayerStore = create<LayerState>((set) => ({
@@ -49,4 +51,32 @@ export const useLayerStore = create<LayerState>((set) => ({
       }),
     ),
   setLayerOrder: (rootIds) => set({ rootLayerIds: rootIds }),
+  toggleSketch: (id) =>
+    set(
+      produce((s: LayerState) => {
+        const layer = s.layerById[id];
+        if (layer) {
+          layer.type = layer.type === 'sketch' ? 'raster' : 'sketch';
+          if (layer.type === 'sketch' && layer.opacity === 1) {
+            layer.opacity = 0.4;
+          }
+          layer.updatedAt = new Date().toISOString();
+        }
+      }),
+    ),
+  setSketchTint: (id, tint) =>
+    set(
+      produce((s: LayerState) => {
+        const layer = s.layerById[id];
+        if (layer) {
+          if (tint) {
+            layer.metadata = { ...layer.metadata, sketchTint: tint };
+          } else {
+            const { sketchTint: _, ...rest } = layer.metadata as Record<string, unknown> & { sketchTint?: string };
+            layer.metadata = rest;
+          }
+          layer.updatedAt = new Date().toISOString();
+        }
+      }),
+    ),
 }));

@@ -30,6 +30,7 @@ export function syncLayersFromFrame(frame: CanvasFrameData) {
         metadata: {},
       });
     } else {
+      // Preserve layer type (e.g. sketch) — Rust doesn't know about types
       store.updateLayer(l.id, {
         name: l.name,
         visible: l.visible,

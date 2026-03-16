@@ -274,9 +274,27 @@
   justify-content: center;
 }
 
+.layer-panel-header-actions {
+  display: flex;
+  gap: 3px;
+}
+
 .layer-panel-add:hover {
   color: var(--accent-primary);
   border-color: var(--accent-primary);
+}
+
+.layer-panel-add.sketch {
+  font-size: 10px;
+  width: auto;
+  padding: 0 5px;
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.layer-panel-add.sketch:hover {
+  color: #e8a030;
+  border-color: #e8a030;
 }
 
 .layer-panel-list {
@@ -305,6 +323,59 @@
 .layer-item.active {
   background: var(--bg-panel-raised);
   outline: 1px solid var(--accent-primary);
+}
+
+.layer-item.sketch {
+  border-left: 3px solid #e8a030;
+  opacity: 0.85;
+}
+
+.layer-item.sketch .layer-name {
+  font-style: italic;
+}
+
+.layer-sketch-badge {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  font-style: normal;
+  color: #e8a030;
+  background: rgba(232, 160, 48, 0.15);
+  border: 1px solid rgba(232, 160, 48, 0.3);
+  border-radius: 2px;
+  padding: 0 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  line-height: 14px;
+}
+
+.layer-active-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.layer-sketch-toggle {
+  background: none;
+  border: 1px solid var(--border-panel);
+  color: var(--text-muted);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.layer-sketch-toggle:hover {
+  color: #e8a030;
+  border-color: #e8a030;
+}
+
+.layer-sketch-toggle.on {
+  color: #e8a030;
+  border-color: #e8a030;
+  background: rgba(232, 160, 48, 0.1);
 }
 
 .layer-vis,

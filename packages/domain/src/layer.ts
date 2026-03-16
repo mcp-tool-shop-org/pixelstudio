@@ -1,5 +1,5 @@
 /** Layer types in the graph */
-export type LayerType = 'raster' | 'group' | 'mask' | 'draft' | 'generated' | 'guide';
+export type LayerType = 'raster' | 'group' | 'mask' | 'draft' | 'generated' | 'guide' | 'sketch';
 
 /** Origin of a layer */
 export type LayerOrigin = 'manual' | 'ai' | 'imported' | 'workflow';

@@ -61,6 +61,8 @@ export interface SpriteLayer {
   visible: boolean;
   /** 0-based index in the layer stack (0 = bottom). */
   index: number;
+  /** Sketch layers are excluded from export by default. */
+  sketch?: boolean;
 }
 
 // ── Frame ──
