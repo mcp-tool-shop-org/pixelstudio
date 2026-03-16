@@ -1,18 +1,22 @@
 {
   "name": "@glyphstudio/mcp-sprite-server",
   "version": "1.0.0",
-  "description": "MCP server exposing GlyphStudio sprite editor as 53 programmable tools",
+  "description": "MCP server exposing GlyphStudio sprite editor as 61 programmable tools",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    },
+    "bin": {
+      "glyphstudio-mcp": "dist/cli.js"
     }
-  },
-  "bin": {
-    "glyphstudio-mcp": "dist/cli.js"
   },
   "files": [
     "dist",
