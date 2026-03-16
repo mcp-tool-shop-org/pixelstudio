@@ -10,6 +10,8 @@ export { useToolStore } from './toolStore';
 export type { RgbaColor } from './toolStore';
 export { useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS, SKETCH_LAYER_DEFAULTS } from './brushSettingsStore';
 export type { BrushSettings } from './brushSettingsStore';
+export { expandDab, expandStrokeDabs } from './sketchDab';
+export type { DabParams } from './sketchDab';
 export { useSelectionStore } from './selectionStore';
 export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';

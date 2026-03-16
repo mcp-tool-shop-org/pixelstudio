@@ -6,6 +6,8 @@ import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
+import { useBrushSettingsStore, expandStrokeDabs } from '@glyphstudio/state';
+import { isSketchTool } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -511,10 +513,25 @@ export function Canvas() {
         return;
       }
 
-      if (e.button === 0 && (activeTool === 'pencil' || activeTool === 'eraser')) {
+      if (e.button === 0 && (activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool))) {
         // Pause playback on edit
         if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
-        const color = activeTool === 'pencil' ? primaryColor : { r: 0, g: 0, b: 0, a: 0 };
+
+        const isSketch = isSketchTool(activeTool);
+        const isErase = activeTool === 'eraser' || activeTool === 'sketch-eraser';
+        const brushState = useBrushSettingsStore.getState();
+
+        let color: { r: number; g: number; b: number; a: number };
+        if (isErase) {
+          color = { r: 0, g: 0, b: 0, a: 0 };
+        } else if (isSketch) {
+          // Apply brush opacity to the primary color alpha
+          const opacity = brushState.sketchBrush.opacity;
+          color = { ...primaryColor, a: Math.round(primaryColor.a * opacity) };
+        } else {
+          color = primaryColor;
+        }
+
         try {
           await invoke<string>('begin_stroke', {
             input: { tool: activeTool, r: color.r, g: color.g, b: color.b, a: color.a },
@@ -524,12 +541,25 @@ export function Canvas() {
           return;
         }
 
+        if (isSketch) {
+          useBrushSettingsStore.getState().setRoughModeActive(true);
+        }
+
         isDrawingRef.current = true;
         canvas.setPointerCapture(e.pointerId);
         const pixel = screenToPixel(e.clientX, e.clientY);
         if (pixel) {
           lastPixelRef.current = pixel;
-          sendStrokePoints([[pixel.x, pixel.y]]);
+          if (isSketch && frame) {
+            const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
+            const dabPoints = expandStrokeDabs(
+              [[pixel.x, pixel.y]],
+              { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
+            );
+            sendStrokePoints(dabPoints);
+          } else {
+            sendStrokePoints([[pixel.x, pixel.y]]);
+          }
         }
       }
     },
@@ -592,12 +622,36 @@ export function Canvas() {
 
       if (isDrawingRef.current && pixel) {
         const last = lastPixelRef.current;
+        const isSketch = isSketchTool(activeTool);
+
         if (last && (last.x !== pixel.x || last.y !== pixel.y)) {
           const points = bresenhamLine(last.x, last.y, pixel.x, pixel.y);
           const newPoints = points.slice(1);
-          if (newPoints.length > 0) sendStrokePoints(newPoints);
+          if (newPoints.length > 0) {
+            if (isSketch && frame) {
+              const brushState = useBrushSettingsStore.getState();
+              const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
+              const dabPoints = expandStrokeDabs(
+                newPoints,
+                { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
+              );
+              if (dabPoints.length > 0) sendStrokePoints(dabPoints);
+            } else {
+              sendStrokePoints(newPoints);
+            }
+          }
         } else if (!last) {
-          sendStrokePoints([[pixel.x, pixel.y]]);
+          if (isSketch && frame) {
+            const brushState = useBrushSettingsStore.getState();
+            const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
+            const dabPoints = expandStrokeDabs(
+              [[pixel.x, pixel.y]],
+              { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
+            );
+            sendStrokePoints(dabPoints);
+          } else {
+            sendStrokePoints([[pixel.x, pixel.y]]);
+          }
         }
         lastPixelRef.current = pixel;
       }
@@ -639,6 +693,7 @@ export function Canvas() {
     if (isDrawingRef.current) {
       isDrawingRef.current = false;
       lastPixelRef.current = null;
+      useBrushSettingsStore.getState().setRoughModeActive(false);
       try {
         const f = await invoke<CanvasFrameData>('end_stroke');
         setFrame(f);
@@ -874,7 +929,7 @@ export function Canvas() {
 
   const cursor = isTransforming
     ? 'move'
-    : activeTool === 'pencil' || activeTool === 'eraser'
+    : activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool)
       ? 'crosshair'
       : activeTool === 'marquee'
         ? 'crosshair'
