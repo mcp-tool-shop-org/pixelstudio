@@ -18,6 +18,7 @@ import type {
   WorkflowArtifact,
   StepResult,
 } from './types.js';
+import { normalizeToolCallResult } from '../tools/shared.js';
 
 export interface RunWorkflowOptions {
   /** Base output directory. Workflow outputs go to <outputBase>/<workflow.name>/ */
@@ -64,23 +65,10 @@ export async function runWorkflow(
       const response = await client.callTool({ name: tool, arguments: args });
       const durationMs = Math.round(performance.now() - t0);
 
-      // Extract text and image content from MCP response
-      const contentBlocks = response.content as Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-      const text = contentBlocks.find((c) => c.type === 'text')?.text ?? '{}';
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(text) as Record<string, unknown>;
-      } catch {
-        // MCP-level errors may return non-JSON text
-        parsed = { ok: false, code: 'mcp_error', message: text };
-      }
-
-      // Attach image data if the tool returned an image content block
-      const imageBlock = contentBlocks.find((c) => c.type === 'image');
-      if (imageBlock?.data) {
-        parsed._imageBase64 = imageBlock.data;
-        parsed._imageMimeType = imageBlock.mimeType ?? 'image/png';
-      }
+      // Normalize response — always structured JSON, even for SDK-level validation errors
+      const parsed = normalizeToolCallResult(
+        response as { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; isError?: boolean },
+      );
 
       const step: StepResult = {
         step: stepIndex,

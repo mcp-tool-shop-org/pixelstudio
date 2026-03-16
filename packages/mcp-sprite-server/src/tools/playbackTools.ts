@@ -74,7 +74,7 @@ export function registerPlaybackTools(server: McpServer, sessions: SessionManage
       if ('error' in req) return jsonResult(req.error);
 
       const err = storePreviewPlay(req.store);
-      if (err) return jsonResult(fail('playback_preview_unavailable', err));
+      if (err) return jsonResult(fail(ErrorCode.PLAYBACK_UNAVAILABLE, err));
 
       return jsonResult(success({ preview: storeGetPreviewState(req.store) }));
     },

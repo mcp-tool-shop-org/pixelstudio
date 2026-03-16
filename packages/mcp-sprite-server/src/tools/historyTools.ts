@@ -7,7 +7,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { SessionManager } from '../session/sessionManager.js';
-import { success, fail } from '../schemas/result.js';
+import { success, fail, ErrorCode } from '../schemas/result.js';
 import { sessionId, RgbaSchema } from '../schemas/toolSchemas.js';
 import { requireSession, jsonResult } from './shared.js';
 import {
@@ -126,7 +126,7 @@ export function registerHistoryTools(server: McpServer, sessions: SessionManager
       if (!result.ok) {
         const lastResult = result.results[result.results.length - 1];
         return jsonResult(fail(
-          'batch_failed',
+          ErrorCode.BATCH_FAILED,
           `Batch failed at operation ${lastResult.index}: ${lastResult.error}`,
         ));
       }

@@ -41,3 +41,49 @@ export function jsonResult(result: ToolResult) {
 export function resolveFrameIndex(args: { frameIndex?: number; index?: number }): number | undefined {
   return args.frameIndex ?? args.index;
 }
+
+/**
+ * MCP tool call response shape from the SDK client.
+ */
+interface McpToolCallResponse {
+  content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+  isError?: boolean;
+}
+
+/**
+ * Normalize a raw MCP tool call response into structured JSON.
+ *
+ * Guarantees the returned object always has `ok`, `code`, and `message`
+ * when the call failed — even for SDK-level validation errors that
+ * return plain text with `isError: true`.
+ */
+export function normalizeToolCallResult(response: McpToolCallResponse): Record<string, unknown> {
+  const contentBlocks = response.content;
+  const text = contentBlocks.find((c) => c.type === 'text')?.text ?? '{}';
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // Non-JSON text — wrap in structured error
+    const code = response.isError && text.includes('validation error')
+      ? ErrorCode.VALIDATION_ERROR
+      : 'mcp_error';
+    parsed = { ok: false, code, message: text };
+  }
+
+  // If the SDK flagged isError but the text was valid JSON without ok:false,
+  // force it into a structured error shape
+  if (response.isError && parsed.ok !== false) {
+    parsed = { ok: false, code: ErrorCode.VALIDATION_ERROR, message: text };
+  }
+
+  // Attach image data if present
+  const imageBlock = contentBlocks.find((c) => c.type === 'image');
+  if (imageBlock?.data) {
+    parsed._imageBase64 = imageBlock.data;
+    parsed._imageMimeType = imageBlock.mimeType ?? 'image/png';
+  }
+
+  return parsed;
+}

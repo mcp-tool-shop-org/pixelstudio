@@ -39,7 +39,7 @@ export function registerToolSettingsTools(server: McpServer, sessions: SessionMa
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeSetTool(req.store, tool);
-      if (err) return jsonResult(fail('invalid_tool', err));
+      if (err) return jsonResult(fail(ErrorCode.INVALID_INPUT, err));
 
       return jsonResult(success({ tool: storeGetTool(req.store) }));
     },

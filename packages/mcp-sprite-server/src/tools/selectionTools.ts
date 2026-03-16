@@ -10,7 +10,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { SessionManager } from '../session/sessionManager.js';
-import { success, fail } from '../schemas/result.js';
+import { success, fail, ErrorCode } from '../schemas/result.js';
 import { sessionId } from '../schemas/toolSchemas.js';
 import { requireSession, jsonResult } from './shared.js';
 import {
@@ -41,7 +41,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeSetSelection(req.store, { x, y, width, height });
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       const sel = storeGetSelection(req.store);
       return jsonResult(success({ selection: sel }));
@@ -83,7 +83,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeCopySelection(req.store);
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       return jsonResult(success({ copied: true }));
     },
@@ -98,7 +98,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeCutSelection(req.store);
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       return jsonResult(success({ cut: true, dirty: true }));
     },
@@ -113,7 +113,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storePasteSelection(req.store);
-      if (err) return jsonResult(fail('clipboard_empty', err));
+      if (err) return jsonResult(fail(ErrorCode.CLIPBOARD_EMPTY, err));
 
       const sel = storeGetSelection(req.store);
       return jsonResult(success({ selection: sel }));
@@ -129,7 +129,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeFlipSelectionHorizontal(req.store);
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       return jsonResult(success({ flipped: 'horizontal' }));
     },
@@ -144,7 +144,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeFlipSelectionVertical(req.store);
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       return jsonResult(success({ flipped: 'vertical' }));
     },
@@ -159,7 +159,7 @@ export function registerSelectionTools(server: McpServer, sessions: SessionManag
       if ('error' in req) return jsonResult(req.error);
 
       const err = storeCommitSelection(req.store);
-      if (err) return jsonResult(fail('selection_missing', err));
+      if (err) return jsonResult(fail(ErrorCode.SELECTION_REQUIRED, err));
 
       return jsonResult(success({ committed: true, dirty: true }));
     },
