@@ -2869,3 +2869,535 @@ describe('SceneEditorStore — keyframe edits through applyEdit', () => {
     expect(state.provenance[1].kind).toBe('add-camera-keyframe');
   });
 });
+
+// ── Stage 21.3 — Keyframe undo/redo integrity hardening ──
+
+describe('SceneEditorStore — 21.3 keyframe undo/redo integrity', () => {
+  const KF_A: SceneCameraKeyframe = { tick: 0, x: 0, y: 0, zoom: 1.0, interpolation: 'linear' };
+  const KF_B: SceneCameraKeyframe = { tick: 30, x: 100, y: 50, zoom: 2.0, interpolation: 'hold' };
+  const KF_C: SceneCameraKeyframe = { tick: 60, x: 200, y: 100, zoom: 1.5, interpolation: 'linear' };
+  const CAM_ORIGIN: SceneCamera = { x: 0, y: 0, zoom: 1.0 };
+  const CAM_PANNED: SceneCamera = { x: 120, y: 80, zoom: 1.0 };
+
+  beforeEach(() => {
+    useSceneEditorStore.setState({
+      instances: [INST_ASSET],
+      camera: undefined,
+      keyframes: [],
+      history: createEmptySceneHistoryState(),
+      provenance: [],
+      drilldownBySequence: {},
+      canUndo: false,
+      canRedo: false,
+    });
+    resetProvenanceSequence();
+  });
+
+  // ── Core exactness: add → undo → redo ──
+
+  it('add keyframe → undo → redo restores exact keyframe', () => {
+    const { loadInstances, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+
+    // Undo: keyframe removed
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult).toBeDefined();
+    expect(undoResult!.keyframes).toEqual([]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([]);
+
+    // Redo: exact same keyframe restored
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult).toBeDefined();
+    expect(redoResult!.keyframes).toEqual([KF_A]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+    // Exact field-level check
+    expect(redoResult!.keyframes![0].tick).toBe(0);
+    expect(redoResult!.keyframes![0].x).toBe(0);
+    expect(redoResult!.keyframes![0].y).toBe(0);
+    expect(redoResult!.keyframes![0].zoom).toBe(1.0);
+    expect(redoResult!.keyframes![0].interpolation).toBe('linear');
+  });
+
+  // ── Core exactness: remove → undo → redo ──
+
+  it('remove keyframe → undo → redo restores exact presence/absence', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    // Remove KF_B
+    applyEdit('remove-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+
+    // Undo: KF_B restored
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult!.keyframes).toEqual([KF_A, KF_B]);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A, KF_B]);
+    // Exact restored keyframe
+    expect(undoResult!.keyframes![1].tick).toBe(30);
+    expect(undoResult!.keyframes![1].x).toBe(100);
+    expect(undoResult!.keyframes![1].zoom).toBe(2.0);
+    expect(undoResult!.keyframes![1].interpolation).toBe('hold');
+
+    // Redo: KF_B removed again
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult!.keyframes).toEqual([KF_A]);
+  });
+
+  // ── Core exactness: move → undo → redo ──
+
+  it('move keyframe → undo → redo restores exact tick positions', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const movedB: SceneCameraKeyframe = { ...KF_B, tick: 45 };
+    applyEdit('move-camera-keyframe', [INST_ASSET], { tick: 45, previousTick: 30 }, undefined, [KF_A, movedB]);
+    expect(useSceneEditorStore.getState().keyframes[1].tick).toBe(45);
+
+    // Undo: original tick restored
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult!.keyframes![1].tick).toBe(30);
+    expect(useSceneEditorStore.getState().keyframes[1].tick).toBe(30);
+
+    // Redo: moved tick restored
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult!.keyframes![1].tick).toBe(45);
+    // Value fields unchanged by move
+    expect(redoResult!.keyframes![1].x).toBe(100);
+    expect(redoResult!.keyframes![1].y).toBe(50);
+    expect(redoResult!.keyframes![1].zoom).toBe(2.0);
+    expect(redoResult!.keyframes![1].interpolation).toBe('hold');
+  });
+
+  // ── Core exactness: edit value → undo → redo ──
+
+  it('edit keyframe value → undo → redo restores exact before/after values', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 3.5, interpolation: 'linear' };
+    applyEdit('edit-camera-keyframe', [INST_ASSET], { tick: 30, changedFields: ['zoom', 'interpolation'] }, undefined, [KF_A, editedB]);
+    expect(useSceneEditorStore.getState().keyframes[1].zoom).toBe(3.5);
+    expect(useSceneEditorStore.getState().keyframes[1].interpolation).toBe('linear');
+
+    // Undo: original values restored exactly
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult!.keyframes![1].zoom).toBe(2.0);
+    expect(undoResult!.keyframes![1].interpolation).toBe('hold');
+    // Tick and position stable across value edit undo
+    expect(undoResult!.keyframes![1].tick).toBe(30);
+    expect(undoResult!.keyframes![1].x).toBe(100);
+    expect(undoResult!.keyframes![1].y).toBe(50);
+
+    // Redo: edited values restored exactly
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult!.keyframes![1].zoom).toBe(3.5);
+    expect(redoResult!.keyframes![1].interpolation).toBe('linear');
+    expect(redoResult!.keyframes![1].tick).toBe(30);
+  });
+
+  // ── Rollback coherence: undo failure ──
+
+  it('failed undo backend sync restores prior keyframe state and history', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+
+    const preUndo = useSceneEditorStore.getState();
+    const preUndoKeyframes = preUndo.keyframes;
+    const preUndoCanUndo = preUndo.canUndo;
+    const preUndoCanRedo = preUndo.canRedo;
+    const preUndoProvenance = preUndo.provenance;
+
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]); // undone
+
+    // Simulate backend failure → rollback
+    result!.rollback();
+
+    const after = useSceneEditorStore.getState();
+    expect(after.keyframes).toEqual(preUndoKeyframes);
+    expect(after.canUndo).toBe(preUndoCanUndo);
+    expect(after.canRedo).toBe(preUndoCanRedo);
+    // Provenance is not affected by undo/redo/rollback — it's append-only
+    expect(after.provenance).toEqual(preUndoProvenance);
+  });
+
+  // ── Rollback coherence: redo failure ──
+
+  it('failed redo backend sync restores prior keyframe state and history', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    useSceneEditorStore.getState().undo(); // undo the add
+
+    const preRedo = useSceneEditorStore.getState();
+    const preRedoKeyframes = preRedo.keyframes;
+    const preRedoCanUndo = preRedo.canUndo;
+    const preRedoCanRedo = preRedo.canRedo;
+
+    const result = useSceneEditorStore.getState().redo();
+    expect(result).toBeDefined();
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]); // redone
+
+    // Simulate backend failure → rollback
+    result!.rollback();
+
+    const after = useSceneEditorStore.getState();
+    expect(after.keyframes).toEqual(preRedoKeyframes);
+    expect(after.canUndo).toBe(preRedoCanUndo);
+    expect(after.canRedo).toBe(preRedoCanRedo);
+  });
+
+  it('rollback preserves prior history stacks exactly', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 60 }, undefined, [KF_A, KF_B, KF_C]);
+
+    const preUndoHistory = useSceneEditorStore.getState().history;
+
+    const result = useSceneEditorStore.getState().undo();
+    result!.rollback();
+
+    // History stacks restored exactly
+    expect(useSceneEditorStore.getState().history).toBe(preUndoHistory);
+  });
+
+  // ── Redo invalidation ──
+
+  it('new keyframe edit after undo clears redo stack', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+
+    // New forward keyframe edit should clear redo
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 60 }, undefined, [KF_C]);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_C]);
+  });
+
+  it('new instance edit after keyframe undo clears redo stack', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+
+    // Instance edit should also clear redo
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+  });
+
+  it('new camera edit after keyframe undo clears redo stack', () => {
+    const { loadInstances, loadKeyframes, loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+    loadCamera(CAM_ORIGIN);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    useSceneEditorStore.getState().undo();
+    expect(useSceneEditorStore.getState().canRedo).toBe(true);
+
+    // Camera edit should also clear redo
+    const inst2 = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-camera', [inst2], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_ORIGIN,
+      afterCamera: CAM_PANNED,
+    }, CAM_PANNED);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+  });
+
+  // ── Mixed authored-state chain: instance → keyframe → camera → undo × 3 → redo × 3 ──
+
+  it('instance → keyframe → camera undo/redo chain restores each state exactly', () => {
+    const { loadInstances, loadKeyframes, loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+    loadCamera(CAM_ORIGIN);
+
+    // Edit 1: move instance
+    const moved = { ...INST_ASSET, x: 500 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+
+    // Edit 2: add keyframe
+    applyEdit('add-camera-keyframe', [moved], { tick: 0 }, undefined, [KF_A]);
+
+    // Edit 3: camera pan
+    applyEdit('set-scene-camera', [moved], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_ORIGIN,
+      afterCamera: CAM_PANNED,
+    }, CAM_PANNED);
+
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(500);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_PANNED);
+
+    // Undo 3: camera restored to origin
+    const u3 = useSceneEditorStore.getState().undo();
+    expect(u3!.camera).toEqual(CAM_ORIGIN);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]); // keyframe unchanged
+
+    // Undo 2: keyframe removed
+    const u2 = useSceneEditorStore.getState().undo();
+    expect(u2!.keyframes).toEqual([]);
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(500); // instance still moved
+
+    // Undo 1: instance restored
+    const u1 = useSceneEditorStore.getState().undo();
+    expect(u1!.instances[0].x).toBe(50); // original INST_ASSET.x
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+
+    // Redo 1: instance moved again
+    const r1 = useSceneEditorStore.getState().redo();
+    expect(r1!.instances[0].x).toBe(500);
+
+    // Redo 2: keyframe added
+    const r2 = useSceneEditorStore.getState().redo();
+    expect(r2!.keyframes).toEqual([KF_A]);
+
+    // Redo 3: camera panned
+    const r3 = useSceneEditorStore.getState().redo();
+    expect(r3!.camera).toEqual(CAM_PANNED);
+    expect(useSceneEditorStore.getState().canRedo).toBe(false);
+  });
+
+  // ── Mixed chain: keyframe → instance → keyframe ──
+
+  it('keyframe → instance → keyframe chain preserves interleaved state', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    // Add KF_A
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    // Move instance
+    const moved = { ...INST_ASSET, x: 777 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    // Add KF_B
+    applyEdit('add-camera-keyframe', [moved], { tick: 30 }, undefined, [KF_A, KF_B]);
+
+    // Undo KF_B add
+    const u1 = useSceneEditorStore.getState().undo();
+    expect(u1!.keyframes).toEqual([KF_A]);
+    expect(u1!.instances[0].x).toBe(777); // instance state from before KF_B add
+
+    // Undo instance move
+    const u2 = useSceneEditorStore.getState().undo();
+    expect(u2!.instances[0].x).toBe(50);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A]); // keyframe still present
+
+    // Undo KF_A add
+    const u3 = useSceneEditorStore.getState().undo();
+    expect(u3!.keyframes).toEqual([]);
+    expect(useSceneEditorStore.getState().canUndo).toBe(false);
+
+    // Redo all 3
+    useSceneEditorStore.getState().redo(); // KF_A
+    useSceneEditorStore.getState().redo(); // instance move
+    const r3 = useSceneEditorStore.getState().redo(); // KF_B
+    expect(r3!.keyframes).toEqual([KF_A, KF_B]);
+    expect(useSceneEditorStore.getState().instances[0].x).toBe(777);
+  });
+
+  // ── Mixed chain: provenance sequence continuity ──
+
+  it('mixed chain preserves monotonic provenance sequence', () => {
+    const { loadInstances, loadKeyframes, loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+    loadCamera(CAM_ORIGIN);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    const moved = { ...INST_ASSET, x: 999 };
+    applyEdit('move-instance', [moved], { instanceId: 'i1' });
+    applyEdit('set-scene-camera', [moved], {
+      changedFields: ['x'],
+      beforeCamera: CAM_ORIGIN,
+      afterCamera: CAM_PANNED,
+    }, CAM_PANNED);
+
+    const state = useSceneEditorStore.getState();
+    expect(state.provenance).toHaveLength(3);
+    expect(state.provenance[0].sequence).toBe(1);
+    expect(state.provenance[1].sequence).toBe(2);
+    expect(state.provenance[2].sequence).toBe(3);
+    expect(state.provenance[0].kind).toBe('add-camera-keyframe');
+    expect(state.provenance[1].kind).toBe('move-instance');
+    expect(state.provenance[2].kind).toBe('set-scene-camera');
+  });
+
+  // ── Playback boundary: playback ops stay outside ──
+
+  it('playback state change (set-scene-playback) does not record keyframes in history', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B]);
+
+    // Playback edit (different instances to avoid no-op)
+    const inst2 = { ...INST_ASSET, x: 999 };
+    applyEdit('set-scene-playback', [inst2]);
+
+    // Undo the playback edit
+    const result = useSceneEditorStore.getState().undo();
+    expect(result).toBeDefined();
+    // Keyframes unchanged — playback edits don't snapshot keyframes unless they're present
+    // The keyframes in the store should remain as loaded
+    expect(useSceneEditorStore.getState().keyframes).toEqual([KF_A, KF_B]);
+  });
+
+  // ── Stable identity across undo/redo cycles ──
+
+  it('keyframe identity (tick + all fields) is stable across multiple undo/redo cycles', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_B]);
+
+    // 3 full undo/redo cycles
+    for (let i = 0; i < 3; i++) {
+      const undoResult = useSceneEditorStore.getState().undo();
+      expect(undoResult!.keyframes).toEqual([]);
+      const redoResult = useSceneEditorStore.getState().redo();
+      expect(redoResult!.keyframes).toEqual([KF_B]);
+      expect(redoResult!.keyframes![0]).toEqual(KF_B);
+    }
+  });
+
+  // ── Undo/redo with 3 keyframes: no cross-contamination ──
+
+  it('undo/redo with multiple keyframes preserves exact array order and values', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A, KF_B, KF_C]);
+
+    // Edit KF_B's zoom
+    const editedB: SceneCameraKeyframe = { ...KF_B, zoom: 5.0 };
+    applyEdit('edit-camera-keyframe', [INST_ASSET], { tick: 30, changedFields: ['zoom'] }, undefined, [KF_A, editedB, KF_C]);
+
+    // Undo: exact original array restored
+    const undoResult = useSceneEditorStore.getState().undo();
+    expect(undoResult!.keyframes).toEqual([KF_A, KF_B, KF_C]);
+    // KF_A and KF_C untouched
+    expect(undoResult!.keyframes![0]).toEqual(KF_A);
+    expect(undoResult!.keyframes![2]).toEqual(KF_C);
+    // KF_B original zoom restored
+    expect(undoResult!.keyframes![1].zoom).toBe(2.0);
+
+    // Redo: exact edited array restored
+    const redoResult = useSceneEditorStore.getState().redo();
+    expect(redoResult!.keyframes![1].zoom).toBe(5.0);
+    expect(redoResult!.keyframes![0]).toEqual(KF_A);
+    expect(redoResult!.keyframes![2]).toEqual(KF_C);
+  });
+
+  // ── Rollback preserves drilldown captures ──
+
+  it('rollback after undo preserves drilldown captures from prior edits', () => {
+    const { loadInstances, loadKeyframes, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 0 }, undefined, [KF_A]);
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+
+    const preUndoDrilldown = { ...useSceneEditorStore.getState().drilldownBySequence };
+
+    const result = useSceneEditorStore.getState().undo();
+    result!.rollback();
+
+    // Drilldown map restored exactly (via history rollback)
+    const after = useSceneEditorStore.getState();
+    expect(Object.keys(after.drilldownBySequence)).toEqual(Object.keys(preUndoDrilldown));
+  });
+
+  // ── Camera + keyframe in same undo chain ──
+
+  it('camera edit and keyframe edit in same chain restore independently', () => {
+    const { loadInstances, loadKeyframes, loadCamera, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([]);
+    loadCamera(CAM_ORIGIN);
+
+    // Camera pan (change instances to avoid no-op)
+    const inst2 = { ...INST_ASSET, x: 200 };
+    applyEdit('set-scene-camera', [inst2], {
+      changedFields: ['x', 'y'],
+      beforeCamera: CAM_ORIGIN,
+      afterCamera: CAM_PANNED,
+    }, CAM_PANNED);
+
+    // Keyframe add
+    applyEdit('add-camera-keyframe', [inst2], { tick: 0 }, undefined, [KF_A]);
+
+    // Undo keyframe → camera unaffected
+    const u1 = useSceneEditorStore.getState().undo();
+    expect(u1!.keyframes).toEqual([]);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_PANNED);
+
+    // Undo camera → keyframes unaffected (already empty)
+    const u2 = useSceneEditorStore.getState().undo();
+    expect(u2!.camera).toEqual(CAM_ORIGIN);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([]);
+
+    // Redo camera → keyframes still empty
+    const r1 = useSceneEditorStore.getState().redo();
+    expect(r1!.camera).toEqual(CAM_PANNED);
+    expect(useSceneEditorStore.getState().keyframes).toEqual([]);
+
+    // Redo keyframe → camera still panned
+    const r2 = useSceneEditorStore.getState().redo();
+    expect(r2!.keyframes).toEqual([KF_A]);
+    expect(useSceneEditorStore.getState().camera).toEqual(CAM_PANNED);
+  });
+
+  // ── Persisted load → keyframe edit → undo/redo → sequence continuity ──
+
+  it('persisted scene load → keyframe edit → undo/redo → sequence remains sane', () => {
+    const { loadInstances, loadKeyframes, loadPersistedProvenance, applyEdit } = useSceneEditorStore.getState();
+    loadInstances([INST_ASSET]);
+    loadKeyframes([KF_A]);
+    loadPersistedProvenance(
+      [{ sequence: 10, kind: 'add-camera-keyframe', label: 'Loaded kf', timestamp: '2026-03-15T12:00:00Z' }],
+      {},
+    );
+
+    // New keyframe edit
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 30 }, undefined, [KF_A, KF_B]);
+    expect(useSceneEditorStore.getState().provenance[1].sequence).toBe(11);
+
+    // Undo and redo — sequence counter should not regress
+    useSceneEditorStore.getState().undo();
+    useSceneEditorStore.getState().redo();
+
+    // Another edit after redo cycle
+    applyEdit('add-camera-keyframe', [INST_ASSET], { tick: 60 }, undefined, [KF_A, KF_B, KF_C]);
+
+    const state = useSceneEditorStore.getState();
+    // Redo was cleared by new edit, but provenance still grows monotonically
+    expect(state.provenance).toHaveLength(3);
+    expect(state.provenance[2].sequence).toBe(12);
+  });
+});
