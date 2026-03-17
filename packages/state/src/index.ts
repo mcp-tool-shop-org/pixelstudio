@@ -69,6 +69,8 @@ export {
   generatePoseSuggestions,
   generateSimplificationProposals,
 } from './proposalGenerate';
+export { computeCollapseOverlay } from './collapseOverlay';
+export type { ShapeRiskLevel, ShapeRiskInfo, CollapseOverlayData } from './collapseOverlay';
 export { applyProposal, duplicateProposalToGroup } from './proposalApply';
 export type { ApplyResult, ProposalStoreApi } from './proposalApply';
 export { vectorToSpriteHandoff, extractPaletteFromBuffer } from './vectorHandoff';

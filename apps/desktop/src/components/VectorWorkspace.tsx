@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { VectorCanvas, type VectorToolId } from './VectorCanvas';
 import { VectorToolRail } from './VectorToolRail';
-import { useVectorMasterStore } from '@glyphstudio/state';
-import type { Rgba } from '@glyphstudio/domain';
+import { useVectorMasterStore, useSizeProfileStore, computeCollapseOverlay } from '@glyphstudio/state';
+import type { CollapseOverlayData } from '@glyphstudio/state';
+import type { Rgba, SizeProfile } from '@glyphstudio/domain';
 
 /**
  * VectorWorkspace — full workspace mode for vector master editing.
@@ -16,9 +17,36 @@ export function VectorWorkspace() {
   const [fillColor, setFillColor] = useState<Rgba | null>([100, 100, 100, 255]);
   const [strokeColor, setStrokeColor] = useState<Rgba | null>(null);
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
+  const [overlayProfileId, setOverlayProfileId] = useState<string>('');
 
   const doc = useVectorMasterStore((s) => s.document);
   const createDocument = useVectorMasterStore((s) => s.createDocument);
+  const profiles = useSizeProfileStore((s) => s.profiles);
+  const activeProfileIds = useSizeProfileStore((s) => s.activeProfileIds);
+
+  const activeProfiles = useMemo(
+    () => profiles.filter((p) => activeProfileIds.includes(p.id)),
+    [profiles, activeProfileIds],
+  );
+
+  // Default to smallest active profile when overlay is enabled
+  useEffect(() => {
+    if (overlayEnabled && !overlayProfileId && activeProfiles.length > 0) {
+      const smallest = [...activeProfiles].sort((a, b) =>
+        (a.targetWidth * a.targetHeight) - (b.targetWidth * b.targetHeight)
+      )[0];
+      setOverlayProfileId(smallest.id);
+    }
+  }, [overlayEnabled, overlayProfileId, activeProfiles]);
+
+  // Compute collapse overlay
+  const collapseOverlay = useMemo((): CollapseOverlayData | null => {
+    if (!overlayEnabled || !doc || activeProfiles.length === 0) return null;
+    const targetProfile = activeProfiles.find((p) => p.id === overlayProfileId);
+    if (!targetProfile) return null;
+    return computeCollapseOverlay(doc, activeProfiles, targetProfile);
+  }, [overlayEnabled, doc, activeProfiles, overlayProfileId]);
 
   // Auto-create a vector document if none exists
   useEffect(() => {
@@ -61,7 +89,48 @@ export function VectorWorkspace() {
         fillColor={fillColor}
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}
+        collapseOverlay={collapseOverlay}
       />
+      {/* Collapse overlay controls */}
+      <div className="collapse-overlay-controls">
+        <label className="collapse-overlay-toggle">
+          <input
+            type="checkbox"
+            checked={overlayEnabled}
+            onChange={(e) => setOverlayEnabled(e.target.checked)}
+          />
+          <span>Risk Overlay</span>
+        </label>
+        {overlayEnabled && activeProfiles.length > 0 && (
+          <select
+            className="collapse-overlay-profile-select"
+            value={overlayProfileId}
+            onChange={(e) => setOverlayProfileId(e.target.value)}
+          >
+            {activeProfiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.targetWidth}x{p.targetHeight}
+              </option>
+            ))}
+          </select>
+        )}
+        {overlayEnabled && collapseOverlay && (
+          <div className="collapse-overlay-summary">
+            {collapseOverlay.collapsesCount > 0 && (
+              <span className="overlay-badge collapses">{collapseOverlay.collapsesCount} collapse</span>
+            )}
+            {collapseOverlay.atRiskCount > 0 && (
+              <span className="overlay-badge at-risk">{collapseOverlay.atRiskCount} at-risk</span>
+            )}
+            {collapseOverlay.collapsesCount === 0 && collapseOverlay.atRiskCount === 0 && (
+              <span className="overlay-badge safe">All safe</span>
+            )}
+          </div>
+        )}
+        {overlayEnabled && activeProfiles.length === 0 && (
+          <span className="collapse-overlay-hint">Enable size profiles in Reduction tab</span>
+        )}
+      </div>
     </>
   );
 }

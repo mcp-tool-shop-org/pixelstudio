@@ -7946,6 +7946,79 @@
   pointer-events: none;
 }
 
+/* Collapse Overlay Controls */
+.collapse-overlay-controls {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(20, 20, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  z-index: 10;
+  font-size: 11px;
+  color: #ccc;
+}
+
+.collapse-overlay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapse-overlay-toggle input {
+  accent-color: #9c27b0;
+}
+
+.collapse-overlay-profile-select {
+  background: #222;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.collapse-overlay-summary {
+  display: flex;
+  gap: 4px;
+}
+
+.overlay-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.overlay-badge.collapses {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.overlay-badge.at-risk {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.overlay-badge.safe {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.collapse-overlay-hint {
+  color: #666;
+  font-size: 10px;
+  font-style: italic;
+}
+
 /* Vector Tool Rail */
 .vector-tool-rail {
   display: flex;

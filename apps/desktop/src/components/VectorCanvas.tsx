@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react';
 import { useVectorMasterStore } from '@glyphstudio/state';
+import type { CollapseOverlayData } from '@glyphstudio/state';
 import type {
   VectorShape,
   VectorGeometry,
@@ -402,6 +403,167 @@ function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape
   ctx.restore();
 }
 
+// ── Collapse overlay rendering ──
+
+const RISK_COLORS = {
+  safe: 'rgba(76, 175, 80, 0.5)',       // green
+  'at-risk': 'rgba(255, 193, 7, 0.6)',  // amber
+  collapses: 'rgba(244, 67, 54, 0.7)',  // red
+};
+
+const RISK_FILL_COLORS = {
+  safe: 'rgba(76, 175, 80, 0.08)',
+  'at-risk': 'rgba(255, 193, 7, 0.12)',
+  collapses: 'rgba(244, 67, 54, 0.15)',
+};
+
+function renderCollapseOverlay(
+  ctx: CanvasRenderingContext2D,
+  shape: VectorShape,
+  overlay: CollapseOverlayData,
+  zoom: number,
+): void {
+  const info = overlay.shapes.get(shape.id);
+  if (!info || info.level === 'safe') return;
+
+  const geo = shape.geometry;
+  const t = shape.transform;
+
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  if (t.rotation !== 0) ctx.rotate((t.rotation * Math.PI) / 180);
+  if (t.flipX || t.flipY) ctx.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
+  ctx.scale(t.scaleX, t.scaleY);
+  ctx.translate(-t.x, -t.y);
+  ctx.translate(t.x, t.y);
+
+  const strokeColor = RISK_COLORS[info.level];
+  const fillColor = RISK_FILL_COLORS[info.level];
+  ctx.strokeStyle = strokeColor;
+  ctx.fillStyle = fillColor;
+  ctx.lineWidth = (info.level === 'collapses' ? 3 : 2) / Math.max(t.scaleX, t.scaleY) / zoom;
+  ctx.setLineDash(info.level === 'collapses' ? [] : [4 / zoom, 3 / zoom]);
+
+  switch (geo.kind) {
+    case 'rect':
+      ctx.fillRect(geo.x - t.x, geo.y - t.y, geo.w, geo.h);
+      ctx.strokeRect(geo.x - t.x, geo.y - t.y, geo.w, geo.h);
+      break;
+    case 'ellipse':
+      ctx.beginPath();
+      ctx.ellipse(geo.cx - t.x, geo.cy - t.y, Math.abs(geo.rx), Math.abs(geo.ry), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(geo.x1 - t.x, geo.y1 - t.y);
+      ctx.lineTo(geo.x2 - t.x, geo.y2 - t.y);
+      ctx.stroke();
+      break;
+    case 'polygon':
+      if (geo.points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(geo.points[0].x - t.x, geo.points[0].y - t.y);
+        for (let i = 1; i < geo.points.length; i++) {
+          ctx.lineTo(geo.points[i].x - t.x, geo.points[i].y - t.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      break;
+    case 'path':
+      if (geo.points.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(geo.points[0].x - t.x, geo.points[0].y - t.y);
+        const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+        for (let i = 0; i < segCount; i++) {
+          const p1 = geo.points[(i + 1) % geo.points.length];
+          const seg = geo.segments[i];
+          if (seg.kind === 'line') {
+            ctx.lineTo(p1.x - t.x, p1.y - t.y);
+          } else {
+            ctx.quadraticCurveTo(seg.cpX - t.x, seg.cpY - t.y, p1.x - t.x, p1.y - t.y);
+          }
+        }
+        if (geo.closed) {
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.stroke();
+      }
+      break;
+  }
+
+  // Draw risk indicator icon — small circle with ! for at-risk, X for collapses
+  const bounds = getShapeBounds(geo, t);
+  const iconX = bounds.cx;
+  const iconY = bounds.minY - 12 / zoom;
+  const iconR = 6 / zoom;
+
+  ctx.setLineDash([]);
+  // Reset transform for icon drawing in artboard space
+  ctx.restore();
+  ctx.save();
+
+  ctx.fillStyle = strokeColor;
+  ctx.beginPath();
+  ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(10 / zoom)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(info.level === 'collapses' ? 'X' : '!', iconX, iconY);
+
+  // Must-survive badge (only shown for at-risk/collapses since we early-return on safe)
+  if (info.mustSurvive) {
+    const badgeX = iconX + iconR + 4 / zoom;
+    ctx.fillStyle = 'rgba(244, 67, 54, 0.9)';
+    ctx.beginPath();
+    ctx.arc(badgeX, iconY, iconR * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(8 / zoom)}px monospace`;
+    ctx.fillText('M', badgeX, iconY);
+  }
+
+  ctx.restore();
+}
+
+function getShapeBounds(geo: VectorGeometry, t: VectorTransform): { cx: number; cy: number; minY: number } {
+  switch (geo.kind) {
+    case 'rect':
+      return { cx: geo.x + geo.w / 2, cy: geo.y + geo.h / 2, minY: geo.y };
+    case 'ellipse':
+      return { cx: geo.cx, cy: geo.cy, minY: geo.cy - Math.abs(geo.ry) };
+    case 'line':
+      return { cx: (geo.x1 + geo.x2) / 2, cy: (geo.y1 + geo.y2) / 2, minY: Math.min(geo.y1, geo.y2) };
+    case 'polygon': {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of geo.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, minY };
+    }
+    case 'path': {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of geo.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, minY };
+    }
+  }
+}
+
 // ── Vector tool types ──
 
 export type VectorToolId = 'v-select' | 'v-rect' | 'v-ellipse' | 'v-line' | 'v-polygon' | 'v-path';
@@ -413,9 +575,10 @@ interface VectorCanvasProps {
   fillColor: Rgba | null;
   strokeColor: Rgba | null;
   strokeWidth: number;
+  collapseOverlay?: CollapseOverlayData | null;
 }
 
-export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }: VectorCanvasProps) {
+export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth, collapseOverlay }: VectorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(0.8);
@@ -501,6 +664,13 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     const sorted = [...doc.shapes].sort((a, b) => a.zOrder - b.zOrder);
     for (const shape of sorted) {
       renderShape(ctx, shape);
+    }
+
+    // Collapse overlay (before selection so selection outlines draw on top)
+    if (collapseOverlay) {
+      for (const shape of sorted) {
+        renderCollapseOverlay(ctx, shape, collapseOverlay, zoom);
+      }
     }
 
     // Selection outlines
@@ -624,7 +794,7 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     }
 
     ctx.restore();
-  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints, pathPoints, pathSegments, selectedPointIdx]);
+  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints, pathPoints, pathSegments, selectedPointIdx, collapseOverlay]);
 
   // Resize observer
   useEffect(() => {
