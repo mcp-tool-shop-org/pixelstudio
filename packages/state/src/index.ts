@@ -39,6 +39,38 @@ export type {
 } from './copilotAnalysis';
 export { askVisionWhatDoesThisReadAs, checkOllamaAvailability, pixelBufferToBase64Png, DEFAULT_OLLAMA_CONFIG } from './copilotVision';
 export type { OllamaVisionConfig, VisionResponse } from './copilotVision';
+export {
+  createEmptySession,
+  createProposal,
+  createProposalSet,
+  proposedShapeFromExisting,
+  addProposalSetToSession,
+  acceptProposal,
+  rejectProposal,
+  dismissProposalSet,
+  getPendingProposals,
+  generateProposalId,
+  generateProposalSetId,
+} from './proposalModel';
+export type {
+  ProposalId,
+  ProposalSetId,
+  ProposalKind,
+  ProposalStatus,
+  ProposalAction,
+  ProposedShape,
+  ProposedChanges,
+  Proposal,
+  ProposalSet,
+  ProposalSession,
+} from './proposalModel';
+export {
+  generateSilhouetteVariants,
+  generatePoseSuggestions,
+  generateSimplificationProposals,
+} from './proposalGenerate';
+export { applyProposal, duplicateProposalToGroup } from './proposalApply';
+export type { ApplyResult, ProposalStoreApi } from './proposalApply';
 export { vectorToSpriteHandoff, extractPaletteFromBuffer } from './vectorHandoff';
 export type { VectorHandoffResult } from './vectorHandoff';
 export { regenerateFromVector, checkRegenerationStatus } from './vectorRegenerate';
