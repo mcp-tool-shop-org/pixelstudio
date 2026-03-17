@@ -210,6 +210,40 @@ describe('RightDock', () => {
     });
   });
 
+  describe('tab memory per mode', () => {
+    it('returns to the previously selected tab when switching back to a mode', async () => {
+      const { rerender } = render(<RightDock activeMode="edit" />);
+      // Select Analysis (index 3) in edit mode
+      await act(async () => { await userEvent.click(screen.getByText('Analysis')); });
+      expect(screen.getByText('Analysis').className).toContain('active');
+
+      // Switch to scene mode
+      rerender(<RightDock activeMode="scene" />);
+      expect(screen.getByText('Instances').className).toContain('active');
+
+      // Switch back to edit — Analysis should still be active
+      rerender(<RightDock activeMode="edit" />);
+      expect(screen.getByText('Analysis').className).toContain('active');
+      expect(screen.getByText('Layers').className).not.toContain('active');
+    });
+
+    it('each mode independently tracks its own tab', async () => {
+      const { rerender } = render(<RightDock activeMode="edit" />);
+      await act(async () => { await userEvent.click(screen.getByText('Copilot')); });
+
+      rerender(<RightDock activeMode="scene" />);
+      await act(async () => { await userEvent.click(screen.getByText('Camera')); });
+
+      // Back to edit — Copilot still active
+      rerender(<RightDock activeMode="edit" />);
+      expect(screen.getByText('Copilot').className).toContain('active');
+
+      // Back to scene — Camera still active
+      rerender(<RightDock activeMode="scene" />);
+      expect(screen.getByText('Camera').className).toContain('active');
+    });
+  });
+
   describe('mode transition resilience', () => {
     it('switching from mode with many tabs to fewer does not crash', () => {
       const { rerender } = render(<RightDock activeMode="edit" />);

@@ -1,5 +1,5 @@
 import type { WorkspaceMode } from '@glyphstudio/domain';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
@@ -109,12 +109,15 @@ function PanelContent({ tabName }: { tabName: string }) {
 
 export function RightDock({ activeMode }: RightDockProps) {
   const tabs = MODE_TABS[activeMode] ?? [];
-  const [activeTab, setActiveTab] = useState(0);
+  // Per-mode tab memory: switching modes and back restores the last selected tab
+  const [tabByMode, setTabByMode] = useState<Partial<Record<WorkspaceMode, number>>>({});
+  const savedIndex = tabByMode[activeMode] ?? 0;
+  // Clamp in case the tab list ever shrinks (e.g. mode reconfiguration)
+  const activeTab = savedIndex < tabs.length ? savedIndex : 0;
 
-  // Reset tab index when mode changes or when current index exceeds available tabs
-  useEffect(() => {
-    setActiveTab((prev) => (prev >= tabs.length ? 0 : prev));
-  }, [activeMode, tabs.length]);
+  const handleTabClick = (mode: WorkspaceMode, index: number) => {
+    setTabByMode((prev) => ({ ...prev, [mode]: index }));
+  };
 
   return (
     <aside className="right-dock">
@@ -123,7 +126,7 @@ export function RightDock({ activeMode }: RightDockProps) {
           <button
             key={tab}
             className={`dock-tab ${activeTab === i ? 'active' : ''}`}
-            onClick={() => setActiveTab(i)}
+            onClick={() => handleTabClick(activeMode, i)}
           >
             {tab}
           </button>
