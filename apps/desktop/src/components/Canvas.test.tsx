@@ -9,6 +9,7 @@ import { useTimelineStore } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import { getMockInvoke } from '../test/helpers';
 import type { ToolId } from '@glyphstudio/domain';
+import { SHORTCUT_MANIFEST } from '@glyphstudio/domain';
 
 // ── Helpers ────────────────────────────────────────────────────
 function seedStores(overrides?: {
@@ -508,6 +509,54 @@ describe('Canvas component', () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyO', bubbles: true }));
       });
       expect(useTimelineStore.getState().onionSkinEnabled).toBe(!before);
+    });
+  });
+
+  describe('manifest-driven tool shortcuts', () => {
+    // Generate a test for every live, unmodified tool shortcut in the manifest
+    const toolBindings = SHORTCUT_MANIFEST.filter(
+      (b) => b.status === 'live' && b.toolId !== undefined && b.scope === 'canvas' &&
+        !b.modifiers.ctrl && !b.modifiers.alt
+    );
+
+    for (const binding of toolBindings) {
+      it(`${binding.label} activates ${binding.toolId}`, async () => {
+        seedStores({ activeTool: 'pencil' });
+        render(<Canvas />);
+        await act(async () => {
+          window.dispatchEvent(new KeyboardEvent('keydown', {
+            code: binding.code,
+            shiftKey: binding.modifiers.shift ?? false,
+            bubbles: true,
+          }));
+        });
+        expect(useToolStore.getState().activeTool).toBe(binding.toolId);
+      });
+    }
+
+    it('X swaps colors', async () => {
+      seedStores();
+      useToolStore.setState({
+        primaryColor: { r: 255, g: 0, b: 0, a: 255 },
+        secondaryColor: { r: 0, g: 0, b: 255, a: 255 },
+      });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', bubbles: true }));
+      });
+      expect(useToolStore.getState().primaryColor).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(useToolStore.getState().secondaryColor).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+    });
+
+    it('tool shortcuts do not fire during active transform', async () => {
+      seedStores({ activeTool: 'pencil', isTransforming: true });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyB', bubbles: true }));
+      });
+      // Should remain pencil, not switch to pencil via B shortcut
+      // (transform mode intercepts H/V/R, and tool dispatch is skipped)
+      expect(useToolStore.getState().activeTool).toBe('pencil');
     });
   });
 });

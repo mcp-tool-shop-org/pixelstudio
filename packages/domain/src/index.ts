@@ -5,6 +5,7 @@ export * from './timeline';
 export * from './socket';
 export * from './workspace';
 export * from './tool';
+export * from './shortcutManifest';
 export * from './motion';
 export * from './anchor';
 export * from './sandbox';

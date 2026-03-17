@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ToolRail, BOUND_SHORTCUTS } from '../components/ToolRail';
+import { ToolRail } from '../components/ToolRail';
 import { useToolStore, useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS } from '@glyphstudio/state';
+import { SHORTCUT_MANIFEST, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 
 function seed() {
   useToolStore.setState({
@@ -24,48 +25,35 @@ describe('ToolRail', () => {
       expect(buttons).toHaveLength(17);
     });
 
-    it('bound tools show label and shortcut badge', () => {
+    it('tools with live+displayed manifest entries show shortcut badge', () => {
       seed();
       render(<ToolRail />);
-      // Sketch tools are bound (N, Shift+N)
+      // Pencil has a live+displayed manifest entry with label 'B'
+      const pencilBtn = screen.getByTitle('Pencil (B)');
+      expect(pencilBtn.querySelector('.tool-shortcut')?.textContent).toBe('B');
+    });
+
+    it('sketch tools show shortcut badge from manifest', () => {
+      seed();
+      render(<ToolRail />);
       const sketchBtn = screen.getByTitle('Sketch (N)');
       expect(sketchBtn.textContent).toBe('SketchN');
-    });
-
-    it('unbound tools show label only, no shortcut badge', () => {
-      seed();
-      render(<ToolRail />);
-      // Pencil shortcut B is not yet bound — title has no shortcut
-      const pencilBtn = screen.getByTitle('Pencil');
-      expect(pencilBtn.textContent).toBe('Pencil');
-      // No shortcut span inside
-      expect(pencilBtn.querySelector('.tool-shortcut')).toBeNull();
-    });
-
-    it('unbound tools have label-only title (no stale shortcut in tooltip)', () => {
-      seed();
-      render(<ToolRail />);
-      expect(screen.getByTitle('Pencil')).toBeInTheDocument();
-      expect(screen.getByTitle('Eraser')).toBeInTheDocument();
-      expect(screen.getByTitle('Fill')).toBeInTheDocument();
-      expect(screen.getByTitle('Move')).toBeInTheDocument();
-      // No title should contain "(B)", "(E)", etc. for unbound tools
-      expect(screen.queryByTitle('Pencil (B)')).not.toBeInTheDocument();
-      expect(screen.queryByTitle('Eraser (E)')).not.toBeInTheDocument();
+      const sketchEraseBtn = screen.getByTitle('S.Erase (Shift+N)');
+      expect(sketchEraseBtn.textContent).toBe('S.EraseShift+N');
     });
 
     it('active tool button has active class', () => {
       seed();
       useToolStore.setState({ activeTool: 'eraser' });
       render(<ToolRail />);
-      const eraserBtn = screen.getByTitle('Eraser');
+      const eraserBtn = screen.getByTitle('Eraser (E)');
       expect(eraserBtn.className).toContain('active');
     });
 
     it('non-active tool buttons lack active class', () => {
       seed();
       render(<ToolRail />);
-      const eraserBtn = screen.getByTitle('Eraser');
+      const eraserBtn = screen.getByTitle('Eraser (E)');
       expect(eraserBtn.className).not.toContain('active');
     });
 
@@ -91,7 +79,7 @@ describe('ToolRail', () => {
       seed();
       render(<ToolRail />);
       await act(async () => {
-        await userEvent.click(screen.getByTitle('Fill'));
+        await userEvent.click(screen.getByTitle('Fill (G)'));
       });
       expect(useToolStore.getState().activeTool).toBe('fill');
     });
@@ -105,7 +93,6 @@ describe('ToolRail', () => {
         await userEvent.click(swap);
       });
       const state = useToolStore.getState();
-      // After swap, primary should be blue, secondary red
       expect(state.primaryColor).toEqual({ r: 0, g: 0, b: 255, a: 255 });
       expect(state.secondaryColor).toEqual({ r: 255, g: 0, b: 0, a: 255 });
     });
@@ -114,10 +101,10 @@ describe('ToolRail', () => {
       seed();
       render(<ToolRail />);
       await act(async () => {
-        await userEvent.click(screen.getByTitle('Move'));
+        await userEvent.click(screen.getByTitle('Move (V)'));
       });
-      expect(screen.getByTitle('Move').className).toContain('active');
-      expect(screen.getByTitle('Pencil').className).not.toContain('active');
+      expect(screen.getByTitle('Move (V)').className).toContain('active');
+      expect(screen.getByTitle('Pencil (B)').className).not.toContain('active');
     });
 
     it('clicking sketch-brush activates sketch tool', async () => {
@@ -173,44 +160,65 @@ describe('ToolRail', () => {
     });
   });
 
-  describe('shortcut badge truthfulness (P0)', () => {
-    it('no shortcut badge is rendered for unbound tools', () => {
+  describe('manifest-driven parity', () => {
+    it('every displayed badge comes from a live manifest entry', () => {
       seed();
       render(<ToolRail />);
       const allButtons = screen.getAllByRole('button');
       for (const btn of allButtons) {
         const shortcutSpan = btn.querySelector('.tool-shortcut');
         if (shortcutSpan) {
-          // Every rendered badge must be in BOUND_SHORTCUTS
-          expect(BOUND_SHORTCUTS.has(shortcutSpan.textContent!)).toBe(true);
+          const label = shortcutSpan.textContent!;
+          const entry = SHORTCUT_MANIFEST.find((b) => b.label === label && b.status === 'live' && b.displayed);
+          expect(entry, `Badge "${label}" has no live+displayed manifest entry`).toBeDefined();
         }
       }
     });
 
-    it('bound sketch tools render their shortcut badges', () => {
+    it('every live+displayed tool manifest entry has a visible badge', () => {
       seed();
       render(<ToolRail />);
-      const sketchBtn = screen.getByTitle('Sketch (N)');
-      expect(sketchBtn.querySelector('.tool-shortcut')?.textContent).toBe('N');
-      const sketchEraseBtn = screen.getByTitle('S.Erase (Shift+N)');
-      expect(sketchEraseBtn.querySelector('.tool-shortcut')?.textContent).toBe('Shift+N');
+      const toolEntries = SHORTCUT_MANIFEST.filter(
+        (b) => b.status === 'live' && b.displayed && b.toolId !== undefined
+      );
+      for (const entry of toolEntries) {
+        const badges = document.querySelectorAll('.tool-shortcut');
+        const found = Array.from(badges).some((el) => el.textContent === entry.label);
+        expect(found, `Manifest entry "${entry.id}" (${entry.label}) has no visible badge`).toBe(true);
+      }
     });
 
-    it('ellipse has no shortcut badge (O conflict resolved)', () => {
+    it('no tool button title advertises a shortcut without a manifest entry', () => {
       seed();
       render(<ToolRail />);
-      const ellipseBtn = screen.getByTitle('Ellipse');
-      expect(ellipseBtn.querySelector('.tool-shortcut')).toBeNull();
-      // No stale O shortcut in title
-      expect(screen.queryByTitle('Ellipse (O)')).not.toBeInTheDocument();
+      const allButtons = screen.getAllByRole('button');
+      const shortcutPattern = /\(([^)]+)\)/;
+      for (const btn of allButtons) {
+        const match = btn.title.match(shortcutPattern);
+        if (match) {
+          const label = match[1];
+          const entry = SHORTCUT_MANIFEST.find((b) => b.label === label && b.status === 'live');
+          expect(entry, `Title "${btn.title}" advertises shortcut "${label}" with no live manifest entry`).toBeDefined();
+        }
+      }
     });
 
-    it('swap colors tooltip has no stale (X) reference', () => {
+    it('ellipse shortcut is C (not O)', () => {
+      const entry = SHORTCUT_MANIFEST.find((b) => b.id === 'tool-ellipse');
+      expect(entry).toBeDefined();
+      expect(entry!.label).toBe('C');
+      expect(entry!.code).toBe('KeyC');
+      // O is reserved for onion skin
+      const onion = SHORTCUT_MANIFEST.find((b) => b.id === 'onion-skin');
+      expect(onion).toBeDefined();
+      expect(onion!.code).toBe('KeyO');
+    });
+
+    it('swap colors tooltip includes (X) since X is live in manifest', () => {
       seed();
       render(<ToolRail />);
       const swapArea = document.querySelector('.tool-colors') as HTMLElement;
-      expect(swapArea.title).toBe('Click to swap colors');
-      expect(swapArea.title).not.toContain('X');
+      expect(swapArea.title).toBe('Click to swap colors (X)');
     });
   });
 });

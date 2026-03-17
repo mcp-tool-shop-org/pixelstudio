@@ -8,7 +8,7 @@ import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
 import { useBrushSettingsStore, expandStrokeDabs } from '@glyphstudio/state';
 import { useAnchorStore } from '@glyphstudio/state';
-import { isSketchTool } from '@glyphstudio/domain';
+import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
 import type { AnchorKind } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
@@ -1194,6 +1194,35 @@ export function Canvas() {
         return;
       }
 
+      // Tool activation from manifest (single keys and Shift+key)
+      // Skip during active transform — H/V/R are transform ops, not tool switches
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !useSelectionStore.getState().isTransforming) {
+        // Swap colors (X)
+        if (e.code === 'KeyX' && !e.shiftKey) {
+          e.preventDefault();
+          useToolStore.getState().swapColors();
+          return;
+        }
+        // Shift+key tool shortcuts
+        if (e.shiftKey) {
+          const shiftTool = TOOL_SHIFT_KEY_MAP.get(e.code);
+          if (shiftTool) {
+            e.preventDefault();
+            useToolStore.getState().setTool(shiftTool);
+            return;
+          }
+        }
+        // Single-key tool shortcuts (no shift)
+        if (!e.shiftKey) {
+          const tool = TOOL_KEY_MAP.get(e.code);
+          if (tool) {
+            e.preventDefault();
+            useToolStore.getState().setTool(tool);
+            return;
+          }
+        }
+      }
+
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         // If actively drawing, Space = pan; otherwise Space = play/pause
@@ -1353,16 +1382,8 @@ export function Canvas() {
         }
       }
 
-      // Sketch tool shortcuts: N = sketch-brush, Shift+N = sketch-eraser
-      if (e.code === 'KeyN' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        const tool = e.shiftKey ? 'sketch-eraser' : 'sketch-brush';
-        useToolStore.getState().setTool(tool);
-        return;
-      }
-
-      // Toggle onion skin with O
-      if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Toggle onion skin with O (not a tool, so handled separately from manifest dispatch)
+      if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         useTimelineStore.getState().toggleOnionSkin();
         return;
