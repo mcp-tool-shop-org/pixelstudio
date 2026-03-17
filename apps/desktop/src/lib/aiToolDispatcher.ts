@@ -15,7 +15,14 @@ import {
   searchTemplates as searchLibraryTemplates,
 } from './spriteTemplateLibrary';
 import { resolveTemplate } from './spriteTemplateRenderer';
-import type { RGBA } from '@glyphstudio/domain';
+import {
+  ANIMATION_PRESET_LIBRARY,
+  findPreset as findLibraryPreset,
+  listPresetsByCategory,
+  listCompatiblePresets,
+} from './animationPresetLibrary';
+import { generateAnimationSequence } from './animationSequenceGenerator';
+import type { RGBA, AnimationCategory } from '@glyphstudio/domain';
 
 export interface ToolCallRequest {
   name: string;
@@ -52,6 +59,12 @@ export async function executeToolCall(
   }
   if (call.name === 'instantiate_template') {
     return executeInstantiateTemplate(call, start);
+  }
+  if (call.name === 'list_animations') {
+    return executeListAnimations(call, start);
+  }
+  if (call.name === 'generate_animation') {
+    return executeGenerateAnimation(call, start);
   }
 
   const tool = findTool(call.name);
@@ -300,6 +313,139 @@ async function executeInstantiateTemplate(
         pixelCount: result.pixelCount,
         canvasWidth: Math.round(template.suggestedWidth * scale),
         canvasHeight: Math.round(template.suggestedHeight * scale),
+      },
+      error: null,
+      durationMs: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Handle list_animations meta-tool.
+ */
+function executeListAnimations(call: ToolCallRequest, start: number): ToolCallResult {
+  const category = call.arguments.category as AnimationCategory | undefined;
+  const archetype = call.arguments.archetype as string | undefined;
+
+  let presets = [...ANIMATION_PRESET_LIBRARY];
+
+  if (category) {
+    presets = listPresetsByCategory(category);
+  }
+  if (archetype) {
+    const compatible = listCompatiblePresets(archetype);
+    const compatibleIds = new Set(compatible.map((p) => p.id));
+    presets = presets.filter((p) => compatibleIds.has(p.id));
+  }
+
+  return {
+    name: call.name,
+    success: true,
+    data: presets.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      category: p.category,
+      frameCount: p.frameCount,
+      looping: p.looping,
+      defaultFps: p.defaultFps,
+      compatibleArchetypes: p.compatibleArchetypes,
+      tags: p.tags,
+    })),
+    error: null,
+    durationMs: Date.now() - start,
+  };
+}
+
+/**
+ * Handle generate_animation meta-tool.
+ * Validates inputs, then delegates to generateAnimationSequence.
+ */
+async function executeGenerateAnimation(
+  call: ToolCallRequest,
+  start: number,
+): Promise<ToolCallResult> {
+  const templateId = call.arguments.templateId as string;
+  const presetId = call.arguments.presetId as string;
+
+  if (!templateId || !presetId) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: 'generate_animation requires "templateId" and "presetId"',
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // Validate template exists
+  const template = findLibraryTemplate(templateId);
+  if (!template) {
+    const available = SPRITE_TEMPLATE_LIBRARY.map((t) => t.id).join(', ');
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: `Template not found: "${templateId}". Available: ${available}`,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // Validate preset exists
+  const preset = findLibraryPreset(presetId);
+  if (!preset) {
+    const available = ANIMATION_PRESET_LIBRARY.map((p) => p.id).join(', ');
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: `Preset not found: "${presetId}". Available: ${available}`,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // Parse color overrides
+  const rawColors = (call.arguments.colors ?? {}) as Record<string, unknown>;
+  const colors: Record<string, RGBA> = {};
+  for (const [slot, val] of Object.entries(rawColors)) {
+    if (Array.isArray(val) && val.length === 4) {
+      colors[slot] = val as RGBA;
+    }
+  }
+
+  const scale = typeof call.arguments.scale === 'number' ? call.arguments.scale : 1.0;
+  const intensity = typeof call.arguments.intensity === 'number' ? call.arguments.intensity : 1.0;
+
+  try {
+    const result = await generateAnimationSequence({
+      templateId,
+      presetId,
+      colors,
+      scale,
+      intensity,
+    });
+
+    return {
+      name: call.name,
+      success: true,
+      data: {
+        templateId,
+        templateName: template.name,
+        presetId,
+        presetName: preset.name,
+        frameCount: result.frameCount,
+        totalPixels: result.totalPixels,
+        frameIds: result.frameIds,
+        looping: preset.looping,
+        defaultFps: preset.defaultFps,
       },
       error: null,
       durationMs: Date.now() - start,

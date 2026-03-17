@@ -8,7 +8,7 @@ import {
 
 describe('TOOL_REGISTRY', () => {
   it('has 22 tools', () => {
-    expect(TOOL_REGISTRY).toHaveLength(39);
+    expect(TOOL_REGISTRY).toHaveLength(41);
   });
 
   it('all tools have unique names', () => {
@@ -38,7 +38,7 @@ describe('TOOL_REGISTRY', () => {
 describe('toolsToOllamaFormat', () => {
   it('converts all tools to Ollama format', () => {
     const formatted = toolsToOllamaFormat();
-    expect(formatted).toHaveLength(39);
+    expect(formatted).toHaveLength(41);
     for (const t of formatted) {
       expect(t.type).toBe('function');
       expect(t.function.name).toBeTruthy();
@@ -181,6 +181,8 @@ describe('getRelevantTools', () => {
     expect(names).toContain('list_templates');
     expect(names).toContain('search_templates');
     expect(names).toContain('instantiate_template');
+    expect(names).toContain('list_animations');
+    expect(names).toContain('generate_animation');
   });
 
   it('includes undo/redo when available', () => {

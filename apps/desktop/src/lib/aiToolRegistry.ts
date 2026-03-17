@@ -493,6 +493,37 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
     tauriCommand: '__meta_instantiate_template__',
   },
 
+  // --- Animation generation ---
+  {
+    name: 'list_animations',
+    description: 'List available animation presets, optionally filtered by category (idle, walk, run, attack, hurt, death, cast, jump). Shows preset names, descriptions, frame counts, and compatible archetypes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Filter by animation category (optional)', enum: ['idle', 'walk', 'run', 'attack', 'hurt', 'death', 'cast', 'jump'] },
+        archetype: { type: 'string', description: 'Filter by compatible template archetype (optional)' },
+      },
+      required: [],
+    },
+    tauriCommand: '__meta_list_animations__',
+  },
+  {
+    name: 'generate_animation',
+    description: 'Generate a multi-frame animation sequence from a template + animation preset. Creates new frames on the canvas with per-frame region transforms applied. Example: "generate idle-bob animation from humanoid-warrior template".',
+    parameters: {
+      type: 'object',
+      properties: {
+        templateId: { type: 'string', description: 'Template ID to use as base pose (e.g. "humanoid-warrior")' },
+        presetId: { type: 'string', description: 'Animation preset ID (e.g. "idle-bob", "walk-cycle", "attack-swing")' },
+        colors: { type: 'object', description: 'Color overrides: { slotName: [r, g, b, a] }. Missing slots use template defaults.' },
+        scale: { type: 'number', description: 'Scale factor (1.0 = suggested size)', minimum: 0.5, maximum: 4 },
+        intensity: { type: 'number', description: 'Motion intensity (0.5 = subtle, 1.0 = normal, 2.0 = exaggerated)', minimum: 0.1, maximum: 3 },
+      },
+      required: ['templateId', 'presetId'],
+    },
+    tauriCommand: '__meta_generate_animation__',
+  },
+
   // --- Undo/Redo ---
   {
     name: 'undo',
@@ -558,6 +589,7 @@ export function getRelevantTools(context: {
     'analyze_bounds', 'analyze_colors',
     'set_selection',
     'list_templates', 'search_templates', 'instantiate_template',
+    'list_animations', 'generate_animation',
   ]);
 
   // Selection-dependent tools

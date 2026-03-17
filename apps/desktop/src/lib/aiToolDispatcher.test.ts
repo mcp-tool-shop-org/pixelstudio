@@ -429,3 +429,129 @@ describe('instantiate_template meta-tool', () => {
     expect(result.error).toContain('Layer is locked');
   });
 });
+
+describe('list_animations meta-tool', () => {
+  it('lists all animation presets', async () => {
+    const result = await executeToolCall({
+      name: 'list_animations',
+      arguments: {},
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(3);
+    expect(data.map((p) => p.id)).toContain('idle-bob');
+  });
+
+  it('filters by category', async () => {
+    const result = await executeToolCall({
+      name: 'list_animations',
+      arguments: { category: 'walk' },
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(1);
+    expect(data[0].id).toBe('walk-cycle');
+  });
+
+  it('filters by archetype', async () => {
+    const result = await executeToolCall({
+      name: 'list_animations',
+      arguments: { archetype: 'quadruped' },
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(1);
+    expect(data[0].id).toBe('idle-bob');
+  });
+
+  it('filters by both category and archetype', async () => {
+    const result = await executeToolCall({
+      name: 'list_animations',
+      arguments: { category: 'attack', archetype: 'quadruped' },
+    });
+
+    expect(result.success).toBe(true);
+    expect((result.data as unknown[]).length).toBe(0);
+  });
+});
+
+describe('generate_animation meta-tool', () => {
+  it('fails without required params', async () => {
+    const result = await executeToolCall({
+      name: 'generate_animation',
+      arguments: {},
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('templateId');
+  });
+
+  it('fails with unknown template', async () => {
+    const result = await executeToolCall({
+      name: 'generate_animation',
+      arguments: { templateId: 'nope', presetId: 'idle-bob' },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('not found');
+  });
+
+  it('fails with unknown preset', async () => {
+    const result = await executeToolCall({
+      name: 'generate_animation',
+      arguments: { templateId: 'humanoid-warrior', presetId: 'nope' },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('not found');
+  });
+
+  it('generates animation successfully', async () => {
+    let frameCounter = 0;
+    mockInvoke.on('create_frame', () => ({ id: `anim-frame-${frameCounter++}` }));
+    mockInvoke.on('select_frame', () => ({}));
+    mockInvoke.on('set_frame_duration', () => ({}));
+    mockInvoke.on('render_template', () => ({
+      regionCount: 9,
+      connectionCount: 7,
+      pixelCount: 150,
+    }));
+
+    const result = await executeToolCall({
+      name: 'generate_animation',
+      arguments: {
+        templateId: 'humanoid-warrior',
+        presetId: 'idle-bob',
+        scale: 1.0,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Record<string, unknown>;
+    expect(data.templateId).toBe('humanoid-warrior');
+    expect(data.presetId).toBe('idle-bob');
+    expect(data.frameCount).toBe(4);
+    expect((data.frameIds as string[]).length).toBe(4);
+    expect(data.looping).toBe(true);
+  });
+
+  it('handles generation errors gracefully', async () => {
+    mockInvoke.on('create_frame', () => {
+      throw new Error('Canvas not initialized');
+    });
+
+    const result = await executeToolCall({
+      name: 'generate_animation',
+      arguments: {
+        templateId: 'humanoid-warrior',
+        presetId: 'idle-bob',
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Canvas not initialized');
+  });
+});
