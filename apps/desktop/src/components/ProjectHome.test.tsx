@@ -58,6 +58,15 @@ describe('ProjectHome', () => {
       expect(screen.getByText('Animation')).toBeInTheDocument();
     });
 
+    it('shows size presets row', () => {
+      render(<ProjectHome onEnterWorkspace={vi.fn()} />);
+      expect(screen.getByTestId('size-presets')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-16')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-64')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-128')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-32×48')).toBeInTheDocument();
+    });
+
     it('shows Workflows section with cards after registration', async () => {
       render(<ProjectHome onEnterWorkspace={vi.fn()} />);
       // Workflows register on mount via useEffect
@@ -97,6 +106,31 @@ describe('ProjectHome', () => {
       render(<ProjectHome onEnterWorkspace={vi.fn()} />);
       expect(screen.getByTestId('create-run')).toBeInTheDocument();
       expect(screen.getByText('Create')).toBeInTheDocument();
+    });
+
+    it('clicking a size preset updates width and height inputs', async () => {
+      render(<ProjectHome onEnterWorkspace={vi.fn()} />);
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('preset-16'));
+      });
+      expect((screen.getByTestId('create-width') as HTMLInputElement).value).toBe('16');
+      expect((screen.getByTestId('create-height') as HTMLInputElement).value).toBe('16');
+    });
+
+    it('active preset button has active class when dimensions match', async () => {
+      render(<ProjectHome onEnterWorkspace={vi.fn()} />);
+      // Default is 64×64 — preset-64 should be active
+      expect(screen.getByTestId('preset-64').className).toContain('active');
+      expect(screen.getByTestId('preset-32').className).not.toContain('active');
+    });
+
+    it('32×48 preset sets asymmetric dimensions', async () => {
+      render(<ProjectHome onEnterWorkspace={vi.fn()} />);
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('preset-32×48'));
+      });
+      expect((screen.getByTestId('create-width') as HTMLInputElement).value).toBe('32');
+      expect((screen.getByTestId('create-height') as HTMLInputElement).value).toBe('48');
     });
 
     it('shows workflow runner when a run is active', () => {

@@ -12,6 +12,15 @@ interface ProjectHomeProps {
   onEnterWorkspace: (mode?: WorkspaceMode) => void;
 }
 
+const SIZE_PRESETS: Array<{ label: string; w: number; h: number }> = [
+  { label: '16', w: 16, h: 16 },
+  { label: '32', w: 32, h: 32 },
+  { label: '48', w: 48, h: 48 },
+  { label: '64', w: 64, h: 64 },
+  { label: '128', w: 128, h: 128 },
+  { label: '32×48', w: 32, h: 48 },
+];
+
 function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) => void }) {
   const [name, setName] = useState('Untitled');
   const [width, setWidth] = useState(64);
@@ -36,6 +45,19 @@ function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) =
           Height
           <input type="number" value={height} min={1} max={1024} onChange={(e) => setHeight(Number(e.target.value))} data-testid="create-height" />
         </label>
+      </div>
+      <div className="ph-size-presets" data-testid="size-presets">
+        {SIZE_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            className={`ph-preset-btn${width === p.w && height === p.h ? ' active' : ''}`}
+            onClick={() => { setWidth(p.w); setHeight(p.h); }}
+            data-testid={`preset-${p.label}`}
+            title={`${p.w}×${p.h}`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
       <div className="ph-mode-toggle" data-testid="create-mode-toggle">
         <button className={mode === 'static' ? 'active' : ''} onClick={() => setMode('static')}>Static</button>
