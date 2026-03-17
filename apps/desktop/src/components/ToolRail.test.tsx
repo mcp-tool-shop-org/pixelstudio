@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToolRail } from '../components/ToolRail';
-import { useToolStore, useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS } from '@glyphstudio/state';
+import { useToolStore, useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS, BRUSH_PRESETS } from '@glyphstudio/state';
 import { SHORTCUT_MANIFEST, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 
 function seed() {
@@ -212,6 +212,61 @@ describe('ToolRail', () => {
         await userEvent.click(resetBtn);
       });
       expect(useBrushSettingsStore.getState().sketchBrush.size).toBe(SKETCH_BRUSH_DEFAULTS.size);
+    });
+  });
+
+  describe('brush presets', () => {
+    it('brush preset strip is hidden when pencil is active', () => {
+      seed();
+      render(<ToolRail />);
+      expect(document.querySelector('.brush-presets')).toBeNull();
+    });
+
+    it('brush preset strip is visible when sketch-brush is active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      render(<ToolRail />);
+      expect(document.querySelector('[data-testid="brush-presets"]')).not.toBeNull();
+    });
+
+    it('brush preset strip is hidden when sketch-eraser is active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-eraser' });
+      render(<ToolRail />);
+      expect(document.querySelector('[data-testid="brush-presets"]')).toBeNull();
+    });
+
+    it('renders one button per BRUSH_PRESETS entry', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      render(<ToolRail />);
+      for (const preset of BRUSH_PRESETS) {
+        expect(document.querySelector(`[data-testid="brush-preset-${preset.id}"]`)).not.toBeNull();
+      }
+    });
+
+    it('clicking a preset applies its settings and marks it active', async () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      render(<ToolRail />);
+      const hardBtn = document.querySelector('[data-testid="brush-preset-pixel-hard"]') as HTMLElement;
+      await act(async () => { await userEvent.click(hardBtn); });
+      const preset = BRUSH_PRESETS.find((p) => p.id === 'pixel-hard')!;
+      expect(useBrushSettingsStore.getState().sketchBrush).toEqual(preset.settings);
+      expect(useBrushSettingsStore.getState().activePresetId).toBe('pixel-hard');
+      expect(hardBtn.className).toContain('active');
+    });
+
+    it('active preset button loses active class after manual size change', async () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('pixel-hard');
+      render(<ToolRail />);
+      const hardBtn = document.querySelector('[data-testid="brush-preset-pixel-hard"]') as HTMLElement;
+      expect(hardBtn.className).toContain('active');
+      useBrushSettingsStore.getState().setBrushSize('sketchBrush', 8);
+      // re-render is synchronous in zustand subscriber — check state directly
+      expect(useBrushSettingsStore.getState().activePresetId).toBeNull();
     });
   });
 

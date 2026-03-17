@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
-import { useToolStore, useBrushSettingsStore, useSelectionStore } from '@glyphstudio/state';
+import { useToolStore, useBrushSettingsStore, useSelectionStore, BRUSH_PRESETS } from '@glyphstudio/state';
 import type { MirrorMode } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import type { CanvasFrameData } from '../lib/canvasFrameStore';
@@ -233,15 +233,33 @@ function MirrorToggles({ mirrorMode, onToggleH, onToggleV }: {
 function SketchSettings() {
   const activeTool = useToolStore((s) => s.activeTool);
   const toolKey = activeTool === 'sketch-eraser' ? 'sketchEraser' as const : 'sketchBrush' as const;
+  const isBrush = toolKey === 'sketchBrush';
 
   const size = useBrushSettingsStore((s) => s[toolKey].size);
   const opacity = useBrushSettingsStore((s) => s[toolKey].opacity);
+  const activePresetId = useBrushSettingsStore((s) => s.activePresetId);
   const setBrushSize = useBrushSettingsStore((s) => s.setBrushSize);
   const setBrushOpacity = useBrushSettingsStore((s) => s.setBrushOpacity);
   const resetToDefaults = useBrushSettingsStore((s) => s.resetToDefaults);
+  const applyPreset = useBrushSettingsStore((s) => s.applyPreset);
 
   return (
     <div className="sketch-settings">
+      {isBrush && (
+        <div className="brush-presets" data-testid="brush-presets">
+          {BRUSH_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              className={`brush-preset-btn${activePresetId === preset.id ? ' active' : ''}`}
+              onClick={() => applyPreset(preset.id)}
+              title={preset.title}
+              data-testid={`brush-preset-${preset.id}`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
       <label className="sketch-setting-row" title="Brush size (px)">
         <span className="sketch-setting-label">Sz</span>
         <input

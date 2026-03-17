@@ -3,6 +3,7 @@ import {
   useBrushSettingsStore,
   SKETCH_BRUSH_DEFAULTS,
   SKETCH_ERASER_DEFAULTS,
+  BRUSH_PRESETS,
 } from './brushSettingsStore';
 
 beforeEach(() => {
@@ -10,6 +11,7 @@ beforeEach(() => {
     sketchBrush: { ...SKETCH_BRUSH_DEFAULTS },
     sketchEraser: { ...SKETCH_ERASER_DEFAULTS },
     roughModeActive: false,
+    activePresetId: null,
   });
 });
 
@@ -132,5 +134,70 @@ describe('brushSettingsStore', () => {
   it('changing eraser does not affect brush', () => {
     useBrushSettingsStore.getState().setBrushOpacity('sketchEraser', 0.3);
     expect(useBrushSettingsStore.getState().sketchBrush.opacity).toBe(SKETCH_BRUSH_DEFAULTS.opacity);
+  });
+
+  // --- Brush presets ---
+
+  it('BRUSH_PRESETS has 4 entries with unique ids', () => {
+    expect(BRUSH_PRESETS).toHaveLength(4);
+    const ids = BRUSH_PRESETS.map((p) => p.id);
+    expect(new Set(ids).size).toBe(4);
+  });
+
+  it('activePresetId starts null', () => {
+    expect(useBrushSettingsStore.getState().activePresetId).toBeNull();
+  });
+
+  it('applyPreset applies settings and sets activePresetId', () => {
+    const preset = BRUSH_PRESETS.find((p) => p.id === 'pixel-hard')!;
+    useBrushSettingsStore.getState().applyPreset('pixel-hard');
+    const s = useBrushSettingsStore.getState();
+    expect(s.activePresetId).toBe('pixel-hard');
+    expect(s.sketchBrush).toEqual(preset.settings);
+  });
+
+  it('applyPreset with unknown id is a no-op', () => {
+    useBrushSettingsStore.getState().applyPreset('pixel-hard');
+    useBrushSettingsStore.getState().applyPreset('does-not-exist');
+    expect(useBrushSettingsStore.getState().activePresetId).toBe('pixel-hard');
+  });
+
+  it('applyPreset does not change sketchEraser settings', () => {
+    const eraserBefore = { ...useBrushSettingsStore.getState().sketchEraser };
+    useBrushSettingsStore.getState().applyPreset('cluster');
+    expect(useBrushSettingsStore.getState().sketchEraser).toEqual(eraserBefore);
+  });
+
+  it('setBrushSize on sketchBrush clears activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('sketch');
+    useBrushSettingsStore.getState().setBrushSize('sketchBrush', 10);
+    expect(useBrushSettingsStore.getState().activePresetId).toBeNull();
+  });
+
+  it('setBrushOpacity on sketchBrush clears activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('dither');
+    useBrushSettingsStore.getState().setBrushOpacity('sketchBrush', 0.9);
+    expect(useBrushSettingsStore.getState().activePresetId).toBeNull();
+  });
+
+  it('setBrushSize on sketchEraser does NOT clear activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('cluster');
+    useBrushSettingsStore.getState().setBrushSize('sketchEraser', 8);
+    expect(useBrushSettingsStore.getState().activePresetId).toBe('cluster');
+  });
+
+  it('resetToDefaults on sketchBrush clears activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('pixel-hard');
+    useBrushSettingsStore.getState().resetToDefaults('sketchBrush');
+    expect(useBrushSettingsStore.getState().activePresetId).toBeNull();
+  });
+
+  it('switching presets updates activePresetId and settings', () => {
+    useBrushSettingsStore.getState().applyPreset('pixel-hard');
+    useBrushSettingsStore.getState().applyPreset('cluster');
+    const s = useBrushSettingsStore.getState();
+    expect(s.activePresetId).toBe('cluster');
+    const cluster = BRUSH_PRESETS.find((p) => p.id === 'cluster')!;
+    expect(s.sketchBrush).toEqual(cluster.settings);
   });
 });
