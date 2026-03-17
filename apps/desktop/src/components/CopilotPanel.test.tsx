@@ -111,15 +111,28 @@ describe('CopilotPanel', () => {
     });
   });
 
-  it('executes tool calls on approve', async () => {
-    mockInvoke.on('ai_ollama_chat', () => ({
-      content: 'Drawing red pixel.',
-      toolCalls: [
-        { function: { name: 'draw_pixel', arguments: { x: 5, y: 5, r: 255, g: 0, b: 0, a: 255 } } },
-      ],
-      done: true,
-      totalDurationNs: null,
-    }));
+  it('executes tool calls on approve and triggers follow-up', async () => {
+    let callCount = 0;
+    mockInvoke.on('ai_ollama_chat', () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: 'Drawing red pixel.',
+          toolCalls: [
+            { function: { name: 'draw_pixel', arguments: { x: 5, y: 5, r: 255, g: 0, b: 0, a: 255 } } },
+          ],
+          done: true,
+          totalDurationNs: null,
+        };
+      }
+      // Follow-up call after tool execution — text response
+      return {
+        content: 'Done! I drew a red pixel at (5, 5).',
+        toolCalls: [],
+        done: true,
+        totalDurationNs: null,
+      };
+    });
     mockInvoke.on('write_pixel', () => ({ r: 255, g: 0, b: 0, a: 255 }));
 
     render(<CopilotPanel />);
@@ -135,6 +148,71 @@ describe('CopilotPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/draw_pixel: OK/)).toBeInTheDocument();
+    });
+
+    // Follow-up LLM response should appear
+    await waitFor(() => {
+      expect(screen.getByText(/Done! I drew a red pixel/)).toBeInTheDocument();
+    });
+  });
+
+  it('supports multi-turn tool chains', async () => {
+    let callCount = 0;
+    mockInvoke.on('ai_ollama_chat', () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: 'First, I will create a layer.',
+          toolCalls: [
+            { function: { name: 'create_layer', arguments: { name: 'Outline' } } },
+          ],
+          done: true,
+          totalDurationNs: null,
+        };
+      }
+      if (callCount === 2) {
+        return {
+          content: 'Now drawing on the new layer.',
+          toolCalls: [
+            { function: { name: 'draw_pixel', arguments: { x: 0, y: 0, r: 0, g: 0, b: 0, a: 255 } } },
+          ],
+          done: true,
+          totalDurationNs: null,
+        };
+      }
+      // Third call — text summary
+      return {
+        content: 'All done! Created outline layer and drew a pixel.',
+        toolCalls: [],
+        done: true,
+        totalDurationNs: null,
+      };
+    });
+    mockInvoke.on('create_layer', () => ({ id: 'new-layer', name: 'Outline' }));
+    mockInvoke.on('write_pixel', () => ({ r: 0, g: 0, b: 0, a: 255 }));
+
+    render(<CopilotPanel />);
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId('copilot-input'), 'Create an outline layer and draw');
+    await user.click(screen.getByTestId('send-btn'));
+
+    // First approval
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-btn')).toBeInTheDocument();
+      expect(screen.getByText(/create a layer/)).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('approve-btn'));
+
+    // Second approval (follow-up tool calls)
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-btn')).toBeInTheDocument();
+      expect(screen.getByText(/drawing on the new layer/)).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('approve-btn'));
+
+    // Final text summary
+    await waitFor(() => {
+      expect(screen.getByText(/All done!/)).toBeInTheDocument();
     });
   });
 

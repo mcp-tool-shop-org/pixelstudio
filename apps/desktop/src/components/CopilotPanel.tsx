@@ -25,6 +25,8 @@ interface PendingOperation {
   explanation: string;
 }
 
+const MAX_TURNS = 5;
+
 export function CopilotPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -32,6 +34,7 @@ export function CopilotPanel() {
   const [ollamaOnline, setOllamaOnline] = useState<boolean | null>(null);
   const [pendingOps, setPendingOps] = useState<PendingOperation | null>(null);
   const [contextSummary, setContextSummary] = useState<string>('');
+  const [turnCount, setTurnCount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Check Ollama on mount
@@ -94,8 +97,95 @@ You can execute editing operations by calling the provided tools. When you want 
 
 Keep responses concise. You are editing pixel art — coordinates are in pixels. Colors are RGBA (0-255).
 For area fills, use fill_rect. For freeform drawing, use begin_stroke/stroke_points/end_stroke.
-Layer and frame operations require UUIDs — use the IDs listed above.`;
+Layer and frame operations require UUIDs — use the IDs listed above.
+After tool results come back, you may call more tools or give a text summary. Max ${MAX_TURNS} tool rounds per request.`;
   }, []);
+
+  /** Send chat messages to Ollama and handle the response (tool calls or text). */
+  const sendToLlm = useCallback(async (
+    chatMessages: Array<{ role: string; content: string }>,
+    currentMessages: ChatMessage[],
+    currentTurn: number,
+  ): Promise<void> => {
+    const ctx = await refreshContext();
+    if (!ctx) {
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'No project is open.' }]);
+      setState('idle');
+      return;
+    }
+
+    const settings = loadAiSettings();
+    const relevantTools = getRelevantTools({
+      hasSelection: ctx.selection !== null,
+      frameCount: ctx.animation.frameCount,
+      canUndo: ctx.history.canUndo,
+      canRedo: ctx.history.canRedo,
+    });
+    const ollamaTools = toolsToOllamaFormat(relevantTools);
+    const systemPrompt = buildSystemPrompt(ctx);
+
+    const fullMessages = [
+      { role: 'system', content: systemPrompt },
+      ...chatMessages,
+    ];
+
+    // Add pending assistant message
+    setMessages((prev) => [...prev, { role: 'assistant', content: '...', pending: true }]);
+
+    const response: OllamaChatResponse = await ollamaChat(
+      settings.ollamaEndpoint,
+      settings.ollamaTextModel,
+      fullMessages,
+      ollamaTools,
+    );
+
+    const toolCalls = parseToolCalls({
+      tool_calls: response.toolCalls?.map((tc) => ({
+        function: { name: tc.function.name, arguments: tc.function.arguments },
+      })),
+      content: response.content,
+    });
+
+    if (toolCalls.length > 0 && currentTurn < MAX_TURNS) {
+      const explanation = response.content || 'I want to execute these operations:';
+      setPendingOps({ calls: toolCalls, explanation });
+      setState('awaiting-approval');
+      setTurnCount(currentTurn + 1);
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        updated[lastIdx] = {
+          role: 'assistant',
+          content: explanation,
+          toolCalls,
+          pending: false,
+        };
+        return updated;
+      });
+    } else {
+      // Text-only response or max turns reached
+      const content = toolCalls.length > 0
+        ? `${response.content || ''}\n\n(Reached max ${MAX_TURNS} tool rounds — stopping here.)`
+        : (response.content || '(no response)');
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        updated[lastIdx] = {
+          role: 'assistant',
+          content,
+          pending: false,
+        };
+        return updated;
+      });
+      setState('idle');
+      setTurnCount(0);
+    }
+
+    const durationMs = response.totalDurationNs ? Math.round(response.totalDurationNs / 1e6) : null;
+    if (durationMs) {
+      console.log(`Copilot response in ${durationMs}ms (turn ${currentTurn + 1})`);
+    }
+  }, [refreshContext, buildSystemPrompt]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || state !== 'idle') return;
@@ -106,91 +196,17 @@ Layer and frame operations require UUIDs — use the IDs listed above.`;
     // Add user message
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setState('thinking');
+    setTurnCount(0);
 
     try {
-      // Get fresh context
-      const ctx = await refreshContext();
-      if (!ctx) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'No project is open. Please open or create a project first.' }]);
-        setState('idle');
-        return;
-      }
+      // Build conversation from history
+      const chatHistory = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
+        .slice(-20)
+        .map((m) => ({ role: m.role, content: m.content }));
+      chatHistory.push({ role: 'user', content: userMessage });
 
-      const settings = loadAiSettings();
-
-      // Build tool definitions based on context
-      const relevantTools = getRelevantTools({
-        hasSelection: ctx.selection !== null,
-        frameCount: ctx.animation.frameCount,
-        canUndo: ctx.history.canUndo,
-        canRedo: ctx.history.canRedo,
-      });
-      const ollamaTools = toolsToOllamaFormat(relevantTools);
-
-      // Build conversation with system prompt
-      const systemPrompt = buildSystemPrompt(ctx);
-      const chatMessages = [
-        { role: 'system', content: systemPrompt },
-        ...messages.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-10).map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        { role: 'user', content: userMessage },
-      ];
-
-      // Add pending assistant message
-      setMessages((prev) => [...prev, { role: 'assistant', content: '...', pending: true }]);
-
-      const response: OllamaChatResponse = await ollamaChat(
-        settings.ollamaEndpoint,
-        settings.ollamaTextModel,
-        chatMessages,
-        ollamaTools,
-      );
-
-      // Parse tool calls
-      const toolCalls = parseToolCalls({
-        tool_calls: response.toolCalls?.map((tc) => ({
-          function: { name: tc.function.name, arguments: tc.function.arguments },
-        })),
-        content: response.content,
-      });
-
-      if (toolCalls.length > 0) {
-        // Show tool calls for approval
-        const explanation = response.content || 'I want to execute these operations:';
-        setPendingOps({ calls: toolCalls, explanation });
-        setState('awaiting-approval');
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          updated[lastIdx] = {
-            role: 'assistant',
-            content: explanation,
-            toolCalls,
-            pending: false,
-          };
-          return updated;
-        });
-      } else {
-        // Just a text response
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          updated[lastIdx] = {
-            role: 'assistant',
-            content: response.content || '(no response)',
-            pending: false,
-          };
-          return updated;
-        });
-        setState('idle');
-      }
-
-      const durationMs = response.totalDurationNs ? Math.round(response.totalDurationNs / 1e6) : null;
-      if (durationMs) {
-        console.log(`Copilot response in ${durationMs}ms`);
-      }
+      await sendToLlm(chatHistory, messages, 0);
     } catch (err: unknown) {
       setMessages((prev) => {
         const updated = [...prev];
@@ -206,8 +222,9 @@ Layer and frame operations require UUIDs — use the IDs listed above.`;
         return updated;
       });
       setState('idle');
+      setTurnCount(0);
     }
-  }, [input, state, messages, refreshContext, buildSystemPrompt]);
+  }, [input, state, messages, sendToLlm]);
 
   const handleApprove = useCallback(async () => {
     if (!pendingOps) return;
@@ -224,15 +241,49 @@ Layer and frame operations require UUIDs — use the IDs listed above.`;
       r.success ? `${r.name}: OK (${r.durationMs}ms)` : `${r.name}: FAILED — ${r.error}`
     ).join('\n');
 
+    // Add tool results message
     setMessages((prev) => [
       ...prev,
       { role: 'tool', content: summary, toolResults: results },
     ]);
 
     setPendingOps(null);
-    setState('idle');
-    refreshContext();
-  }, [pendingOps, refreshContext]);
+    await refreshContext();
+
+    // Feed results back to LLM for follow-up (multi-turn loop)
+    if (turnCount < MAX_TURNS) {
+      setState('thinking');
+      try {
+        // Rebuild full conversation including the new tool results
+        // We need to read the latest messages state
+        setMessages((prev) => {
+          // Build chat history from all messages (including the tool results just added)
+          const chatHistory = prev
+            .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
+            .slice(-20)
+            .map((m) => ({ role: m.role === 'tool' ? 'user' : m.role, content: m.role === 'tool' ? `[Tool results]\n${m.content}` : m.content }));
+
+          // Fire LLM call asynchronously
+          sendToLlm(chatHistory, prev, turnCount).catch((err) => {
+            setMessages((p) => [
+              ...p,
+              { role: 'assistant', content: `Error in follow-up: ${err instanceof Error ? err.message : String(err)}` },
+            ]);
+            setState('idle');
+            setTurnCount(0);
+          });
+
+          return prev;
+        });
+      } catch {
+        setState('idle');
+        setTurnCount(0);
+      }
+    } else {
+      setState('idle');
+      setTurnCount(0);
+    }
+  }, [pendingOps, refreshContext, turnCount, sendToLlm]);
 
   const handleReject = useCallback(() => {
     setMessages((prev) => [
@@ -241,6 +292,7 @@ Layer and frame operations require UUIDs — use the IDs listed above.`;
     ]);
     setPendingOps(null);
     setState('idle');
+    setTurnCount(0);
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -303,7 +355,10 @@ Layer and frame operations require UUIDs — use the IDs listed above.`;
       {/* Approval bar */}
       {state === 'awaiting-approval' && pendingOps && (
         <div className="copilot-approval-bar" data-testid="approval-bar">
-          <span>{pendingOps.calls.length} operation{pendingOps.calls.length !== 1 ? 's' : ''} proposed</span>
+          <span>
+            {pendingOps.calls.length} operation{pendingOps.calls.length !== 1 ? 's' : ''} proposed
+            {turnCount > 0 && ` (turn ${turnCount}/${MAX_TURNS})`}
+          </span>
           <button className="ai-settings-btn" onClick={handleApprove} data-testid="approve-btn">
             Approve
           </button>
