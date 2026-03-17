@@ -12,6 +12,13 @@ import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/dom
 import type { AnchorKind } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
+import {
+  bresenhamLine,
+  rectangleOutline,
+  ellipseOutline,
+  screenToCanvasPixelUnclamped,
+  screenToCanvasPixelClamped,
+} from '../lib/canvasPixelMath';
 
 const CHECK_LIGHT = '#2a2a2e';
 const CHECK_DARK = '#222226';
@@ -20,94 +27,6 @@ const CANVAS_BG = '#111114';
 const GRID_COLOR = 'rgba(255,255,255,0.08)';
 const SELECTION_COLOR = 'rgba(100,160,255,0.5)';
 const SELECTION_DASH = [4, 4];
-
-function bresenhamLine(x0: number, y0: number, x1: number, y1: number): [number, number][] {
-  const points: [number, number][] = [];
-  let dx = Math.abs(x1 - x0);
-  let dy = -Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx + dy;
-  let cx = x0;
-  let cy = y0;
-
-  for (;;) {
-    points.push([cx, cy]);
-    if (cx === x1 && cy === y1) break;
-    const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; cx += sx; }
-    if (e2 <= dx) { err += dx; cy += sy; }
-  }
-  return points;
-}
-
-function rectangleOutline(x0: number, y0: number, x1: number, y1: number): [number, number][] {
-  const minX = Math.min(x0, x1);
-  const maxX = Math.max(x0, x1);
-  const minY = Math.min(y0, y1);
-  const maxY = Math.max(y0, y1);
-  const set = new Set<string>();
-  const points: [number, number][] = [];
-  const add = (x: number, y: number) => {
-    const key = `${x},${y}`;
-    if (!set.has(key)) { set.add(key); points.push([x, y]); }
-  };
-  for (let x = minX; x <= maxX; x++) { add(x, minY); add(x, maxY); }
-  for (let y = minY + 1; y < maxY; y++) { add(minX, y); add(maxX, y); }
-  return points;
-}
-
-function ellipseOutline(x0: number, y0: number, x1: number, y1: number): [number, number][] {
-  const cx = (x0 + x1) / 2;
-  const cy = (y0 + y1) / 2;
-  const rx = Math.abs(x1 - x0) / 2;
-  const ry = Math.abs(y1 - y0) / 2;
-  if (rx < 0.5 && ry < 0.5) return [[Math.round(cx), Math.round(cy)]];
-  if (rx < 0.5) {
-    const points: [number, number][] = [];
-    for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) points.push([Math.round(cx), y]);
-    return points;
-  }
-  if (ry < 0.5) {
-    const points: [number, number][] = [];
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) points.push([x, Math.round(cy)]);
-    return points;
-  }
-  // Midpoint ellipse algorithm
-  const set = new Set<string>();
-  const points: [number, number][] = [];
-  const plot = (px: number, py: number) => {
-    const ix = Math.round(cx + px);
-    const iy = Math.round(cy + py);
-    const key = `${ix},${iy}`;
-    if (!set.has(key)) { set.add(key); points.push([ix, iy]); }
-  };
-  const plotSymmetric = (px: number, py: number) => {
-    plot(px, py); plot(-px, py); plot(px, -py); plot(-px, -py);
-  };
-  let x = 0, y = ry;
-  let rx2 = rx * rx, ry2 = ry * ry;
-  let p1 = ry2 - rx2 * ry + 0.25 * rx2;
-  let dx = 2 * ry2 * x, dy = 2 * rx2 * y;
-  // Region 1
-  while (dx < dy) {
-    plotSymmetric(x, y);
-    x++;
-    dx += 2 * ry2;
-    if (p1 < 0) { p1 += dx + ry2; }
-    else { y--; dy -= 2 * rx2; p1 += dx - dy + ry2; }
-  }
-  // Region 2
-  let p2 = ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
-  while (y >= 0) {
-    plotSymmetric(x, y);
-    y--;
-    dy -= 2 * rx2;
-    if (p2 > 0) { p2 += rx2 - dy; }
-    else { x++; dx += 2 * ry2; p2 += dx - dy + rx2; }
-  }
-  return points;
-}
 
 const SHAPE_TOOLS = new Set(['line', 'rectangle', 'ellipse']);
 
@@ -207,33 +126,26 @@ export function Canvas() {
     (screenX: number, screenY: number): { x: number; y: number } | null => {
       const canvas = canvasRef.current;
       if (!canvas || !frame) return null;
-
       const rect = canvas.getBoundingClientRect();
-      const cx = screenX - rect.left;
-      const cy = screenY - rect.top;
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const spriteW = frame.width * zoom;
-      const spriteH = frame.height * zoom;
-      const originX = centerX - spriteW / 2 + panX;
-      const originY = centerY - spriteH / 2 + panY;
-
-      const px = Math.floor((cx - originX) / zoom);
-      const py = Math.floor((cy - originY) / zoom);
-
-      return { x: px, y: py };
+      return screenToCanvasPixelUnclamped(screenX, screenY, {
+        rectLeft: rect.left, rectTop: rect.top, rectWidth: rect.width, rectHeight: rect.height,
+        zoom, panX, panY, frameWidth: frame.width, frameHeight: frame.height,
+      });
     },
     [zoom, panX, panY, frame],
   );
 
   const screenToPixel = useCallback(
     (screenX: number, screenY: number): { x: number; y: number } | null => {
-      const p = screenToPixelUnclamped(screenX, screenY);
-      if (!p || !frame) return null;
-      if (p.x < 0 || p.y < 0 || p.x >= frame.width || p.y >= frame.height) return null;
-      return p;
+      const canvas = canvasRef.current;
+      if (!canvas || !frame) return null;
+      const rect = canvas.getBoundingClientRect();
+      return screenToCanvasPixelClamped(screenX, screenY, {
+        rectLeft: rect.left, rectTop: rect.top, rectWidth: rect.width, rectHeight: rect.height,
+        zoom, panX, panY, frameWidth: frame.width, frameHeight: frame.height,
+      });
     },
-    [screenToPixelUnclamped, frame],
+    [zoom, panX, panY, frame],
   );
 
   // Initialize canvas from Rust
