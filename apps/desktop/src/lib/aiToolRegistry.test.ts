@@ -8,7 +8,7 @@ import {
 
 describe('TOOL_REGISTRY', () => {
   it('has 22 tools', () => {
-    expect(TOOL_REGISTRY).toHaveLength(36);
+    expect(TOOL_REGISTRY).toHaveLength(39);
   });
 
   it('all tools have unique names', () => {
@@ -38,7 +38,7 @@ describe('TOOL_REGISTRY', () => {
 describe('toolsToOllamaFormat', () => {
   it('converts all tools to Ollama format', () => {
     const formatted = toolsToOllamaFormat();
-    expect(formatted).toHaveLength(36);
+    expect(formatted).toHaveLength(39);
     for (const t of formatted) {
       expect(t.type).toBe('function');
       expect(t.function.name).toBeTruthy();
@@ -168,6 +168,19 @@ describe('getRelevantTools', () => {
     const names = tools.map((t) => t.name);
     expect(names).not.toContain('undo');
     expect(names).not.toContain('redo');
+  });
+
+  it('always includes template tools', () => {
+    const tools = getRelevantTools({
+      hasSelection: false,
+      frameCount: 1,
+      canUndo: false,
+      canRedo: false,
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('list_templates');
+    expect(names).toContain('search_templates');
+    expect(names).toContain('instantiate_template');
   });
 
   it('includes undo/redo when available', () => {

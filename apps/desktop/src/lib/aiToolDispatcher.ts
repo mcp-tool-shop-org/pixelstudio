@@ -8,6 +8,14 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { findTool, TOOL_REGISTRY, type ToolDefinition } from './aiToolRegistry';
+import {
+  SPRITE_TEMPLATE_LIBRARY,
+  findTemplate as findLibraryTemplate,
+  listTemplatesByArchetype,
+  searchTemplates as searchLibraryTemplates,
+} from './spriteTemplateLibrary';
+import { resolveTemplate } from './spriteTemplateRenderer';
+import type { RGBA } from '@glyphstudio/domain';
 
 export interface ToolCallRequest {
   name: string;
@@ -32,9 +40,18 @@ export async function executeToolCall(
 ): Promise<ToolCallResult> {
   const start = Date.now();
 
-  // Handle meta-tool: apply_to_all_frames
+  // Handle meta-tools
   if (call.name === 'apply_to_all_frames') {
     return executeApplyToAllFrames(call, context, start);
+  }
+  if (call.name === 'list_templates') {
+    return executeListTemplates(call, start);
+  }
+  if (call.name === 'search_templates') {
+    return executeSearchTemplates(call, start);
+  }
+  if (call.name === 'instantiate_template') {
+    return executeInstantiateTemplate(call, start);
   }
 
   const tool = findTool(call.name);
@@ -143,6 +160,148 @@ async function executeApplyToAllFrames(
       success: failedFrames === 0,
       data: { batchResults, totalOps, failedFrames },
       error: failedFrames > 0 ? summary : null,
+      durationMs: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Handle list_templates meta-tool.
+ */
+function executeListTemplates(call: ToolCallRequest, start: number): ToolCallResult {
+  const archetype = call.arguments.archetype as string | undefined;
+  const templates = archetype
+    ? listTemplatesByArchetype(archetype)
+    : [...SPRITE_TEMPLATE_LIBRARY];
+
+  return {
+    name: call.name,
+    success: true,
+    data: templates.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      archetype: t.archetype,
+      suggestedWidth: t.suggestedWidth,
+      suggestedHeight: t.suggestedHeight,
+      colorSlots: t.colorSlots.map((s) => s.name),
+      tags: t.tags,
+    })),
+    error: null,
+    durationMs: Date.now() - start,
+  };
+}
+
+/**
+ * Handle search_templates meta-tool.
+ */
+function executeSearchTemplates(call: ToolCallRequest, start: number): ToolCallResult {
+  const query = call.arguments.query as string;
+  if (!query) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: 'search_templates requires a "query" string',
+      durationMs: Date.now() - start,
+    };
+  }
+
+  const results = searchLibraryTemplates(query);
+  return {
+    name: call.name,
+    success: true,
+    data: results.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      archetype: t.archetype,
+      tags: t.tags,
+    })),
+    error: null,
+    durationMs: Date.now() - start,
+  };
+}
+
+/**
+ * Handle instantiate_template meta-tool.
+ * Resolves template + params, then invokes the Rust render_template command.
+ */
+async function executeInstantiateTemplate(
+  call: ToolCallRequest,
+  start: number,
+): Promise<ToolCallResult> {
+  const templateId = call.arguments.templateId as string;
+  if (!templateId) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: 'instantiate_template requires a "templateId" string',
+      durationMs: Date.now() - start,
+    };
+  }
+
+  const template = findLibraryTemplate(templateId);
+  if (!template) {
+    const available = SPRITE_TEMPLATE_LIBRARY.map((t) => t.id).join(', ');
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: `Template not found: "${templateId}". Available: ${available}`,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // Parse color overrides from arguments
+  const rawColors = (call.arguments.colors ?? {}) as Record<string, unknown>;
+  const colors: Record<string, RGBA> = {};
+  for (const [slot, val] of Object.entries(rawColors)) {
+    if (Array.isArray(val) && val.length === 4) {
+      colors[slot] = val as RGBA;
+    }
+  }
+
+  const scale = typeof call.arguments.scale === 'number' ? call.arguments.scale : 1.0;
+
+  const params = { templateId, colors, scale };
+  const { regions, connections } = resolveTemplate(template, params);
+
+  try {
+    const result = await invoke<{
+      regionCount: number;
+      connectionCount: number;
+      pixelCount: number;
+    }>('render_template', {
+      input: {
+        regions,
+        connections,
+        layerId: null,
+      },
+    });
+
+    return {
+      name: call.name,
+      success: true,
+      data: {
+        templateId,
+        templateName: template.name,
+        regionCount: result.regionCount,
+        connectionCount: result.connectionCount,
+        pixelCount: result.pixelCount,
+        canvasWidth: Math.round(template.suggestedWidth * scale),
+        canvasHeight: Math.round(template.suggestedHeight * scale),
+      },
+      error: null,
       durationMs: Date.now() - start,
     };
   } catch (err: unknown) {

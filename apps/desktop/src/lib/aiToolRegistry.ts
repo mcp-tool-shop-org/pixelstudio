@@ -453,6 +453,46 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
     tauriCommand: '__meta_batch_frames__',
   },
 
+  // --- Template generation ---
+  {
+    name: 'list_templates',
+    description: 'List available sprite templates, optionally filtered by archetype (humanoid, quadruped, flying, item, vehicle, structure). Returns template IDs, names, descriptions, and suggested sizes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        archetype: { type: 'string', description: 'Filter by archetype (optional)', enum: ['humanoid', 'quadruped', 'flying', 'item', 'vehicle', 'structure'] },
+      },
+      required: [],
+    },
+    tauriCommand: '__meta_list_templates__',
+  },
+  {
+    name: 'search_templates',
+    description: 'Search sprite templates by keyword (name, description, or tag). Returns matching template IDs and descriptions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search keyword' },
+      },
+      required: ['query'],
+    },
+    tauriCommand: '__meta_search_templates__',
+  },
+  {
+    name: 'instantiate_template',
+    description: 'Render a sprite template onto the canvas. Provide template ID and optional color overrides (slot name → [r, g, b, a]). The template defines body regions, shapes, and connections which are rasterized in one operation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        templateId: { type: 'string', description: 'Template ID (e.g. "humanoid-warrior")' },
+        colors: { type: 'object', description: 'Color overrides: { slotName: [r, g, b, a] }. Missing slots use template defaults.' },
+        scale: { type: 'number', description: 'Scale factor (1.0 = suggested size, 2.0 = double)', minimum: 0.5, maximum: 4 },
+      },
+      required: ['templateId'],
+    },
+    tauriCommand: '__meta_instantiate_template__',
+  },
+
   // --- Undo/Redo ---
   {
     name: 'undo',
@@ -517,6 +557,7 @@ export function getRelevantTools(context: {
     'select_layer', 'delete_layer', 'set_layer_opacity', 'set_layer_lock',
     'analyze_bounds', 'analyze_colors',
     'set_selection',
+    'list_templates', 'search_templates', 'instantiate_template',
   ]);
 
   // Selection-dependent tools

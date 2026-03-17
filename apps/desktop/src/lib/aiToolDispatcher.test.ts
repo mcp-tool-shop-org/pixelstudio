@@ -307,3 +307,125 @@ describe('apply_to_all_frames meta-tool', () => {
     expect(result.error).toContain('non-empty');
   });
 });
+
+describe('list_templates meta-tool', () => {
+  it('lists all templates', async () => {
+    const result = await executeToolCall({
+      name: 'list_templates',
+      arguments: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(Array.isArray(result.data)).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(4);
+    expect(data.map((t) => t.id)).toContain('humanoid-warrior');
+  });
+
+  it('filters by archetype', async () => {
+    const result = await executeToolCall({
+      name: 'list_templates',
+      arguments: { archetype: 'humanoid' },
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(2);
+    expect(data.every((t) => t.id.startsWith('humanoid'))).toBe(true);
+  });
+
+  it('returns empty for unknown archetype', async () => {
+    const result = await executeToolCall({
+      name: 'list_templates',
+      arguments: { archetype: 'flying' },
+    });
+
+    expect(result.success).toBe(true);
+    expect((result.data as unknown[]).length).toBe(0);
+  });
+});
+
+describe('search_templates meta-tool', () => {
+  it('searches by keyword', async () => {
+    const result = await executeToolCall({
+      name: 'search_templates',
+      arguments: { query: 'warrior' },
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as Array<{ id: string }>;
+    expect(data.length).toBe(1);
+    expect(data[0].id).toBe('humanoid-warrior');
+  });
+
+  it('fails without query', async () => {
+    const result = await executeToolCall({
+      name: 'search_templates',
+      arguments: {},
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('query');
+  });
+});
+
+describe('instantiate_template meta-tool', () => {
+  it('fails without templateId', async () => {
+    const result = await executeToolCall({
+      name: 'instantiate_template',
+      arguments: {},
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('templateId');
+  });
+
+  it('fails with unknown template', async () => {
+    const result = await executeToolCall({
+      name: 'instantiate_template',
+      arguments: { templateId: 'nonexistent' },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('not found');
+    expect(result.error).toContain('humanoid-warrior'); // shows available
+  });
+
+  it('resolves and renders a template', async () => {
+    mockInvoke.on('render_template', () => ({
+      regionCount: 9,
+      connectionCount: 7,
+      pixelCount: 500,
+    }));
+
+    const result = await executeToolCall({
+      name: 'instantiate_template',
+      arguments: {
+        templateId: 'humanoid-warrior',
+        colors: { skin: [255, 200, 150, 255] },
+        scale: 1.0,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.name).toBe('instantiate_template');
+    const data = result.data as Record<string, unknown>;
+    expect(data.templateId).toBe('humanoid-warrior');
+    expect(data.regionCount).toBe(9);
+    expect(data.pixelCount).toBe(500);
+  });
+
+  it('handles render errors gracefully', async () => {
+    mockInvoke.on('render_template', () => {
+      throw new Error('Layer is locked');
+    });
+
+    const result = await executeToolCall({
+      name: 'instantiate_template',
+      arguments: { templateId: 'humanoid-warrior' },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Layer is locked');
+  });
+});
