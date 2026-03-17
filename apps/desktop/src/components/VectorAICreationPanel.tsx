@@ -13,6 +13,7 @@ import {
   getPendingProposals,
   applyProposal,
   duplicateProposalToGroup,
+  wouldShapeCollapse,
 } from '@glyphstudio/state';
 import type {
   ProposalSession,
@@ -20,7 +21,9 @@ import type {
   Proposal,
   ProposalSet,
   ProposalStoreApi,
+  ProposalAction,
 } from '@glyphstudio/state';
+import type { VectorMasterDocument } from '@glyphstudio/domain';
 
 // ── Types ──
 
@@ -228,6 +231,7 @@ export function VectorAICreationPanel() {
             <ProposalCard
               key={p.id}
               proposal={p}
+              doc={doc}
               onAccept={handleAccept}
               onDuplicate={handleDuplicate}
               onReject={handleReject}
@@ -243,20 +247,34 @@ export function VectorAICreationPanel() {
 
 function ProposalCard({
   proposal,
+  doc,
   onAccept,
   onDuplicate,
   onReject,
 }: {
   proposal: Proposal;
+  doc: VectorMasterDocument;
   onAccept: (id: string) => void;
   onDuplicate: (id: string) => void;
   onReject: (id: string) => void;
 }) {
   const isPending = proposal.status === 'pending';
+  const [showPreview, setShowPreview] = useState(false);
 
   return (
     <div className={`ai-proposal-card status-${proposal.status}`}>
-      <div className="ai-proposal-headline">{proposal.headline}</div>
+      <div className="ai-proposal-header">
+        <div className="ai-proposal-headline">{proposal.headline}</div>
+        {isPending && (
+          <button
+            className="ai-preview-toggle"
+            onClick={() => setShowPreview(!showPreview)}
+            title="Toggle before/after preview"
+          >
+            {showPreview ? 'Hide' : 'Preview'}
+          </button>
+        )}
+      </div>
       <div className="ai-proposal-rationale">{proposal.rationale}</div>
       <div className="ai-proposal-actions-summary">
         {proposal.actions.map((a, i) => (
@@ -265,6 +283,16 @@ function ProposalCard({
           </span>
         ))}
       </div>
+
+      {/* Before/After Preview */}
+      {showPreview && isPending && (
+        <div className="ai-proposal-preview">
+          {proposal.actions.map((action, i) => (
+            <ActionPreview key={i} action={action} doc={doc} />
+          ))}
+        </div>
+      )}
+
       {isPending && (
         <div className="ai-proposal-buttons">
           <button
@@ -297,6 +325,84 @@ function ProposalCard({
       )}
     </div>
   );
+}
+
+function ActionPreview({ action, doc }: { action: ProposalAction; doc: VectorMasterDocument }) {
+  switch (action.type) {
+    case 'modify': {
+      const shape = doc.shapes.find((s) => s.id === action.targetId);
+      if (!shape) return <div className="preview-row">Target shape not found</div>;
+      const changes = action.changes;
+      return (
+        <div className="preview-row">
+          <span className="preview-label">Modify "{shape.name}"</span>
+          <div className="preview-diff">
+            {changes.geometry && (
+              <div className="preview-change">
+                <span className="preview-before">geo: {geoSummary(shape.geometry)}</span>
+                <span className="preview-arrow">{'\u2192'}</span>
+                <span className="preview-after">{geoSummary(changes.geometry)}</span>
+              </div>
+            )}
+            {changes.transform && (
+              <div className="preview-change">
+                <span className="preview-before">pos: ({Math.round(shape.transform.x)}, {Math.round(shape.transform.y)})</span>
+                <span className="preview-arrow">{'\u2192'}</span>
+                <span className="preview-after">({Math.round(changes.transform.x ?? shape.transform.x)}, {Math.round(changes.transform.y ?? shape.transform.y)})</span>
+              </div>
+            )}
+            {changes.fill && (
+              <div className="preview-change">
+                <span className="preview-before">fill: [{shape.fill?.join(',')}]</span>
+                <span className="preview-arrow">{'\u2192'}</span>
+                <span className="preview-after">[{changes.fill.join(',')}]</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    case 'add':
+      return (
+        <div className="preview-row">
+          <span className="preview-label">Add "{action.shape.name}"</span>
+          <span className="preview-detail">{geoSummary(action.shape.geometry)}</span>
+        </div>
+      );
+    case 'drop': {
+      const shape = doc.shapes.find((s) => s.id === action.targetId);
+      return (
+        <div className="preview-row">
+          <span className="preview-label">Drop "{shape?.name ?? '?'}"</span>
+          <span className="preview-detail">{action.reason}</span>
+        </div>
+      );
+    }
+    case 'merge':
+      return (
+        <div className="preview-row">
+          <span className="preview-label">Merge {action.sourceIds.length} shapes {'\u2192'} "{action.result.name}"</span>
+          <span className="preview-detail">{action.reason}</span>
+        </div>
+      );
+  }
+}
+
+function geoSummary(geo: any): string {
+  switch (geo.kind) {
+    case 'rect':
+      return `rect ${Math.round(geo.w)}x${Math.round(geo.h)} @ (${Math.round(geo.x)},${Math.round(geo.y)})`;
+    case 'ellipse':
+      return `ellipse ${Math.round(geo.rx * 2)}x${Math.round(geo.ry * 2)} @ (${Math.round(geo.cx)},${Math.round(geo.cy)})`;
+    case 'polygon':
+      return `polygon ${geo.points.length}pts`;
+    case 'path':
+      return `path ${geo.points.length}pts${geo.closed ? ' closed' : ''}`;
+    case 'line':
+      return `line (${Math.round(geo.x1)},${Math.round(geo.y1)})-(${Math.round(geo.x2)},${Math.round(geo.y2)})`;
+    default:
+      return geo.kind;
+  }
 }
 
 function kindLabel(kind: ProposalKind): string {
