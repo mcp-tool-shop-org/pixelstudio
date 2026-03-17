@@ -266,6 +266,27 @@ export function ExportPreviewPanel() {
     setExporting(false);
   }, [projectName, lastOutputDir]);
 
+  const handleExportFramePng = useCallback(async () => {
+    setExporting(true);
+    setErrorMsg('');
+    try {
+      const defaultName = `${projectName || 'sprite'}_frame${activeFrameIndex + 1}.png`;
+      const defaultPath = lastOutputDir ? `${lastOutputDir}/${defaultName}` : defaultName;
+      const filePath = await save({
+        title: 'Export Frame as PNG',
+        defaultPath,
+        filters: [{ name: 'PNG', extensions: ['png'] }],
+      });
+      if (!filePath) { setExporting(false); return; }
+      const result = await invoke<ExportResult>('export_current_frame_png', { filePath });
+      setExportResult(result);
+      setLastOutputDir(filePath.replace(/[\\/][^\\/]*$/, ''));
+    } catch (err) {
+      setErrorMsg(String(err));
+    }
+    setExporting(false);
+  }, [projectName, activeFrameIndex, lastOutputDir]);
+
   // Export Again — re-run last export to the same path without dialog
   const handleExportAgain = useCallback(async () => {
     if (!lastExportConfig || previewState !== 'ready' || exporting) return;
@@ -543,6 +564,7 @@ export function ExportPreviewPanel() {
   const canExport = previewState === 'ready' && !exporting;
   const canExportClip = canExport && (scopeChoice === 'current_clip') && !!selectedClipId && !selectedClipInvalid;
   const canExportAllClips = canExport && scopeChoice === 'all_clips' && clips.length > 0;
+  const canExportFrame = canExport && scopeChoice === 'current_frame';
 
   return (
     <div className="export-preview-panel">
@@ -712,7 +734,12 @@ export function ExportPreviewPanel() {
                 Export All Clips Sheet
               </button>
             )}
-            {!canExportClip && !canExportAllClips && (
+            {canExportFrame && (
+              <button className="export-action-btn" onClick={handleExportFramePng} disabled={exporting}>
+                Export Frame PNG
+              </button>
+            )}
+            {!canExportClip && !canExportAllClips && !canExportFrame && (
               <span className="export-action-hint">
                 Select a clip scope to enable export
               </span>

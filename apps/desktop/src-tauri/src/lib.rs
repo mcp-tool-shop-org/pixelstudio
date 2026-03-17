@@ -149,6 +149,7 @@ pub fn run() {
             export::export_clip_sheet,
             export::export_all_clips_sheet,
             export::export_clip_sequence_with_manifest,
+            export::export_current_frame_png,
             clip::create_clip,
             clip::list_clips,
             clip::update_clip,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 import type { WorkspaceMode } from '@glyphstudio/domain';
 import { useProjectStore } from '@glyphstudio/state';
 import { TopBar } from '../components/TopBar';
@@ -47,8 +48,20 @@ export function AppShell() {
     if (!state.isDirty && state.filePath) return;
 
     if (!state.filePath) {
-      // Need Save As — for now just log. Full file dialog comes later.
-      console.log('Save As not yet wired — no file path set');
+      setSaveStatus('saving');
+      try {
+        const chosen = await save({
+          title: 'Save Project As',
+          defaultPath: `${state.name || 'untitled'}.pxs`,
+          filters: [{ name: 'GlyphStudio Project', extensions: ['pxs'] }],
+        });
+        if (!chosen) { setSaveStatus('idle'); return; }
+        const savedPath = await invoke<string>('save_project', { filePath: chosen });
+        markSaved(savedPath);
+      } catch (err) {
+        console.error('Save As failed:', err);
+        setSaveStatus('error');
+      }
       return;
     }
 

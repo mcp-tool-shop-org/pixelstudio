@@ -161,6 +161,33 @@ describe('ExportPreviewPanel', () => {
     });
   });
 
+  describe('single-frame export', () => {
+    async function setupReadyCurrentFrame() {
+      seedStores({ frameCount: 1 });
+      mock.on('preview_sprite_sheet_layout', () => ({
+        outputWidth: 32, outputHeight: 32, frameCount: 1, columns: 1, rows: 1,
+        placements: [], clipGroups: [], warnings: [],
+      }));
+      render(<ExportPreviewPanel />);
+      await act(async () => {
+        await userEvent.click(screen.getByText('Preview'));
+      });
+      await waitFor(() => {
+        expect(screen.getByText('1 frame')).toBeInTheDocument();
+      });
+    }
+
+    it('shows Export Frame PNG button when scope is current_frame and preview is ready', async () => {
+      await setupReadyCurrentFrame();
+      expect(screen.getByText('Export Frame PNG')).toBeInTheDocument();
+    });
+
+    it('does not show clip-scope hint when scope is current_frame and preview is ready', async () => {
+      await setupReadyCurrentFrame();
+      expect(screen.queryByText('Select a clip scope to enable export')).toBeNull();
+    });
+  });
+
   describe('preview metadata display', () => {
     it('shows frame count and dimensions after successful preview', async () => {
       seedStores();

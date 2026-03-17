@@ -1125,6 +1125,57 @@ pub fn export_clip_sequence_with_manifest(
     })
 }
 
+/// Export the current frame as a single PNG file.
+/// Intended for single-frame static sprites that have no clips defined.
+#[command]
+pub fn export_current_frame_png(
+    file_path: String,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<ExportResult, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let fw = canvas.width;
+    let fh = canvas.height;
+    let idx = canvas.active_frame_index;
+    let frame_id = canvas.frames[idx].id.clone();
+
+    let placement = ExportPreviewFramePlacement {
+        frame_index: idx,
+        frame_id,
+        x: 0,
+        y: 0,
+        width: fw,
+        height: fh,
+    };
+    let pixel_data = blit_frames_to_sheet(canvas, &[placement], fw as usize, fh as usize);
+
+    let base_path = std::path::Path::new(&file_path);
+    if let Some(parent) = base_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| AppError::Io(e))?;
+    }
+    let (path, was_suffixed) = resolve_collision(base_path);
+
+    let png_data = encode_png(&pixel_data, fw, fh).map_err(|e| AppError::Internal(e))?;
+    std::fs::write(&path, &png_data).map_err(|e| AppError::Io(e))?;
+
+    Ok(ExportResult {
+        files: vec![ExportedFileInfo {
+            path: path.to_string_lossy().to_string(),
+            width: fw,
+            height: fh,
+        }],
+        manifest: None,
+        frame_count: 1,
+        clip_count: 0,
+        skipped_clips: 0,
+        was_suffixed,
+        warnings: Vec::new(),
+    })
+}
+
 // ==========================================================================
 // Tests
 // ==========================================================================

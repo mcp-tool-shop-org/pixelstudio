@@ -51,10 +51,7 @@ export function TopBar({ activeMode, onModeChange }: TopBarProps) {
           </button>
         ))}
       </nav>
-      <div className="topbar-controls">
-        <span className="topbar-badge">RGB</span>
-        <span className="topbar-badge badge-ok">Valid</span>
-      </div>
+      <div className="topbar-controls" />
     </header>
   );
 }

@@ -17,12 +17,12 @@ describe('ToolRail', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('renders all 17 tool buttons (15 standard + 2 sketch)', () => {
+    it('renders all 18 buttons (15 standard + 2 sketch + 1 swap)', () => {
       seed();
       render(<ToolRail />);
       const buttons = screen.getAllByRole('button');
-      // 15 standard + 2 sketch tools (color swatch area uses a div with onClick, not a button)
-      expect(buttons).toHaveLength(17);
+      // 15 standard + 2 sketch tools + 1 swap-colors button
+      expect(buttons).toHaveLength(18);
     });
 
     it('tools with live+displayed manifest entries show shortcut badge', () => {
@@ -84,17 +84,34 @@ describe('ToolRail', () => {
       expect(useToolStore.getState().activeTool).toBe('fill');
     });
 
-    it('clicking color swatches calls swapColors', async () => {
+    it('clicking swap button calls swapColors', async () => {
       seed();
       render(<ToolRail />);
-      const swap = document.querySelector('.tool-colors') as HTMLElement;
-      expect(swap).not.toBeNull();
+      const swapBtn = screen.getByTestId('swap-colors-btn');
       await act(async () => {
-        await userEvent.click(swap);
+        await userEvent.click(swapBtn);
       });
       const state = useToolStore.getState();
       expect(state.primaryColor).toEqual({ r: 0, g: 0, b: 255, a: 255 });
       expect(state.secondaryColor).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+    });
+
+    it('clicking primary swatch opens color picker', async () => {
+      seed();
+      render(<ToolRail />);
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('swatch-primary'));
+      });
+      expect(screen.getByTestId('color-picker-popover')).toBeInTheDocument();
+    });
+
+    it('clicking secondary swatch opens color picker', async () => {
+      seed();
+      render(<ToolRail />);
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('swatch-secondary'));
+      });
+      expect(screen.getByTestId('color-picker-popover')).toBeInTheDocument();
     });
 
     it('switching tool updates active class', async () => {
@@ -214,11 +231,11 @@ describe('ToolRail', () => {
       expect(onion!.code).toBe('KeyO');
     });
 
-    it('swap colors tooltip includes (X) since X is live in manifest', () => {
+    it('swap button tooltip includes (X) since X is live in manifest', () => {
       seed();
       render(<ToolRail />);
-      const swapArea = document.querySelector('.tool-colors') as HTMLElement;
-      expect(swapArea.title).toBe('Click to swap colors (X)');
+      const swapBtn = screen.getByTestId('swap-colors-btn');
+      expect(swapBtn.title).toBe('Swap colors (X)');
     });
   });
 });

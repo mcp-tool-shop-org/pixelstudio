@@ -118,17 +118,17 @@ describe('TopBar', () => {
     });
   });
 
-  describe('static badges', () => {
-    it('shows RGB badge', () => {
+  describe('controls area', () => {
+    it('does not show hardcoded RGB badge', () => {
       seed();
       render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
-      expect(screen.getByText('RGB')).toBeInTheDocument();
+      expect(screen.queryByText('RGB')).toBeNull();
     });
 
-    it('shows Valid badge', () => {
+    it('does not show hardcoded Valid badge', () => {
       seed();
       render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
-      expect(screen.getByText('Valid')).toBeInTheDocument();
+      expect(screen.queryByText('Valid')).toBeNull();
     });
   });
 });

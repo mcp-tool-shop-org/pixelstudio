@@ -1,0 +1,215 @@
+{
+  "reasoning": "Designing a hooded monk with a tall staff involves creating distinct shapes for the head, robe, staff, and other details. The head is a large ellipse with a hood that covers it. The robe is a series of rectangles and ellipses that form the shoulders, torso, and legs. The staff is a tall, thin rectangle with a glowing orb at the top. The design focuses on ensuring each part is clearly defined and does not overlap, with attention to the proportion and placement rules provided.",
+  "shapes": [
+    {
+      "name": "body",
+      "type": "rect",
+      "x": 190,
+      "y": 180,
+      "w": 120,
+      "h": 245,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "head",
+      "type": "ellipse",
+      "cx": 250,
+      "cy": 150,
+      "rx": 50,
+      "ry": 45,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "hood",
+      "type": "ellipse",
+      "cx": 250,
+      "cy": 125,
+      "rx": 75,
+      "ry": 45,
+      "fill": [
+        20,
+        15,
+        30,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "left-shoulder",
+      "type": "ellipse",
+      "cx": 200,
+      "cy": 200,
+      "rx": 45,
+      "ry": 30,
+      "fill": [
+        70,
+        50,
+        90,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "right-shoulder",
+      "type": "ellipse",
+      "cx": 300,
+      "cy": 200,
+      "rx": 45,
+      "ry": 30,
+      "fill": [
+        70,
+        50,
+        90,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "torso",
+      "type": "rect",
+      "x": 205,
+      "y": 220,
+      "w": 90,
+      "h": 80,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "left-arm",
+      "type": "rect",
+      "x": 185,
+      "y": 250,
+      "w": 30,
+      "h": 100,
+      "fill": [
+        70,
+        50,
+        90,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "right-arm",
+      "type": "rect",
+      "x": 305,
+      "y": 250,
+      "w": 30,
+      "h": 100,
+      "fill": [
+        70,
+        50,
+        90,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "left-leg",
+      "type": "rect",
+      "x": 200,
+      "y": 360,
+      "w": 45,
+      "h": 100,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "right-leg",
+      "type": "rect",
+      "x": 260,
+      "y": 360,
+      "w": 45,
+      "h": 100,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "staff",
+      "type": "rect",
+      "x": 355,
+      "y": 120,
+      "w": 16,
+      "h": 360,
+      "fill": [
+        40,
+        30,
+        60,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "staff-orb",
+      "type": "ellipse",
+      "cx": 360,
+      "cy": 120,
+      "rx": 15,
+      "ry": 15,
+      "fill": [
+        220,
+        180,
+        50,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "staff-glow",
+      "type": "ellipse",
+      "cx": 360,
+      "cy": 110,
+      "rx": 25,
+      "ry": 25,
+      "fill": [
+        100,
+        200,
+        220,
+        255
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "belt",
+      "type": "rect",
+      "x": 205,
+      "y": 280,
+      "w": 90,
+      "h": 20,
+      "fill": [
+        70,
+        50,
+        90,
+        255
+      ],
+      "mustSurvive": true
+    }
+  ]
+}

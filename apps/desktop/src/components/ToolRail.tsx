@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 import { useToolStore, useBrushSettingsStore } from '@glyphstudio/state';
+import { ColorPickerPopover } from './ColorPickerPopover';
 
 /** Tool definitions for UI layout. Shortcut display is derived from the manifest. */
 const TOOLS: { id: ToolId; label: string }[] = [
@@ -32,6 +34,10 @@ export function ToolRail() {
   const primaryColor = useToolStore((s) => s.primaryColor);
   const secondaryColor = useToolStore((s) => s.secondaryColor);
   const swapColors = useToolStore((s) => s.swapColors);
+  const setPrimaryColor = useToolStore((s) => s.setPrimaryColor);
+  const setSecondaryColor = useToolStore((s) => s.setSecondaryColor);
+
+  const [pickerTarget, setPickerTarget] = useState<'primary' | 'secondary' | null>(null);
 
   const primaryHex = `rgb(${primaryColor.r},${primaryColor.g},${primaryColor.b})`;
   const secondaryHex = `rgb(${secondaryColor.r},${secondaryColor.g},${secondaryColor.b})`;
@@ -39,8 +45,8 @@ export function ToolRail() {
   const isSketch = isSketchTool(activeTool);
 
   const swapTitle = SWAP_COLORS_BINDING?.status === 'live'
-    ? `Click to swap colors (${SWAP_COLORS_BINDING.label})`
-    : 'Click to swap colors';
+    ? `Swap colors (${SWAP_COLORS_BINDING.label})`
+    : 'Swap colors';
 
   return (
     <aside className="tool-rail">
@@ -49,9 +55,36 @@ export function ToolRail() {
       {SKETCH_TOOLS.map((tool) => <ToolButton key={tool.id} id={tool.id} label={tool.label} active={activeTool === tool.id} setTool={setTool} sketch />)}
       {isSketch && <SketchSettings />}
       <div className="tool-rail-spacer" />
-      <div className="tool-colors" onClick={swapColors} title={swapTitle}>
-        <div className="color-swatch primary" style={{ backgroundColor: primaryHex }} />
-        <div className="color-swatch secondary" style={{ backgroundColor: secondaryHex }} />
+      <div className="tool-colors">
+        <div
+          className="color-swatch secondary"
+          style={{ backgroundColor: secondaryHex }}
+          onClick={() => setPickerTarget('secondary')}
+          title="Secondary color — click to change"
+          data-testid="swatch-secondary"
+        />
+        <div
+          className="color-swatch primary"
+          style={{ backgroundColor: primaryHex }}
+          onClick={() => setPickerTarget('primary')}
+          title="Primary color — click to change"
+          data-testid="swatch-primary"
+        />
+        <button
+          className="color-swap-btn"
+          onClick={swapColors}
+          title={swapTitle}
+          data-testid="swap-colors-btn"
+        >
+          ⇄
+        </button>
+        {pickerTarget && (
+          <ColorPickerPopover
+            color={pickerTarget === 'primary' ? primaryColor : secondaryColor}
+            onChange={(c) => pickerTarget === 'primary' ? setPrimaryColor(c) : setSecondaryColor(c)}
+            onClose={() => setPickerTarget(null)}
+          />
+        )}
       </div>
     </aside>
   );
