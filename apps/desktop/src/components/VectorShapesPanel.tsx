@@ -1,7 +1,21 @@
-import { useVectorMasterStore } from '@glyphstudio/state';
+import { useMemo } from 'react';
+import { useVectorMasterStore, useSizeProfileStore, computeCollapseOverlay } from '@glyphstudio/state';
+import type { ShapeRiskLevel, CollapseOverlayData } from '@glyphstudio/state';
 import type { VectorShape, VectorGroup } from '@glyphstudio/domain';
 
-function ShapeRow({ shape, isSelected }: { shape: VectorShape; isSelected: boolean }) {
+const RISK_LABELS: Record<ShapeRiskLevel, string> = {
+  safe: 'OK',
+  'at-risk': '!',
+  collapses: 'X',
+};
+
+const RISK_TITLES: Record<ShapeRiskLevel, string> = {
+  safe: 'Survives at all active sizes',
+  'at-risk': 'Collapses at some sizes',
+  collapses: 'Collapses at smallest active size',
+};
+
+function ShapeRow({ shape, isSelected, riskLevel }: { shape: VectorShape; isSelected: boolean; riskLevel?: ShapeRiskLevel }) {
   const selectShape = useVectorMasterStore((s) => s.selectShape);
   const deselectAllShapes = useVectorMasterStore((s) => s.deselectAllShapes);
   const setShapeVisible = useVectorMasterStore((s) => s.setShapeVisible);
@@ -20,6 +34,14 @@ function ShapeRow({ shape, isSelected }: { shape: VectorShape; isSelected: boole
     >
       <span className="shape-kind-badge">{shape.geometry.kind === 'path' ? 'Q' : shape.geometry.kind[0].toUpperCase()}</span>
       <span className="shape-name">{shape.name}</span>
+      {riskLevel && (
+        <span
+          className={`shape-risk-badge risk-${riskLevel}`}
+          title={RISK_TITLES[riskLevel]}
+        >
+          {RISK_LABELS[riskLevel]}
+        </span>
+      )}
       {shape.reduction.survivalHint && (
         <span className={`shape-survival-badge ${shape.reduction.survivalHint}`}>
           {shape.reduction.survivalHint === 'must-survive' ? 'M' :
@@ -32,7 +54,7 @@ function ShapeRow({ shape, isSelected }: { shape: VectorShape; isSelected: boole
           title={shape.visible ? 'Hide' : 'Show'}
           onClick={(e) => { e.stopPropagation(); setShapeVisible(shape.id, !shape.visible); }}
         >
-          {shape.visible ? '\u25C9' : '\u25CB'}
+          {'\u25C9'}
         </button>
         <button
           className="shape-action-btn"
@@ -106,6 +128,22 @@ export function VectorShapesPanel() {
   const doc = useVectorMasterStore((s) => s.document);
   const selectedIds = useVectorMasterStore((s) => s.selectedShapeIds);
   const addGroup = useVectorMasterStore((s) => s.addGroup);
+  const profiles = useSizeProfileStore((s) => s.profiles);
+  const activeProfileIds = useSizeProfileStore((s) => s.activeProfileIds);
+
+  const activeProfiles = useMemo(
+    () => profiles.filter((p) => activeProfileIds.includes(p.id)),
+    [profiles, activeProfileIds],
+  );
+
+  // Compute risk overlay using smallest active profile as target
+  const riskOverlay = useMemo((): CollapseOverlayData | null => {
+    if (!doc || activeProfiles.length === 0) return null;
+    const smallest = [...activeProfiles].sort((a, b) =>
+      (a.targetWidth * a.targetHeight) - (b.targetWidth * b.targetHeight)
+    )[0];
+    return computeCollapseOverlay(doc, activeProfiles, smallest);
+  }, [doc, activeProfiles]);
 
   if (!doc) {
     return <div className="dock-panel-placeholder"><span className="placeholder-label">No vector document</span></div>;
@@ -115,10 +153,25 @@ export function VectorShapesPanel() {
   const ungrouped = sorted.filter((s) => !s.groupId);
   const groups = [...doc.groups].sort((a, b) => b.zOrder - a.zOrder);
 
+  const getRisk = (shapeId: string): ShapeRiskLevel | undefined => {
+    if (!riskOverlay) return undefined;
+    return riskOverlay.shapes.get(shapeId)?.level;
+  };
+
   return (
     <div className="vector-shapes-panel">
       <div className="panel-header">
         <span>Shapes ({doc.shapes.length})</span>
+        {riskOverlay && (riskOverlay.collapsesCount > 0 || riskOverlay.atRiskCount > 0) && (
+          <span className="panel-risk-summary">
+            {riskOverlay.collapsesCount > 0 && (
+              <span className="risk-count collapses">{riskOverlay.collapsesCount}X</span>
+            )}
+            {riskOverlay.atRiskCount > 0 && (
+              <span className="risk-count at-risk">{riskOverlay.atRiskCount}!</span>
+            )}
+          </span>
+        )}
         <button
           className="panel-action-btn"
           title="New group"
@@ -134,7 +187,7 @@ export function VectorShapesPanel() {
           <div key={g.id} className="vector-group-block">
             <GroupRow group={g} />
             {groupShapes.map((s) => (
-              <ShapeRow key={s.id} shape={s} isSelected={selectedIds.includes(s.id)} />
+              <ShapeRow key={s.id} shape={s} isSelected={selectedIds.includes(s.id)} riskLevel={getRisk(s.id)} />
             ))}
           </div>
         );
@@ -145,7 +198,7 @@ export function VectorShapesPanel() {
       )}
 
       {ungrouped.map((s) => (
-        <ShapeRow key={s.id} shape={s} isSelected={selectedIds.includes(s.id)} />
+        <ShapeRow key={s.id} shape={s} isSelected={selectedIds.includes(s.id)} riskLevel={getRisk(s.id)} />
       ))}
     </div>
   );
