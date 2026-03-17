@@ -11,6 +11,8 @@ import { PalettePropsPanel } from './PalettePropsPanel';
 import { ValidationPanel } from './ValidationPanel';
 import { ReferencePanel } from './ReferencePanel';
 import { SnapshotPanel } from './SnapshotPanel';
+import { VectorShapesPanel } from './VectorShapesPanel';
+import { VectorPropertiesPanel } from './VectorPropertiesPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -26,6 +28,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
   scene: ['Instances', 'Camera', 'Assets', 'Activity'],
+  vector: ['Shapes', 'Properties', 'Reduction'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -61,6 +64,12 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Validation') {
     return <ValidationPanel />;
+  }
+  if (tabName === 'Shapes') {
+    return <VectorShapesPanel />;
+  }
+  if (tabName === 'Properties') {
+    return <VectorPropertiesPanel />;
   }
 
   return (

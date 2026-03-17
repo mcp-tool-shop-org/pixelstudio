@@ -72,10 +72,10 @@ describe('TopBar', () => {
   });
 
   describe('mode tabs', () => {
-    it('renders all 8 mode tabs', () => {
+    it('renders all 9 mode tabs', () => {
       seed();
       render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
-      const modeLabels = ['Edit', 'Animate', 'Palette', 'AI Assist', 'Locomotion', 'Validate', 'Export', 'Scene'];
+      const modeLabels = ['Edit', 'Animate', 'Palette', 'AI Assist', 'Locomotion', 'Validate', 'Export', 'Scene', 'Vector'];
       modeLabels.forEach((label) => {
         expect(screen.getByText(label)).toBeInTheDocument();
       });

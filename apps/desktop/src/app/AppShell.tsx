@@ -11,6 +11,7 @@ import { BottomDock } from '../components/BottomDock';
 import { ProjectHome } from '../components/ProjectHome';
 import { RecoveryPrompt } from '../components/RecoveryPrompt';
 import { TransformBar } from '../components/TransformBar';
+import { VectorWorkspace } from '../components/VectorWorkspace';
 
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -115,8 +116,14 @@ export function AppShell() {
       <TopBar activeMode={mode} onModeChange={setMode} />
       <TransformBar />
       <div className="workspace-body">
-        <ToolRail />
-        {mode === 'scene' ? <SceneCanvas /> : <Canvas />}
+        {mode === 'vector' ? (
+          <VectorWorkspace />
+        ) : (
+          <>
+            <ToolRail />
+            {mode === 'scene' ? <SceneCanvas /> : <Canvas />}
+          </>
+        )}
         <RightDock activeMode={mode} />
       </div>
       <BottomDock activeMode={mode} />

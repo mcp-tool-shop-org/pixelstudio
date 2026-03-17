@@ -310,6 +310,17 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     }
   }, [activeMode]);
 
+  if (activeMode === 'vector') {
+    return (
+      <footer className="bottom-dock">
+        <div className="bottom-dock-info">
+          <span className="dock-mode-label">Vector Master</span>
+          <span className="dock-hint">Draw shapes on the artboard. Use the Shapes panel to manage layers and reduction metadata.</span>
+        </div>
+      </footer>
+    );
+  }
+
   if (activeMode === 'scene') {
     return (
       <footer className="bottom-dock">

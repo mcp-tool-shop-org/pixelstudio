@@ -8,4 +8,5 @@ export type WorkspaceMode =
   | 'locomotion'
   | 'validate'
   | 'export'
-  | 'scene';
+  | 'scene'
+  | 'vector';
