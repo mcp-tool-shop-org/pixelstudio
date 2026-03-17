@@ -200,6 +200,9 @@ pub fn run() {
             ai::ai_ollama_status,
             ai::ai_comfyui_status,
             ai::ai_ollama_models,
+            ai::ai_comfyui_generate,
+            ai::ai_comfyui_poll,
+            ai::ai_comfyui_fetch_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GlyphStudio");

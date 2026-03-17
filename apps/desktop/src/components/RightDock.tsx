@@ -17,6 +17,7 @@ import { VectorReductionPanel } from './VectorReductionPanel';
 import { VectorCopilotPanel } from './VectorCopilotPanel';
 import { VectorAICreationPanel } from './VectorAICreationPanel';
 import { AISettingsPanel } from './AISettingsPanel';
+import { ComfyUIGeneratePanel } from './ComfyUIGeneratePanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -27,7 +28,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
   animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
-  ai: ['AI Assist', 'AI Settings', 'Layers', 'Provenance'],
+  ai: ['AI Assist', 'Generate', 'AI Settings', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
@@ -83,6 +84,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'AI Create') {
     return <VectorAICreationPanel />;
+  }
+  if (tabName === 'Generate') {
+    return <ComfyUIGeneratePanel />;
   }
   if (tabName === 'AI Settings') {
     return <AISettingsPanel />;
