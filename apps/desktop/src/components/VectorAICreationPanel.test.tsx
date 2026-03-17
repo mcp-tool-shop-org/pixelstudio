@@ -43,6 +43,11 @@ function seedDocument() {
   });
 }
 
+/** Click "Silhouettes" mode to switch from default AI Generate mode. */
+async function switchToSilhouetteMode(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByText('Silhouettes'));
+}
+
 describe('VectorAICreationPanel', () => {
   beforeEach(() => {
     useVectorMasterStore.setState({
@@ -63,21 +68,29 @@ describe('VectorAICreationPanel', () => {
     expect(screen.getByText('No vector document')).toBeTruthy();
   });
 
-  it('shows mode selector and generate button', () => {
+  it('shows mode selector with AI Generate as default', () => {
     seedDocument();
     render(<VectorAICreationPanel />);
+    expect(screen.getByText('AI Generate')).toBeTruthy();
     expect(screen.getByText('Silhouettes')).toBeTruthy();
     expect(screen.getByText('Pose')).toBeTruthy();
     expect(screen.getByText('Simplify')).toBeTruthy();
-    expect(screen.getByText('Generate Variants')).toBeTruthy();
+    // Default mode shows prompt input and Ollama button
+    expect(screen.getByText('Generate with Ollama')).toBeTruthy();
   });
 
-  it('generates silhouette variants', async () => {
+  it('shows prompt textarea in AI Generate mode', () => {
+    seedDocument();
+    render(<VectorAICreationPanel />);
+    expect(screen.getByPlaceholderText(/Describe what to draw/)).toBeTruthy();
+  });
+
+  it('generates silhouette variants in silhouette mode', async () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
-    // Should show proposals
     const cards = screen.queryAllByText(/Variant/);
     expect(cards.length).toBeGreaterThan(0);
   });
@@ -94,6 +107,7 @@ describe('VectorAICreationPanel', () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
     expect(screen.queryAllByText('Accept').length).toBeGreaterThan(0);
     expect(screen.queryAllByText('Duplicate').length).toBeGreaterThan(0);
@@ -104,14 +118,11 @@ describe('VectorAICreationPanel', () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
     const acceptBtns = screen.getAllByText('Accept');
-    const originalBody = useVectorMasterStore.getState().document!.shapes[0];
-    const originalGeo = structuredClone(originalBody.geometry);
     await user.click(acceptBtns[0]);
-    // Status should change
     expect(screen.queryAllByText('accepted').length).toBeGreaterThan(0);
-    // Session stats should update
     expect(screen.getByText(/1 accepted/)).toBeTruthy();
   });
 
@@ -119,6 +130,7 @@ describe('VectorAICreationPanel', () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
     const shapesBefore = useVectorMasterStore.getState().document!.shapes.length;
     const rejectBtns = screen.getAllByText('Reject');
@@ -132,6 +144,7 @@ describe('VectorAICreationPanel', () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
     const dupBtns = screen.getAllByText('Duplicate');
     await user.click(dupBtns[0]);
@@ -146,6 +159,7 @@ describe('VectorAICreationPanel', () => {
     const user = userEvent.setup();
     seedDocument();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     await user.click(screen.getByText('Generate Variants'));
     const dismissBtn = screen.queryByText('Dismiss All');
     if (dismissBtn) {
@@ -154,10 +168,12 @@ describe('VectorAICreationPanel', () => {
     }
   });
 
-  it('shows warning when no profiles active', () => {
+  it('shows warning when no profiles active in algorithmic mode', async () => {
+    const user = userEvent.setup();
     seedDocument();
     useSizeProfileStore.getState().deactivateAll();
     render(<VectorAICreationPanel />);
+    await switchToSilhouetteMode(user);
     expect(screen.getByText(/Enable size profiles/)).toBeTruthy();
   });
 });

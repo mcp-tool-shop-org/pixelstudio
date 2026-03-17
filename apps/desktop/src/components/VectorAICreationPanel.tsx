@@ -14,6 +14,12 @@ import {
   applyProposal,
   duplicateProposalToGroup,
   wouldShapeCollapse,
+  generateShapesFromDescription,
+  critiqueRenderedSprite,
+  refineShapesFromCritique,
+  shapesToProposalSet,
+  checkOllamaAvailability,
+  DEFAULT_GENERATE_CONFIG,
 } from '@glyphstudio/state';
 import type {
   ProposalSession,
@@ -22,12 +28,14 @@ import type {
   ProposalSet,
   ProposalStoreApi,
   ProposalAction,
+  LLMShapeDef,
+  OllamaGenerateConfig,
 } from '@glyphstudio/state';
 import type { VectorMasterDocument } from '@glyphstudio/domain';
 
 // ── Types ──
 
-type GenerateMode = 'silhouette' | 'pose' | 'simplification';
+type GenerateMode = 'ai-generate' | 'silhouette' | 'pose' | 'simplification';
 
 // ── Component ──
 
@@ -37,9 +45,15 @@ export function VectorAICreationPanel() {
   const activeProfileIds = useSizeProfileStore((s) => s.activeProfileIds);
 
   const [session, setSession] = useState<ProposalSession>(createEmptySession);
-  const [generateMode, setGenerateMode] = useState<GenerateMode>('silhouette');
+  const [generateMode, setGenerateMode] = useState<GenerateMode>('ai-generate');
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [simplifyProfileId, setSimplifyProfileId] = useState<string>('');
+
+  // AI Generate state
+  const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiLog, setAiLog] = useState<string[]>([]);
 
   const activeProfiles = useMemo(
     () => profiles.filter((p) => activeProfileIds.includes(p.id)),
@@ -59,7 +73,69 @@ export function VectorAICreationPanel() {
     addGroup: useVectorMasterStore.getState().addGroup,
   }), []);
 
-  // ── Generate ──
+  // ── AI Generate ──
+
+  const handleAiGenerate = useCallback(async () => {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiLog([]);
+
+    const artW = doc?.artboardWidth ?? 500;
+    const artH = doc?.artboardHeight ?? 500;
+    const sizes = activeProfiles.length > 0
+      ? activeProfiles.map(p => p.targetWidth).sort((a, b) => a - b)
+      : [16, 32, 48];
+
+    try {
+      // Check Ollama availability
+      setAiLog(prev => [...prev, `Checking Ollama (${DEFAULT_GENERATE_CONFIG.textModel})...`]);
+      const avail = await checkOllamaAvailability({
+        baseUrl: DEFAULT_GENERATE_CONFIG.baseUrl,
+        model: DEFAULT_GENERATE_CONFIG.textModel,
+        timeoutMs: 5000,
+      });
+
+      if (!avail.available) {
+        setAiError(`Ollama not available. Run: ollama pull ${DEFAULT_GENERATE_CONFIG.textModel} && ollama serve`);
+        setAiLoading(false);
+        return;
+      }
+
+      // Step 1: Generate shapes
+      setAiLog(prev => [...prev, `Generating shapes for "${aiPrompt}"...`]);
+      const genResult = await generateShapesFromDescription(
+        aiPrompt, artW, artH, sizes, doc ?? undefined,
+      );
+
+      if (!genResult.ok) {
+        setAiError(genResult.error ?? 'Generation failed');
+        setAiLoading(false);
+        return;
+      }
+
+      setAiLog(prev => [...prev, `Got ${genResult.shapes.length} shapes (${genResult.responseTimeMs}ms)`]);
+
+      if (genResult.shapes.length === 0) {
+        setAiError('LLM returned no valid shapes');
+        setAiLoading(false);
+        return;
+      }
+
+      // Convert to proposals
+      const { set, proposals } = shapesToProposalSet(genResult.shapes, genResult.reasoning, aiPrompt);
+
+      setAiLog(prev => [...prev, `${genResult.reasoning}`]);
+      setSession(prev => addProposalSetToSession(prev, set, proposals));
+      setSelectedSetId(set.id);
+    } catch (err: unknown) {
+      setAiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiPrompt, doc, activeProfiles]);
+
+  // ── Algorithmic Generate ──
 
   const handleGenerate = useCallback(() => {
     if (!doc) return;
@@ -78,6 +154,8 @@ export function VectorAICreationPanel() {
         result = generateSimplificationProposals(doc, activeProfiles, targetProfile);
         break;
       }
+      default:
+        return;
     }
 
     if (result.proposals.length === 0) return;
@@ -137,6 +215,12 @@ export function VectorAICreationPanel() {
       {/* Mode selector */}
       <div className="ai-mode-selector">
         <button
+          className={`ai-mode-btn ${generateMode === 'ai-generate' ? 'active' : ''}`}
+          onClick={() => setGenerateMode('ai-generate')}
+        >
+          AI Generate
+        </button>
+        <button
           className={`ai-mode-btn ${generateMode === 'silhouette' ? 'active' : ''}`}
           onClick={() => setGenerateMode('silhouette')}
         >
@@ -156,6 +240,33 @@ export function VectorAICreationPanel() {
         </button>
       </div>
 
+      {/* AI Generate mode */}
+      {generateMode === 'ai-generate' && (
+        <div className="ai-generate-section">
+          <textarea
+            className="ai-prompt-input"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Describe what to draw, e.g. 'hooded monk with staff' or 'fire-breathing dragon with spread wings'"
+            rows={3}
+            disabled={aiLoading}
+          />
+          <button
+            className="ai-generate-btn ollama"
+            onClick={handleAiGenerate}
+            disabled={aiLoading || !aiPrompt.trim()}
+          >
+            {aiLoading ? 'Generating...' : 'Generate with Ollama'}
+          </button>
+          {aiError && <div className="ai-error">{aiError}</div>}
+          {aiLog.length > 0 && (
+            <div className="ai-log">
+              {aiLog.map((line, i) => <div key={i} className="ai-log-line">{line}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Simplification target profile */}
       {generateMode === 'simplification' && (
         <div className="ai-profile-select">
@@ -172,16 +283,18 @@ export function VectorAICreationPanel() {
         </div>
       )}
 
-      {/* Generate button */}
-      <button
-        className="ai-generate-btn"
-        onClick={handleGenerate}
-        disabled={activeProfiles.length === 0}
-      >
-        Generate {generateMode === 'silhouette' ? 'Variants' : generateMode === 'pose' ? 'Suggestions' : 'Proposals'}
-      </button>
+      {/* Generate button for algorithmic modes */}
+      {generateMode !== 'ai-generate' && (
+        <button
+          className="ai-generate-btn"
+          onClick={handleGenerate}
+          disabled={activeProfiles.length === 0}
+        >
+          Generate {generateMode === 'silhouette' ? 'Variants' : generateMode === 'pose' ? 'Suggestions' : 'Proposals'}
+        </button>
+      )}
 
-      {activeProfiles.length === 0 && (
+      {generateMode !== 'ai-generate' && activeProfiles.length === 0 && (
         <div className="copilot-warning">
           Enable size profiles in the Reduction tab first.
         </div>
