@@ -27,7 +27,7 @@ export interface ToolDefinition {
 }
 
 /**
- * Core editing tools — the 20 most useful for an AI copilot.
+ * Core editing tools — curated subset for the AI copilot.
  * Grouped by domain.
  */
 export const TOOL_REGISTRY: ToolDefinition[] = [
@@ -100,6 +100,25 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
     },
     tauriCommand: 'end_stroke',
   },
+  {
+    name: 'fill_rect',
+    description: 'Fill a rectangular area with a solid RGBA color on the active layer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        x: { type: 'integer', description: 'Left edge X coordinate' },
+        y: { type: 'integer', description: 'Top edge Y coordinate' },
+        width: { type: 'integer', description: 'Rectangle width in pixels', minimum: 1 },
+        height: { type: 'integer', description: 'Rectangle height in pixels', minimum: 1 },
+        r: { type: 'integer', description: 'Red (0-255)', minimum: 0, maximum: 255 },
+        g: { type: 'integer', description: 'Green (0-255)', minimum: 0, maximum: 255 },
+        b: { type: 'integer', description: 'Blue (0-255)', minimum: 0, maximum: 255 },
+        a: { type: 'integer', description: 'Alpha (0-255)', minimum: 0, maximum: 255 },
+      },
+      required: ['x', 'y', 'width', 'height', 'r', 'g', 'b', 'a'],
+    },
+    tauriCommand: 'fill_rect',
+  },
 
   // --- Layers ---
   {
@@ -153,6 +172,56 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
     },
     tauriCommand: 'reorder_layer',
   },
+  {
+    name: 'select_layer',
+    description: 'Switch the active layer by UUID. Drawing operations will target this layer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        layerId: { type: 'string', description: 'Layer UUID to activate' },
+      },
+      required: ['layerId'],
+    },
+    tauriCommand: 'select_layer',
+  },
+  {
+    name: 'delete_layer',
+    description: 'Delete a layer by UUID. Cannot delete the last remaining layer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        layerId: { type: 'string', description: 'Layer UUID to delete' },
+      },
+      required: ['layerId'],
+    },
+    tauriCommand: 'delete_layer',
+  },
+  {
+    name: 'set_layer_opacity',
+    description: 'Set layer opacity (0.0 = fully transparent, 1.0 = fully opaque).',
+    parameters: {
+      type: 'object',
+      properties: {
+        layerId: { type: 'string', description: 'Layer UUID' },
+        opacity: { type: 'number', description: 'Opacity value 0.0-1.0', minimum: 0, maximum: 1 },
+      },
+      required: ['layerId', 'opacity'],
+    },
+    tauriCommand: 'set_layer_opacity',
+  },
+  {
+    name: 'set_layer_lock',
+    description: 'Lock or unlock a layer. Locked layers cannot be drawn on.',
+    parameters: {
+      type: 'object',
+      properties: {
+        layerId: { type: 'string', description: 'Layer UUID' },
+        locked: { type: 'boolean', description: 'Whether the layer should be locked' },
+      },
+      required: ['layerId', 'locked'],
+    },
+    tauriCommand: 'set_layer_lock',
+  },
 
   // --- Frames ---
   {
@@ -201,6 +270,31 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
       required: ['frameId'],
     },
     tauriCommand: 'set_frame_duration',
+  },
+  {
+    name: 'delete_frame',
+    description: 'Delete an animation frame by UUID. Cannot delete the last remaining frame.',
+    parameters: {
+      type: 'object',
+      properties: {
+        frameId: { type: 'string', description: 'Frame UUID to delete' },
+      },
+      required: ['frameId'],
+    },
+    tauriCommand: 'delete_frame',
+  },
+  {
+    name: 'rename_frame',
+    description: 'Rename an animation frame.',
+    parameters: {
+      type: 'object',
+      properties: {
+        frameId: { type: 'string', description: 'Frame UUID' },
+        name: { type: 'string', description: 'New frame name' },
+      },
+      required: ['frameId', 'name'],
+    },
+    tauriCommand: 'rename_frame',
   },
 
   // --- Selection ---
@@ -251,13 +345,63 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   },
   {
     name: 'flip_selection_horizontal',
-    description: 'Flip the selected region horizontally.',
+    description: 'Flip the selected region horizontally. Requires an active transform session.',
     parameters: {
       type: 'object',
       properties: {},
       required: [],
     },
     tauriCommand: 'flip_selection_horizontal',
+  },
+  {
+    name: 'flip_selection_vertical',
+    description: 'Flip the selected region vertically. Requires an active transform session.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    tauriCommand: 'flip_selection_vertical',
+  },
+  {
+    name: 'rotate_selection_90_cw',
+    description: 'Rotate the selected region 90° clockwise. Requires an active transform session.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    tauriCommand: 'rotate_selection_90_cw',
+  },
+  {
+    name: 'rotate_selection_90_ccw',
+    description: 'Rotate the selected region 90° counter-clockwise. Requires an active transform session.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    tauriCommand: 'rotate_selection_90_ccw',
+  },
+  {
+    name: 'cut_selection',
+    description: 'Cut the selected pixels (copy to clipboard and clear to transparent).',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    tauriCommand: 'cut_selection',
+  },
+  {
+    name: 'delete_selection',
+    description: 'Delete pixels within the selection (clear to transparent without copying).',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    tauriCommand: 'delete_selection',
   },
 
   // --- Analysis ---
@@ -280,6 +424,19 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
       required: [],
     },
     tauriCommand: 'analyze_colors',
+  },
+  {
+    name: 'compare_frames',
+    description: 'Compare two frames pixel-by-pixel. Returns changed pixel count, percentage, and bounding box of changes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        frameA: { type: 'integer', description: 'First frame index (0-based)' },
+        frameB: { type: 'integer', description: 'Second frame index (0-based)' },
+      },
+      required: ['frameA', 'frameB'],
+    },
+    tauriCommand: 'compare_frames',
   },
 
   // --- Undo/Redo ---
@@ -339,23 +496,34 @@ export function getRelevantTools(context: {
   canUndo: boolean;
   canRedo: boolean;
 }): ToolDefinition[] {
+  // Tools always available
+  const ALWAYS_INCLUDE = new Set([
+    'draw_pixel', 'read_pixel', 'begin_stroke', 'stroke_points', 'end_stroke', 'fill_rect',
+    'create_layer', 'set_layer_visibility', 'rename_layer', 'reorder_layer',
+    'select_layer', 'delete_layer', 'set_layer_opacity', 'set_layer_lock',
+    'analyze_bounds', 'analyze_colors',
+    'set_selection',
+  ]);
+
+  // Selection-dependent tools
+  const SELECTION_TOOLS = new Set([
+    'copy_selection', 'paste_selection', 'cut_selection', 'delete_selection',
+    'flip_selection_horizontal', 'flip_selection_vertical',
+    'rotate_selection_90_cw', 'rotate_selection_90_ccw',
+    'clear_selection',
+  ]);
+
+  // Frame tools — always include create/duplicate, rest only if multi-frame
+  const FRAME_ALWAYS = new Set(['create_frame', 'duplicate_frame']);
+  const FRAME_MULTI = new Set([
+    'select_frame', 'set_frame_duration', 'delete_frame', 'rename_frame', 'compare_frames',
+  ]);
+
   return TOOL_REGISTRY.filter((t) => {
-    // Always include drawing, layers, analysis
-    if (['draw_pixel', 'read_pixel', 'begin_stroke', 'stroke_points', 'end_stroke',
-      'create_layer', 'set_layer_visibility', 'rename_layer', 'reorder_layer',
-      'analyze_bounds', 'analyze_colors'].includes(t.name)) {
-      return true;
-    }
-    // Selection tools only if there's a selection or could be one
-    if (['copy_selection', 'paste_selection', 'flip_selection_horizontal', 'clear_selection'].includes(t.name)) {
-      return context.hasSelection;
-    }
-    if (t.name === 'set_selection') return true;
-    // Frame tools only if multi-frame
-    if (['create_frame', 'duplicate_frame', 'select_frame', 'set_frame_duration'].includes(t.name)) {
-      return context.frameCount > 1 || t.name === 'create_frame' || t.name === 'duplicate_frame';
-    }
-    // Undo/redo based on availability
+    if (ALWAYS_INCLUDE.has(t.name)) return true;
+    if (SELECTION_TOOLS.has(t.name)) return context.hasSelection;
+    if (FRAME_ALWAYS.has(t.name)) return true;
+    if (FRAME_MULTI.has(t.name)) return context.frameCount > 1;
     if (t.name === 'undo') return context.canUndo;
     if (t.name === 'redo') return context.canRedo;
     return true;

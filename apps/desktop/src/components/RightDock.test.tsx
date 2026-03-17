@@ -37,6 +37,15 @@ vi.mock('../components/SceneProvenancePanel', () => ({
 vi.mock('../components/SnapshotPanel', () => ({
   SnapshotPanel: () => <div data-testid="snapshot-panel">SnapshotPanel</div>,
 }));
+vi.mock('../components/CopilotPanel', () => ({
+  CopilotPanel: () => <div data-testid="copilot-panel">CopilotPanel</div>,
+}));
+vi.mock('../components/ComfyUIGeneratePanel', () => ({
+  ComfyUIGeneratePanel: () => <div data-testid="comfyui-generate-panel">ComfyUIGeneratePanel</div>,
+}));
+vi.mock('../components/AISettingsPanel', () => ({
+  AISettingsPanel: () => <div data-testid="ai-settings-panel">AISettingsPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';

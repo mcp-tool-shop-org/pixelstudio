@@ -17,10 +17,10 @@ function mockCanvasContext() {
   mockInvoke.on('ai_get_canvas_context', () => ({
     document: { width: 32, height: 32, activeFrameName: 'Frame 1', activeLayerName: 'Layer 1', packageName: 'test' },
     layers: [
-      { name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 },
+      { id: 'layer-1', name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 },
     ],
     selection: null,
-    animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ name: 'Frame 1', durationMs: null }] },
+    animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ id: 'frame-1', name: 'Frame 1', durationMs: null }] },
     history: { canUndo: true, canRedo: false, undoDepth: 3, redoDepth: 0, recentTools: ['brush'] },
     snapshotBase64: null,
   }));

@@ -57,6 +57,7 @@ pub fn run() {
             canvas::set_layer_lock,
             canvas::set_layer_opacity,
             canvas::reorder_layer,
+            canvas::fill_rect,
             selection::set_selection_rect,
             selection::clear_selection,
             selection::get_selection,

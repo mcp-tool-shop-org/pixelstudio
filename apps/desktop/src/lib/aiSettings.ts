@@ -106,6 +106,7 @@ export interface CanvasContext {
     packageName: string;
   };
   layers: Array<{
+    id: string;
     name: string;
     visible: boolean;
     locked: boolean;
@@ -116,7 +117,7 @@ export interface CanvasContext {
   animation: {
     frameCount: number;
     activeFrameIndex: number;
-    frames: Array<{ name: string; durationMs: number | null }>;
+    frames: Array<{ id: string; name: string; durationMs: number | null }>;
   };
   history: {
     canUndo: boolean;

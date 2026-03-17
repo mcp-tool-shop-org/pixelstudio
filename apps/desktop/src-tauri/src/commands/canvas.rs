@@ -340,6 +340,56 @@ pub fn reorder_layer(
     Ok(build_frame(canvas))
 }
 
+// --- Fill rect (for AI copilot bulk operations) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillRectInput {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+    pub layer_id: Option<String>,
+}
+
+#[command]
+pub fn fill_rect(
+    input: FillRectInput,
+    state: State<'_, ManagedCanvasState>,
+) -> Result<CanvasFrame, AppError> {
+    let mut guard = state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let color = Color::rgba(input.r, input.g, input.b, input.a);
+    let target_id = input.layer_id
+        .or_else(|| canvas.active_layer_id.clone())
+        .ok_or_else(|| AppError::Internal("No active layer".to_string()))?;
+
+    let layer = canvas.layers.iter_mut().find(|l| l.id == target_id)
+        .ok_or_else(|| AppError::Internal("Layer not found".to_string()))?;
+
+    if layer.locked {
+        return Err(AppError::Internal("Layer is locked".to_string()));
+    }
+
+    for dy in 0..input.height {
+        for dx in 0..input.width {
+            let px = input.x + dx;
+            let py = input.y + dy;
+            if layer.buffer.in_bounds(px, py) {
+                layer.buffer.set_pixel(px, py, &color);
+            }
+        }
+    }
+
+    Ok(build_frame(canvas))
+}
+
 // --- Helpers ---
 
 pub fn build_frame(canvas: &CanvasState) -> CanvasFrame {

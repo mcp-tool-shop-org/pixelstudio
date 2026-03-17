@@ -34,7 +34,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
   scene: ['Instances', 'Camera', 'Assets', 'Activity'],
-  vector: ['Shapes', 'Properties', 'Reduction', 'Copilot', 'AI Create'],
+  vector: ['Shapes', 'Properties', 'Reduction', 'Vec Copilot', 'AI Create'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -80,7 +80,7 @@ function PanelContent({ tabName }: { tabName: string }) {
   if (tabName === 'Reduction') {
     return <VectorReductionPanel />;
   }
-  if (tabName === 'Copilot') {
+  if (tabName === 'Vec Copilot') {
     return <VectorCopilotPanel />;
   }
   if (tabName === 'AI Create') {

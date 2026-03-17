@@ -7,7 +7,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { findTool, type ToolDefinition } from './aiToolRegistry';
+import { findTool, TOOL_REGISTRY, type ToolDefinition } from './aiToolRegistry';
 
 export interface ToolCallRequest {
   name: string;
@@ -35,7 +35,7 @@ export async function executeToolCall(call: ToolCallRequest): Promise<ToolCallRe
       name: call.name,
       success: false,
       data: null,
-      error: `Unknown tool: ${call.name}. Available tools: draw_pixel, read_pixel, begin_stroke, stroke_points, end_stroke, create_layer, set_layer_visibility, rename_layer, reorder_layer, create_frame, duplicate_frame, select_frame, set_frame_duration, set_selection, clear_selection, copy_selection, paste_selection, flip_selection_horizontal, analyze_bounds, analyze_colors, undo, redo`,
+      error: `Unknown tool: ${call.name}. Available tools: ${TOOL_REGISTRY.map((t) => t.name).join(', ')}`,
       durationMs: Date.now() - start,
     };
   }

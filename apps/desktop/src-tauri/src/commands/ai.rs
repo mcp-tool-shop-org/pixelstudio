@@ -588,6 +588,7 @@ pub struct DocumentMeta {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextLayer {
+    pub id: String,
     pub name: String,
     pub visible: bool,
     pub locked: bool,
@@ -615,6 +616,7 @@ pub struct AnimationInfo {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrameInfo {
+    pub id: String,
     pub name: String,
     pub duration_ms: Option<u32>,
 }
@@ -683,6 +685,7 @@ pub fn ai_get_canvas_context(
         .iter()
         .enumerate()
         .map(|(i, l)| ContextLayer {
+            id: l.id.clone(),
             name: l.name.clone(),
             visible: l.visible,
             locked: l.locked,
@@ -705,17 +708,15 @@ pub fn ai_get_canvas_context(
         .iter()
         .enumerate()
         .map(|(i, f)| {
-            if i == canvas.active_frame_index {
-                // Active frame name comes from top-level state
-                FrameInfo {
-                    name: canvas.active_frame_name().to_string(),
-                    duration_ms: f.duration_ms,
-                }
+            let name = if i == canvas.active_frame_index {
+                canvas.active_frame_name().to_string()
             } else {
-                FrameInfo {
-                    name: f.name.clone(),
-                    duration_ms: f.duration_ms,
-                }
+                f.name.clone()
+            };
+            FrameInfo {
+                id: f.id.clone(),
+                name,
+                duration_ms: f.duration_ms,
             }
         })
         .collect();

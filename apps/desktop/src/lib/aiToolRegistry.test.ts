@@ -8,7 +8,7 @@ import {
 
 describe('TOOL_REGISTRY', () => {
   it('has 22 tools', () => {
-    expect(TOOL_REGISTRY).toHaveLength(22);
+    expect(TOOL_REGISTRY).toHaveLength(35);
   });
 
   it('all tools have unique names', () => {
@@ -38,7 +38,7 @@ describe('TOOL_REGISTRY', () => {
 describe('toolsToOllamaFormat', () => {
   it('converts all tools to Ollama format', () => {
     const formatted = toolsToOllamaFormat();
-    expect(formatted).toHaveLength(22);
+    expect(formatted).toHaveLength(35);
     for (const t of formatted) {
       expect(t.type).toBe('function');
       expect(t.function.name).toBeTruthy();
@@ -80,6 +80,21 @@ describe('getRelevantTools', () => {
     expect(names).toContain('create_layer');
   });
 
+  it('always includes fill_rect and layer management', () => {
+    const tools = getRelevantTools({
+      hasSelection: false,
+      frameCount: 1,
+      canUndo: false,
+      canRedo: false,
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('fill_rect');
+    expect(names).toContain('select_layer');
+    expect(names).toContain('delete_layer');
+    expect(names).toContain('set_layer_opacity');
+    expect(names).toContain('set_layer_lock');
+  });
+
   it('excludes selection tools when no selection', () => {
     const tools = getRelevantTools({
       hasSelection: false,
@@ -90,9 +105,12 @@ describe('getRelevantTools', () => {
     const names = tools.map((t) => t.name);
     expect(names).not.toContain('copy_selection');
     expect(names).not.toContain('flip_selection_horizontal');
+    expect(names).not.toContain('cut_selection');
+    expect(names).not.toContain('delete_selection');
+    expect(names).not.toContain('rotate_selection_90_cw');
   });
 
-  it('includes selection tools when selection active', () => {
+  it('includes all selection tools when selection active', () => {
     const tools = getRelevantTools({
       hasSelection: true,
       frameCount: 1,
@@ -102,6 +120,42 @@ describe('getRelevantTools', () => {
     const names = tools.map((t) => t.name);
     expect(names).toContain('copy_selection');
     expect(names).toContain('paste_selection');
+    expect(names).toContain('cut_selection');
+    expect(names).toContain('delete_selection');
+    expect(names).toContain('flip_selection_horizontal');
+    expect(names).toContain('flip_selection_vertical');
+    expect(names).toContain('rotate_selection_90_cw');
+    expect(names).toContain('rotate_selection_90_ccw');
+  });
+
+  it('includes frame management tools when multi-frame', () => {
+    const tools = getRelevantTools({
+      hasSelection: false,
+      frameCount: 3,
+      canUndo: false,
+      canRedo: false,
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('select_frame');
+    expect(names).toContain('delete_frame');
+    expect(names).toContain('rename_frame');
+    expect(names).toContain('compare_frames');
+  });
+
+  it('excludes multi-frame tools when single frame', () => {
+    const tools = getRelevantTools({
+      hasSelection: false,
+      frameCount: 1,
+      canUndo: false,
+      canRedo: false,
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).not.toContain('select_frame');
+    expect(names).not.toContain('delete_frame');
+    expect(names).not.toContain('compare_frames');
+    // But create/duplicate are always available
+    expect(names).toContain('create_frame');
+    expect(names).toContain('duplicate_frame');
   });
 
   it('excludes undo when nothing to undo', () => {

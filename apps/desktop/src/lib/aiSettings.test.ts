@@ -76,17 +76,17 @@ describe('getCanvasContext', () => {
         packageName: 'test-project',
       },
       layers: [
-        { name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 },
-        { name: 'Background', visible: true, locked: true, opacity: 0.5, zIndex: 1 },
+        { id: 'layer-1', name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 },
+        { id: 'layer-bg', name: 'Background', visible: true, locked: true, opacity: 0.5, zIndex: 1 },
       ],
       selection: null,
       animation: {
         frameCount: 3,
         activeFrameIndex: 0,
         frames: [
-          { name: 'Frame 1', durationMs: null },
-          { name: 'Frame 2', durationMs: 200 },
-          { name: 'Frame 3', durationMs: null },
+          { id: 'frame-1', name: 'Frame 1', durationMs: null },
+          { id: 'frame-2', name: 'Frame 2', durationMs: 200 },
+          { id: 'frame-3', name: 'Frame 3', durationMs: null },
         ],
       },
       history: {
@@ -115,7 +115,7 @@ describe('getCanvasContext', () => {
       document: { width: 16, height: 16, activeFrameName: 'Frame 1', activeLayerName: null, packageName: '' },
       layers: [],
       selection: null,
-      animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ name: 'Frame 1', durationMs: null }] },
+      animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ id: 'frame-1', name: 'Frame 1', durationMs: null }] },
       history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0, recentTools: [] },
       snapshotBase64: null,
     };
@@ -129,9 +129,9 @@ describe('getCanvasContext', () => {
   it('includes selection when present', async () => {
     const mockContext: CanvasContext = {
       document: { width: 32, height: 32, activeFrameName: 'Frame 1', activeLayerName: 'Layer 1', packageName: '' },
-      layers: [{ name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 }],
+      layers: [{ id: 'layer-1', name: 'Layer 1', visible: true, locked: false, opacity: 1.0, zIndex: 0 }],
       selection: { x: 5, y: 10, width: 20, height: 15 },
-      animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ name: 'Frame 1', durationMs: null }] },
+      animation: { frameCount: 1, activeFrameIndex: 0, frames: [{ id: 'frame-1', name: 'Frame 1', durationMs: null }] },
       history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0, recentTools: [] },
       snapshotBase64: null,
     };

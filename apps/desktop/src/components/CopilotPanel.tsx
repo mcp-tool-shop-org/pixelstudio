@@ -66,13 +66,23 @@ export function CopilotPanel() {
   }, [refreshContext]);
 
   const buildSystemPrompt = useCallback((ctx: CanvasContext) => {
+    const layerList = ctx.layers.map((l) =>
+      `  - "${l.name}" (id: ${l.id})${l.visible ? '' : ' [hidden]'}${l.locked ? ' [locked]' : ''} opacity=${l.opacity}`
+    ).join('\n') || '  (none)';
+    const frameList = ctx.animation.frames.map((f, i) =>
+      `  - ${i + 1}. "${f.name}" (id: ${f.id})${f.durationMs ? ` ${f.durationMs}ms` : ''}`
+    ).join('\n');
+
     return `You are the GlyphStudio AI Copilot — an editing assistant for a pixel art sprite editor.
 
 Current canvas state:
 - Size: ${ctx.document.width}x${ctx.document.height} pixels
 - Active frame: "${ctx.document.activeFrameName}" (${ctx.animation.activeFrameIndex + 1}/${ctx.animation.frameCount})
 - Active layer: ${ctx.document.activeLayerName ?? 'none'}
-- Layers (bottom to top): ${ctx.layers.map((l) => `${l.name}${l.visible ? '' : ' (hidden)'}${l.locked ? ' (locked)' : ''}`).join(', ') || 'none'}
+- Layers (bottom to top):
+${layerList}
+- Frames:
+${frameList}
 - Selection: ${ctx.selection ? `${ctx.selection.width}x${ctx.selection.height} at (${ctx.selection.x}, ${ctx.selection.y})` : 'none'}
 - Undo: ${ctx.history.undoDepth} steps available
 - Recent tools: ${ctx.history.recentTools.join(', ') || 'none'}
@@ -83,7 +93,8 @@ You can execute editing operations by calling the provided tools. When you want 
 3. Report the result
 
 Keep responses concise. You are editing pixel art — coordinates are in pixels. Colors are RGBA (0-255).
-For multi-pixel operations, use begin_stroke/stroke_points/end_stroke.`;
+For area fills, use fill_rect. For freeform drawing, use begin_stroke/stroke_points/end_stroke.
+Layer and frame operations require UUIDs — use the IDs listed above.`;
   }, []);
 
   const handleSend = useCallback(async () => {
