@@ -13,6 +13,7 @@ import { ReferencePanel } from './ReferencePanel';
 import { SnapshotPanel } from './SnapshotPanel';
 import { VectorShapesPanel } from './VectorShapesPanel';
 import { VectorPropertiesPanel } from './VectorPropertiesPanel';
+import { VectorReductionPanel } from './VectorReductionPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -70,6 +71,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Properties') {
     return <VectorPropertiesPanel />;
+  }
+  if (tabName === 'Reduction') {
+    return <VectorReductionPanel />;
   }
 
   return (
