@@ -18,6 +18,27 @@ export { useVectorMasterStore } from './vectorMasterStore';
 export { useSizeProfileStore } from './sizeProfileStore';
 export { rasterizeVectorMaster, rasterizeShape, wouldShapeCollapse, transformPoint } from './vectorRasterize';
 export { rasterizeAllProfiles, analyzeReduction, generateMultiSizeLayout, summarizeReduction } from './vectorComparison';
+export { captureCopilotContext, captureCopilotRaster } from './copilotContext';
+export type { CopilotContext, CopilotShapeSummary, CopilotProfileSummary } from './copilotContext';
+export {
+  analyzeTopChanges,
+  analyzeCollapse,
+  analyzeProfileStrength,
+  analyzeExaggeration,
+  runFullAnalysis,
+} from './copilotAnalysis';
+export type {
+  CopilotCritique,
+  TopChangesResponse,
+  CollapseResponse,
+  ProfileComparisonResponse,
+  ProfileStrength,
+  ExaggerationResponse,
+  ExaggerationRec,
+  CopilotAnalysisBundle,
+} from './copilotAnalysis';
+export { askVisionWhatDoesThisReadAs, checkOllamaAvailability, pixelBufferToBase64Png, DEFAULT_OLLAMA_CONFIG } from './copilotVision';
+export type { OllamaVisionConfig, VisionResponse } from './copilotVision';
 export { vectorToSpriteHandoff, extractPaletteFromBuffer } from './vectorHandoff';
 export type { VectorHandoffResult } from './vectorHandoff';
 export { regenerateFromVector, checkRegenerationStatus } from './vectorRegenerate';

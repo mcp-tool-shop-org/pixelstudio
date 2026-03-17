@@ -14,6 +14,7 @@ import { SnapshotPanel } from './SnapshotPanel';
 import { VectorShapesPanel } from './VectorShapesPanel';
 import { VectorPropertiesPanel } from './VectorPropertiesPanel';
 import { VectorReductionPanel } from './VectorReductionPanel';
+import { VectorCopilotPanel } from './VectorCopilotPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -29,7 +30,7 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
   scene: ['Instances', 'Camera', 'Assets', 'Activity'],
-  vector: ['Shapes', 'Properties', 'Reduction'],
+  vector: ['Shapes', 'Properties', 'Reduction', 'Copilot'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -74,6 +75,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'Reduction') {
     return <VectorReductionPanel />;
+  }
+  if (tabName === 'Copilot') {
+    return <VectorCopilotPanel />;
   }
 
   return (
