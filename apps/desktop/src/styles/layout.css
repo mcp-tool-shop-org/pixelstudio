@@ -7946,6 +7946,64 @@
   pointer-events: none;
 }
 
+/* Vector Live Preview Strip */
+.vector-live-preview {
+  position: absolute;
+  bottom: 28px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 10;
+}
+
+.vector-live-preview.collapsed {
+  bottom: 8px;
+}
+
+.live-preview-toggle {
+  background: rgba(20, 20, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #888;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.live-preview-toggle:hover {
+  color: #ccc;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.live-preview-strip {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(20, 20, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.live-preview-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.live-preview-canvas {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.live-preview-label {
+  font-size: 9px;
+  color: #888;
+  font-family: monospace;
+}
+
 /* Collapse Overlay Controls */
 .collapse-overlay-controls {
   position: absolute;

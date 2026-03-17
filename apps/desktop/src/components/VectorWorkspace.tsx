@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { VectorCanvas, type VectorToolId } from './VectorCanvas';
 import { VectorToolRail } from './VectorToolRail';
+import { VectorLivePreview } from './VectorLivePreview';
 import { useVectorMasterStore, useSizeProfileStore, computeCollapseOverlay } from '@glyphstudio/state';
 import type { CollapseOverlayData } from '@glyphstudio/state';
 import type { Rgba, SizeProfile } from '@glyphstudio/domain';
@@ -91,6 +92,7 @@ export function VectorWorkspace() {
         strokeWidth={strokeWidth}
         collapseOverlay={collapseOverlay}
       />
+      <VectorLivePreview />
       {/* Collapse overlay controls */}
       <div className="collapse-overlay-controls">
         <label className="collapse-overlay-toggle">
