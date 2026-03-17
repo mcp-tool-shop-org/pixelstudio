@@ -3,7 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 import { useToolStore, useBrushSettingsStore, useSelectionStore, BRUSH_PRESETS } from '@glyphstudio/state';
-import type { MirrorMode } from '@glyphstudio/state';
+import type { MirrorMode, DitherPattern } from '@glyphstudio/state';
+import { getDitherCellActive } from '../lib/canvasPixelMath';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import type { CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
@@ -199,6 +200,68 @@ function ToolButton({ id, label, active, setTool, sketch }: {
   );
 }
 
+/** Pattern + density controls shown inside SketchSettings when Dith preset is active */
+function DitherControls() {
+  const ditherPattern = useBrushSettingsStore((s) => s.ditherPattern);
+  const ditherDensity = useBrushSettingsStore((s) => s.ditherDensity);
+  const setDitherPattern = useBrushSettingsStore((s) => s.setDitherPattern);
+  const setDitherDensity = useBrushSettingsStore((s) => s.setDitherDensity);
+
+  return (
+    <div className="dither-controls" data-testid="dither-controls">
+      <div className="dither-patterns">
+        {DITHER_PATTERN_ORDER.map((p) => (
+          <button
+            key={p}
+            className={`dither-pattern-btn${ditherPattern === p ? ' active' : ''}`}
+            onClick={() => setDitherPattern(p)}
+            title={DITHER_PATTERN_TITLES[p]}
+            data-testid={`dither-pattern-${p}`}
+          >
+            {DITHER_PATTERN_LABELS[p]}
+          </button>
+        ))}
+      </div>
+      <label className="sketch-setting-row" title="Dither density — fraction of pattern pixels that fire">
+        <span className="sketch-setting-label">Dn</span>
+        <input
+          type="range"
+          min={10}
+          max={100}
+          value={Math.round(ditherDensity * 100)}
+          onChange={(e) => setDitherDensity(Number(e.target.value) / 100)}
+          className="sketch-slider"
+        />
+        <span className="sketch-setting-value">{Math.round(ditherDensity * 100)}%</span>
+      </label>
+      <DitherPreview pattern={ditherPattern} density={ditherDensity} />
+    </div>
+  );
+}
+
+/** 8×8 pixel swatch showing the active dither pattern at the current density */
+function DitherPreview({ pattern, density }: { pattern: DitherPattern; density: number }) {
+  const SIZE = 8;
+  const cells: boolean[] = [];
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      cells.push(getDitherCellActive(x, y, pattern, density));
+    }
+  }
+  return (
+    <div
+      className="dither-preview"
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${SIZE}, 6px)`, gap: '1px' }}
+      title="Live pattern preview (8×8)"
+      data-testid="dither-preview"
+    >
+      {cells.map((on, i) => (
+        <div key={i} className={`dither-cell${on ? ' on' : ''}`} style={{ width: 6, height: 6 }} />
+      ))}
+    </div>
+  );
+}
+
 /** Mirror drawing toggle buttons — H, V, or both */
 function MirrorToggles({ mirrorMode, onToggleH, onToggleV }: {
   mirrorMode: MirrorMode;
@@ -228,6 +291,22 @@ function MirrorToggles({ mirrorMode, onToggleH, onToggleV }: {
     </div>
   );
 }
+
+const DITHER_PATTERN_LABELS: Record<DitherPattern, string> = {
+  'checker':      '⊞',
+  'diagonal':     '╱',
+  'cross':        '✚',
+  'sparse-noise': '∷',
+};
+
+const DITHER_PATTERN_TITLES: Record<DitherPattern, string> = {
+  'checker':      'Checker — alternating pixel grid (~50% coverage)',
+  'diagonal':     'Diagonal — slanted stripe pattern (~25% coverage)',
+  'cross':        'Cross — grid crosshatch pattern',
+  'sparse-noise': 'Sparse noise — random scatter, density controls coverage',
+};
+
+const DITHER_PATTERN_ORDER: DitherPattern[] = ['checker', 'diagonal', 'cross', 'sparse-noise'];
 
 /** Compact brush settings shown when a sketch tool is active */
 function SketchSettings() {
@@ -260,6 +339,7 @@ function SketchSettings() {
           ))}
         </div>
       )}
+      {isBrush && activePresetId === 'dither' && <DitherControls />}
       <label className="sketch-setting-row" title="Brush size (px)">
         <span className="sketch-setting-label">Sz</span>
         <input

@@ -4,6 +4,7 @@
  * These functions have no React or Tauri dependencies — they operate only on
  * numbers and are therefore fully unit-testable without DOM or framework setup.
  */
+import type { DitherPattern } from '@glyphstudio/state';
 
 // ---------------------------------------------------------------------------
 // Shape rasterization
@@ -191,4 +192,67 @@ export function applyMirrorPoints(
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Dither pattern filter
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether pixel (x, y) passes the geometric pattern gate for the given dither
+ * pattern. Independent of density.
+ */
+function patternGate(x: number, y: number, pattern: DitherPattern): boolean {
+  switch (pattern) {
+    case 'checker':      return (x + y) % 2 === 0;
+    case 'diagonal':     return Math.abs(x - y) % 4 === 0;
+    case 'cross':        return x % 4 === 0 || y % 4 === 0;
+    case 'sparse-noise': return true; // density-only gate
+  }
+}
+
+/**
+ * Whether pixel (x, y) passes the density thinning gate.
+ * Uses a position-stable hash so repeated strokes give consistent coverage.
+ */
+function densityGate(x: number, y: number, density: number): boolean {
+  if (density >= 1.0) return true;
+  // Multiplicative hash — stable, fast, no imports needed
+  const h = (Math.abs((x * 2654435761) ^ (y * 2246822519)) >>> 0) % 1000;
+  return h < density * 1000;
+}
+
+/**
+ * Returns true if pixel (x, y) should be painted for the given dither pattern
+ * and density. Used both by the point filter and by the ToolRail preview swatch.
+ */
+export function getDitherCellActive(
+  x: number,
+  y: number,
+  pattern: DitherPattern,
+  density: number,
+): boolean {
+  return patternGate(x, y, pattern) && densityGate(x, y, density);
+}
+
+/**
+ * Filter a set of stroke points through the dither pattern + density gate,
+ * optionally clipping to a selection rectangle.
+ *
+ * Call this BEFORE applyMirrorPoints so both mirror arms share the same
+ * geometric pattern (giving symmetric dither when drawing with mirror on).
+ */
+export function applyDitherFilter(
+  points: [number, number][],
+  pattern: DitherPattern,
+  density: number,
+  selectionBounds?: { x: number; y: number; width: number; height: number } | null,
+): [number, number][] {
+  return points.filter(([x, y]) => {
+    if (selectionBounds) {
+      const { x: sx, y: sy, width: sw, height: sh } = selectionBounds;
+      if (x < sx || x >= sx + sw || y < sy || y >= sy + sh) return false;
+    }
+    return getDitherCellActive(x, y, pattern, density);
+  });
 }

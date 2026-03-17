@@ -270,6 +270,77 @@ describe('ToolRail', () => {
     });
   });
 
+  describe('dither controls', () => {
+    it('dither controls hidden when Dith preset is not active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      render(<ToolRail />);
+      expect(document.querySelector('[data-testid="dither-controls"]')).toBeNull();
+    });
+
+    it('dither controls visible when Dith preset is active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      render(<ToolRail />);
+      expect(document.querySelector('[data-testid="dither-controls"]')).not.toBeNull();
+    });
+
+    it('all four pattern buttons render when Dith preset is active', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      render(<ToolRail />);
+      expect(document.querySelector('[data-testid="dither-pattern-checker"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="dither-pattern-diagonal"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="dither-pattern-cross"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="dither-pattern-sparse-noise"]')).not.toBeNull();
+    });
+
+    it('active pattern button has active class', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      useBrushSettingsStore.getState().setDitherPattern('diagonal');
+      render(<ToolRail />);
+      const diagBtn = document.querySelector('[data-testid="dither-pattern-diagonal"]') as HTMLElement;
+      expect(diagBtn.className).toContain('active');
+      const checkerBtn = document.querySelector('[data-testid="dither-pattern-checker"]') as HTMLElement;
+      expect(checkerBtn.className).not.toContain('active');
+    });
+
+    it('clicking pattern button updates ditherPattern', async () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      render(<ToolRail />);
+      const crossBtn = document.querySelector('[data-testid="dither-pattern-cross"]') as HTMLElement;
+      await act(async () => { await userEvent.click(crossBtn); });
+      expect(useBrushSettingsStore.getState().ditherPattern).toBe('cross');
+    });
+
+    it('pattern preview swatch renders with 64 cells (8×8)', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      render(<ToolRail />);
+      const preview = document.querySelector('[data-testid="dither-preview"]') as HTMLElement;
+      expect(preview).not.toBeNull();
+      expect(preview.querySelectorAll('.dither-cell')).toHaveLength(64);
+    });
+
+    it('pattern preview has on cells for checker at density 1.0', () => {
+      seed();
+      useToolStore.setState({ activeTool: 'sketch-brush' });
+      useBrushSettingsStore.getState().applyPreset('dither');
+      useBrushSettingsStore.getState().setDitherDensity(1.0);
+      useBrushSettingsStore.getState().setDitherPattern('checker');
+      render(<ToolRail />);
+      const onCells = document.querySelectorAll('.dither-cell.on');
+      expect(onCells).toHaveLength(32); // checker = 50% of 64
+    });
+  });
+
   describe('manifest-driven parity', () => {
     it('every displayed badge comes from a live manifest entry', () => {
       seed();

@@ -13,6 +13,9 @@ export interface BrushSettings {
   spacing: number;
 }
 
+/** Geometric pattern used when the Dith preset is active */
+export type DitherPattern = 'checker' | 'diagonal' | 'cross' | 'sparse-noise';
+
 /** Named brush preset — one-click config for common mark-making modes */
 export interface BrushPreset {
   id: string;
@@ -79,6 +82,10 @@ interface BrushSettingsState {
   roughModeActive: boolean;
   /** ID of the active preset, or null when manually customised */
   activePresetId: string | null;
+  /** Active dither pattern (used when activePresetId === 'dither') */
+  ditherPattern: DitherPattern;
+  /** Fraction of pattern pixels that actually fire (0.1–1.0) */
+  ditherDensity: number;
 
   setBrushSize: (tool: 'sketchBrush' | 'sketchEraser', size: number) => void;
   setBrushOpacity: (tool: 'sketchBrush' | 'sketchEraser', opacity: number) => void;
@@ -88,6 +95,8 @@ interface BrushSettingsState {
   resetToDefaults: (tool: 'sketchBrush' | 'sketchEraser') => void;
   /** Apply a named preset to sketchBrush and record which preset is active */
   applyPreset: (id: string) => void;
+  setDitherPattern: (pattern: DitherPattern) => void;
+  setDitherDensity: (density: number) => void;
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -99,6 +108,8 @@ export const useBrushSettingsStore = create<BrushSettingsState>((set) => ({
   sketchEraser: { ...SKETCH_ERASER_DEFAULTS },
   roughModeActive: false,
   activePresetId: null,
+  ditherPattern: 'checker' as DitherPattern,
+  ditherDensity: 0.5,
 
   setBrushSize: (tool, size) =>
     set(
@@ -154,4 +165,9 @@ export const useBrushSettingsStore = create<BrushSettingsState>((set) => ({
         s.activePresetId = id;
       }),
     ),
+
+  setDitherPattern: (pattern) => set({ ditherPattern: pattern }),
+
+  setDitherDensity: (density) =>
+    set({ ditherDensity: Math.max(0.1, Math.min(1.0, density)) }),
 }));

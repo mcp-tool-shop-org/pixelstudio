@@ -5,6 +5,7 @@ import {
   SKETCH_ERASER_DEFAULTS,
   BRUSH_PRESETS,
 } from './brushSettingsStore';
+import type { DitherPattern } from './brushSettingsStore';
 
 beforeEach(() => {
   useBrushSettingsStore.setState({
@@ -12,6 +13,8 @@ beforeEach(() => {
     sketchEraser: { ...SKETCH_ERASER_DEFAULTS },
     roughModeActive: false,
     activePresetId: null,
+    ditherPattern: 'checker',
+    ditherDensity: 0.5,
   });
 });
 
@@ -199,5 +202,47 @@ describe('brushSettingsStore', () => {
     expect(s.activePresetId).toBe('cluster');
     const cluster = BRUSH_PRESETS.find((p) => p.id === 'cluster')!;
     expect(s.sketchBrush).toEqual(cluster.settings);
+  });
+
+  // --- Dither state ---
+
+  it('ditherPattern initialises to checker', () => {
+    expect(useBrushSettingsStore.getState().ditherPattern).toBe('checker');
+  });
+
+  it('ditherDensity initialises to 0.5', () => {
+    expect(useBrushSettingsStore.getState().ditherDensity).toBe(0.5);
+  });
+
+  it('setDitherPattern updates pattern', () => {
+    const patterns: DitherPattern[] = ['checker', 'diagonal', 'cross', 'sparse-noise'];
+    for (const p of patterns) {
+      useBrushSettingsStore.getState().setDitherPattern(p);
+      expect(useBrushSettingsStore.getState().ditherPattern).toBe(p);
+    }
+  });
+
+  it('setDitherDensity updates density', () => {
+    useBrushSettingsStore.getState().setDitherDensity(0.8);
+    expect(useBrushSettingsStore.getState().ditherDensity).toBe(0.8);
+  });
+
+  it('setDitherDensity clamps to [0.1, 1.0]', () => {
+    useBrushSettingsStore.getState().setDitherDensity(0);
+    expect(useBrushSettingsStore.getState().ditherDensity).toBe(0.1);
+    useBrushSettingsStore.getState().setDitherDensity(5);
+    expect(useBrushSettingsStore.getState().ditherDensity).toBe(1.0);
+  });
+
+  it('setDitherPattern does not affect activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('dither');
+    useBrushSettingsStore.getState().setDitherPattern('diagonal');
+    expect(useBrushSettingsStore.getState().activePresetId).toBe('dither');
+  });
+
+  it('setDitherDensity does not affect activePresetId', () => {
+    useBrushSettingsStore.getState().applyPreset('dither');
+    useBrushSettingsStore.getState().setDitherDensity(0.3);
+    expect(useBrushSettingsStore.getState().activePresetId).toBe('dither');
   });
 });

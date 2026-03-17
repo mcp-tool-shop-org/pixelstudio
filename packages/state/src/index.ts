@@ -10,7 +10,7 @@ export { useToolStore } from './toolStore';
 export type { MirrorMode } from './toolStore';
 export type { RgbaColor } from './toolStore';
 export { useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS, SKETCH_LAYER_DEFAULTS, BRUSH_PRESETS } from './brushSettingsStore';
-export type { BrushSettings, BrushPreset } from './brushSettingsStore';
+export type { BrushSettings, BrushPreset, DitherPattern } from './brushSettingsStore';
 export { expandDab, expandStrokeDabs } from './sketchDab';
 export type { DabParams } from './sketchDab';
 export { useTranslationStore, TRANSLATION_RESOLUTIONS } from './translationStore';

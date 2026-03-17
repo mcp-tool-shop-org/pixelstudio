@@ -298,3 +298,90 @@ describe('applyMirrorPoints', () => {
     expect(result).toHaveLength(2);
   });
 });
+
+// getDitherCellActive + applyDitherFilter
+import { getDitherCellActive, applyDitherFilter } from './canvasPixelMath';
+
+describe('getDitherCellActive', () => {
+  it('checker: (0,0) is on, (1,0) is off', () => {
+    expect(getDitherCellActive(0, 0, 'checker', 1.0)).toBe(true);
+    expect(getDitherCellActive(1, 0, 'checker', 1.0)).toBe(false);
+    expect(getDitherCellActive(1, 1, 'checker', 1.0)).toBe(true);
+  });
+
+  it('diagonal: (0,0) is on, (1,0) is off', () => {
+    expect(getDitherCellActive(0, 0, 'diagonal', 1.0)).toBe(true);
+    expect(getDitherCellActive(1, 0, 'diagonal', 1.0)).toBe(false);
+  });
+
+  it('cross: grid cells fire on every 4th row or column', () => {
+    expect(getDitherCellActive(0, 0, 'cross', 1.0)).toBe(true);
+    expect(getDitherCellActive(4, 3, 'cross', 1.0)).toBe(true);  // x % 4 === 0
+    expect(getDitherCellActive(3, 4, 'cross', 1.0)).toBe(true);  // y % 4 === 0
+    expect(getDitherCellActive(1, 1, 'cross', 1.0)).toBe(false); // neither
+  });
+
+  it('sparse-noise: all cells are on at density 1.0', () => {
+    for (let x = 0; x < 8; x++) {
+      for (let y = 0; y < 8; y++) {
+        expect(getDitherCellActive(x, y, 'sparse-noise', 1.0)).toBe(true);
+      }
+    }
+  });
+
+  it('density 0: no cells pass (rounds to 0%)', () => {
+    // density gate: h < 0 * 1000 === h < 0 — always false
+    expect(getDitherCellActive(0, 0, 'checker', 0)).toBe(false);
+    expect(getDitherCellActive(2, 2, 'sparse-noise', 0)).toBe(false);
+  });
+
+  it('density scales the fraction of pattern cells that fire', () => {
+    // At density 1.0, checker fires exactly 50% of a 16x16 grid (all pattern hits pass)
+    let onAt1 = 0;
+    let onAt05 = 0;
+    for (let x = 0; x < 16; x++) {
+      for (let y = 0; y < 16; y++) {
+        if (getDitherCellActive(x, y, 'checker', 1.0)) onAt1++;
+        if (getDitherCellActive(x, y, 'checker', 0.5)) onAt05++;
+      }
+    }
+    expect(onAt1).toBe(128); // exactly 50% of 256
+    expect(onAt05).toBeLessThan(onAt1);
+    expect(onAt05).toBeGreaterThan(0);
+  });
+});
+
+describe('applyDitherFilter', () => {
+  const ALL: [number, number][] = [];
+  for (let x = 0; x < 8; x++) for (let y = 0; y < 8; y++) ALL.push([x, y]);
+
+  it('returns subset of points matching checker at density 1.0', () => {
+    const result = applyDitherFilter(ALL, 'checker', 1.0);
+    expect(result.length).toBe(32); // 50% of 64
+    for (const [x, y] of result) expect((x + y) % 2).toBe(0);
+  });
+
+  it('returns empty array when all points fail pattern', () => {
+    // All odd-sum points fail checker
+    const odd: [number, number][] = [[1, 0], [0, 1], [3, 0]];
+    expect(applyDitherFilter(odd, 'checker', 1.0)).toHaveLength(0);
+  });
+
+  it('selection clip removes out-of-bounds points', () => {
+    const pts: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]]; // checker: 0 and 2 pass
+    const sel = { x: 2, y: 0, width: 4, height: 4 };
+    const result = applyDitherFilter(pts, 'checker', 1.0, sel);
+    // [0,0] and [1,0] are outside selection (x < 2); [2,0] passes both; [3,0] fails checker
+    expect(result).toEqual([[2, 0]]);
+  });
+
+  it('no selection = no clipping', () => {
+    const pts: [number, number][] = [[0, 0], [2, 0]];
+    expect(applyDitherFilter(pts, 'checker', 1.0, null)).toHaveLength(2);
+    expect(applyDitherFilter(pts, 'checker', 1.0, undefined)).toHaveLength(2);
+  });
+
+  it('empty input returns empty output', () => {
+    expect(applyDitherFilter([], 'checker', 1.0)).toHaveLength(0);
+  });
+});

@@ -30,6 +30,7 @@ import {
   bresenhamLine,
   rectangleOutline,
   applyMirrorPoints,
+  applyDitherFilter,
   ellipseOutline,
 } from './canvasPixelMath';
 
@@ -159,11 +160,23 @@ export function useCanvasPointerHandlers({
   const sendStrokePoints = useCallback(
     async (points: [number, number][]) => {
       if (points.length === 0) return;
-      const { mirrorMode } = useToolStore.getState();
+      const { mirrorMode, activeTool } = useToolStore.getState();
       const frame = useCanvasFrameStore.getState().frame;
+      const brushState = useBrushSettingsStore.getState();
+
+      // 1. Apply dither filter before mirror so both arms share the same pattern.
+      let filtered = points;
+      if (activeTool === 'sketch-brush' && brushState.activePresetId === 'dither') {
+        const sel = useSelectionStore.getState().selectionBounds;
+        filtered = applyDitherFilter(points, brushState.ditherPattern, brushState.ditherDensity, sel);
+        if (filtered.length === 0) return;
+      }
+
+      // 2. Expand with mirror.
       const mirrored = frame && mirrorMode !== 'none'
-        ? applyMirrorPoints(points, frame.width, frame.height, mirrorMode)
-        : points;
+        ? applyMirrorPoints(filtered, frame.width, frame.height, mirrorMode)
+        : filtered;
+
       try {
         const f = await invoke<CanvasFrameData>('stroke_points', { input: { points: mirrored } });
         setFrame(f);
