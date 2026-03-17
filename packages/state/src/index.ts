@@ -7,6 +7,7 @@ export { useWorkflowStore } from './workflowStore';
 export { useCanvasViewStore, ZOOM_STEPS } from './canvasViewStore';
 export type { SilhouetteColor } from './canvasViewStore';
 export { useToolStore } from './toolStore';
+export type { MirrorMode } from './toolStore';
 export type { RgbaColor } from './toolStore';
 export { useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS, SKETCH_LAYER_DEFAULTS } from './brushSettingsStore';
 export type { BrushSettings } from './brushSettingsStore';

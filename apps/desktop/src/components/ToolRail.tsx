@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 import { useToolStore, useBrushSettingsStore, useSelectionStore } from '@glyphstudio/state';
+import type { MirrorMode } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import type { CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
@@ -42,6 +43,9 @@ export function ToolRail() {
   const swapColors = useToolStore((s) => s.swapColors);
   const setPrimaryColor = useToolStore((s) => s.setPrimaryColor);
   const setSecondaryColor = useToolStore((s) => s.setSecondaryColor);
+  const mirrorMode = useToolStore((s) => s.mirrorMode);
+  const toggleMirrorH = useToolStore((s) => s.toggleMirrorH);
+  const toggleMirrorV = useToolStore((s) => s.toggleMirrorV);
   const hasSelection = useSelectionStore((s) => s.hasSelection);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
@@ -108,6 +112,8 @@ export function ToolRail() {
       <div className="tool-rail-divider" />
       {SKETCH_TOOLS.map((tool) => <ToolButton key={tool.id} id={tool.id} label={tool.label} active={activeTool === tool.id} setTool={setTool} sketch />)}
       {isSketch && <SketchSettings />}
+      <div className="tool-rail-divider" />
+      <MirrorToggles mirrorMode={mirrorMode} onToggleH={toggleMirrorH} onToggleV={toggleMirrorV} />
       <div className="tool-rail-spacer" />
       <div className="tool-colors">
         <div
@@ -190,6 +196,36 @@ function ToolButton({ id, label, active, setTool, sketch }: {
       <span className="tool-label">{label}</span>
       {shortcutLabel && <span className="tool-shortcut">{shortcutLabel}</span>}
     </button>
+  );
+}
+
+/** Mirror drawing toggle buttons — H, V, or both */
+function MirrorToggles({ mirrorMode, onToggleH, onToggleV }: {
+  mirrorMode: MirrorMode;
+  onToggleH: () => void;
+  onToggleV: () => void;
+}) {
+  const hActive = mirrorMode === 'h' || mirrorMode === 'both';
+  const vActive = mirrorMode === 'v' || mirrorMode === 'both';
+  return (
+    <div className="mirror-toggles">
+      <button
+        className={`mirror-btn${hActive ? ' active' : ''}`}
+        onClick={onToggleH}
+        title={hActive ? 'Horizontal mirror ON — click to toggle off' : 'Enable horizontal mirror'}
+        data-testid="mirror-h-btn"
+      >
+        ⟺H
+      </button>
+      <button
+        className={`mirror-btn${vActive ? ' active' : ''}`}
+        onClick={onToggleV}
+        title={vActive ? 'Vertical mirror ON — click to toggle off' : 'Enable vertical mirror'}
+        data-testid="mirror-v-btn"
+      >
+        ⇕V
+      </button>
+    </div>
   );
 }
 

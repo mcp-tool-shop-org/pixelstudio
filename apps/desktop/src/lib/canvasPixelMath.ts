@@ -147,3 +147,48 @@ export function screenToCanvasPixelClamped(
   if (p.x < 0 || p.y < 0 || p.x >= vp.frameWidth || p.y >= vp.frameHeight) return null;
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// Mirror drawing
+// ---------------------------------------------------------------------------
+
+export type MirrorMode = 'none' | 'h' | 'v' | 'both';
+
+/**
+ * Expand a set of stroke points by adding mirrored counterparts.
+ *
+ * For horizontal mirror: adds (w-1-x, y)
+ * For vertical mirror:   adds (x, h-1-y)
+ * For both:              adds all three mirror variants
+ *
+ * Duplicate points (e.g. when drawing exactly on the mirror axis) are
+ * deduplicated so the backend does not paint them twice.
+ */
+export function applyMirrorPoints(
+  points: [number, number][],
+  frameWidth: number,
+  frameHeight: number,
+  mode: MirrorMode,
+): [number, number][] {
+  if (mode === 'none' || points.length === 0) return points;
+
+  const seen = new Set<string>();
+  const result: [number, number][] = [];
+
+  function add(x: number, y: number) {
+    const key = `${x},${y}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push([x, y]);
+    }
+  }
+
+  for (const [x, y] of points) {
+    add(x, y);
+    if (mode === 'h' || mode === 'both') add(frameWidth - 1 - x, y);
+    if (mode === 'v' || mode === 'both') add(x, frameHeight - 1 - y);
+    if (mode === 'both') add(frameWidth - 1 - x, frameHeight - 1 - y);
+  }
+
+  return result;
+}

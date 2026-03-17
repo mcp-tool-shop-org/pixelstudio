@@ -15,6 +15,8 @@ function colorKey(c: RgbaColor): string {
   return `${c.r},${c.g},${c.b}`;
 }
 
+export type MirrorMode = 'none' | 'h' | 'v' | 'both';
+
 interface ToolState {
   activeTool: ToolId;
   previousTool: ToolId | null;
@@ -24,6 +26,7 @@ interface ToolState {
   secondaryColorSlotId: string | null;
   recentColors: RgbaColor[];
   pinnedColors: RgbaColor[];
+  mirrorMode: MirrorMode;
   palettePopup: {
     open: boolean;
     screenX: number;
@@ -37,6 +40,8 @@ interface ToolState {
   pushRecentColor: (color: RgbaColor) => void;
   pinColor: (color: RgbaColor) => void;
   unpinColor: (index: number) => void;
+  toggleMirrorH: () => void;
+  toggleMirrorV: () => void;
   openPalettePopup: (x: number, y: number) => void;
   closePalettePopup: () => void;
 }
@@ -50,6 +55,7 @@ export const useToolStore = create<ToolState>((set) => ({
   secondaryColorSlotId: null,
   recentColors: [],
   pinnedColors: [],
+  mirrorMode: 'none',
   palettePopup: { open: false, screenX: 0, screenY: 0 },
 
   setTool: (tool) => set((s) => ({ activeTool: tool, previousTool: s.activeTool })),
@@ -94,6 +100,22 @@ export const useToolStore = create<ToolState>((set) => ({
     }),
   unpinColor: (index) =>
     set((s) => ({ pinnedColors: s.pinnedColors.filter((_, i) => i !== index) })),
+  toggleMirrorH: () =>
+    set((s) => {
+      const m = s.mirrorMode;
+      if (m === 'none') return { mirrorMode: 'h' as MirrorMode };
+      if (m === 'h') return { mirrorMode: 'none' as MirrorMode };
+      if (m === 'v') return { mirrorMode: 'both' as MirrorMode };
+      return { mirrorMode: 'v' as MirrorMode }; // both → v (drop h)
+    }),
+  toggleMirrorV: () =>
+    set((s) => {
+      const m = s.mirrorMode;
+      if (m === 'none') return { mirrorMode: 'v' as MirrorMode };
+      if (m === 'v') return { mirrorMode: 'none' as MirrorMode };
+      if (m === 'h') return { mirrorMode: 'both' as MirrorMode };
+      return { mirrorMode: 'h' as MirrorMode }; // both → h (drop v)
+    }),
   openPalettePopup: (x, y) => set({ palettePopup: { open: true, screenX: x, screenY: y } }),
   closePalettePopup: () => set({ palettePopup: { open: false, screenX: 0, screenY: 0 } }),
 }));

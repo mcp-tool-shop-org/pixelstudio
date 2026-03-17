@@ -227,3 +227,74 @@ describe('screenToCanvasPixelClamped', () => {
     expect(screenToCanvasPixelClamped(132, 68, vp)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyMirrorPoints
+// ---------------------------------------------------------------------------
+
+import { applyMirrorPoints } from './canvasPixelMath';
+
+describe('applyMirrorPoints', () => {
+  const W = 16, H = 16;
+
+  it('mode=none returns original points unchanged', () => {
+    const pts: [number, number][] = [[2, 3], [7, 8]];
+    expect(applyMirrorPoints(pts, W, H, 'none')).toEqual(pts);
+  });
+
+  it('mode=h adds horizontally mirrored counterpart', () => {
+    const result = applyMirrorPoints([[2, 3]], W, H, 'h');
+    expect(result).toContainEqual([2, 3]);
+    expect(result).toContainEqual([13, 3]); // W-1-2 = 13
+    expect(result).toHaveLength(2);
+  });
+
+  it('mode=v adds vertically mirrored counterpart', () => {
+    const result = applyMirrorPoints([[2, 3]], W, H, 'v');
+    expect(result).toContainEqual([2, 3]);
+    expect(result).toContainEqual([2, 12]); // H-1-3 = 12
+    expect(result).toHaveLength(2);
+  });
+
+  it('mode=both adds three additional mirror variants', () => {
+    const result = applyMirrorPoints([[2, 3]], W, H, 'both');
+    expect(result).toContainEqual([2, 3]);
+    expect(result).toContainEqual([13, 3]);
+    expect(result).toContainEqual([2, 12]);
+    expect(result).toContainEqual([13, 12]);
+    expect(result).toHaveLength(4);
+  });
+
+  it('deduplicates points on horizontal mirror axis', () => {
+    // x = 7 in a 16-wide canvas: mirror = W-1-7 = 8 (different — no dedup)
+    // x = 7.5 doesn't exist in integers; use a 15-wide canvas where mid = 7
+    const result = applyMirrorPoints([[7, 3]], 15, H, 'h');
+    // W-1-7 = 7 (same!) so only 1 point
+    expect(result).toHaveLength(1);
+    expect(result).toContainEqual([7, 3]);
+  });
+
+  it('deduplicates points on vertical mirror axis', () => {
+    const result = applyMirrorPoints([[2, 7]], W, 15, 'v');
+    // H-1-7 = 7 (same!) → dedup
+    expect(result).toHaveLength(1);
+  });
+
+  it('handles empty points array', () => {
+    expect(applyMirrorPoints([], W, H, 'h')).toEqual([]);
+  });
+
+  it('handles multiple points without cross-dedup', () => {
+    const pts: [number, number][] = [[1, 1], [4, 4]];
+    const result = applyMirrorPoints(pts, W, H, 'h');
+    // original: (1,1), (4,4); mirrors: (14,1), (11,4)
+    expect(result).toHaveLength(4);
+  });
+
+  it('deduplicates when two source points mirror to the same target', () => {
+    // Source: (1,1) and (14,1) — in h-mode mirror of (1,1)=(14,1) and mirror of (14,1)=(1,1)
+    const pts: [number, number][] = [[1, 1], [14, 1]];
+    const result = applyMirrorPoints(pts, W, H, 'h');
+    expect(result).toHaveLength(2);
+  });
+});

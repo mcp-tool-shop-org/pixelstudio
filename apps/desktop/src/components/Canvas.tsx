@@ -106,6 +106,7 @@ export function Canvas() {
 
   const selectedSliceId = useSliceStore((s) => s.selectedSliceId);
   const hoveredSliceId = useSliceStore((s) => s.hoveredSliceId);
+  const mirrorMode = useToolStore((s) => s.mirrorMode);
 
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const frameCount = useTimelineStore((s) => s.frames.length);
@@ -553,10 +554,33 @@ export function Canvas() {
       }
     }
 
+    // Mirror guides
+    if (mirrorMode !== 'none' && frame) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(120,180,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      if (mirrorMode === 'h' || mirrorMode === 'both') {
+        const midX = originX + spriteW / 2;
+        ctx.beginPath();
+        ctx.moveTo(midX + 0.5, originY);
+        ctx.lineTo(midX + 0.5, originY + spriteH);
+        ctx.stroke();
+      }
+      if (mirrorMode === 'v' || mirrorMode === 'both') {
+        const midY = originY + spriteH / 2;
+        ctx.beginPath();
+        ctx.moveTo(originX, midY + 0.5);
+        ctx.lineTo(originX + spriteW, midY + 0.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode]);
 
   useEffect(() => { render(); }, [render]);
 

@@ -29,6 +29,7 @@ import {
   screenToCanvasPixelClamped,
   bresenhamLine,
   rectangleOutline,
+  applyMirrorPoints,
   ellipseOutline,
 } from './canvasPixelMath';
 
@@ -158,8 +159,13 @@ export function useCanvasPointerHandlers({
   const sendStrokePoints = useCallback(
     async (points: [number, number][]) => {
       if (points.length === 0) return;
+      const { mirrorMode } = useToolStore.getState();
+      const frame = useCanvasFrameStore.getState().frame;
+      const mirrored = frame && mirrorMode !== 'none'
+        ? applyMirrorPoints(points, frame.width, frame.height, mirrorMode)
+        : points;
       try {
-        const f = await invoke<CanvasFrameData>('stroke_points', { input: { points } });
+        const f = await invoke<CanvasFrameData>('stroke_points', { input: { points: mirrored } });
         setFrame(f);
       } catch (err) {
         console.error('stroke_points failed:', err);

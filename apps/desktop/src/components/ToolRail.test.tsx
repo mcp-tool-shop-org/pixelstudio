@@ -10,6 +10,7 @@ function seed() {
     activeTool: 'pencil',
     primaryColor: { r: 255, g: 0, b: 0, a: 255 },
     secondaryColor: { r: 0, g: 0, b: 255, a: 255 },
+    mirrorMode: 'none',
   });
 }
 
@@ -17,12 +18,12 @@ describe('ToolRail', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('renders all 20 buttons (15 standard + 2 sketch + 1 swap + 1 pin + 1 replace)', () => {
+    it('renders all 22 buttons (15 standard + 2 sketch + 2 mirror + 1 swap + 1 pin + 1 replace)', () => {
       seed();
       render(<ToolRail />);
       const buttons = screen.getAllByRole('button');
-      // 15 standard + 2 sketch tools + 1 swap-colors button + 1 pin + 1 replace-color button
-      expect(buttons).toHaveLength(20);
+      // 15 standard + 2 sketch tools + 2 mirror toggles + 1 swap-colors + 1 pin + 1 replace-color
+      expect(buttons).toHaveLength(22);
     });
 
     it('tools with live+displayed manifest entries show shortcut badge', () => {
@@ -100,6 +101,37 @@ describe('ToolRail', () => {
       seed();
       render(<ToolRail />);
       expect(screen.getByTestId('replace-color-btn')).toBeInTheDocument();
+    });
+
+    it('renders mirror H and V buttons', () => {
+      seed();
+      render(<ToolRail />);
+      expect(screen.getByTestId('mirror-h-btn')).toBeInTheDocument();
+      expect(screen.getByTestId('mirror-v-btn')).toBeInTheDocument();
+    });
+
+    it('mirror buttons are inactive when mirrorMode=none', () => {
+      seed();
+      useToolStore.setState({ mirrorMode: 'none' });
+      render(<ToolRail />);
+      expect(screen.getByTestId('mirror-h-btn').className).not.toContain('active');
+      expect(screen.getByTestId('mirror-v-btn').className).not.toContain('active');
+    });
+
+    it('mirror H button is active when mirrorMode=h', () => {
+      seed();
+      useToolStore.setState({ mirrorMode: 'h' });
+      render(<ToolRail />);
+      expect(screen.getByTestId('mirror-h-btn').className).toContain('active');
+      expect(screen.getByTestId('mirror-v-btn').className).not.toContain('active');
+    });
+
+    it('both mirror buttons active when mirrorMode=both', () => {
+      seed();
+      useToolStore.setState({ mirrorMode: 'both' });
+      render(<ToolRail />);
+      expect(screen.getByTestId('mirror-h-btn').className).toContain('active');
+      expect(screen.getByTestId('mirror-v-btn').className).toContain('active');
     });
 
     it('clicking primary swatch opens color picker', async () => {

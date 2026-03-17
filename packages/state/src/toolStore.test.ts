@@ -184,4 +184,59 @@ describe('toolStore', () => {
     expect(s.palettePopup.screenX).toBe(0);
     expect(s.palettePopup.screenY).toBe(0);
   });
+
+  // --- Mirror mode ---
+
+  it('mirrorMode initialises to none', () => {
+    useToolStore.setState({ mirrorMode: 'none' });
+    expect(useToolStore.getState().mirrorMode).toBe('none');
+  });
+
+  it('toggleMirrorH: none → h', () => {
+    useToolStore.setState({ mirrorMode: 'none' });
+    useToolStore.getState().toggleMirrorH();
+    expect(useToolStore.getState().mirrorMode).toBe('h');
+  });
+
+  it('toggleMirrorH: h → none', () => {
+    useToolStore.setState({ mirrorMode: 'h' });
+    useToolStore.getState().toggleMirrorH();
+    expect(useToolStore.getState().mirrorMode).toBe('none');
+  });
+
+  it('toggleMirrorH: v → both', () => {
+    useToolStore.setState({ mirrorMode: 'v' });
+    useToolStore.getState().toggleMirrorH();
+    expect(useToolStore.getState().mirrorMode).toBe('both');
+  });
+
+  it('toggleMirrorH: both → v (drops h)', () => {
+    useToolStore.setState({ mirrorMode: 'both' });
+    useToolStore.getState().toggleMirrorH();
+    expect(useToolStore.getState().mirrorMode).toBe('v');
+  });
+
+  it('toggleMirrorV: none → v', () => {
+    useToolStore.setState({ mirrorMode: 'none' });
+    useToolStore.getState().toggleMirrorV();
+    expect(useToolStore.getState().mirrorMode).toBe('v');
+  });
+
+  it('toggleMirrorV: v → none', () => {
+    useToolStore.setState({ mirrorMode: 'v' });
+    useToolStore.getState().toggleMirrorV();
+    expect(useToolStore.getState().mirrorMode).toBe('none');
+  });
+
+  it('toggleMirrorV: h → both', () => {
+    useToolStore.setState({ mirrorMode: 'h' });
+    useToolStore.getState().toggleMirrorV();
+    expect(useToolStore.getState().mirrorMode).toBe('both');
+  });
+
+  it('toggleMirrorV: both → h (drops v)', () => {
+    useToolStore.setState({ mirrorMode: 'both' });
+    useToolStore.getState().toggleMirrorV();
+    expect(useToolStore.getState().mirrorMode).toBe('h');
+  });
 });

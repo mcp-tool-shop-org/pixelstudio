@@ -2,18 +2,18 @@
   "format": "glyphstudio-sprite",
   "schemaVersion": 1,
   "document": {
-    "id": "sprite_1773789162008_md3laj",
+    "id": "sprite_1773790047616_w0rnl7",
     "name": "Grass Tiles",
     "width": 32,
     "height": 16,
     "frames": [
       {
-        "id": "sf_1773789162008_zr01x3",
+        "id": "sf_1773790047616_0u8fqj",
         "index": 0,
         "durationMs": 100,
         "layers": [
           {
-            "id": "sl_1773789162008_sohuk8",
+            "id": "sl_1773790047616_hfyy1j",
             "name": "Layer 1",
             "visible": true,
             "index": 0
@@ -218,11 +218,11 @@
         }
       ]
     },
-    "createdAt": "2026-03-17T23:12:42.008Z",
-    "updatedAt": "2026-03-17T23:12:42.009Z"
+    "createdAt": "2026-03-17T23:27:27.616Z",
+    "updatedAt": "2026-03-17T23:27:27.616Z"
   },
   "pixelBuffers": {
-    "sl_1773789162008_sohuk8": {
+    "sl_1773790047616_hfyy1j": {
       "width": 32,
       "height": 16,
       "data": "M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP//zMz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz//8zM///zAD//zMz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz//8zM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/AGYA/zOqM/8zqjP/AGYA/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/wBmAP8zqjP/M6oz/zOqM/8AZgD/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/M6oz/zOqM/8zqjP/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP9mOQD/ZjkA/2Y5AP8="
