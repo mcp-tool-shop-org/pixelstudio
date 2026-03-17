@@ -17,6 +17,7 @@ import {
   expandStrokeDabs,
   useCanvasViewStore,
   useAnchorStore,
+  useSliceStore,
 } from '@glyphstudio/state';
 import { isSketchTool } from '@glyphstudio/domain';
 import type { AnchorKind } from '@glyphstudio/domain';
@@ -141,8 +142,14 @@ export function useCanvasPointerHandlers({
   // ---------------------------------------------------------------------------
   const loadSliceRegions = useCallback(() => {
     invoke<{ id: string; x: number; y: number; width: number; height: number; name: string }[]>('list_slice_regions')
-      .then(setSliceRegions)
-      .catch(() => setSliceRegions([]));
+      .then((regions) => {
+        setSliceRegions(regions);
+        useSliceStore.getState().setSliceRegions(regions);
+      })
+      .catch(() => {
+        setSliceRegions([]);
+        useSliceStore.getState().setSliceRegions([]);
+      });
   }, []);
 
   // ---------------------------------------------------------------------------

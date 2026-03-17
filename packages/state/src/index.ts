@@ -108,6 +108,8 @@ export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
 export { useSnapshotStore } from './snapshotStore';
 export type { CanvasSnapshot } from './snapshotStore';
+export { useSliceStore } from './sliceStore';
+export type { SliceRegion } from './sliceStore';
 export { usePaletteStore } from './paletteStore';
 export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';

@@ -49,6 +49,9 @@ vi.mock('../components/AISettingsPanel', () => ({
 vi.mock('../components/TemplateBrowserPanel', () => ({
   TemplateBrowserPanel: () => <div data-testid="template-browser-panel">TemplateBrowserPanel</div>,
 }));
+vi.mock('../components/SliceManagerPanel', () => ({
+  SliceManagerPanel: () => <div data-testid="slice-manager-panel">SliceManagerPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock, PANEL_REGISTRY, MODE_TABS } from '../components/RightDock';
@@ -60,7 +63,7 @@ describe('RightDock', () => {
     // For modes with >6 tabs, only the first 6 are shown plus a "More ▾" overflow trigger.
     // animate has exactly 8 tabs but threshold is 6, so it also overflows.
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'More ▾']],
+      ['edit', ['Layers', 'Slices', 'Reference', 'Snapshots', 'Analysis', 'Character', 'More ▾']],
       ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'More ▾']],
       ['palette', ['Palette Props', 'Validation']],
       ['ai', ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance']],
@@ -204,10 +207,9 @@ describe('RightDock', () => {
 
     it('non-first placeholder tabs work', async () => {
       render(<RightDock activeMode="edit" />);
-      // Click "Canvas Props" which is a placeholder panel
-      await act(async () => {
-        await userEvent.click(screen.getByText('Canvas Props'));
-      });
+      // "Canvas Props" is in the overflow menu — open it first
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      await act(async () => { await userEvent.click(screen.getByText('Canvas Props')); });
       const placeholder = document.querySelector('.dock-panel-placeholder');
       expect(placeholder).not.toBeNull();
     });
@@ -239,7 +241,7 @@ describe('RightDock', () => {
       render(<RightDock activeMode="edit" />);
       await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
       const menu = screen.getByTestId('dock-overflow-menu');
-      // edit tabs 7-10: Palette, Copilot, Templates, Assets
+      // edit tabs 7-11: Canvas Props, Palette, Copilot, Templates, Assets
       expect(menu).toHaveTextContent('Palette');
       expect(menu).toHaveTextContent('Copilot');
       expect(menu).toHaveTextContent('Templates');

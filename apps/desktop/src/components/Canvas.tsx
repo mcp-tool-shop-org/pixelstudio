@@ -7,6 +7,7 @@ import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
 import { useAnchorStore } from '@glyphstudio/state';
+import { useSliceStore } from '@glyphstudio/state';
 import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
@@ -102,6 +103,8 @@ export function Canvas() {
   const transformPreview = useSelectionStore((s) => s.transformPreview);
   const setTransform = useSelectionStore((s) => s.setTransform);
   const clearTransform = useSelectionStore((s) => s.clearTransform);
+
+  const selectedSliceId = useSliceStore((s) => s.selectedSliceId);
 
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const frameCount = useTimelineStore((s) => s.frames.length);
@@ -418,18 +421,19 @@ export function Canvas() {
       ctx.save();
       // Draw existing slice regions
       for (const region of sliceRegions) {
+        const isSelected = selectedSliceId === region.id;
         const sx = originX + region.x * zoom;
         const sy = originY + region.y * zoom;
         const sw = region.width * zoom;
         const sh = region.height * zoom;
-        ctx.strokeStyle = '#ff6b35';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 2]);
+        ctx.strokeStyle = isSelected ? '#ffe066' : '#ff6b35';
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.setLineDash(isSelected ? [] : [4, 2]);
         ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
-        ctx.fillStyle = 'rgba(255,107,53,0.1)';
+        ctx.fillStyle = isSelected ? 'rgba(255,224,102,0.18)' : 'rgba(255,107,53,0.1)';
         ctx.fillRect(sx, sy, sw, sh);
-        ctx.fillStyle = '#ff6b35';
-        ctx.font = '10px monospace';
+        ctx.fillStyle = isSelected ? '#ffe066' : '#ff6b35';
+        ctx.font = `${isSelected ? 'bold ' : ''}10px monospace`;
         ctx.fillText(region.name, sx + 2, sy + 10);
       }
       // Draw active slice drag
@@ -544,7 +548,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId]);
 
   useEffect(() => { render(); }, [render]);
 
