@@ -798,6 +798,20 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+Shift+S — quick snapshot capture
+        if (e.code === 'KeyS' && e.shiftKey) {
+          e.preventDefault();
+          const fr = useCanvasFrameStore.getState().frame;
+          if (fr) {
+            const snaps = useSnapshotStore.getState().snapshots;
+            useSnapshotStore.getState().createSnapshot(
+              `Snapshot ${snaps.length + 1}`,
+              fr.width, fr.height, fr.data,
+            );
+          }
+          return;
+        }
+
         if (e.code === 'KeyZ' && !e.shiftKey) {
           e.preventDefault();
           if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
@@ -824,6 +838,20 @@ export function Canvas() {
           } catch (err) { console.error('redo failed:', err); }
           return;
         }
+      }
+
+      // Blink compare: ` (Backquote) toggles compare to most recent snapshot
+      if (e.code === 'Backquote' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat) {
+        e.preventDefault();
+        const snaps = useSnapshotStore.getState().snapshots;
+        if (snaps.length === 0) return;
+        const viewState = useCanvasViewStore.getState();
+        if (viewState.compareSnapshotId) {
+          viewState.setCompareSnapshot(null);
+        } else {
+          viewState.setCompareSnapshot(snaps[snaps.length - 1].id);
+        }
+        return;
       }
 
       // Toggle onion skin with O (not a tool, so handled separately from manifest dispatch)
@@ -918,7 +946,17 @@ export function Canvas() {
         {onionSkinEnabled && frameCount > 1 && <span title="O to toggle">onion</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
+        {compareSnapshotId && (
+          <span className="status-compare" title="` to toggle compare" data-testid="compare-indicator">
+            comparing
+          </span>
+        )}
       </div>
+      {compareSnapshotId && (
+        <div className="canvas-compare-banner" data-testid="canvas-compare-banner">
+          Comparing: {compareSnapshot?.name ?? 'snapshot'} — press ` to return to live
+        </div>
+      )}
     </main>
   );
 }

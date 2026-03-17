@@ -7,6 +7,7 @@ import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
+import { useSnapshotStore } from '@glyphstudio/state';
 import { getMockInvoke } from '../test/helpers';
 import type { ToolId } from '@glyphstudio/domain';
 import { SHORTCUT_MANIFEST } from '@glyphstudio/domain';
@@ -183,6 +184,24 @@ describe('Canvas component', () => {
       render(<Canvas />);
       expect(screen.queryByTitle('Ctrl+Z')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Ctrl+Shift+Z')).not.toBeInTheDocument();
+    });
+
+    it('shows compare indicator when compareSnapshotId is set', () => {
+      seedStores();
+      useSnapshotStore.getState().createSnapshot('Test', 32, 32, new Array(32 * 32 * 4).fill(0));
+      const snapId = useSnapshotStore.getState().snapshots[0].id;
+      useCanvasViewStore.setState({ compareSnapshotId: snapId });
+      render(<Canvas />);
+      expect(screen.getByTestId('compare-indicator')).toBeInTheDocument();
+      expect(screen.getByTestId('canvas-compare-banner')).toBeInTheDocument();
+    });
+
+    it('hides compare indicator when compareSnapshotId is null', () => {
+      seedStores();
+      useCanvasViewStore.setState({ compareSnapshotId: null });
+      render(<Canvas />);
+      expect(screen.queryByTestId('compare-indicator')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('canvas-compare-banner')).not.toBeInTheDocument();
     });
   });
 
@@ -580,6 +599,47 @@ describe('Canvas component', () => {
         typeof c[0] === 'string' && c[0].startsWith('flip_') || (typeof c[0] === 'string' && c[0].startsWith('rotate_'))
       );
       expect(transformCalls.length).toBe(0);
+    });
+
+    it('Ctrl+Shift+S captures a snapshot', async () => {
+      seedStores();
+      useSnapshotStore.setState({ snapshots: [] });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', ctrlKey: true, shiftKey: true, bubbles: true }));
+      });
+      expect(useSnapshotStore.getState().snapshots).toHaveLength(1);
+      expect(useSnapshotStore.getState().snapshots[0].name).toBe('Snapshot 1');
+    });
+
+    it('Backquote toggles compare to most recent snapshot', async () => {
+      seedStores();
+      useSnapshotStore.setState({ snapshots: [] });
+      useCanvasViewStore.setState({ compareSnapshotId: null });
+      useSnapshotStore.getState().createSnapshot('Snap1', 32, 32, new Array(32 * 32 * 4).fill(128));
+      const snapId = useSnapshotStore.getState().snapshots[0].id;
+      render(<Canvas />);
+      // Toggle on
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', bubbles: true }));
+      });
+      expect(useCanvasViewStore.getState().compareSnapshotId).toBe(snapId);
+      // Toggle off
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', bubbles: true }));
+      });
+      expect(useCanvasViewStore.getState().compareSnapshotId).toBeNull();
+    });
+
+    it('Backquote does nothing with no snapshots', async () => {
+      seedStores();
+      useSnapshotStore.setState({ snapshots: [] });
+      useCanvasViewStore.setState({ compareSnapshotId: null });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', bubbles: true }));
+      });
+      expect(useCanvasViewStore.getState().compareSnapshotId).toBeNull();
     });
   });
 
