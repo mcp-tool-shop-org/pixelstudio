@@ -15,6 +15,8 @@ import { TransformBar } from '../components/TransformBar';
 import { VectorWorkspace } from '../components/VectorWorkspace';
 import { VectorSourceBanner } from '../components/VectorSourceBanner';
 import { EditorStatusBar } from '../components/EditorStatusBar';
+import { ToastStack } from '../components/ToastStack';
+import { toast } from '../lib/toast';
 
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -62,6 +64,7 @@ export function AppShell() {
       } catch (err) {
         console.error('Save As failed:', err);
         setSaveStatus('error');
+        toast.error('Save failed — check file permissions');
       }
       return;
     }
@@ -73,6 +76,7 @@ export function AppShell() {
     } catch (err) {
       console.error('Save failed:', err);
       setSaveStatus('error');
+      toast.error('Save failed — check file permissions');
     }
   }, [setSaveStatus, markSaved]);
 
@@ -135,6 +139,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
+      <ToastStack />
       <TopBar activeMode={mode} onModeChange={setMode} />
       {mode === 'edit' && <VectorSourceBanner />}
       <TransformBar />

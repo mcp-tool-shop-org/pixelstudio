@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayerStore, useProjectStore } from '@glyphstudio/state';
+import { toast } from '../lib/toast';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -117,6 +118,7 @@ export function LayerPanel() {
         notifyDirty();
       } catch (err) {
         console.error('delete_layer failed:', err);
+        toast.error('Layer delete failed');
       }
     },
     [applyFrame, notifyDirty],
@@ -157,6 +159,7 @@ export function LayerPanel() {
       notifyDirty();
     } catch (err) {
       console.error('rename_layer failed:', err);
+      toast.error('Layer rename failed');
     }
     setRenamingId(null);
   }, [renamingId, renameValue, applyFrame, notifyDirty]);
