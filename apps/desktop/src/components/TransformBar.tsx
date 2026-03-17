@@ -27,6 +27,7 @@ interface TransformResult {
 
 export function TransformBar() {
   const isTransforming = useSelectionStore((s) => s.isTransforming);
+  const transformPreview = useSelectionStore((s) => s.transformPreview);
   const setTransform = useSelectionStore((s) => s.setTransform);
   const clearTransform = useSelectionStore((s) => s.clearTransform);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
@@ -82,6 +83,19 @@ export function TransformBar() {
   return (
     <div className="transform-bar">
       <span className="transform-bar-label">Transform</span>
+      {transformPreview && (
+        <div className="transform-bar-hud" data-testid="transform-bar-hud">
+          <span className="transform-bar-hud-field" data-testid="hud-x">
+            x:{transformPreview.sourceX + transformPreview.offsetX}
+          </span>
+          <span className="transform-bar-hud-field" data-testid="hud-y">
+            y:{transformPreview.sourceY + transformPreview.offsetY}
+          </span>
+          <span className="transform-bar-hud-field" data-testid="hud-size">
+            {transformPreview.payloadWidth}×{transformPreview.payloadHeight}
+          </span>
+        </div>
+      )}
       <div className="transform-bar-actions">
         <button
           className="transform-bar-btn"
