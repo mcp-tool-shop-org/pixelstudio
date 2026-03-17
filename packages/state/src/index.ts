@@ -14,6 +14,7 @@ export { expandDab, expandStrokeDabs } from './sketchDab';
 export type { DabParams } from './sketchDab';
 export { useTranslationStore, TRANSLATION_RESOLUTIONS } from './translationStore';
 export type { TranslationSession, TranslationResolution } from './translationStore';
+export { useVectorMasterStore } from './vectorMasterStore';
 export {
   nearestNeighborDownscale,
   countFilledPixels,
