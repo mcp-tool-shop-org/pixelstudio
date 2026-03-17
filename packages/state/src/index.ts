@@ -40,6 +40,20 @@ export type {
 export { askVisionWhatDoesThisReadAs, checkOllamaAvailability, pixelBufferToBase64Png, DEFAULT_OLLAMA_CONFIG } from './copilotVision';
 export type { OllamaVisionConfig, VisionResponse } from './copilotVision';
 export {
+  generateShapesFromDescription,
+  critiqueRenderedSprite,
+  refineShapesFromCritique,
+  shapesToProposalSet,
+  generateWithCritiqueLoop,
+  DEFAULT_GENERATE_CONFIG,
+} from './ollamaGenerate';
+export type {
+  OllamaGenerateConfig,
+  LLMShapeDef,
+  GenerateResult,
+  CritiqueResult,
+} from './ollamaGenerate';
+export {
   createEmptySession,
   createProposal,
   createProposalSet,
