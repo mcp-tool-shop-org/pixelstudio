@@ -9,6 +9,7 @@ import {
 } from '../lib/aiSettings';
 import { getRelevantTools, toolsToOllamaFormat } from '../lib/aiToolRegistry';
 import { executeToolCall, parseToolCalls, type ToolCallResult } from '../lib/aiToolDispatcher';
+import { generateSuggestions, type Suggestion } from '../lib/aiSuggestions';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -35,6 +36,7 @@ export function CopilotPanel() {
   const [pendingOps, setPendingOps] = useState<PendingOperation | null>(null);
   const [contextSummary, setContextSummary] = useState<string>('');
   const [turnCount, setTurnCount] = useState(0);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Check Ollama on mount
@@ -57,9 +59,11 @@ export function CopilotPanel() {
       const layerNames = ctx.layers.map((l) => l.name).join(', ');
       const summary = `${ctx.document.width}x${ctx.document.height} | Frame ${ctx.animation.activeFrameIndex + 1}/${ctx.animation.frameCount} "${ctx.document.activeFrameName}" | Layers: ${layerNames || 'none'} | ${ctx.selection ? `Selection: ${ctx.selection.width}x${ctx.selection.height}` : 'No selection'}`;
       setContextSummary(summary);
+      setSuggestions(generateSuggestions(ctx));
       return ctx;
     } catch {
       setContextSummary('No project open');
+      setSuggestions([]);
       return null;
     }
   }, []);
@@ -308,6 +312,22 @@ After tool results come back, you may call more tools or give a text summary. Ma
       <div className="copilot-context-bar" data-testid="context-summary">
         {contextSummary || 'Loading...'}
       </div>
+
+      {/* Smart suggestions */}
+      {suggestions.length > 0 && state === 'idle' && messages.length === 0 && (
+        <div className="copilot-suggestions" data-testid="suggestions">
+          {suggestions.map((s) => (
+            <button
+              key={s.id}
+              className="copilot-suggestion-chip"
+              data-testid={`suggestion-${s.id}`}
+              onClick={() => setInput(s.prompt)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Connection status */}
       {ollamaOnline === false && (

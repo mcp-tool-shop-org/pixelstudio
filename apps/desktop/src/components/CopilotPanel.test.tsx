@@ -242,6 +242,33 @@ describe('CopilotPanel', () => {
     });
   });
 
+  it('shows suggestion chips on empty chat', async () => {
+    render(<CopilotPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('suggestions')).toBeInTheDocument();
+      // Should have at least one suggestion chip
+      expect(screen.getByTestId('suggestions').querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('clicking suggestion chip fills input', async () => {
+    render(<CopilotPanel />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('suggestions')).toBeInTheDocument();
+    });
+
+    // Click the first suggestion chip
+    const chips = screen.getByTestId('suggestions').querySelectorAll('button');
+    expect(chips.length).toBeGreaterThan(0);
+    await user.click(chips[0]);
+
+    // Input should now have the suggestion's prompt text
+    const input = screen.getByTestId('copilot-input') as HTMLTextAreaElement;
+    expect(input.value.length).toBeGreaterThan(0);
+  });
+
   it('shows offline warning when Ollama is down', async () => {
     mockInvoke.reset();
     mockCanvasContext();
