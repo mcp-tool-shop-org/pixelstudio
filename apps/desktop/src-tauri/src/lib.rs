@@ -6,7 +6,7 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{ai, analysis, anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
+use commands::{ai, analysis, anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, slice, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 use engine::motion::ManagedMotionState;
 use engine::sandbox::ManagedSandboxState;
@@ -120,6 +120,10 @@ pub fn run() {
             anchor::set_anchor_parent,
             anchor::clear_anchor_parent,
             anchor::set_anchor_falloff,
+            slice::create_slice_region,
+            slice::delete_slice_region,
+            slice::list_slice_regions,
+            slice::clear_slice_regions,
             sandbox::begin_sandbox_session,
             sandbox::get_sandbox_session,
             sandbox::close_sandbox_session,

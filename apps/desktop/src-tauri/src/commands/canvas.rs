@@ -473,7 +473,7 @@ pub fn flood_fill(
             color: fc,
             patches,
         };
-        canvas.undo_stack.push(record);
+        canvas.undo_stack.push(crate::engine::canvas_state::UndoAction::Stroke(record));
         canvas.redo_stack.clear();
     }
 

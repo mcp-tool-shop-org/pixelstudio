@@ -11,3 +11,4 @@ pub mod preset;
 pub mod clip;
 pub mod asset_catalog;
 pub mod scene;
+pub mod slice;

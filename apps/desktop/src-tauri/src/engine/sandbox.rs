@@ -417,6 +417,7 @@ mod tests {
             layer_counter: 0,
             duration_ms: None,
             anchors,
+            slice_regions: Vec::new(),
         }
     }
 

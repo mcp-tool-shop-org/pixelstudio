@@ -380,6 +380,7 @@ pub fn commit_motion_proposal(
             layer_counter: 1,
             duration_ms: None,
             anchors: source_anchors.clone(),
+            slice_regions: Vec::new(),
         };
 
         inserted_frame_ids.push(frame_id);

@@ -142,7 +142,7 @@ export function Canvas() {
   const isSliceDraggingRef = useRef(false);
   const sliceStartRef = useRef<{ x: number; y: number } | null>(null);
   const sliceEndRef = useRef<{ x: number; y: number } | null>(null);
-  const [sliceRegions, setSliceRegions] = useState<{ x: number; y: number; width: number; height: number; name: string }[]>([]);
+  const [sliceRegions, setSliceRegions] = useState<{ id: string; x: number; y: number; width: number; height: number; name: string }[]>([]);
   // Measure tool state
   const measureStartRef = useRef<{ x: number; y: number } | null>(null);
   const measureEndRef = useRef<{ x: number; y: number } | null>(null);
@@ -263,6 +263,17 @@ export function Canvas() {
       .then((data) => setOnionSkinData(data))
       .catch(() => setOnionSkinData(null));
   }, [onionSkinEnabled, activeFrameIndex, frameVersion, canvasReady, frameCount, setOnionSkinData]);
+
+  // Load slice regions from Rust backend whenever frame changes
+  const loadSliceRegions = useCallback(() => {
+    invoke<{ id: string; x: number; y: number; width: number; height: number; name: string }[]>('list_slice_regions')
+      .then(setSliceRegions)
+      .catch(() => setSliceRegions([]));
+  }, []);
+
+  useEffect(() => {
+    if (canvasReady) loadSliceRegions();
+  }, [frameVersion, canvasReady, loadSliceRegions]);
 
   // Render
   const render = useCallback(() => {
@@ -1050,10 +1061,10 @@ export function Canvas() {
         const w = maxX - minX + 1;
         const h = maxY - minY + 1;
         if (w > 1 && h > 1) {
-          setSliceRegions((prev) => [
-            ...prev,
-            { x: minX, y: minY, width: w, height: h, name: `slice_${prev.length + 1}` },
-          ]);
+          invoke('create_slice_region', {
+            name: `slice_${sliceRegions.length + 1}`,
+            x: minX, y: minY, width: w, height: h,
+          }).then(() => loadSliceRegions()).catch(() => {});
         }
       }
       render();
@@ -1170,7 +1181,7 @@ export function Canvas() {
       }
     }
     isPanningRef.current = false;
-  }, [setFrame, markDirty, dragSelection, setSelection, clearSelection]);
+  }, [setFrame, markDirty, dragSelection, setSelection, clearSelection, loadSliceRegions, sliceRegions]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -1364,6 +1375,7 @@ export function Canvas() {
             setFrame(f);
             syncLayersFromFrame(f);
             markDirty();
+            loadSliceRegions();
             invoke('mark_dirty').catch(() => {});
           } catch (err) { console.error('undo failed:', err); }
           return;
@@ -1376,6 +1388,7 @@ export function Canvas() {
             setFrame(f);
             syncLayersFromFrame(f);
             markDirty();
+            loadSliceRegions();
             invoke('mark_dirty').catch(() => {});
           } catch (err) { console.error('redo failed:', err); }
           return;
@@ -1406,6 +1419,7 @@ export function Canvas() {
             syncLayersFromFrame(result.frame);
             clearSelection();
             clearTransform();
+            loadSliceRegions();
           })
           .catch(() => {});
         return;
@@ -1422,7 +1436,7 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [setFrame, markDirty, clearSelection, clearTransform, setTransform]);
+  }, [setFrame, markDirty, clearSelection, clearTransform, setTransform, loadSliceRegions]);
 
   const zoomPercent = `${zoom * 100}%`;
   const pixelCoord = hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '\u2014';

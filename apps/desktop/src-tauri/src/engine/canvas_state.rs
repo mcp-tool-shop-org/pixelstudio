@@ -37,6 +37,14 @@ impl StrokeRecord {
     }
 }
 
+/// A single undoable action — either a pixel stroke or a metadata operation.
+#[derive(Clone)]
+pub enum UndoAction {
+    Stroke(StrokeRecord),
+    SliceCreate(super::slice::SliceRegion),
+    SliceDelete(super::slice::SliceRegion),
+}
+
 /// In-flight stroke being built up before commit.
 pub struct ActiveStroke {
     pub id: String,
@@ -54,14 +62,16 @@ pub struct AnimationFrame {
     pub name: String,
     pub layers: Vec<Layer>,
     pub active_layer_id: Option<String>,
-    pub undo_stack: Vec<StrokeRecord>,
-    pub redo_stack: Vec<StrokeRecord>,
+    pub undo_stack: Vec<UndoAction>,
+    pub redo_stack: Vec<UndoAction>,
     pub layer_counter: u32,
     /// Optional per-frame duration override in milliseconds.
     /// None = use global FPS for timing.
     pub duration_ms: Option<u32>,
     /// Frame-local anchors for part-aware motion.
     pub anchors: Vec<super::anchor::Anchor>,
+    /// Frame-local slice regions for sprite sheet export.
+    pub slice_regions: Vec<super::slice::SliceRegion>,
 }
 
 /// Holds all pixel data for the active project. Owned by Rust, authoritative.
@@ -103,8 +113,8 @@ pub struct CanvasState {
     /// for zero-cost access by all existing code paths.
     pub layers: Vec<Layer>,
     pub active_layer_id: Option<String>,
-    pub undo_stack: Vec<StrokeRecord>,
-    pub redo_stack: Vec<StrokeRecord>,
+    pub undo_stack: Vec<UndoAction>,
+    pub redo_stack: Vec<UndoAction>,
     pub active_stroke: Option<ActiveStroke>,
     layer_counter: u32,
     /// All frames in the animation. The active frame's data lives in the
@@ -149,6 +159,7 @@ impl CanvasState {
                 layer_counter: 0,
                 duration_ms: None,
                 anchors: Vec::new(),
+                slice_regions: Vec::new(),
             }],
             active_frame_index: 0,
             frame_counter: 1,
@@ -186,6 +197,7 @@ impl CanvasState {
                 layer_counter: 0,
                 duration_ms: None,
                 anchors: Vec::new(),
+                slice_regions: Vec::new(),
             }],
             active_frame_index: 0,
             frame_counter: 1,
@@ -402,7 +414,7 @@ impl CanvasState {
             patches: stroke.patches,
         };
 
-        self.undo_stack.push(record.clone());
+        self.undo_stack.push(UndoAction::Stroke(record.clone()));
         self.redo_stack.clear();
 
         Ok(Some(record))
@@ -424,40 +436,60 @@ impl CanvasState {
     // --- Undo/Redo ---
 
     pub fn undo(&mut self) -> Result<bool, String> {
-        let record = match self.undo_stack.pop() {
-            Some(r) => r,
+        let action = match self.undo_stack.pop() {
+            Some(a) => a,
             None => return Ok(false),
         };
 
-        let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
-            .ok_or_else(|| "Layer from undo record not found".to_string())?;
-
-        // Apply before patches in reverse order
-        for patch in record.patches.iter().rev() {
-            let color = Color::rgba(patch.before[0], patch.before[1], patch.before[2], patch.before[3]);
-            layer.buffer.set_pixel(patch.x, patch.y, &color);
+        match &action {
+            UndoAction::Stroke(record) => {
+                let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
+                    .ok_or_else(|| "Layer from undo record not found".to_string())?;
+                for patch in record.patches.iter().rev() {
+                    let color = Color::rgba(patch.before[0], patch.before[1], patch.before[2], patch.before[3]);
+                    layer.buffer.set_pixel(patch.x, patch.y, &color);
+                }
+            }
+            UndoAction::SliceCreate(region) => {
+                let frame = &mut self.frames[self.active_frame_index];
+                frame.slice_regions.retain(|r| r.id != region.id);
+            }
+            UndoAction::SliceDelete(region) => {
+                let frame = &mut self.frames[self.active_frame_index];
+                frame.slice_regions.push(region.clone());
+            }
         }
 
-        self.redo_stack.push(record);
+        self.redo_stack.push(action);
         Ok(true)
     }
 
     pub fn redo(&mut self) -> Result<bool, String> {
-        let record = match self.redo_stack.pop() {
-            Some(r) => r,
+        let action = match self.redo_stack.pop() {
+            Some(a) => a,
             None => return Ok(false),
         };
 
-        let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
-            .ok_or_else(|| "Layer from redo record not found".to_string())?;
-
-        // Apply after patches in forward order
-        for patch in &record.patches {
-            let color = Color::rgba(patch.after[0], patch.after[1], patch.after[2], patch.after[3]);
-            layer.buffer.set_pixel(patch.x, patch.y, &color);
+        match &action {
+            UndoAction::Stroke(record) => {
+                let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
+                    .ok_or_else(|| "Layer from redo record not found".to_string())?;
+                for patch in &record.patches {
+                    let color = Color::rgba(patch.after[0], patch.after[1], patch.after[2], patch.after[3]);
+                    layer.buffer.set_pixel(patch.x, patch.y, &color);
+                }
+            }
+            UndoAction::SliceCreate(region) => {
+                let frame = &mut self.frames[self.active_frame_index];
+                frame.slice_regions.push(region.clone());
+            }
+            UndoAction::SliceDelete(region) => {
+                let frame = &mut self.frames[self.active_frame_index];
+                frame.slice_regions.retain(|r| r.id != region.id);
+            }
         }
 
-        self.undo_stack.push(record);
+        self.undo_stack.push(action);
         Ok(true)
     }
 
@@ -504,6 +536,7 @@ impl CanvasState {
             layer_counter: 0,
             duration_ms: None,
             anchors: Vec::new(),
+            slice_regions: Vec::new(),
         };
         self.frames.push(new_frame);
 
@@ -568,6 +601,7 @@ impl CanvasState {
             layer_counter: 0,
             duration_ms: source_duration,
             anchors: Vec::new(),
+            slice_regions: Vec::new(),
         };
         self.frames.push(new_frame);
 
@@ -696,6 +730,7 @@ impl CanvasState {
             layer_counter: 0,
             duration_ms: None,
             anchors: Vec::new(),
+            slice_regions: Vec::new(),
         };
         self.frames.insert(position, new_frame);
 
@@ -773,6 +808,7 @@ impl CanvasState {
             layer_counter: 0,
             duration_ms: source_duration,
             anchors: Vec::new(),
+            slice_regions: Vec::new(),
         };
         self.frames.insert(position, new_frame);
 
@@ -914,7 +950,7 @@ impl CanvasState {
         let mut new_ids: Vec<String> = Vec::new();
 
         // Collect frame data first to avoid borrow issues
-        let span_data: Vec<(String, Vec<(String, String, bool, bool, f32, Vec<u8>)>, Option<String>, Option<u32>, Vec<super::anchor::Anchor>)> = (start_index..=end_index)
+        let span_data: Vec<(String, Vec<(String, String, bool, bool, f32, Vec<u8>)>, Option<String>, Option<u32>, Vec<super::anchor::Anchor>, Vec<super::slice::SliceRegion>)> = (start_index..=end_index)
             .map(|idx| {
                 let frame = &self.frames[idx];
                 let layers: Vec<_> = frame.layers.iter().map(|l| {
@@ -923,11 +959,12 @@ impl CanvasState {
                 let active_lid = frame.active_layer_id.clone();
                 let dur = frame.duration_ms;
                 let anchors = frame.anchors.clone();
-                (frame.name.clone(), layers, active_lid, dur, anchors)
+                let slices = frame.slice_regions.clone();
+                (frame.name.clone(), layers, active_lid, dur, anchors, slices)
             })
             .collect();
 
-        for (i, (name, layers, active_lid, dur, anchors)) in span_data.into_iter().enumerate() {
+        for (i, (name, layers, active_lid, dur, anchors, slices)) in span_data.into_iter().enumerate() {
             self.frame_counter += 1;
             let frame_id = uuid::Uuid::new_v4().to_string();
             let frame_name = format!("{} (copy)", name);
@@ -956,6 +993,13 @@ impl CanvasState {
                 dup
             }).collect();
 
+            // Copy slice regions with new IDs
+            let new_slices: Vec<super::slice::SliceRegion> = slices.iter().map(|s| {
+                let mut dup = s.clone();
+                dup.id = uuid::Uuid::new_v4().to_string();
+                dup
+            }).collect();
+
             let new_frame = AnimationFrame {
                 id: frame_id.clone(),
                 name: frame_name,
@@ -966,6 +1010,7 @@ impl CanvasState {
                 layer_counter: layers.len() as u32,
                 duration_ms: dur,
                 anchors: new_anchors,
+                slice_regions: new_slices,
             };
 
             let actual_pos = insert_pos + i;
@@ -1737,5 +1782,121 @@ mod tests {
         let comp = cs.composite_frame();
         // Top layer (green) should win
         assert_eq!(&comp[0..4], &[0, 255, 0, 255]);
+    }
+
+    // --- Slice region undo/redo ---
+
+    #[test]
+    fn slice_create_stores_in_active_frame() {
+        let mut cs = CanvasState::new(16, 16);
+        let region = super::super::slice::SliceRegion::new("head".into(), 0, 0, 8, 8);
+        cs.frames[cs.active_frame_index].slice_regions.push(region.clone());
+        cs.undo_stack.push(UndoAction::SliceCreate(region));
+        cs.redo_stack.clear();
+        assert_eq!(cs.frames[0].slice_regions.len(), 1);
+        assert_eq!(cs.frames[0].slice_regions[0].name, "head");
+    }
+
+    #[test]
+    fn slice_create_undo_removes_region() {
+        let mut cs = CanvasState::new(16, 16);
+        let region = super::super::slice::SliceRegion::new("head".into(), 0, 0, 8, 8);
+        let _rid = region.id.clone();
+        cs.frames[cs.active_frame_index].slice_regions.push(region.clone());
+        cs.undo_stack.push(UndoAction::SliceCreate(region));
+        cs.redo_stack.clear();
+
+        let undone = cs.undo().unwrap();
+        assert!(undone);
+        assert_eq!(cs.frames[0].slice_regions.len(), 0);
+        assert_eq!(cs.redo_stack.len(), 1);
+    }
+
+    #[test]
+    fn slice_create_undo_redo_restores_region() {
+        let mut cs = CanvasState::new(16, 16);
+        let region = super::super::slice::SliceRegion::new("head".into(), 2, 3, 4, 5);
+        cs.frames[cs.active_frame_index].slice_regions.push(region.clone());
+        cs.undo_stack.push(UndoAction::SliceCreate(region));
+        cs.redo_stack.clear();
+
+        cs.undo().unwrap();
+        assert_eq!(cs.frames[0].slice_regions.len(), 0);
+
+        cs.redo().unwrap();
+        assert_eq!(cs.frames[0].slice_regions.len(), 1);
+        assert_eq!(cs.frames[0].slice_regions[0].name, "head");
+        assert_eq!(cs.frames[0].slice_regions[0].x, 2);
+    }
+
+    #[test]
+    fn slice_delete_undo_restores_region() {
+        let mut cs = CanvasState::new(16, 16);
+        let region = super::super::slice::SliceRegion::new("torso".into(), 0, 8, 16, 8);
+        let _rid = region.id.clone();
+        // Simulate: region exists, then user deletes it
+        cs.undo_stack.push(UndoAction::SliceDelete(region));
+        cs.redo_stack.clear();
+
+        // Undo should restore it
+        cs.undo().unwrap();
+        assert_eq!(cs.frames[0].slice_regions.len(), 1);
+        assert_eq!(cs.frames[0].slice_regions[0].name, "torso");
+    }
+
+    #[test]
+    fn slice_undo_interleaves_with_stroke_undo() {
+        let mut cs = CanvasState::new(4, 4);
+        let lid = cs.active_layer_id.clone().unwrap();
+
+        // Draw a red pixel
+        cs.begin_stroke("brush".into(), [255, 0, 0, 255]).unwrap();
+        cs.stroke_points(&[(0, 0)]).unwrap();
+        cs.end_stroke().unwrap();
+
+        // Create a slice
+        let region = super::super::slice::SliceRegion::new("s1".into(), 0, 0, 2, 2);
+        cs.frames[cs.active_frame_index].slice_regions.push(region.clone());
+        cs.undo_stack.push(UndoAction::SliceCreate(region));
+        cs.redo_stack.clear();
+
+        assert_eq!(cs.undo_stack.len(), 2);
+        assert_eq!(cs.frames[0].slice_regions.len(), 1);
+
+        // Undo slice create
+        cs.undo().unwrap();
+        assert_eq!(cs.frames[0].slice_regions.len(), 0);
+        // Pixel should still be red
+        assert_eq!(pixel_at(&cs, &lid, 0, 0), [255, 0, 0, 255]);
+
+        // Undo stroke
+        cs.undo().unwrap();
+        assert_eq!(pixel_at(&cs, &lid, 0, 0), [0, 0, 0, 0]);
+
+        // Redo stroke
+        cs.redo().unwrap();
+        assert_eq!(pixel_at(&cs, &lid, 0, 0), [255, 0, 0, 255]);
+
+        // Redo slice create
+        cs.redo().unwrap();
+        assert_eq!(cs.frames[0].slice_regions.len(), 1);
+    }
+
+    #[test]
+    fn slice_regions_survive_frame_switch() {
+        let mut cs = CanvasState::new(8, 8);
+        let region = super::super::slice::SliceRegion::new("s1".into(), 0, 0, 4, 4);
+        cs.frames[cs.active_frame_index].slice_regions.push(region);
+
+        // Create a new frame and switch to it
+        let new_fid = cs.create_frame(None);
+        cs.select_frame(&new_fid).unwrap();
+        assert_eq!(cs.frames[cs.active_frame_index].slice_regions.len(), 0);
+
+        // Switch back to frame 0
+        let first_fid = cs.frames[0].id.clone();
+        cs.select_frame(&first_fid).unwrap();
+        assert_eq!(cs.frames[cs.active_frame_index].slice_regions.len(), 1);
+        assert_eq!(cs.frames[cs.active_frame_index].slice_regions[0].name, "s1");
     }
 }

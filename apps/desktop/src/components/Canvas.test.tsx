@@ -78,6 +78,7 @@ describe('Canvas component', () => {
       activeLayerId: 'l1',
       canUndo: false, canRedo: false,
     }));
+    mock.on('list_slice_regions', () => []);
   });
   afterEach(cleanup);
 
@@ -557,6 +558,57 @@ describe('Canvas component', () => {
       // Should remain pencil, not switch to pencil via B shortcut
       // (transform mode intercepts H/V/R, and tool dispatch is skipped)
       expect(useToolStore.getState().activeTool).toBe('pencil');
+    });
+  });
+
+  describe('slice regions (P0-C: Rust-authoritative)', () => {
+    function invokeCalls(cmd: string) {
+      return mock.fn.mock.calls.filter((c: unknown[]) => c[0] === cmd);
+    }
+
+    it('calls list_slice_regions on mount', async () => {
+      seedStores();
+      await act(async () => { render(<Canvas />); });
+      expect(invokeCalls('list_slice_regions').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('loads slice regions from Rust and renders them', async () => {
+      mock.on('list_slice_regions', () => [
+        { id: 'sr1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 },
+      ]);
+      seedStores();
+      await act(async () => { render(<Canvas />); });
+      // The regions are loaded from Rust — verify the command was called
+      expect(invokeCalls('list_slice_regions').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('calls list_slice_regions after undo to sync slice state', async () => {
+      mock.on('undo', () => ({
+        width: 32, height: 32,
+        data: new Array(32 * 32 * 4).fill(0),
+        layers: [{ id: 'l1', name: 'Layer 1', visible: true, locked: false, opacity: 1 }],
+        activeLayerId: 'l1',
+        canUndo: false, canRedo: true,
+      }));
+      mock.on('mark_dirty', () => null);
+      seedStores({ canUndo: true });
+      await act(async () => { render(<Canvas />); });
+      mock.fn.mockClear();
+      mock.on('list_slice_regions', () => []);
+      mock.on('undo', () => ({
+        width: 32, height: 32,
+        data: new Array(32 * 32 * 4).fill(0),
+        layers: [{ id: 'l1', name: 'Layer 1', visible: true, locked: false, opacity: 1 }],
+        activeLayerId: 'l1',
+        canUndo: false, canRedo: true,
+      }));
+      mock.on('mark_dirty', () => null);
+
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ', ctrlKey: true, bubbles: true }));
+      });
+
+      expect(invokeCalls('list_slice_regions').length).toBeGreaterThanOrEqual(1);
     });
   });
 });

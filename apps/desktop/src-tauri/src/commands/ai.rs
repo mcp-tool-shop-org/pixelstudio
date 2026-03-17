@@ -733,7 +733,10 @@ pub fn ai_get_canvas_context(
         .iter()
         .rev()
         .take(10)
-        .map(|s| s.tool.clone())
+        .filter_map(|a| match a {
+            crate::engine::canvas_state::UndoAction::Stroke(s) => Some(s.tool.clone()),
+            _ => None,
+        })
         .collect();
 
     let history = HistoryInfo {

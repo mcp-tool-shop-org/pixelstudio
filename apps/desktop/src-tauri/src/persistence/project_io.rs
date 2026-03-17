@@ -32,6 +32,9 @@ pub struct SerializedFrame {
     /// Frame-local anchors for part-aware motion.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub anchors: Vec<crate::engine::anchor::Anchor>,
+    /// Frame-local slice regions for sprite sheet export.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub slice_regions: Vec<crate::engine::slice::SliceRegion>,
 }
 
 /// Serialized project document — the on-disk format for .pxs files.
@@ -127,6 +130,7 @@ impl ProjectDocument {
                     active_layer_id: canvas.active_layer_id.clone(),
                     duration_ms: f.duration_ms,
                     anchors: f.anchors.clone(),
+                    slice_regions: f.slice_regions.clone(),
                 });
             } else {
                 // Stashed frame: layers are inside the frame struct
@@ -137,6 +141,7 @@ impl ProjectDocument {
                     active_layer_id: f.active_layer_id.clone(),
                     duration_ms: f.duration_ms,
                     anchors: f.anchors.clone(),
+                    slice_regions: f.slice_regions.clone(),
                 });
             }
         }
@@ -176,6 +181,7 @@ impl ProjectDocument {
                     layer_counter,
                     duration_ms: sf.duration_ms,
                     anchors: sf.anchors.clone(),
+                    slice_regions: sf.slice_regions.clone(),
                 }
             }).collect();
 
@@ -512,5 +518,34 @@ mod tests {
         assert_eq!(cs2.frames[0].anchors[0].kind, AnchorKind::Head);
         assert_eq!(cs2.frames[0].anchors[0].x, 4);
         assert_eq!(cs2.frames[0].anchors[0].y, 2);
+    }
+
+    // --- Slice region serialization ---
+
+    #[test]
+    fn roundtrip_preserves_slice_regions() {
+        use crate::engine::slice::SliceRegion;
+
+        let mut cs = CanvasState::new(16, 16);
+        let region = SliceRegion::new("head".to_string(), 2, 3, 8, 6);
+        cs.frames[0].slice_regions.push(region);
+
+        let cs2 = roundtrip(&cs);
+        assert_eq!(cs2.frames[0].slice_regions.len(), 1);
+        assert_eq!(cs2.frames[0].slice_regions[0].name, "head");
+        assert_eq!(cs2.frames[0].slice_regions[0].x, 2);
+        assert_eq!(cs2.frames[0].slice_regions[0].y, 3);
+        assert_eq!(cs2.frames[0].slice_regions[0].width, 8);
+        assert_eq!(cs2.frames[0].slice_regions[0].height, 6);
+    }
+
+    #[test]
+    fn roundtrip_empty_slices_omitted() {
+        use crate::types::domain::ColorMode;
+        let cs = CanvasState::new(8, 8);
+        let doc = ProjectDocument::from_canvas_state(&cs, "proj", "Test", ColorMode::Rgb, "2026-01-01");
+        let json = serde_json::to_string(&doc).unwrap();
+        // Empty slice_regions should be omitted from JSON (skip_serializing_if)
+        assert!(!json.contains("sliceRegions"));
     }
 }
