@@ -57,9 +57,11 @@ describe('RightDock', () => {
   afterEach(cleanup);
 
   describe('tab rendering per mode', () => {
+    // For modes with >6 tabs, only the first 6 are shown plus a "More ▾" overflow trigger.
+    // animate has exactly 8 tabs but threshold is 6, so it also overflows.
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Copilot', 'Templates', 'Assets']],
-      ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion']],
+      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'More ▾']],
+      ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'More ▾']],
       ['palette', ['Palette Props', 'Validation']],
       ['ai', ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
@@ -82,9 +84,10 @@ describe('RightDock', () => {
   });
 
   describe('tab count per mode', () => {
-    it('edit has 10 tabs', () => {
+    it('edit shows 6 visible tabs + 1 overflow trigger (10 total tabs, overflow threshold=6)', () => {
       render(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(10);
+      // 6 visible + 1 "More ▾" overflow trigger = 7 buttons in the tab bar
+      expect(screen.getAllByRole('button')).toHaveLength(7);
     });
 
     it('export has 1 tab', () => {
@@ -92,7 +95,7 @@ describe('RightDock', () => {
       expect(screen.getAllByRole('button')).toHaveLength(1);
     });
 
-    it('scene has 4 tabs', () => {
+    it('scene has 4 tabs (no overflow)', () => {
       render(<RightDock activeMode="scene" />);
       expect(screen.getAllByRole('button')).toHaveLength(4);
     });
@@ -107,13 +110,14 @@ describe('RightDock', () => {
 
     it('clicking a tab switches active state', async () => {
       render(<RightDock activeMode="edit" />);
-      const paletteTab = screen.getByText('Palette');
+      // 'Analysis' is visible tab index 3 (within the first 6)
+      const analysisTab = screen.getByText('Analysis');
 
       await act(async () => {
-        await userEvent.click(paletteTab);
+        await userEvent.click(analysisTab);
       });
 
-      expect(paletteTab.className).toContain('active');
+      expect(analysisTab.className).toContain('active');
       // Previous tab should no longer be active
       expect(screen.getByText('Layers').className).not.toContain('active');
     });
@@ -151,11 +155,10 @@ describe('RightDock', () => {
       expect(screen.getByTestId('analysis-panel')).toBeInTheDocument();
     });
 
-    it('edit mode Assets tab renders AssetBrowserPanel', async () => {
+    it('edit mode Assets tab (overflow) renders AssetBrowserPanel', async () => {
       render(<RightDock activeMode="edit" />);
-      await act(async () => {
-        await userEvent.click(screen.getByText('Assets'));
-      });
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      await act(async () => { await userEvent.click(screen.getByText('Assets')); });
       expect(screen.getByTestId('asset-browser-panel')).toBeInTheDocument();
     });
 
@@ -210,10 +213,59 @@ describe('RightDock', () => {
     });
   });
 
+  describe('overflow menu', () => {
+    it('shows overflow trigger button for edit mode', () => {
+      render(<RightDock activeMode="edit" />);
+      expect(screen.getByTestId('dock-overflow-btn')).toBeInTheDocument();
+    });
+
+    it('does not show overflow trigger for scene mode (4 tabs)', () => {
+      render(<RightDock activeMode="scene" />);
+      expect(screen.queryByTestId('dock-overflow-btn')).toBeNull();
+    });
+
+    it('overflow menu is hidden by default', () => {
+      render(<RightDock activeMode="edit" />);
+      expect(screen.queryByTestId('dock-overflow-menu')).toBeNull();
+    });
+
+    it('clicking overflow trigger opens the menu', async () => {
+      render(<RightDock activeMode="edit" />);
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      expect(screen.getByTestId('dock-overflow-menu')).toBeInTheDocument();
+    });
+
+    it('overflow menu contains the hidden tabs', async () => {
+      render(<RightDock activeMode="edit" />);
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      const menu = screen.getByTestId('dock-overflow-menu');
+      // edit tabs 7-10: Palette, Copilot, Templates, Assets
+      expect(menu).toHaveTextContent('Palette');
+      expect(menu).toHaveTextContent('Copilot');
+      expect(menu).toHaveTextContent('Templates');
+      expect(menu).toHaveTextContent('Assets');
+    });
+
+    it('selecting an overflow tab closes the menu and renders the panel', async () => {
+      render(<RightDock activeMode="edit" />);
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      await act(async () => { await userEvent.click(screen.getByText('Copilot')); });
+      expect(screen.queryByTestId('dock-overflow-menu')).toBeNull();
+      expect(screen.getByTestId('copilot-panel')).toBeInTheDocument();
+    });
+
+    it('overflow trigger shows active tab name when an overflow tab is selected', async () => {
+      render(<RightDock activeMode="edit" />);
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      await act(async () => { await userEvent.click(screen.getByText('Assets')); });
+      expect(screen.getByTestId('dock-overflow-btn').textContent).toContain('Assets');
+    });
+  });
+
   describe('tab memory per mode', () => {
     it('returns to the previously selected tab when switching back to a mode', async () => {
       const { rerender } = render(<RightDock activeMode="edit" />);
-      // Select Analysis (index 3) in edit mode
+      // Select Analysis (visible tab index 3) in edit mode
       await act(async () => { await userEvent.click(screen.getByText('Analysis')); });
       expect(screen.getByText('Analysis').className).toContain('active');
 
@@ -229,18 +281,34 @@ describe('RightDock', () => {
 
     it('each mode independently tracks its own tab', async () => {
       const { rerender } = render(<RightDock activeMode="edit" />);
-      await act(async () => { await userEvent.click(screen.getByText('Copilot')); });
+      // Select Character (visible tab index 4) in edit mode
+      await act(async () => { await userEvent.click(screen.getByText('Character')); });
 
       rerender(<RightDock activeMode="scene" />);
       await act(async () => { await userEvent.click(screen.getByText('Camera')); });
 
-      // Back to edit — Copilot still active
+      // Back to edit — Character still active
       rerender(<RightDock activeMode="edit" />);
-      expect(screen.getByText('Copilot').className).toContain('active');
+      expect(screen.getByText('Character').className).toContain('active');
 
       // Back to scene — Camera still active
       rerender(<RightDock activeMode="scene" />);
       expect(screen.getByText('Camera').className).toContain('active');
+    });
+
+    it('overflow tab selection is remembered when switching modes and back', async () => {
+      const { rerender } = render(<RightDock activeMode="edit" />);
+      // Select Assets (overflow tab) via the overflow menu
+      await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
+      await act(async () => { await userEvent.click(screen.getByText('Assets')); });
+
+      // Switch away and back
+      rerender(<RightDock activeMode="scene" />);
+      rerender(<RightDock activeMode="edit" />);
+
+      // Overflow trigger should show Assets (the remembered overflow tab)
+      expect(screen.getByTestId('dock-overflow-btn').textContent).toContain('Assets');
+      expect(screen.getByTestId('asset-browser-panel')).toBeInTheDocument();
     });
   });
 
@@ -255,7 +323,8 @@ describe('RightDock', () => {
     it('switching from project-home to edit works', () => {
       const { rerender } = render(<RightDock activeMode="project-home" />);
       rerender(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(10);
+      // edit shows 6 visible + 1 overflow trigger
+      expect(screen.getAllByRole('button')).toHaveLength(7);
     });
 
     it('rapidly switching modes does not break active tab', () => {
