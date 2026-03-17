@@ -453,6 +453,53 @@ describe('Canvas component', () => {
       });
       expect(useTimelineStore.getState().playing).toBe(false);
     });
+
+    it('Ctrl+Shift+T repeats last transform command when transforming', async () => {
+      seedStores({ isTransforming: true });
+      useSelectionStore.setState({ lastTransformCommand: 'flip_selection_horizontal' });
+      mock.on('flip_selection_horizontal', () => ({
+        sourceX: 0, sourceY: 0, payloadWidth: 10, payloadHeight: 10,
+        offsetX: 0, offsetY: 0, payloadData: [],
+        frame: {
+          width: 32, height: 32, data: new Array(32 * 32 * 4).fill(0),
+          layers: [{ id: 'l1', name: 'L1', visible: true, locked: false, opacity: 1 }],
+          activeLayerId: 'l1', canUndo: false, canRedo: false,
+        },
+      }));
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyT', ctrlKey: true, shiftKey: true, bubbles: true }));
+      });
+      await vi.waitFor(() => {
+        expect(mock.fn).toHaveBeenCalledWith('flip_selection_horizontal');
+      });
+    });
+
+    it('Ctrl+Shift+T does nothing when not transforming', async () => {
+      seedStores({ isTransforming: false });
+      useSelectionStore.setState({ lastTransformCommand: 'flip_selection_horizontal' });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyT', ctrlKey: true, shiftKey: true, bubbles: true }));
+      });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mock.fn).not.toHaveBeenCalledWith('flip_selection_horizontal');
+    });
+
+    it('Ctrl+Shift+T does nothing when no lastTransformCommand', async () => {
+      seedStores({ isTransforming: true });
+      useSelectionStore.setState({ lastTransformCommand: null });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyT', ctrlKey: true, shiftKey: true, bubbles: true }));
+      });
+      await new Promise((r) => setTimeout(r, 50));
+      // No transform command should have been invoked
+      const transformCalls = mock.fn.mock.calls.filter((c: unknown[]) =>
+        typeof c[0] === 'string' && c[0].startsWith('flip_') || (typeof c[0] === 'string' && c[0].startsWith('rotate_'))
+      );
+      expect(transformCalls.length).toBe(0);
+    });
   });
 
   describe('focus guard', () => {

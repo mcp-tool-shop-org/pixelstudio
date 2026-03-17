@@ -18,12 +18,14 @@ interface SelectionState {
   isFloating: boolean;
   isTransforming: boolean;
   transformPreview: TransformPreviewData | null;
+  lastTransformCommand: string | null;
 
   setSelection: (bounds: Rect | null) => void;
   clearSelection: () => void;
   setSelectionMode: (mode: SelectionState['selectionMode']) => void;
   setTransform: (preview: TransformPreviewData) => void;
   clearTransform: () => void;
+  setLastTransformCommand: (cmd: string) => void;
 }
 
 export const useSelectionStore = create<SelectionState>((set) => ({
@@ -33,10 +35,12 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   isFloating: false,
   isTransforming: false,
   transformPreview: null,
+  lastTransformCommand: null,
 
   setSelection: (bounds) => set({ hasSelection: bounds !== null, selectionBounds: bounds }),
   clearSelection: () => set({ hasSelection: false, selectionBounds: null, isFloating: false, isTransforming: false, transformPreview: null }),
   setSelectionMode: (mode) => set({ selectionMode: mode }),
   setTransform: (preview) => set({ isTransforming: true, transformPreview: preview }),
   clearTransform: () => set({ isTransforming: false, transformPreview: null }),
+  setLastTransformCommand: (cmd) => set({ lastTransformCommand: cmd }),
 }));

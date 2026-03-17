@@ -30,6 +30,7 @@ export function TransformBar() {
   const transformPreview = useSelectionStore((s) => s.transformPreview);
   const setTransform = useSelectionStore((s) => s.setTransform);
   const clearTransform = useSelectionStore((s) => s.clearTransform);
+  const setLastTransformCommand = useSelectionStore((s) => s.setLastTransformCommand);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
   const [error, setError] = useState('');
@@ -47,10 +48,11 @@ export function TransformBar() {
         offsetY: result.offsetY,
         payloadData: result.payloadData,
       });
+      setLastTransformCommand(command);
     } catch (err) {
       setError(String(err));
     }
-  }, [setTransform]);
+  }, [setTransform, setLastTransformCommand]);
 
   const handleCommit = useCallback(async () => {
     setError('');

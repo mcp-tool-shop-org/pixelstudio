@@ -771,6 +771,20 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+Shift+T — repeat last transform (only while in transform mode)
+        if (e.code === 'KeyT' && e.shiftKey && useSelectionStore.getState().isTransforming) {
+          const lastCmd = useSelectionStore.getState().lastTransformCommand;
+          if (lastCmd) {
+            e.preventDefault();
+            try {
+              const result = await invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>(lastCmd);
+              setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
+              useSelectionStore.getState().setLastTransformCommand(lastCmd);
+            } catch (err) { console.error(`repeat transform (${lastCmd}) failed:`, err); }
+          }
+          return;
+        }
+
         if (e.code === 'KeyZ' && !e.shiftKey) {
           e.preventDefault();
           if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);

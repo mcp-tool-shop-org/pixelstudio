@@ -40,6 +40,35 @@ describe('clearSelection', () => {
   });
 });
 
+describe('lastTransformCommand', () => {
+  it('defaults to null', () => {
+    expect(useSelectionStore.getState().lastTransformCommand).toBeNull();
+  });
+
+  it('setLastTransformCommand stores the command', () => {
+    useSelectionStore.getState().setLastTransformCommand('flip_selection_horizontal');
+    expect(useSelectionStore.getState().lastTransformCommand).toBe('flip_selection_horizontal');
+  });
+
+  it('can be overwritten with a new command', () => {
+    useSelectionStore.getState().setLastTransformCommand('rotate_selection_90_cw');
+    useSelectionStore.getState().setLastTransformCommand('flip_selection_vertical');
+    expect(useSelectionStore.getState().lastTransformCommand).toBe('flip_selection_vertical');
+  });
+
+  it('clearTransform does not clear lastTransformCommand', () => {
+    useSelectionStore.getState().setLastTransformCommand('rotate_selection_90_ccw');
+    useSelectionStore.getState().clearTransform();
+    expect(useSelectionStore.getState().lastTransformCommand).toBe('rotate_selection_90_ccw');
+  });
+
+  it('clearSelection does not clear lastTransformCommand', () => {
+    useSelectionStore.getState().setLastTransformCommand('flip_selection_horizontal');
+    useSelectionStore.getState().clearSelection();
+    expect(useSelectionStore.getState().lastTransformCommand).toBe('flip_selection_horizontal');
+  });
+});
+
 describe('selectionMode', () => {
   it('defaults to replace', () => {
     expect(useSelectionStore.getState().selectionMode).toBe('replace');
