@@ -266,6 +266,20 @@ describe('Canvas component', () => {
       const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
       expect(canvas.style.cursor).toBe('crosshair');
     });
+
+    it('uses crosshair for lasso tool', () => {
+      seedStores({ activeTool: 'lasso' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
+
+    it('uses crosshair for magic-select tool', () => {
+      seedStores({ activeTool: 'magic-select' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
   });
 
   describe('keyboard dispatch', () => {

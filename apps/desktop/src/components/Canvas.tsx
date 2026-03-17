@@ -133,6 +133,9 @@ export function Canvas() {
   const isShapeDraggingRef = useRef(false);
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const shapeEndRef = useRef<{ x: number; y: number } | null>(null);
+  // Lasso tool drag state
+  const isLassoDraggingRef = useRef(false);
+  const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
   // Measure tool state
   const measureStartRef = useRef<{ x: number; y: number } | null>(null);
   const measureEndRef = useRef<{ x: number; y: number } | null>(null);
@@ -468,6 +471,22 @@ export function Canvas() {
       }
     }
 
+    // Lasso preview overlay
+    if (isLassoDraggingRef.current && lassoPointsRef.current.length >= 2) {
+      const pts = lassoPointsRef.current;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(100,200,255,0.8)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(originX + (pts[0].x + 0.5) * zoom, originY + (pts[0].y + 0.5) * zoom);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(originX + (pts[i].x + 0.5) * zoom, originY + (pts[i].y + 0.5) * zoom);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Shape tool preview overlay
     if (isShapeDraggingRef.current && shapeStartRef.current && shapeEndRef.current) {
       const s = shapeStartRef.current;
@@ -683,6 +702,36 @@ export function Canvas() {
         return;
       }
 
+      // Magic wand (magic-select) — flood fill → selection rect
+      if (e.button === 0 && activeTool === 'magic-select') {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          try {
+            const result = await invoke<{ x: number; y: number; width: number; height: number; pixelCount: number }>('magic_select', {
+              input: { x: pixel.x, y: pixel.y },
+            });
+            if (result.pixelCount > 0) {
+              setSelection({ x: result.x, y: result.y, width: result.width, height: result.height });
+              invoke('set_selection_rect', {
+                input: { x: result.x, y: result.y, width: result.width, height: result.height },
+              }).catch(() => {});
+            }
+          } catch (err) { console.error('magic_select failed:', err); }
+        }
+        return;
+      }
+
+      // Lasso tool — start freehand path
+      if (e.button === 0 && activeTool === 'lasso') {
+        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (pixel && frame) {
+          isLassoDraggingRef.current = true;
+          lassoPointsRef.current = [pixel];
+          canvas.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+
       // Measure tool — click to set start/end points
       if (e.button === 0 && activeTool === 'measure') {
         const pixel = screenToPixel(e.clientX, e.clientY);
@@ -780,6 +829,20 @@ export function Canvas() {
         return;
       }
 
+      // Lasso drag
+      if (isLassoDraggingRef.current) {
+        const current = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (current) {
+          const pts = lassoPointsRef.current;
+          const last = pts[pts.length - 1];
+          if (!last || last.x !== current.x || last.y !== current.y) {
+            pts.push(current);
+            render();
+          }
+        }
+        return;
+      }
+
       // Shape tool drag
       if (isShapeDraggingRef.current) {
         const current = screenToPixelUnclamped(e.clientX, e.clientY);
@@ -855,6 +918,37 @@ export function Canvas() {
   );
 
   const handlePointerUp = useCallback(async () => {
+    // Lasso complete — compute bounding rect of freehand path
+    if (isLassoDraggingRef.current) {
+      isLassoDraggingRef.current = false;
+      const pts = lassoPointsRef.current;
+      lassoPointsRef.current = [];
+      if (pts.length >= 3 && frame) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of pts) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        }
+        // Clamp to canvas bounds
+        minX = Math.max(0, minX);
+        minY = Math.max(0, minY);
+        maxX = Math.min(frame.width - 1, maxX);
+        maxY = Math.min(frame.height - 1, maxY);
+        const w = maxX - minX + 1;
+        const h = maxY - minY + 1;
+        if (w > 0 && h > 0) {
+          setSelection({ x: minX, y: minY, width: w, height: h });
+          invoke('set_selection_rect', {
+            input: { x: minX, y: minY, width: w, height: h },
+          }).catch(() => {});
+        }
+      }
+      render();
+      return;
+    }
+
     // Shape tool complete — commit shape to canvas
     if (isShapeDraggingRef.current) {
       isShapeDraggingRef.current = false;
@@ -1168,7 +1262,7 @@ export function Canvas() {
     ? 'move'
     : activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool)
       ? 'crosshair'
-      : activeTool === 'marquee' || SHAPE_TOOLS.has(activeTool) || activeTool === 'fill'
+      : activeTool === 'marquee' || SHAPE_TOOLS.has(activeTool) || activeTool === 'fill' || activeTool === 'lasso' || activeTool === 'magic-select'
         ? 'crosshair'
         : activeTool === 'color-select'
           ? 'copy'

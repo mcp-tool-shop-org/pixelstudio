@@ -59,6 +59,7 @@ pub fn run() {
             canvas::reorder_layer,
             canvas::fill_rect,
             canvas::flood_fill,
+            canvas::magic_select,
             canvas::render_template,
             selection::set_selection_rect,
             selection::clear_selection,

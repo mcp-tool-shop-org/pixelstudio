@@ -480,6 +480,89 @@ pub fn flood_fill(
     Ok(build_frame(canvas))
 }
 
+// --- Magic select (wand tool — flood fill that returns bounding rect) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MagicSelectInput {
+    pub x: u32,
+    pub y: u32,
+    pub layer_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MagicSelectResult {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub pixel_count: u32,
+}
+
+#[command]
+pub fn magic_select(
+    input: MagicSelectInput,
+    state: State<'_, ManagedCanvasState>,
+) -> Result<MagicSelectResult, AppError> {
+    let guard = state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let target_id = input.layer_id
+        .or_else(|| canvas.active_layer_id.clone())
+        .ok_or_else(|| AppError::Internal("No active layer".to_string()))?;
+
+    let layer = canvas.layer_by_id(&target_id)
+        .ok_or_else(|| AppError::Internal("Layer not found".to_string()))?;
+
+    if !layer.buffer.in_bounds(input.x, input.y) {
+        return Err(AppError::Internal("Pixel out of bounds".to_string()));
+    }
+
+    let target_color = layer.buffer.get_pixel(input.x, input.y);
+    let tc = [target_color.r, target_color.g, target_color.b, target_color.a];
+
+    let w = canvas.width;
+    let h = canvas.height;
+    let mut visited = vec![false; (w * h) as usize];
+    let mut stack: Vec<(u32, u32)> = vec![(input.x, input.y)];
+    let mut min_x = input.x;
+    let mut min_y = input.y;
+    let mut max_x = input.x;
+    let mut max_y = input.y;
+    let mut count: u32 = 0;
+
+    while let Some((cx, cy)) = stack.pop() {
+        let idx = (cy * w + cx) as usize;
+        if visited[idx] { continue; }
+
+        let pixel = layer.buffer.get_pixel(cx, cy);
+        let pc = [pixel.r, pixel.g, pixel.b, pixel.a];
+        if pc != tc { continue; }
+
+        visited[idx] = true;
+        count += 1;
+        if cx < min_x { min_x = cx; }
+        if cx > max_x { max_x = cx; }
+        if cy < min_y { min_y = cy; }
+        if cy > max_y { max_y = cy; }
+
+        if cx > 0 { stack.push((cx - 1, cy)); }
+        if cx + 1 < w { stack.push((cx + 1, cy)); }
+        if cy > 0 { stack.push((cx, cy - 1)); }
+        if cy + 1 < h { stack.push((cx, cy + 1)); }
+    }
+
+    Ok(MagicSelectResult {
+        x: min_x,
+        y: min_y,
+        width: max_x - min_x + 1,
+        height: max_y - min_y + 1,
+        pixel_count: count,
+    })
+}
+
 // --- Template rendering (for AI copilot sprite generation) ---
 
 #[derive(Debug, Deserialize)]
