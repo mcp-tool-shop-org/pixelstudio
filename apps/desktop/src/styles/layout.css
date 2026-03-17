@@ -9927,3 +9927,240 @@
   outline: none;
   border-color: var(--accent-primary, #7c6fe0);
 }
+
+/* ── Template Browser Panel ── */
+
+.template-browser-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.template-filter-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.template-search {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 4px;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 12px;
+}
+
+.template-search:focus {
+  outline: none;
+  border-color: var(--accent-primary, #7c6fe0);
+}
+
+.template-archetype-filter {
+  padding: 4px 6px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 4px;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 11px;
+}
+
+.template-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-secondary, #2a2a3a);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 12px;
+  transition: border-color 0.15s;
+}
+
+.template-card:hover {
+  border-color: var(--accent-secondary, #5a5ae0);
+}
+
+.template-card.selected {
+  border-color: var(--accent-primary, #7c6fe0);
+  background: var(--bg-tertiary, #1e1e2e);
+}
+
+.template-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.template-card-name {
+  font-weight: 600;
+}
+
+.template-card-size {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.template-card-colors {
+  display: flex;
+  gap: 3px;
+}
+
+.template-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.template-card-tags {
+  display: flex;
+  gap: 4px;
+}
+
+.template-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: rgba(124, 111, 224, 0.15);
+  border-radius: 3px;
+  color: var(--accent-primary, #7c6fe0);
+}
+
+.template-empty {
+  text-align: center;
+  padding: 16px;
+  opacity: 0.5;
+  font-size: 12px;
+}
+
+.template-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-secondary, #2a2a3a);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 6px;
+}
+
+.template-detail-name {
+  margin: 0;
+  font-size: 14px;
+}
+
+.template-detail-desc {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.template-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.template-reset-btn {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 3px;
+  color: var(--text-secondary, #a0a0b0);
+  cursor: pointer;
+}
+
+.template-reset-btn:hover {
+  border-color: var(--accent-primary, #7c6fe0);
+}
+
+.template-color-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.template-color-row input[type="color"] {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+
+.template-color-label {
+  font-weight: 600;
+  min-width: 50px;
+}
+
+.template-color-desc {
+  opacity: 0.6;
+}
+
+.template-scale-row {
+  font-size: 11px;
+}
+
+.template-scale-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.template-scale-row input[type="range"] {
+  flex: 1;
+  height: 4px;
+}
+
+.template-instantiate-btn {
+  padding: 6px 12px;
+  background: var(--accent-primary, #7c6fe0);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.template-instantiate-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.template-instantiate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.template-status {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border-radius: 3px;
+  color: var(--text-secondary, #a0a0b0);
+}

@@ -46,6 +46,9 @@ vi.mock('../components/ComfyUIGeneratePanel', () => ({
 vi.mock('../components/AISettingsPanel', () => ({
   AISettingsPanel: () => <div data-testid="ai-settings-panel">AISettingsPanel</div>,
 }));
+vi.mock('../components/TemplateBrowserPanel', () => ({
+  TemplateBrowserPanel: () => <div data-testid="template-browser-panel">TemplateBrowserPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock } from '../components/RightDock';
@@ -55,10 +58,10 @@ describe('RightDock', () => {
 
   describe('tab rendering per mode', () => {
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Copilot', 'Assets']],
+      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Copilot', 'Templates', 'Assets']],
       ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion']],
       ['palette', ['Palette Props', 'Validation']],
-      ['ai', ['Copilot', 'Generate', 'AI Settings', 'Layers', 'Provenance']],
+      ['ai', ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
       ['validate', ['Validation', 'Properties', 'Provenance']],
       ['export', ['Export Settings']],
@@ -79,9 +82,9 @@ describe('RightDock', () => {
   });
 
   describe('tab count per mode', () => {
-    it('edit has 9 tabs', () => {
+    it('edit has 10 tabs', () => {
       render(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(9);
+      expect(screen.getAllByRole('button')).toHaveLength(10);
     });
 
     it('export has 1 tab', () => {
@@ -218,7 +221,7 @@ describe('RightDock', () => {
     it('switching from project-home to edit works', () => {
       const { rerender } = render(<RightDock activeMode="project-home" />);
       rerender(<RightDock activeMode="edit" />);
-      expect(screen.getAllByRole('button')).toHaveLength(9);
+      expect(screen.getAllByRole('button')).toHaveLength(10);
     });
 
     it('rapidly switching modes does not break active tab', () => {
