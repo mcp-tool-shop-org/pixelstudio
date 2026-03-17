@@ -16,25 +16,33 @@ const CANVAS_PATH = path.resolve(
   __dirname,
   '../../../apps/desktop/src/components/Canvas.tsx',
 );
+const POINTER_HANDLERS_PATH = path.resolve(
+  __dirname,
+  '../../../apps/desktop/src/lib/useCanvasPointerHandlers.ts',
+);
 
 describe('CI Gates — Audit Enforcement', () => {
   // ── Gate 4: No ephemeral authored state ──────────────────────
   describe('Gate 4: No ephemeral authored state in Canvas', () => {
+    // After P3-C5, slice logic lives in useCanvasPointerHandlers.ts (not Canvas.tsx).
+    // The gate still enforces: Rust is the source of truth for slice regions.
     it('slice regions are loaded from Rust (list_slice_regions)', () => {
-      const source = fs.readFileSync(CANVAS_PATH, 'utf-8');
+      const source = fs.readFileSync(POINTER_HANDLERS_PATH, 'utf-8');
       expect(source).toContain('list_slice_regions');
     });
 
     it('slice regions are created via Rust (create_slice_region)', () => {
-      const source = fs.readFileSync(CANVAS_PATH, 'utf-8');
+      const source = fs.readFileSync(POINTER_HANDLERS_PATH, 'utf-8');
       expect(source).toContain('create_slice_region');
     });
 
     it('no client-side slice region creation pattern', () => {
-      const source = fs.readFileSync(CANVAS_PATH, 'utf-8');
+      const canvasSource = fs.readFileSync(CANVAS_PATH, 'utf-8');
+      const hookSource = fs.readFileSync(POINTER_HANDLERS_PATH, 'utf-8');
       // Reject: setSliceRegions((prev) => [...prev, { x:... }])
       const clientSideCreate = /setSliceRegions\(\s*\(prev\)\s*=>/;
-      expect(source).not.toMatch(clientSideCreate);
+      expect(canvasSource).not.toMatch(clientSideCreate);
+      expect(hookSource).not.toMatch(clientSideCreate);
     });
   });
 
