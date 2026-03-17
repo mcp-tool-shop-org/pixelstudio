@@ -84,80 +84,179 @@ export interface CritiqueResult {
 
 // ── Prompt builders ──
 
+/** Palette presets for consistent color schemes. */
+export interface ColorPalette {
+  name: string;
+  primary: [number, number, number, number];
+  secondary: [number, number, number, number];
+  accent: [number, number, number, number];
+  skin: [number, number, number, number];
+  shadow: [number, number, number, number];
+  highlight: [number, number, number, number];
+}
+
+export const PALETTES: Record<string, ColorPalette> = {
+  'fantasy-dark': {
+    name: 'Fantasy Dark',
+    primary: [40, 30, 60, 255],
+    secondary: [70, 50, 90, 255],
+    accent: [220, 180, 50, 255],
+    skin: [200, 160, 130, 255],
+    shadow: [20, 15, 30, 255],
+    highlight: [100, 200, 220, 255],
+  },
+  'bright-adventure': {
+    name: 'Bright Adventure',
+    primary: [50, 80, 160, 255],
+    secondary: [180, 60, 50, 255],
+    accent: [240, 200, 40, 255],
+    skin: [220, 180, 150, 255],
+    shadow: [30, 40, 60, 255],
+    highlight: [255, 255, 240, 255],
+  },
+  'earth-tones': {
+    name: 'Earth Tones',
+    primary: [90, 65, 45, 255],
+    secondary: [60, 90, 50, 255],
+    accent: [180, 140, 60, 255],
+    skin: [210, 175, 140, 255],
+    shadow: [40, 30, 25, 255],
+    highlight: [240, 225, 200, 255],
+  },
+  'fire-creature': {
+    name: 'Fire Creature',
+    primary: [120, 30, 20, 255],
+    secondary: [180, 60, 20, 255],
+    accent: [255, 180, 30, 255],
+    skin: [200, 100, 50, 255],
+    shadow: [50, 15, 10, 255],
+    highlight: [255, 220, 100, 255],
+  },
+};
+
+function paletteToPrompt(palette: ColorPalette): string {
+  const fmt = (c: number[]) => `[${c.join(',')}]`;
+  return `COLOR PALETTE (use these colors, do NOT invent random colors):
+- Primary (body/main mass): ${fmt(palette.primary)}
+- Secondary (clothing/armor/scales): ${fmt(palette.secondary)}
+- Accent (weapon/magic/eyes/important details): ${fmt(palette.accent)}
+- Skin/Light areas (face/hands/belly): ${fmt(palette.skin)}
+- Shadow (dark sides/under areas): ${fmt(palette.shadow)}
+- Highlight (glow/rim light/tips): ${fmt(palette.highlight)}`;
+}
+
+/** Few-shot example of a good sprite (knight with sword). */
+const FEW_SHOT_EXAMPLE = `EXAMPLE of a GOOD sprite (knight with sword, 12 shapes):
+{"shapes":[
+  {"name":"body","type":"rect","x":190,"y":180,"w":120,"h":180,"fill":[50,80,160,255],"mustSurvive":true},
+  {"name":"head","type":"ellipse","cx":250,"cy":150,"rx":50,"ry":45,"fill":[220,180,150,255],"mustSurvive":true},
+  {"name":"helmet","type":"polygon","points":[{"x":200,"y":130},{"x":250,"y":80},{"x":300,"y":130}],"fill":[160,160,170,255],"mustSurvive":true},
+  {"name":"left-shoulder","type":"ellipse","cx":175,"cy":200,"rx":35,"ry":25,"fill":[60,90,170,255]},
+  {"name":"right-shoulder","type":"ellipse","cx":325,"cy":200,"rx":35,"ry":25,"fill":[60,90,170,255]},
+  {"name":"left-arm","type":"rect","x":150,"y":220,"w":30,"h":100,"fill":[50,70,150,255]},
+  {"name":"right-arm","type":"rect","x":320,"y":220,"w":30,"h":100,"fill":[50,70,150,255]},
+  {"name":"sword","type":"rect","x":355,"y":120,"w":16,"h":200,"fill":[200,200,210,255],"mustSurvive":true},
+  {"name":"sword-hilt","type":"rect","x":340,"y":300,"w":46,"h":20,"fill":[180,140,60,255]},
+  {"name":"belt","type":"rect","x":190,"y":280,"w":120,"h":20,"fill":[180,140,60,255]},
+  {"name":"left-leg","type":"rect","x":195,"y":360,"w":45,"h":100,"fill":[40,60,130,255]},
+  {"name":"right-leg","type":"rect","x":260,"y":360,"w":45,"h":100,"fill":[40,60,130,255]}
+]}
+Notice: head is ABOVE body, shoulders WIDER than body, arms SEPARATED from torso with gaps, legs SEPARATED from each other, sword is to the RIGHT side away from body, colors have HIGH CONTRAST (light head vs dark body, gold belt vs blue armor).`;
+
 function buildCharacterPrompt(
   description: string,
   artboardWidth: number,
   artboardHeight: number,
   targetSizes: number[],
   existingShapes?: string,
+  palette?: ColorPalette,
 ): string {
-  return `You are a 2D sprite artist designing vector shapes for a pixel art character.
+  const w = artboardWidth;
+  const h = artboardHeight;
+  const minTarget = Math.min(...targetSizes);
+  const minDim = Math.round(w * 0.06); // 6% = survives at 16px (gives ~1-2px)
 
-TASK: Design "${description}" as vector shapes on a ${artboardWidth}x${artboardHeight} artboard.
+  // Spatial grid regions
+  const grid = `SPATIAL LAYOUT GRID (${w}x${h} artboard):
+- Top zone (head/hat): y = ${Math.round(h*0.05)} to ${Math.round(h*0.30)}
+- Upper zone (shoulders/chest): y = ${Math.round(h*0.25)} to ${Math.round(h*0.45)}
+- Middle zone (torso/arms): y = ${Math.round(h*0.40)} to ${Math.round(h*0.65)}
+- Lower zone (waist/hips): y = ${Math.round(h*0.60)} to ${Math.round(h*0.75)}
+- Bottom zone (legs/feet): y = ${Math.round(h*0.70)} to ${Math.round(h*0.95)}
+- Center x = ${Math.round(w*0.5)}, character should span x = ${Math.round(w*0.25)} to ${Math.round(w*0.75)}
+- Weapon/accessory: offset to LEFT or RIGHT side (x < ${Math.round(w*0.25)} or x > ${Math.round(w*0.75)})`;
 
-CRITICAL DESIGN RULES:
-- This will be rendered as pixel art at these tiny sizes: ${targetSizes.join(', ')} pixels
-- Every shape must be BIG ENOUGH to survive reduction to ${Math.min(...targetSizes)}x${Math.min(...targetSizes)}
-- Minimum dimension for any shape: ${Math.round(artboardWidth * 0.04)}px (anything smaller vanishes)
-- Use HIGH CONTRAST between adjacent shapes — dark next to light, warm next to cool
-- SEPARATE FORMS clearly — arms away from torso, head distinct from body
-- Silhouette must read instantly — a stranger should recognize what this is from the outline alone
-- Use 10-20 shapes total. More than 20 is too complex.
-- Center the character in the artboard with padding on all sides
+  const proportions = `PROPORTION RULES:
+- Head: ${Math.round(h*0.15)}-${Math.round(h*0.20)}px tall (15-20% of height) — LARGE head reads well small
+- Shoulders: ${Math.round(w*0.25)}-${Math.round(w*0.35)}px wide (wider than head!)
+- Body width: ${Math.round(w*0.20)}-${Math.round(w*0.28)}px
+- Arms: MUST have ${Math.round(w*0.03)}-${Math.round(w*0.06)}px GAP between arm and body
+- Legs: MUST have ${Math.round(w*0.02)}-${Math.round(w*0.04)}px GAP between legs
+- Total height: ${Math.round(h*0.60)}-${Math.round(h*0.85)}px (leave padding top and bottom)`;
 
-SHAPE TYPES AVAILABLE:
-- rect: { type: "rect", x, y, w, h } — rectangles
-- ellipse: { type: "ellipse", cx, cy, rx, ry } — ovals
-- polygon: { type: "polygon", points: [{x,y}...], closed: true } — closed shapes (3+ points)
-- path: { type: "path", points: [{x,y}...], closed: true/false, segments: [{kind:"line"} or {kind:"quadratic",cpX,cpY}] } — curves
+  const overlap = `OVERLAP RULES (CRITICAL):
+- Shapes that represent different body parts must NOT overlap
+- Arms must be NEXT TO the body, not ON TOP of it
+- Head sits ABOVE the body, not inside it
+- If two shapes share the same area, they will merge visually — this is BAD
+- Weapon/staff should be BESIDE the character, not behind it
+- EXCEPTION: shadow/highlight shapes CAN overlap their parent (for shading)`;
 
-FILL FORMAT: [R, G, B, A] where each is 0-255
+  const paletteSection = palette
+    ? paletteToPrompt(palette)
+    : `COLOR RULES:
+- Adjacent shapes must have contrast > 80 in at least one RGB channel
+- Body parts: use dark values (30-80)
+- Skin/face: use light values (150-220)
+- Accessories: use saturated accent colors (one channel > 180)
+- Do NOT make everything the same color — this creates a blob`;
 
-GOOD SPRITE DESIGN:
-- Wide shoulders/hips for humanoids (breaks the "rectangle" read)
-- Exaggerated key features (big head, big weapon, distinctive silhouette)
-- Color contrast between body parts (dark body, light face/hands, colored accessories)
-- Negative space between limbs and body
-- Identity cues (hood, wings, horns, weapon) must be LARGE, not tiny details
+  return `You are a 2D pixel art sprite designer. You output vector shapes as JSON.
 
-${existingShapes ? `CURRENT SHAPES (improve these, don't start from scratch):\n${existingShapes}\n` : ''}
+TASK: Design "${description}" on a ${w}x${h} artboard.
+Target render sizes: ${targetSizes.join('x, ')}x pixels. Must read clearly at ${minTarget}x${minTarget}.
 
-OUTPUT FORMAT: Return ONLY valid JSON, no markdown, no explanation outside the JSON.
-{
-  "reasoning": "Brief explanation of design choices",
-  "shapes": [
-    {
-      "name": "shape-name",
-      "type": "rect|ellipse|polygon|path",
-      "fill": [R, G, B, A],
-      "mustSurvive": true/false,
-      ...type-specific fields
-    }
-  ]
-}`;
+${grid}
+
+${proportions}
+
+${overlap}
+
+${paletteSection}
+
+SHAPE TYPES (use rect and ellipse primarily, polygon for pointed shapes):
+- rect: {"type":"rect","x":N,"y":N,"w":N,"h":N} — body, limbs, weapons
+- ellipse: {"type":"ellipse","cx":N,"cy":N,"rx":N,"ry":N} — heads, shoulders, shields
+- polygon: {"type":"polygon","points":[{"x":N,"y":N}...],"closed":true} — hats, wings, tails (3-6 points)
+
+FILL: [R,G,B,255] — always full opacity
+
+SIZE RULES:
+- Minimum width or height for ANY shape: ${minDim}px
+- Shapes smaller than ${minDim}px will vanish at ${minTarget}x${minTarget} — do not create them
+
+${FEW_SHOT_EXAMPLE}
+
+${existingShapes ? `CURRENT SHAPES TO IMPROVE (keep what works, fix what doesn't):\n${existingShapes}\n` : ''}
+RETURN ONLY valid JSON. No markdown fences. No explanation outside the JSON object.
+{"reasoning":"...","shapes":[...]}`;
 }
 
 function buildCritiquePrompt(): string {
-  return `You are a pixel art quality critic reviewing a sprite.
+  return `You are a pixel art critic. This is a small sprite upscaled for visibility.
 
-Look at this sprite and answer:
-1. What does this look like? Can you identify it instantly?
-2. Is the silhouette clear and distinct, or is it a blob?
-3. Which body parts or features are readable? Which merge together?
-4. What specific changes would make it read better at small size?
+Answer these questions:
+1. IDENTITY: What does this look like? If you saw this at 32x32 pixels, what would you guess it is?
+2. SILHOUETTE: Is the outline distinctive, or could it be anything? What makes it recognizable (or not)?
+3. FORM SEPARATION: Which body parts are clearly distinct? Which merge into a blob?
+4. COLOR: Is there enough contrast between adjacent areas? Can you distinguish the parts?
+5. FIXES: What 3-5 specific changes would most improve readability?
 
-Be brutally honest. Focus on FORM SEPARATION and SILHOUETTE READABILITY.
-Give exactly 3-5 concrete suggestions as a JSON array.
+Be specific: say "widen the gap between arms and torso" not "improve separation."
+Say "the head is too small relative to body" not "proportions need work."
 
-OUTPUT FORMAT: Return ONLY valid JSON.
-{
-  "critique": "What this reads as and overall assessment",
-  "suggestions": [
-    "Specific change 1",
-    "Specific change 2",
-    "Specific change 3"
-  ]
-}`;
+RETURN ONLY valid JSON. No markdown.
+{"critique":"One sentence: what this reads as","silhouette":"good/weak/blob","formSeparation":"which parts merge","suggestions":["Fix 1","Fix 2","Fix 3"]}`;
 }
 
 function buildRefinePrompt(
@@ -169,28 +268,34 @@ function buildRefinePrompt(
   critique: string,
   suggestions: string[],
 ): string {
-  return `You are a 2D sprite artist refining vector shapes based on critique feedback.
+  const w = artboardWidth;
+  const h = artboardHeight;
+  const minDim = Math.round(w * 0.06);
 
-ORIGINAL DESIGN: "${description}" on ${artboardWidth}x${artboardHeight} artboard.
-TARGET SIZES: ${targetSizes.join(', ')} pixels
+  return `You are refining a sprite based on visual critique.
+
+DESIGN: "${description}" on ${w}x${h} artboard. Renders at ${targetSizes.join(', ')}px.
 
 CURRENT SHAPES:
 ${currentShapesJson}
 
-CRITIQUE: ${critique}
+WHAT THE VISION MODEL SAW WRONG:
+${critique}
 
-SPECIFIC FIXES NEEDED:
+SPECIFIC FIXES TO APPLY:
 ${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-Apply these fixes. Return the COMPLETE updated shape list (not just changes).
-Keep shapes that work, fix shapes that don't, add/remove shapes as needed.
-Remember: minimum dimension ${Math.round(artboardWidth * 0.04)}px for survival at ${Math.min(...targetSizes)}px.
+HOW TO FIX:
+- If shapes "merge" or "blob together": MOVE them apart (increase gap by ${Math.round(w * 0.04)}px+)
+- If something is "too small": increase its w/h by 50% minimum
+- If "no contrast": change one shape's fill — make dark shapes lighter or vice versa
+- If "can't identify": make the key identity feature (weapon/wings/hood) BIGGER and more offset
+- Do NOT shrink anything. Only enlarge, move apart, or recolor.
+- Minimum shape dimension: ${minDim}px
 
-OUTPUT FORMAT: Return ONLY valid JSON, no markdown.
-{
-  "reasoning": "What you changed and why",
-  "shapes": [ ...complete shape list... ]
-}`;
+Return the COMPLETE updated shape list. Every shape, even unchanged ones.
+RETURN ONLY valid JSON. No markdown.
+{"reasoning":"What changed","shapes":[...all shapes...]}`;
 }
 
 // ── Ollama API calls ──
@@ -422,6 +527,7 @@ export async function generateShapesFromDescription(
   targetSizes: number[],
   existingDoc?: VectorMasterDocument,
   config: OllamaGenerateConfig = DEFAULT_GENERATE_CONFIG,
+  palette?: ColorPalette,
 ): Promise<GenerateResult> {
   const existingShapes = existingDoc ? serializeDocShapes(existingDoc) : undefined;
 
@@ -431,6 +537,7 @@ export async function generateShapesFromDescription(
     artboardHeight,
     targetSizes,
     existingShapes,
+    palette,
   );
 
   const result = await callOllamaText(prompt, config);
@@ -605,7 +712,9 @@ export async function generateWithCritiqueLoop(
   targetSizes: number[],
   rasterizeFn: (shapes: LLMShapeDef[], w: number, h: number) => SpritePixelBuffer,
   config: OllamaGenerateConfig = DEFAULT_GENERATE_CONFIG,
-  maxRefinements: number = 1,
+  maxRefinements: number = 2,
+  palette?: ColorPalette,
+  onProgress?: (step: string) => void,
 ): Promise<{
   ok: boolean;
   shapes: LLMShapeDef[];
@@ -614,6 +723,7 @@ export async function generateWithCritiqueLoop(
   error: string | null;
 }> {
   // Step 1: Generate
+  onProgress?.('Generating initial shapes...');
   const initial = await generateShapesFromDescription(
     description,
     artboardWidth,
@@ -621,6 +731,7 @@ export async function generateWithCritiqueLoop(
     targetSizes,
     undefined,
     config,
+    palette,
   );
 
   if (!initial.ok || initial.shapes.length === 0) {
@@ -633,12 +744,19 @@ export async function generateWithCritiqueLoop(
 
   for (let i = 0; i < maxRefinements; i++) {
     // Step 2: Rasterize and critique
+    onProgress?.(`Round ${i + 1}: sending to vision model for critique...`);
     const critiqueSize = Math.max(64, ...targetSizes);
     const buf = rasterizeFn(currentShapes, critiqueSize, critiqueSize);
     const critique = await critiqueRenderedSprite(buf, config);
     critiques.push(critique);
 
-    if (!critique.ok || critique.suggestions.length === 0) break;
+    if (!critique.ok || critique.suggestions.length === 0) {
+      onProgress?.(`Round ${i + 1}: critique returned no suggestions, stopping`);
+      break;
+    }
+
+    onProgress?.(`Round ${i + 1}: critique says "${critique.critique?.slice(0, 80)}..."`);
+    onProgress?.(`Round ${i + 1}: refining shapes based on ${critique.suggestions.length} suggestions...`);
 
     // Step 3: Refine
     const refined = await refineShapesFromCritique(

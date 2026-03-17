@@ -46,12 +46,14 @@ export {
   shapesToProposalSet,
   generateWithCritiqueLoop,
   DEFAULT_GENERATE_CONFIG,
+  PALETTES,
 } from './ollamaGenerate';
 export type {
   OllamaGenerateConfig,
   LLMShapeDef,
   GenerateResult,
   CritiqueResult,
+  ColorPalette,
 } from './ollamaGenerate';
 export {
   createEmptySession,
