@@ -37,6 +37,7 @@ export function VectorWorkspace() {
         case 'e': setActiveTool('v-ellipse'); break;
         case 'l': setActiveTool('v-line'); break;
         case 'p': setActiveTool('v-polygon'); break;
+        case 'q': setActiveTool('v-path'); break;
       }
     };
     window.addEventListener('keydown', handleKey);

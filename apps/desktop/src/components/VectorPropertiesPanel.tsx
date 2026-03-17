@@ -1,5 +1,6 @@
 import { useVectorMasterStore } from '@glyphstudio/state';
-import type { SurvivalHint } from '@glyphstudio/domain';
+import type { SurvivalHint, PathGeometry } from '@glyphstudio/domain';
+import { pathToggleClosed, pathConvertSegment, pathSetPointType, pathDeletePoint } from '@glyphstudio/domain';
 
 function rgbaToHex(c: [number, number, number, number]): string {
   return '#' + [c[0], c[1], c[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -13,6 +14,7 @@ export function VectorPropertiesPanel() {
   const setShapeReduction = useVectorMasterStore((s) => s.setShapeReduction);
   const setShapeGroup = useVectorMasterStore((s) => s.setShapeGroup);
   const duplicateShape = useVectorMasterStore((s) => s.duplicateShape);
+  const setShapeGeometry = useVectorMasterStore((s) => s.setShapeGeometry);
 
   if (!doc || selectedIds.length === 0) {
     return (
@@ -55,6 +57,76 @@ export function VectorPropertiesPanel() {
         <label className="prop-label">Type</label>
         <span className="prop-value">{shape.geometry.kind}</span>
       </div>
+
+      {/* Path controls */}
+      {shape.geometry.kind === 'path' && (() => {
+        const geo = shape.geometry as PathGeometry;
+        const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+        return (
+          <>
+            <div className="prop-group">
+              <label className="prop-label">Path</label>
+              <span className="prop-value">
+                {geo.points.length} pts, {segCount} segs, {geo.closed ? 'closed' : 'open'}
+              </span>
+            </div>
+            <div className="prop-group">
+              <button
+                className="prop-action-btn"
+                onClick={() => setShapeGeometry(shape.id, pathToggleClosed(geo))}
+              >
+                {geo.closed ? 'Open Path' : 'Close Path'}
+              </button>
+            </div>
+            <div className="prop-group">
+              <label className="prop-label">Points</label>
+              <div className="path-point-list">
+                {geo.points.map((pt, i) => (
+                  <div key={i} className="path-point-row">
+                    <span className="path-point-idx">{i}</span>
+                    <span className="path-point-coords">
+                      {Math.round(pt.x)},{Math.round(pt.y)}
+                    </span>
+                    <button
+                      className={`path-point-type-btn ${pt.pointType === 'smooth' ? 'smooth' : 'corner'}`}
+                      title={pt.pointType === 'smooth' ? 'Smooth (click for corner)' : 'Corner (click for smooth)'}
+                      onClick={() => setShapeGeometry(shape.id, pathSetPointType(geo, i, pt.pointType === 'smooth' ? 'corner' : 'smooth'))}
+                    >
+                      {pt.pointType === 'smooth' ? '\u25CF' : '\u25A0'}
+                    </button>
+                    {geo.points.length > 2 && (
+                      <button
+                        className="shape-action-btn danger"
+                        title="Delete point"
+                        onClick={() => setShapeGeometry(shape.id, pathDeletePoint(geo, i))}
+                      >
+                        {'\u2715'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="prop-group">
+              <label className="prop-label">Segments</label>
+              <div className="path-point-list">
+                {geo.segments.map((seg, i) => (
+                  <div key={i} className="path-point-row">
+                    <span className="path-point-idx">{i}</span>
+                    <span className="path-point-coords">{seg.kind}</span>
+                    <button
+                      className="prop-action-btn-sm"
+                      onClick={() => setShapeGeometry(shape.id, pathConvertSegment(geo, i, seg.kind === 'line' ? 'quadratic' : 'line'))}
+                    >
+                      {seg.kind === 'line' ? '\u2192 Curve' : '\u2192 Line'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Transform */}
       <div className="prop-group">

@@ -5,11 +5,12 @@ import type { Rgba } from '@glyphstudio/domain';
 // ── Tool definitions ──
 
 const VECTOR_TOOLS: { id: VectorToolId; label: string; key: string; title: string }[] = [
-  { id: 'v-select', label: 'V', key: 'V', title: 'Select / Move (V)' },
+  { id: 'v-select', label: 'V', key: 'V', title: 'Select / Move (V) — click path points to edit' },
   { id: 'v-rect', label: 'R', key: 'R', title: 'Rectangle (R)' },
   { id: 'v-ellipse', label: 'E', key: 'E', title: 'Ellipse (E)' },
   { id: 'v-line', label: 'L', key: 'L', title: 'Line (L)' },
   { id: 'v-polygon', label: 'P', key: 'P', title: 'Polygon (P) — click to add points, double-click to close' },
+  { id: 'v-path', label: 'Q', key: 'Q', title: 'Path (Q) — click to add points, Shift+click for curve, double-click to close, Enter for open' },
 ];
 
 function rgbaToHex(c: Rgba): string {

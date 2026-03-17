@@ -18,7 +18,7 @@ function ShapeRow({ shape, isSelected }: { shape: VectorShape; isSelected: boole
         selectShape(shape.id);
       }}
     >
-      <span className="shape-kind-badge">{shape.geometry.kind[0].toUpperCase()}</span>
+      <span className="shape-kind-badge">{shape.geometry.kind === 'path' ? 'Q' : shape.geometry.kind[0].toUpperCase()}</span>
       <span className="shape-name">{shape.name}</span>
       {shape.reduction.survivalHint && (
         <span className={`shape-survival-badge ${shape.reduction.survivalHint}`}>

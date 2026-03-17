@@ -4,9 +4,12 @@ import type {
   VectorShape,
   VectorGeometry,
   VectorTransform,
+  PathGeometry,
+  PathPoint,
+  PathSegment,
   Rgba,
 } from '@glyphstudio/domain';
-import { DEFAULT_VECTOR_TRANSFORM } from '@glyphstudio/domain';
+import { DEFAULT_VECTOR_TRANSFORM, flattenPath, pathMovePoint, pathMoveControlPoint } from '@glyphstudio/domain';
 
 // ── Constants ──
 
@@ -91,6 +94,26 @@ function renderShape(ctx: CanvasRenderingContext2D, shape: VectorShape): void {
       }
       break;
     }
+    case 'path': {
+      ctx.beginPath();
+      const pts = geo.points;
+      const segs = geo.segments;
+      if (pts.length >= 2) {
+        ctx.moveTo(pts[0].x - t.x, pts[0].y - t.y);
+        const segCount = geo.closed ? pts.length : pts.length - 1;
+        for (let i = 0; i < segCount; i++) {
+          const p1 = pts[(i + 1) % pts.length];
+          const seg = segs[i];
+          if (seg.kind === 'line') {
+            ctx.lineTo(p1.x - t.x, p1.y - t.y);
+          } else {
+            ctx.quadraticCurveTo(seg.cpX - t.x, seg.cpY - t.y, p1.x - t.x, p1.y - t.y);
+          }
+        }
+        if (geo.closed) ctx.closePath();
+      }
+      break;
+    }
   }
 
   if (shape.fill && geo.kind !== 'line') {
@@ -158,6 +181,24 @@ function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShap
         ctx.stroke();
       }
       break;
+    case 'path':
+      if (geo.points.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(geo.points[0].x - t.x, geo.points[0].y - t.y);
+        const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+        for (let i = 0; i < segCount; i++) {
+          const p1 = geo.points[(i + 1) % geo.points.length];
+          const seg = geo.segments[i];
+          if (seg.kind === 'line') {
+            ctx.lineTo(p1.x - t.x, p1.y - t.y);
+          } else {
+            ctx.quadraticCurveTo(seg.cpX - t.x, seg.cpY - t.y, p1.x - t.x, p1.y - t.y);
+          }
+        }
+        if (geo.closed) ctx.closePath();
+        ctx.stroke();
+      }
+      break;
   }
 
   ctx.setLineDash([]);
@@ -214,13 +255,156 @@ function hitTestShape(shape: VectorShape, ax: number, ay: number): boolean {
       }
       return inside;
     }
+    case 'path': {
+      // Flatten path and use point-in-polygon for closed paths
+      const flat = flattenPath(geo, 2).map(p => ({ x: p.x * sx + t.x, y: p.y * sy + t.y }));
+      if (geo.closed && flat.length >= 3) {
+        let inside = false;
+        for (let i = 0, j = flat.length - 1; i < flat.length; j = i++) {
+          if (((flat[i].y > ay) !== (flat[j].y > ay)) &&
+            ax < (flat[j].x - flat[i].x) * (ay - flat[i].y) / (flat[j].y - flat[i].y) + flat[i].x) {
+            inside = !inside;
+          }
+        }
+        return inside;
+      }
+      // Open path: distance to each segment
+      for (let i = 0; i < flat.length - 1; i++) {
+        const x1 = flat[i].x, y1 = flat[i].y;
+        const x2 = flat[i + 1].x, y2 = flat[i + 1].y;
+        const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        if (len === 0) continue;
+        const d = Math.abs((y2 - y1) * ax - (x2 - x1) * ay + x2 * y1 - y2 * x1) / len;
+        if (d < 5) return true;
+      }
+      return false;
+    }
   }
   return false;
 }
 
+// ── Path point/control-point hit testing ──
+
+const POINT_HIT_RADIUS = 8;
+
+interface PathHitResult {
+  kind: 'point' | 'control';
+  index: number;
+}
+
+function hitTestPathPoints(shape: VectorShape, ax: number, ay: number, zoom: number): PathHitResult | null {
+  if (shape.geometry.kind !== 'path') return null;
+  const geo = shape.geometry as PathGeometry;
+  const t = shape.transform;
+  const radius = POINT_HIT_RADIUS / zoom;
+
+  // Test control points first (they're on top visually)
+  const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+  for (let i = 0; i < segCount; i++) {
+    const seg = geo.segments[i];
+    if (seg.kind === 'quadratic') {
+      const cx = seg.cpX * t.scaleX + t.x;
+      const cy = seg.cpY * t.scaleY + t.y;
+      if (Math.abs(ax - cx) < radius && Math.abs(ay - cy) < radius) {
+        return { kind: 'control', index: i };
+      }
+    }
+  }
+
+  // Test anchor points
+  for (let i = 0; i < geo.points.length; i++) {
+    const p = geo.points[i];
+    const px = p.x * t.scaleX + t.x;
+    const py = p.y * t.scaleY + t.y;
+    if (Math.abs(ax - px) < radius && Math.abs(ay - py) < radius) {
+      return { kind: 'point', index: i };
+    }
+  }
+
+  return null;
+}
+
+// ── Render path edit overlay (points + handles) ──
+
+function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape, zoom: number, selectedPointIdx: number | null): void {
+  if (shape.geometry.kind !== 'path') return;
+  const geo = shape.geometry as PathGeometry;
+  const t = shape.transform;
+  const pointSize = 4 / zoom;
+  const cpSize = 3 / zoom;
+
+  ctx.save();
+
+  // Draw control handles (lines from anchor to control point)
+  const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+  for (let i = 0; i < segCount; i++) {
+    const seg = geo.segments[i];
+    if (seg.kind === 'quadratic') {
+      const p0 = geo.points[i];
+      const p1 = geo.points[(i + 1) % geo.points.length];
+      const p0x = p0.x * t.scaleX + t.x;
+      const p0y = p0.y * t.scaleY + t.y;
+      const cpx = seg.cpX * t.scaleX + t.x;
+      const cpy = seg.cpY * t.scaleY + t.y;
+      const p1x = p1.x * t.scaleX + t.x;
+      const p1y = p1.y * t.scaleY + t.y;
+
+      // Handle lines
+      ctx.strokeStyle = 'rgba(255, 150, 50, 0.6)';
+      ctx.lineWidth = 1 / zoom;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(p0x, p0y);
+      ctx.lineTo(cpx, cpy);
+      ctx.lineTo(p1x, p1y);
+      ctx.stroke();
+
+      // Control point diamond
+      ctx.fillStyle = '#ff9632';
+      ctx.beginPath();
+      ctx.moveTo(cpx, cpy - cpSize);
+      ctx.lineTo(cpx + cpSize, cpy);
+      ctx.lineTo(cpx, cpy + cpSize);
+      ctx.lineTo(cpx - cpSize, cpy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Draw anchor points
+  for (let i = 0; i < geo.points.length; i++) {
+    const p = geo.points[i];
+    const px = p.x * t.scaleX + t.x;
+    const py = p.y * t.scaleY + t.y;
+    const isSelected = i === selectedPointIdx;
+
+    if (p.pointType === 'smooth') {
+      // Smooth = circle
+      ctx.fillStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
+      ctx.strokeStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.beginPath();
+      ctx.arc(px, py, pointSize, 0, Math.PI * 2);
+      if (isSelected) { ctx.fill(); } else { ctx.stroke(); }
+    } else {
+      // Corner = square
+      ctx.fillStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
+      ctx.strokeStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
+      ctx.lineWidth = 1.5 / zoom;
+      if (isSelected) {
+        ctx.fillRect(px - pointSize, py - pointSize, pointSize * 2, pointSize * 2);
+      } else {
+        ctx.strokeRect(px - pointSize, py - pointSize, pointSize * 2, pointSize * 2);
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
 // ── Vector tool types ──
 
-export type VectorToolId = 'v-select' | 'v-rect' | 'v-ellipse' | 'v-line' | 'v-polygon';
+export type VectorToolId = 'v-select' | 'v-rect' | 'v-ellipse' | 'v-line' | 'v-polygon' | 'v-path';
 
 // ── Component ──
 
@@ -242,6 +426,13 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
   const [polyPoints, setPolyPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; shapeX: number; shapeY: number } | null>(null);
+  // Path creation state
+  const [pathPoints, setPathPoints] = useState<PathPoint[]>([]);
+  const [pathSegments, setPathSegments] = useState<PathSegment[]>([]);
+  const [pathCurveMode, setPathCurveMode] = useState(false); // Shift = curve
+  // Path point editing state
+  const [editingPoint, setEditingPoint] = useState<{ shapeId: string; kind: 'point' | 'control'; index: number } | null>(null);
+  const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
 
   const doc = useVectorMasterStore((s) => s.document);
   const selectedIds = useVectorMasterStore((s) => s.selectedShapeIds);
@@ -249,6 +440,7 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
   const deselectAllShapes = useVectorMasterStore((s) => s.deselectAllShapes);
   const addShape = useVectorMasterStore((s) => s.addShape);
   const setShapeTransform = useVectorMasterStore((s) => s.setShapeTransform);
+  const setShapeGeometry = useVectorMasterStore((s) => s.setShapeGeometry);
 
   // Convert screen coords to artboard coords
   const toArtboard = useCallback((clientX: number, clientY: number): [number, number] => {
@@ -344,6 +536,67 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
       ctx.restore();
     }
 
+    // Path edit overlay — show points/handles on selected path shapes
+    if (activeTool === 'v-select' || activeTool === 'v-path') {
+      for (const id of selectedIds) {
+        const shape = doc.shapes.find((s) => s.id === id);
+        if (shape && shape.geometry.kind === 'path') {
+          renderPathEditOverlay(ctx, shape, zoom, selectedPointIdx);
+        }
+      }
+    }
+
+    // Path creation preview
+    if (activeTool === 'v-path' && pathPoints.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+      for (let i = 0; i < pathSegments.length; i++) {
+        const p1 = pathPoints[i + 1];
+        if (!p1) break;
+        const seg = pathSegments[i];
+        if (seg.kind === 'line') {
+          ctx.lineTo(p1.x, p1.y);
+        } else {
+          ctx.quadraticCurveTo(seg.cpX, seg.cpY, p1.x, p1.y);
+        }
+      }
+      if (drawCurrent && pathPoints.length > pathSegments.length) {
+        ctx.lineTo(drawCurrent.x, drawCurrent.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Draw vertex dots
+      ctx.fillStyle = SELECTION_COLOR;
+      for (const p of pathPoints) {
+        ctx.beginPath();
+        if (p.pointType === 'smooth') {
+          ctx.arc(p.x, p.y, 4 / zoom, 0, Math.PI * 2);
+        } else {
+          ctx.rect(p.x - 4 / zoom, p.y - 4 / zoom, 8 / zoom, 8 / zoom);
+        }
+        ctx.fill();
+      }
+      // Draw control point diamonds
+      ctx.fillStyle = '#ff9632';
+      for (const seg of pathSegments) {
+        if (seg.kind === 'quadratic') {
+          ctx.beginPath();
+          const s = 3 / zoom;
+          ctx.moveTo(seg.cpX, seg.cpY - s);
+          ctx.lineTo(seg.cpX + s, seg.cpY);
+          ctx.lineTo(seg.cpX, seg.cpY + s);
+          ctx.lineTo(seg.cpX - s, seg.cpY);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
     // Polygon preview
     if (activeTool === 'v-polygon' && polyPoints.length > 0) {
       ctx.save();
@@ -371,7 +624,7 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     }
 
     ctx.restore();
-  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints]);
+  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints, pathPoints, pathSegments, selectedPointIdx]);
 
   // Resize observer
   useEffect(() => {
@@ -410,8 +663,22 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     const [ax, ay] = toArtboard(e.clientX, e.clientY);
 
     if (activeTool === 'v-select') {
-      // Hit test shapes in reverse z-order (top first)
       if (!doc) return;
+
+      // First: check if clicking on a path point/control of a selected path
+      if (selectedIds.length === 1) {
+        const sel = doc.shapes.find((s) => s.id === selectedIds[0]);
+        if (sel && sel.geometry.kind === 'path') {
+          const pathHit = hitTestPathPoints(sel, ax, ay, zoom);
+          if (pathHit) {
+            setEditingPoint({ shapeId: sel.id, ...pathHit });
+            setSelectedPointIdx(pathHit.kind === 'point' ? pathHit.index : null);
+            return;
+          }
+        }
+      }
+
+      // Hit test shapes in reverse z-order (top first)
       const sorted = [...doc.shapes].sort((a, b) => b.zOrder - a.zOrder);
       let hit: VectorShape | null = null;
       for (const shape of sorted) {
@@ -423,20 +690,42 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
       if (hit) {
         if (!e.shiftKey) deselectAllShapes();
         selectShape(hit.id);
+        setSelectedPointIdx(null);
         // Start drag
         setDragStart({ x: ax, y: ay, shapeX: hit.transform.x, shapeY: hit.transform.y });
       } else {
         deselectAllShapes();
+        setSelectedPointIdx(null);
+      }
+    } else if (activeTool === 'v-path') {
+      // Path tool: click to add points
+      const pointType: 'corner' | 'smooth' = e.shiftKey ? 'smooth' : 'corner';
+      const newPoint: PathPoint = { x: ax, y: ay, pointType };
+
+      if (pathPoints.length === 0) {
+        // First point
+        setPathPoints([newPoint]);
+      } else {
+        // Add segment from previous point to this new point
+        const prevPt = pathPoints[pathPoints.length - 1];
+        let seg: PathSegment;
+        if (e.shiftKey) {
+          // Shift = quadratic curve with control point at midpoint (drag to adjust later)
+          seg = { kind: 'quadratic', cpX: (prevPt.x + ax) / 2, cpY: (prevPt.y + ay) / 2 };
+        } else {
+          seg = { kind: 'line' };
+        }
+        setPathPoints((prev) => [...prev, newPoint]);
+        setPathSegments((prev) => [...prev, seg]);
       }
     } else if (activeTool === 'v-polygon') {
-      // Polygon: click to add point, double-click to close
       setPolyPoints((prev) => [...prev, { x: ax, y: ay }]);
     } else {
       // Drawing tools: start drag
       setDrawStart({ x: ax, y: ay });
       setDrawCurrent({ x: ax, y: ay });
     }
-  }, [activeTool, doc, toArtboard, selectShape, deselectAllShapes]);
+  }, [activeTool, doc, toArtboard, selectShape, deselectAllShapes, selectedIds, zoom, pathPoints]);
 
   const handlePointerMove = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (isPanning) {
@@ -446,6 +735,26 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     }
 
     const [ax, ay] = toArtboard(e.clientX, e.clientY);
+
+    // Path point/control-point dragging
+    if (editingPoint && doc) {
+      const shape = doc.shapes.find((s) => s.id === editingPoint.shapeId);
+      if (shape && shape.geometry.kind === 'path') {
+        const geo = shape.geometry as PathGeometry;
+        const t = shape.transform;
+        // Convert artboard coords back to geometry space
+        const gx = (ax - t.x) / t.scaleX;
+        const gy = (ay - t.y) / t.scaleY;
+        if (editingPoint.kind === 'point') {
+          const newGeo = pathMovePoint(geo, editingPoint.index, gx, gy);
+          setShapeGeometry(editingPoint.shapeId, newGeo);
+        } else {
+          const newGeo = pathMoveControlPoint(geo, editingPoint.index, gx, gy);
+          setShapeGeometry(editingPoint.shapeId, newGeo);
+        }
+      }
+      return;
+    }
 
     if (activeTool === 'v-select' && dragStart && selectedIds.length === 1) {
       const dx = ax - dragStart.x;
@@ -459,14 +768,19 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     if (drawStart) {
       setDrawCurrent({ x: ax, y: ay });
     }
-    if (activeTool === 'v-polygon' && polyPoints.length > 0) {
+    if ((activeTool === 'v-polygon' || activeTool === 'v-path') && (polyPoints.length > 0 || pathPoints.length > 0)) {
       setDrawCurrent({ x: ax, y: ay });
     }
-  }, [isPanning, zoom, toArtboard, activeTool, dragStart, drawStart, selectedIds, setShapeTransform, polyPoints]);
+  }, [isPanning, zoom, toArtboard, activeTool, dragStart, drawStart, selectedIds, setShapeTransform, polyPoints, pathPoints, editingPoint, doc, setShapeGeometry]);
 
   const handlePointerUp = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (isPanning) {
       setIsPanning(false);
+      return;
+    }
+
+    if (editingPoint) {
+      setEditingPoint(null);
       return;
     }
 
@@ -529,9 +843,9 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
       setDrawStart(null);
       setDrawCurrent(null);
     }
-  }, [isPanning, dragStart, drawStart, drawCurrent, activeTool, addShape, fillColor, strokeColor, strokeWidth]);
+  }, [isPanning, editingPoint, dragStart, drawStart, drawCurrent, activeTool, addShape, fillColor, strokeColor, strokeWidth]);
 
-  // Double-click to close polygon
+  // Double-click to close polygon or finalize path
   const handleDoubleClick = useCallback(() => {
     if (activeTool === 'v-polygon' && polyPoints.length >= 3) {
       addShape({
@@ -548,7 +862,30 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
       setPolyPoints([]);
       setDrawCurrent(null);
     }
-  }, [activeTool, polyPoints, addShape, fillColor, strokeColor, strokeWidth]);
+    if (activeTool === 'v-path' && pathPoints.length >= 2) {
+      // Double-click = close path (if >= 3 points) or finalize open path
+      const closed = pathPoints.length >= 3;
+      const finalSegments = [...pathSegments];
+      if (closed) {
+        // Add closing segment
+        finalSegments.push({ kind: 'line' });
+      }
+      addShape({
+        name: 'path',
+        groupId: null,
+        geometry: { kind: 'path', points: [...pathPoints], segments: finalSegments, closed },
+        fill: closed ? fillColor : null,
+        stroke: strokeColor ? { color: strokeColor, width: strokeWidth } : (closed ? null : { color: [255, 255, 255, 255], width: 2 }),
+        transform: { ...DEFAULT_VECTOR_TRANSFORM },
+        reduction: {},
+        visible: true,
+        locked: false,
+      });
+      setPathPoints([]);
+      setPathSegments([]);
+      setDrawCurrent(null);
+    }
+  }, [activeTool, polyPoints, pathPoints, pathSegments, addShape, fillColor, strokeColor, strokeWidth]);
 
   // Zoom with scroll wheel
   const handleWheel = useCallback((e: WheelEvent<HTMLCanvasElement>) => {
@@ -557,18 +894,44 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth }
     setZoom((prev) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * delta)));
   }, []);
 
-  // Escape to cancel polygon
+  // Escape to cancel polygon/path creation, Delete to remove selected point
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setPolyPoints([]);
+        setPathPoints([]);
+        setPathSegments([]);
         setDrawStart(null);
         setDrawCurrent(null);
+        setSelectedPointIdx(null);
+      }
+      // Enter to finalize open path
+      if (e.key === 'Enter' && activeTool === 'v-path' && pathPoints.length >= 2) {
+        addShape({
+          name: 'path',
+          groupId: null,
+          geometry: { kind: 'path', points: [...pathPoints], segments: [...pathSegments], closed: false },
+          fill: null,
+          stroke: strokeColor ? { color: strokeColor, width: strokeWidth } : { color: [255, 255, 255, 255], width: 2 },
+          transform: { ...DEFAULT_VECTOR_TRANSFORM },
+          reduction: {},
+          visible: true,
+          locked: false,
+        });
+        setPathPoints([]);
+        setPathSegments([]);
+        setDrawCurrent(null);
+      }
+      // Delete/Backspace to remove last point during path creation, or selected point during editing
+      if ((e.key === 'Delete' || e.key === 'Backspace') && activeTool === 'v-path' && pathPoints.length > 0) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        setPathPoints((prev) => prev.slice(0, -1));
+        setPathSegments((prev) => prev.slice(0, -1));
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+  }, [activeTool, pathPoints, pathSegments, addShape, strokeColor, strokeWidth]);
 
   const cursorStyle = activeTool === 'v-select' ? 'default' : 'crosshair';
 
