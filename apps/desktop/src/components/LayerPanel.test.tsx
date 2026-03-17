@@ -56,6 +56,7 @@ describe('LayerPanel', () => {
     mock.on('rename_layer', () => MOCK_FRAME);
     mock.on('set_layer_visibility', () => MOCK_FRAME);
     mock.on('set_layer_lock', () => MOCK_FRAME);
+    mock.on('reorder_layer', () => MOCK_FRAME);
     mock.on('mark_dirty', () => null);
   });
   afterEach(cleanup);
@@ -245,6 +246,71 @@ describe('LayerPanel', () => {
       });
       // No rename_layer call
       expect(mock.fn).not.toHaveBeenCalledWith('rename_layer', expect.anything());
+    });
+
+    it('rename button (✎) opens rename input', async () => {
+      seedLayers();
+      render(<LayerPanel />);
+      const btn = screen.getByTestId('layer-rename-btn-L1');
+      await act(async () => { await userEvent.click(btn); });
+      expect(screen.getByDisplayValue('Background')).toBeInTheDocument();
+    });
+  });
+
+  describe('reorder controls', () => {
+    it('shows up/down buttons for each layer when multiple layers', () => {
+      seedLayers();
+      render(<LayerPanel />);
+      expect(screen.getByTestId('layer-up-btn-L1')).toBeInTheDocument();
+      expect(screen.getByTestId('layer-down-btn-L1')).toBeInTheDocument();
+      expect(screen.getByTestId('layer-up-btn-L2')).toBeInTheDocument();
+      expect(screen.getByTestId('layer-down-btn-L2')).toBeInTheDocument();
+    });
+
+    it('top display layer (L2, backendIndex=1) up-button is disabled', () => {
+      seedLayers();
+      render(<LayerPanel />);
+      // displayLayers = [L2, L1] (reversed), so L2 is displayIndex 0 → canMoveUp = false
+      expect(screen.getByTestId('layer-up-btn-L2')).toBeDisabled();
+    });
+
+    it('bottom display layer (L1, backendIndex=0) down-button is disabled', () => {
+      seedLayers();
+      render(<LayerPanel />);
+      // L1 is at displayIndex 1 → canMoveDown = false
+      expect(screen.getByTestId('layer-down-btn-L1')).toBeDisabled();
+    });
+
+    it('clicking up on L1 calls reorder_layer with newIndex=1', async () => {
+      seedLayers();
+      render(<LayerPanel />);
+      // L1 is at displayIndex 1, backendIndex 0; up = backendIndex + 1 = 1
+      await act(async () => { await userEvent.click(screen.getByTestId('layer-up-btn-L1')); });
+      await waitFor(() => {
+        expect(mock.fn).toHaveBeenCalledWith('reorder_layer', { layerId: 'L1', newIndex: 1 });
+      });
+    });
+
+    it('clicking down on L2 calls reorder_layer with newIndex=0', async () => {
+      seedLayers();
+      render(<LayerPanel />);
+      // L2 is at displayIndex 0, backendIndex 1; down = backendIndex - 1 = 0
+      await act(async () => { await userEvent.click(screen.getByTestId('layer-down-btn-L2')); });
+      await waitFor(() => {
+        expect(mock.fn).toHaveBeenCalledWith('reorder_layer', { layerId: 'L2', newIndex: 0 });
+      });
+    });
+
+    it('hides reorder buttons for single layer', () => {
+      useLayerStore.setState({
+        rootLayerIds: ['L1'],
+        activeLayerId: 'L1',
+        layerById: { L1: mkLayer('L1', 'Solo') },
+      });
+      useProjectStore.setState({ projectId: 'p', name: 'T', filePath: null, isDirty: false, saveStatus: 'idle', colorMode: 'rgb', canvasSize: { width: 32, height: 32 } });
+      render(<LayerPanel />);
+      expect(screen.queryByTestId('layer-up-btn-L1')).toBeNull();
+      expect(screen.queryByTestId('layer-down-btn-L1')).toBeNull();
     });
   });
 });

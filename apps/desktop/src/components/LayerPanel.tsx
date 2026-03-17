@@ -140,6 +140,19 @@ export function LayerPanel() {
     [applyFrame, notifyDirty],
   );
 
+  const handleReorderLayer = useCallback(
+    async (layerId: string, newIndex: number) => {
+      try {
+        const frame = await invoke<CanvasFrameData>('reorder_layer', { layerId, newIndex });
+        applyFrame(frame);
+        notifyDirty();
+      } catch (err) {
+        console.error('reorder_layer failed:', err);
+      }
+    },
+    [applyFrame, notifyDirty],
+  );
+
   const handleStartRename = useCallback((layerId: string, currentName: string) => {
     setRenamingId(layerId);
     setRenameValue(currentName);
@@ -165,6 +178,7 @@ export function LayerPanel() {
   }, [renamingId, renameValue, applyFrame, notifyDirty]);
 
   // Display top-to-bottom (reverse since bottom layer = index 0 in Rust)
+  // displayIndex 0 = top of stack = highest backend index (layers.length - 1)
   const displayLayers = [...layers].reverse();
 
   return (
@@ -185,10 +199,14 @@ export function LayerPanel() {
         </div>
       </div>
       <div className="layer-panel-list">
-        {displayLayers.map((layer) => {
+        {displayLayers.map((layer, displayIndex) => {
           if (!layer) return null;
           const isActive = layer.id === activeLayerId;
           const isSketch = layer.type === 'sketch';
+          // Backend index: displayIndex 0 = top layer = layers.length - 1 in Rust
+          const backendIndex = layers.length - 1 - displayIndex;
+          const canMoveUp = displayIndex > 0; // not already at top of display
+          const canMoveDown = displayIndex < displayLayers.length - 1; // not at bottom
           return (
             <div
               key={layer.id}
@@ -229,28 +247,69 @@ export function LayerPanel() {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span
-                  className="layer-name"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    handleStartRename(layer.id, layer.name);
-                  }}
-                >
-                  {isSketch && <span className="layer-sketch-badge" title="Sketch layer (excluded from export)">S</span>}
-                  {layer.name}
-                </span>
+                <>
+                  <span
+                    className="layer-name"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      handleStartRename(layer.id, layer.name);
+                    }}
+                  >
+                    {isSketch && <span className="layer-sketch-badge" title="Sketch layer (excluded from export)">S</span>}
+                    {layer.name}
+                  </span>
+                  <button
+                    className="layer-rename-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartRename(layer.id, layer.name);
+                    }}
+                    title="Rename layer"
+                    data-testid={`layer-rename-btn-${layer.id}`}
+                  >
+                    ✎
+                  </button>
+                </>
               )}
               {layers.length > 1 && (
-                <button
-                  className="layer-delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteLayer(layer.id);
-                  }}
-                  title="Delete layer"
-                >
-                  {'\u00d7'}
-                </button>
+                <>
+                  <button
+                    className="layer-reorder-btn"
+                    disabled={!canMoveUp}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Move up in display = increase backend index
+                      handleReorderLayer(layer.id, backendIndex + 1);
+                    }}
+                    title="Move layer up"
+                    data-testid={`layer-up-btn-${layer.id}`}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    className="layer-reorder-btn"
+                    disabled={!canMoveDown}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Move down in display = decrease backend index
+                      handleReorderLayer(layer.id, backendIndex - 1);
+                    }}
+                    title="Move layer down"
+                    data-testid={`layer-down-btn-${layer.id}`}
+                  >
+                    ▼
+                  </button>
+                  <button
+                    className="layer-delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteLayer(layer.id);
+                    }}
+                    title="Delete layer"
+                  >
+                    {'\u00d7'}
+                  </button>
+                </>
               )}
               {isActive && (
                 <div className="layer-active-controls" onClick={(e) => e.stopPropagation()}>
