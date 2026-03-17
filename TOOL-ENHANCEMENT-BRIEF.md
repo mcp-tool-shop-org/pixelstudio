@@ -39,7 +39,7 @@ A **Tauri v2 + React + Rust** desktop pixel-art/sprite studio at `F:\AI\GlyphStu
 | `fill` (G) | Rust `flood_fill` command — scanline flood fill with undo patch tracking |
 | `line` (L) | Drag-to-draw via `bresenhamLine` + stroke pipeline, live preview overlay |
 | `rectangle` (U) | `rectangleOutline()` helper → stroke pipeline, live preview overlay |
-| `ellipse` (O) | `ellipseOutline()` midpoint algorithm → stroke pipeline, live preview |
+| `ellipse` (C) | `ellipseOutline()` midpoint algorithm → stroke pipeline, live preview |
 | `color-select` (Y) | Eyedropper: `invoke('read_pixel')` → `setPrimaryColor()` |
 | `measure` (I) | Two-click overlay: red/green markers, dashed line, distance label |
 | `transform` (T) | Aliases to `move` behavior for selection dragging |

@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "generated": "2026-03-17",
+    "app": "GlyphStudio",
+    "version": "Stage 63",
+    "totalHandlers": 487,
+    "breakdown": {
+      "componentHandlers": 150,
+      "storeActions": 280,
+      "rustCommands": 211,
+      "keyboardBindings": 47
+    }
+  },
+  "components": [
+    {
+      "file": "apps/desktop/src/components/Canvas.tsx",
+      "handlers": [
+        { "name": "handlePointerDown", "trigger": "onPointerDown", "tools": ["pencil","eraser","fill","line","rectangle","ellipse","color-select","marquee","lasso","magic-select","move","transform","socket","slice","measure","sketch-brush","sketch-eraser"], "stateReads": ["activeTool","primaryColor","secondaryColor","selection"], "stateMutations": ["setSelection","setPrimaryColor"], "sideEffects": ["invoke:begin_stroke","invoke:flood_fill","invoke:read_pixel","invoke:magic_select","invoke:set_selection_rect","invoke:create_anchor","invoke:begin_selection_transform"], "async": true },
+        { "name": "handlePointerMove", "trigger": "onPointerMove", "tools": ["pencil","eraser","marquee","move","lasso","line","rectangle","ellipse","slice","sketch-brush","sketch-eraser"], "stateReads": ["activeTool","isDrawing","isShapeDragging","isLassoDragging","isSliceDragging"], "stateMutations": [], "sideEffects": ["invoke:stroke_points","invoke:move_selection_preview","render()"], "async": true },
+        { "name": "handlePointerUp", "trigger": "onPointerUp", "tools": ["pencil","eraser","marquee","move","lasso","line","rectangle","ellipse","slice","sketch-brush","sketch-eraser"], "stateReads": ["activeTool"], "stateMutations": ["setSelection","setSliceRegions"], "sideEffects": ["invoke:end_stroke","invoke:set_selection_rect","invoke:commit_selection_transform"], "async": true },
+        { "name": "keydown:Space", "trigger": "window.keydown", "action": "pan OR play/pause", "condition": "isDrawing ? pan : togglePlayback" },
+        { "name": "keydown:Enter", "trigger": "window.keydown", "action": "commit_selection_transform", "condition": "transformActive" },
+        { "name": "keydown:Escape", "trigger": "window.keydown", "action": "cancel_transform OR clear_selection" },
+        { "name": "keydown:Arrows", "trigger": "window.keydown", "action": "nudge_selection (1px, 8px+Shift)", "condition": "transformActive" },
+        { "name": "keydown:H", "trigger": "window.keydown", "action": "flip_selection_horizontal", "condition": "transformActive" },
+        { "name": "keydown:V", "trigger": "window.keydown", "action": "flip_selection_vertical", "condition": "transformActive" },
+        { "name": "keydown:R", "trigger": "window.keydown", "action": "rotate_90_cw (Shift=CCW)", "condition": "transformActive" },
+        { "name": "keydown:Delete", "trigger": "window.keydown", "action": "delete_selection", "condition": "selectionExists" },
+        { "name": "keydown:Ctrl+C", "trigger": "window.keydown", "action": "copy_selection" },
+        { "name": "keydown:Ctrl+X", "trigger": "window.keydown", "action": "cut_selection" },
+        { "name": "keydown:Ctrl+V", "trigger": "window.keydown", "action": "paste_selection" },
+        { "name": "keydown:Ctrl+Z", "trigger": "window.keydown", "action": "undo" },
+        { "name": "keydown:Ctrl+Shift+Z/Ctrl+Y", "trigger": "window.keydown", "action": "redo" },
+        { "name": "keydown:N", "trigger": "window.keydown", "action": "setTool('sketch-brush')" },
+        { "name": "keydown:Shift+N", "trigger": "window.keydown", "action": "setTool('sketch-eraser')" },
+        { "name": "keydown:O", "trigger": "window.keydown", "action": "toggleOnionSkin", "note": "CONFLICT: ToolRail labels O as Ellipse" },
+        { "name": "keydown:,", "trigger": "window.keydown", "action": "previousFrame" },
+        { "name": "keydown:.", "trigger": "window.keydown", "action": "nextFrame" }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/ToolRail.tsx",
+      "handlers": [
+        { "name": "onClick:tool", "trigger": "click", "action": "setTool(toolId)", "tools": ["pencil","eraser","fill","line","rectangle","ellipse","marquee","lasso","magic-select","color-select","move","transform","slice","socket","measure","sketch-brush","sketch-eraser"] },
+        { "name": "onClick:swapColors", "trigger": "click", "action": "swapColors()", "note": "X tooltip shown but no keyboard handler in Canvas" }
+      ],
+      "shortcutLabels": {
+        "B": "pencil", "E": "eraser", "G": "fill", "L": "line", "U": "rectangle",
+        "O": "ellipse", "M": "marquee", "Q": "lasso", "W": "magic-select",
+        "Y": "color-select", "V": "move", "T": "transform", "K": "slice",
+        "S": "socket", "I": "measure", "N": "sketch-brush", "Shift+N": "sketch-eraser",
+        "X": "swapColors"
+      },
+      "note": "These labels are UI-only. NO keyboard handler exists in Canvas for B,E,G,L,U,M,Q,W,T,K,S,I,V,X tool activation."
+    },
+    {
+      "file": "apps/desktop/src/components/BottomDock.tsx",
+      "handlers": [
+        { "name": "handleCreateFrame", "trigger": "click", "action": "invoke:create_frame", "async": true },
+        { "name": "handleDuplicateFrame", "trigger": "click", "action": "invoke:duplicate_frame", "async": true },
+        { "name": "handleDeleteFrame", "trigger": "click", "action": "invoke:delete_frame", "async": true },
+        { "name": "handleSelectFrame", "trigger": "click", "action": "invoke:select_frame", "async": true },
+        { "name": "handleReorderFrame", "trigger": "drag", "action": "invoke:reorder_frame", "async": true },
+        { "name": "handleSetDuration", "trigger": "input", "action": "invoke:set_frame_duration", "async": true },
+        { "name": "handlePlayPause", "trigger": "click", "action": "RAF playback loop", "async": true },
+        { "name": "handleCreateLayer", "trigger": "click", "action": "invoke:create_layer", "async": true },
+        { "name": "handleDeleteLayer", "trigger": "click", "action": "invoke:delete_layer", "async": true },
+        { "name": "handleRenameLayer", "trigger": "dblclick", "action": "invoke:rename_layer", "async": true },
+        { "name": "handleToggleVisibility", "trigger": "click", "action": "invoke:set_layer_visibility", "async": true },
+        { "name": "handleToggleLock", "trigger": "click", "action": "invoke:set_layer_lock", "async": true },
+        { "name": "handleSetOpacity", "trigger": "input", "action": "invoke:set_layer_opacity", "async": true }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/SpriteEditor.tsx",
+      "handlers": [
+        { "name": "keydown:M", "trigger": "window.keydown", "action": "setTool('select')" },
+        { "name": "keydown:B", "trigger": "window.keydown", "action": "setTool('pencil')" },
+        { "name": "keydown:E", "trigger": "window.keydown", "action": "setTool('eraser')" },
+        { "name": "keydown:G", "trigger": "window.keydown", "action": "setTool('fill')" },
+        { "name": "keydown:I", "trigger": "window.keydown", "action": "setTool('eyedropper')" },
+        { "name": "keydown:Ctrl+S", "trigger": "window.keydown", "action": "save" },
+        { "name": "keydown:Ctrl+Shift+S", "trigger": "window.keydown", "action": "saveAs" },
+        { "name": "keydown:Ctrl+O", "trigger": "window.keydown", "action": "open" },
+        { "name": "keydown:N", "trigger": "window.keydown", "action": "addFrame" },
+        { "name": "keydown:X", "trigger": "window.keydown", "action": "swapColors" },
+        { "name": "keydown:Space", "trigger": "window.keydown", "action": "play/stop" },
+        { "name": "keydown:,", "trigger": "window.keydown", "action": "prevFrame" },
+        { "name": "keydown:.", "trigger": "window.keydown", "action": "nextFrame" },
+        { "name": "keydown:+/=", "trigger": "window.keydown", "action": "zoomIn" },
+        { "name": "keydown:-", "trigger": "window.keydown", "action": "zoomOut" },
+        { "name": "keydown:#", "trigger": "window.keydown", "action": "gridToggle" },
+        { "name": "keydown:Shift+D", "trigger": "window.keydown", "action": "duplicateFrame" }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/VectorWorkspace.tsx",
+      "handlers": [
+        { "name": "keydown:V", "trigger": "window.keydown", "action": "setTool('v-select')" },
+        { "name": "keydown:R", "trigger": "window.keydown", "action": "setTool('v-rect')" },
+        { "name": "keydown:E", "trigger": "window.keydown", "action": "setTool('v-ellipse')" },
+        { "name": "keydown:L", "trigger": "window.keydown", "action": "setTool('v-line')" },
+        { "name": "keydown:P", "trigger": "window.keydown", "action": "setTool('v-polygon')" },
+        { "name": "keydown:Q", "trigger": "window.keydown", "action": "setTool('v-path')" }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/VectorCanvas.tsx",
+      "handlers": [
+        { "name": "keydown:Escape", "trigger": "window.keydown", "action": "cancelPolygon/Path" },
+        { "name": "keydown:Enter", "trigger": "window.keydown", "action": "finalizeOpenPath" },
+        { "name": "keydown:Delete", "trigger": "window.keydown", "action": "removeLastPoint" }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/AnchorPanel.tsx",
+      "handlers": [
+        { "name": "keydown:Arrows", "trigger": "window.keydown", "action": "moveAnchor 1px", "condition": "anchorSelected && !pixelTransformActive" },
+        { "name": "keydown:Delete", "trigger": "window.keydown", "action": "deleteAnchor", "condition": "anchorSelected && !pixelSelectionActive" },
+        { "name": "onClick:createAnchor", "trigger": "click", "action": "invoke:create_anchor" },
+        { "name": "onClick:deleteAnchor", "trigger": "click", "action": "invoke:delete_anchor" },
+        { "name": "onClick:moveAnchor", "trigger": "click", "action": "invoke:move_anchor" }
+      ],
+      "note": "24 total handlers including CRUD, bind/unbind, copy, propagate, parent/falloff operations"
+    },
+    {
+      "file": "apps/desktop/src/components/MotionPanel.tsx",
+      "handlers": [
+        { "name": "keydown:ArrowLeft/,", "trigger": "container.keydown", "action": "prevFrame", "scope": "container-focused" },
+        { "name": "keydown:ArrowRight/.", "trigger": "container.keydown", "action": "nextFrame", "scope": "container-focused" },
+        { "name": "keydown:Space", "trigger": "container.keydown", "action": "play/stop", "scope": "container-focused" }
+      ],
+      "note": "25+ handlers including motion session CRUD, proposal accept/reject, template apply"
+    },
+    {
+      "file": "apps/desktop/src/app/AppShell.tsx",
+      "handlers": [
+        { "name": "keydown:Ctrl+S", "trigger": "window.keydown", "action": "saveProject" }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/components/CopilotPanel.tsx",
+      "handlers": [
+        { "name": "keydown:Enter", "trigger": "onKeyDown", "action": "sendMessage", "scope": "input-focused" },
+        { "name": "keydown:Shift+Enter", "trigger": "onKeyDown", "action": "newline", "scope": "input-focused" }
+      ]
+    }
+  ],
+  "stores": [
+    {
+      "file": "packages/state/src/toolStore.ts",
+      "actions": ["setTool", "setPrimaryColor", "setSecondaryColor", "swapColors"],
+      "stateShape": { "activeTool": "ToolId", "primaryColor": "RGBA", "secondaryColor": "RGBA" }
+    },
+    {
+      "file": "packages/state/src/spriteEditorStore.ts",
+      "actionCount": 40,
+      "note": "Most complex store. Manages canvas, layers, frames, selection, undo, playback, onion skin, zoom, grid. Has async I/O (Tauri invoke). Uses Immer.",
+      "keyActions": ["setFrame","syncLayersFromFrame","setSelection","clearSelection","setPlaying","setActiveFrame","setZoom","toggleOnionSkin","markDirty"]
+    },
+    {
+      "file": "packages/state/src/sceneEditorStore.ts",
+      "actionCount": 30,
+      "note": "Scene composition store with history/undo. Manages instances, camera, playback, keyframes."
+    },
+    {
+      "file": "packages/state/src/vectorMasterStore.ts",
+      "actionCount": 25,
+      "note": "Vector drawing state. Manages shapes, selection, tool modes, undo stack."
+    },
+    {
+      "file": "packages/state/src/anchorStore.ts",
+      "actionCount": 15,
+      "note": "Anchor CRUD, selection, parent/child relationships, falloff config."
+    }
+  ],
+  "rustCommands": {
+    "totalRegistered": 211,
+    "modules": {
+      "project": 13, "canvas": 24, "selection": 16, "timeline": 11,
+      "analysis": 3, "motion": 11, "anchor": 15, "sandbox": 7,
+      "secondary_motion": 3, "preset": 10, "export": 5, "clip": 10,
+      "asset": 6, "bundle": 4, "scene": 36, "ai": 8
+    },
+    "managedStates": [
+      "ManagedCanvasState", "ManagedProjectMeta", "ManagedSelectionState",
+      "ManagedMotionState", "ManagedSandboxState", "ManagedSceneState"
+    ],
+    "unregisteredModules": ["layer.rs", "palette.rs", "validation.rs", "locomotion.rs", "provenance.rs"],
+    "frontendUtilization": "~50 of 211 commands invoked (24%)"
+  }
+}

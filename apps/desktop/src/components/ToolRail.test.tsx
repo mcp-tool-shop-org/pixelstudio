@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ToolRail } from '../components/ToolRail';
+import { ToolRail, BOUND_SHORTCUTS } from '../components/ToolRail';
 import { useToolStore, useBrushSettingsStore, SKETCH_BRUSH_DEFAULTS, SKETCH_ERASER_DEFAULTS } from '@glyphstudio/state';
 
 function seed() {
@@ -24,40 +24,48 @@ describe('ToolRail', () => {
       expect(buttons).toHaveLength(17);
     });
 
-    it('each button shows full label and shortcut key', () => {
+    it('bound tools show label and shortcut badge', () => {
       seed();
       render(<ToolRail />);
-      const pencilBtn = screen.getByTitle('Pencil (B)');
-      expect(pencilBtn.textContent).toBe('PencilB');
-      const fillBtn = screen.getByTitle('Fill (G)');
-      expect(fillBtn.textContent).toBe('FillG');
-      const rectBtn = screen.getByTitle('Rect (U)');
-      expect(rectBtn.textContent).toBe('RectU');
-      const moveBtn = screen.getByTitle('Move (V)');
-      expect(moveBtn.textContent).toBe('MoveV');
+      // Sketch tools are bound (N, Shift+N)
+      const sketchBtn = screen.getByTitle('Sketch (N)');
+      expect(sketchBtn.textContent).toBe('SketchN');
     });
 
-    it('each button has label+shortcut in title', () => {
+    it('unbound tools show label only, no shortcut badge', () => {
       seed();
       render(<ToolRail />);
-      expect(screen.getByTitle('Pencil (B)')).toBeInTheDocument();
-      expect(screen.getByTitle('Eraser (E)')).toBeInTheDocument();
-      expect(screen.getByTitle('Fill (G)')).toBeInTheDocument();
-      expect(screen.getByTitle('Move (V)')).toBeInTheDocument();
+      // Pencil shortcut B is not yet bound — title has no shortcut
+      const pencilBtn = screen.getByTitle('Pencil');
+      expect(pencilBtn.textContent).toBe('Pencil');
+      // No shortcut span inside
+      expect(pencilBtn.querySelector('.tool-shortcut')).toBeNull();
+    });
+
+    it('unbound tools have label-only title (no stale shortcut in tooltip)', () => {
+      seed();
+      render(<ToolRail />);
+      expect(screen.getByTitle('Pencil')).toBeInTheDocument();
+      expect(screen.getByTitle('Eraser')).toBeInTheDocument();
+      expect(screen.getByTitle('Fill')).toBeInTheDocument();
+      expect(screen.getByTitle('Move')).toBeInTheDocument();
+      // No title should contain "(B)", "(E)", etc. for unbound tools
+      expect(screen.queryByTitle('Pencil (B)')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Eraser (E)')).not.toBeInTheDocument();
     });
 
     it('active tool button has active class', () => {
       seed();
       useToolStore.setState({ activeTool: 'eraser' });
       render(<ToolRail />);
-      const eraserBtn = screen.getByTitle('Eraser (E)');
+      const eraserBtn = screen.getByTitle('Eraser');
       expect(eraserBtn.className).toContain('active');
     });
 
     it('non-active tool buttons lack active class', () => {
       seed();
       render(<ToolRail />);
-      const eraserBtn = screen.getByTitle('Eraser (E)');
+      const eraserBtn = screen.getByTitle('Eraser');
       expect(eraserBtn.className).not.toContain('active');
     });
 
@@ -83,7 +91,7 @@ describe('ToolRail', () => {
       seed();
       render(<ToolRail />);
       await act(async () => {
-        await userEvent.click(screen.getByTitle('Fill (G)'));
+        await userEvent.click(screen.getByTitle('Fill'));
       });
       expect(useToolStore.getState().activeTool).toBe('fill');
     });
@@ -106,10 +114,10 @@ describe('ToolRail', () => {
       seed();
       render(<ToolRail />);
       await act(async () => {
-        await userEvent.click(screen.getByTitle('Move (V)'));
+        await userEvent.click(screen.getByTitle('Move'));
       });
-      expect(screen.getByTitle('Move (V)').className).toContain('active');
-      expect(screen.getByTitle('Pencil (B)').className).not.toContain('active');
+      expect(screen.getByTitle('Move').className).toContain('active');
+      expect(screen.getByTitle('Pencil').className).not.toContain('active');
     });
 
     it('clicking sketch-brush activates sketch tool', async () => {
@@ -162,6 +170,47 @@ describe('ToolRail', () => {
         await userEvent.click(resetBtn);
       });
       expect(useBrushSettingsStore.getState().sketchBrush.size).toBe(SKETCH_BRUSH_DEFAULTS.size);
+    });
+  });
+
+  describe('shortcut badge truthfulness (P0)', () => {
+    it('no shortcut badge is rendered for unbound tools', () => {
+      seed();
+      render(<ToolRail />);
+      const allButtons = screen.getAllByRole('button');
+      for (const btn of allButtons) {
+        const shortcutSpan = btn.querySelector('.tool-shortcut');
+        if (shortcutSpan) {
+          // Every rendered badge must be in BOUND_SHORTCUTS
+          expect(BOUND_SHORTCUTS.has(shortcutSpan.textContent!)).toBe(true);
+        }
+      }
+    });
+
+    it('bound sketch tools render their shortcut badges', () => {
+      seed();
+      render(<ToolRail />);
+      const sketchBtn = screen.getByTitle('Sketch (N)');
+      expect(sketchBtn.querySelector('.tool-shortcut')?.textContent).toBe('N');
+      const sketchEraseBtn = screen.getByTitle('S.Erase (Shift+N)');
+      expect(sketchEraseBtn.querySelector('.tool-shortcut')?.textContent).toBe('Shift+N');
+    });
+
+    it('ellipse has no shortcut badge (O conflict resolved)', () => {
+      seed();
+      render(<ToolRail />);
+      const ellipseBtn = screen.getByTitle('Ellipse');
+      expect(ellipseBtn.querySelector('.tool-shortcut')).toBeNull();
+      // No stale O shortcut in title
+      expect(screen.queryByTitle('Ellipse (O)')).not.toBeInTheDocument();
+    });
+
+    it('swap colors tooltip has no stale (X) reference', () => {
+      seed();
+      render(<ToolRail />);
+      const swapArea = document.querySelector('.tool-colors') as HTMLElement;
+      expect(swapArea.title).toBe('Click to swap colors');
+      expect(swapArea.title).not.toContain('X');
     });
   });
 });

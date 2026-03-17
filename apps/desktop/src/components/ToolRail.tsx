@@ -8,7 +8,7 @@ const TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'fill', label: 'Fill', shortcut: 'G' },
   { id: 'line', label: 'Line', shortcut: 'L' },
   { id: 'rectangle', label: 'Rect', shortcut: 'U' },
-  { id: 'ellipse', label: 'Ellipse', shortcut: 'O' },
+  { id: 'ellipse', label: 'Ellipse', shortcut: 'C' },
   { id: 'marquee', label: 'Marquee', shortcut: 'M' },
   { id: 'lasso', label: 'Lasso', shortcut: 'Q' },
   { id: 'magic-select', label: 'Magic', shortcut: 'W' },
@@ -25,6 +25,13 @@ const SKETCH_TOOLS: { id: ToolId; label: string; shortcut: string }[] = [
   { id: 'sketch-eraser', label: 'S.Erase', shortcut: 'Shift+N' },
 ];
 
+/**
+ * Shortcuts that have live keyboard handlers in Canvas.tsx.
+ * A shortcut badge is only shown if its key appears here.
+ * This will be replaced by the interaction manifest in P1-A.
+ */
+export const BOUND_SHORTCUTS = new Set(['N', 'Shift+N']);
+
 export function ToolRail() {
   const activeTool = useToolStore((s) => s.activeTool);
   const setTool = useToolStore((s) => s.setTool);
@@ -39,32 +46,38 @@ export function ToolRail() {
 
   return (
     <aside className="tool-rail">
-      {TOOLS.map((tool) => (
-        <button
-          key={tool.id}
-          className={`tool-btn ${activeTool === tool.id ? 'active' : ''}`}
-          onClick={() => setTool(tool.id)}
-          title={`${tool.label} (${tool.shortcut})`}
-        >
-          <span className="tool-label">{tool.label}</span>
-          <span className="tool-shortcut">{tool.shortcut}</span>
-        </button>
-      ))}
+      {TOOLS.map((tool) => {
+        const bound = tool.shortcut && BOUND_SHORTCUTS.has(tool.shortcut);
+        return (
+          <button
+            key={tool.id}
+            className={`tool-btn ${activeTool === tool.id ? 'active' : ''}`}
+            onClick={() => setTool(tool.id)}
+            title={bound ? `${tool.label} (${tool.shortcut})` : tool.label}
+          >
+            <span className="tool-label">{tool.label}</span>
+            {bound && <span className="tool-shortcut">{tool.shortcut}</span>}
+          </button>
+        );
+      })}
       <div className="tool-rail-divider" />
-      {SKETCH_TOOLS.map((tool) => (
-        <button
-          key={tool.id}
-          className={`tool-btn sketch-tool ${activeTool === tool.id ? 'active' : ''}`}
-          onClick={() => setTool(tool.id)}
-          title={`${tool.label} (${tool.shortcut})`}
-        >
-          <span className="tool-label">{tool.label}</span>
-          <span className="tool-shortcut">{tool.shortcut}</span>
-        </button>
-      ))}
+      {SKETCH_TOOLS.map((tool) => {
+        const bound = tool.shortcut && BOUND_SHORTCUTS.has(tool.shortcut);
+        return (
+          <button
+            key={tool.id}
+            className={`tool-btn sketch-tool ${activeTool === tool.id ? 'active' : ''}`}
+            onClick={() => setTool(tool.id)}
+            title={bound ? `${tool.label} (${tool.shortcut})` : tool.label}
+          >
+            <span className="tool-label">{tool.label}</span>
+            {bound && <span className="tool-shortcut">{tool.shortcut}</span>}
+          </button>
+        );
+      })}
       {isSketch && <SketchSettings />}
       <div className="tool-rail-spacer" />
-      <div className="tool-colors" onClick={swapColors} title="Click to swap colors (X)">
+      <div className="tool-colors" onClick={swapColors} title="Click to swap colors">
         <div className="color-swatch primary" style={{ backgroundColor: primaryHex }} />
         <div className="color-swatch secondary" style={{ backgroundColor: secondaryHex }} />
       </div>

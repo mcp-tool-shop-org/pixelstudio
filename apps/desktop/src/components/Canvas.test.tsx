@@ -452,4 +452,62 @@ describe('Canvas component', () => {
       expect(useTimelineStore.getState().playing).toBe(false);
     });
   });
+
+  describe('focus guard', () => {
+    it('blocks canvas shortcuts when an input is focused', async () => {
+      seedStores();
+      render(<Canvas />);
+      // Create and focus an input element to simulate typing
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      const before = useTimelineStore.getState().onionSkinEnabled;
+      await act(async () => {
+        // Dispatch O (onion skin toggle) from the focused input
+        input.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyO', bubbles: true }));
+      });
+      // O should NOT have toggled onion skin
+      expect(useTimelineStore.getState().onionSkinEnabled).toBe(before);
+      document.body.removeChild(input);
+    });
+
+    it('blocks canvas shortcuts when a textarea is focused', async () => {
+      seedStores();
+      render(<Canvas />);
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      await act(async () => {
+        textarea.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyN', bubbles: true }));
+      });
+      // N should NOT have switched to sketch-brush
+      expect(useToolStore.getState().activeTool).toBe('pencil');
+      document.body.removeChild(textarea);
+    });
+
+    it('allows Ctrl+Z undo even when input is focused', async () => {
+      seedStores();
+      render(<Canvas />);
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ', ctrlKey: true, bubbles: true }));
+      });
+      await vi.waitFor(() => {
+        expect(mock.fn).toHaveBeenCalledWith('undo');
+      });
+      document.body.removeChild(input);
+    });
+
+    it('shortcuts fire normally when no input is focused', async () => {
+      seedStores();
+      const before = useTimelineStore.getState().onionSkinEnabled;
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyO', bubbles: true }));
+      });
+      expect(useTimelineStore.getState().onionSkinEnabled).toBe(!before);
+    });
+  });
 });

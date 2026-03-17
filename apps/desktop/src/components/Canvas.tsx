@@ -1184,6 +1184,16 @@ export function Canvas() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
+      // Focus guard: don't hijack typing in inputs/textareas/contenteditable.
+      // Allow Ctrl/Cmd combos (Ctrl+S, Ctrl+Z, etc.) to pass through.
+      const target = e.target as HTMLElement;
+      if (
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) &&
+        !e.ctrlKey && !e.metaKey
+      ) {
+        return;
+      }
+
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         // If actively drawing, Space = pan; otherwise Space = play/pause
