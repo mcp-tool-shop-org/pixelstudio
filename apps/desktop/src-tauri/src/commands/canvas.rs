@@ -395,10 +395,10 @@ pub fn fill_rect(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderRegionInput {
-    /// Absolute pixel x offset on canvas.
-    pub x: u32,
-    /// Absolute pixel y offset on canvas.
-    pub y: u32,
+    /// Absolute pixel x offset on canvas (can be negative for animation overshoot).
+    pub x: i32,
+    /// Absolute pixel y offset on canvas (can be negative for animation overshoot).
+    pub y: i32,
     /// Width in pixels.
     pub width: u32,
     /// Height in pixels.
@@ -422,12 +422,12 @@ pub struct RenderRegionInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderConnectionInput {
-    /// Center of source region.
-    pub from_x: u32,
-    pub from_y: u32,
-    /// Center of destination region.
-    pub to_x: u32,
-    pub to_y: u32,
+    /// Center of source region (can be negative for animation overshoot).
+    pub from_x: i32,
+    pub from_y: i32,
+    /// Center of destination region (can be negative for animation overshoot).
+    pub to_x: i32,
+    pub to_y: i32,
     /// Bridge color RGBA.
     pub r: u8,
     pub g: u8,
@@ -573,8 +573,11 @@ pub fn render_template(
             // 2px wide line
             for ox in -1i32..=0 {
                 for oy in -1i32..=0 {
-                    let px = (cx as i32 + ox) as u32;
-                    let py = (cy as i32 + oy) as u32;
+                    let px_i = cx as i32 + ox;
+                    let py_i = cy as i32 + oy;
+                    if px_i < 0 || py_i < 0 { continue; }
+                    let px = px_i as u32;
+                    let py = py_i as u32;
                     if layer.buffer.in_bounds(px, py) {
                         layer.buffer.set_pixel(px, py, &color);
                         pixel_count += 1;
@@ -604,8 +607,13 @@ pub fn render_template(
                 if !pixel_in_shape(lx, ly, region.width, region.height, &region.shape) {
                     continue;
                 }
-                let px = region.x + lx;
-                let py = region.y + ly;
+                let px_i = region.x + lx as i32;
+                let py_i = region.y + ly as i32;
+                if px_i < 0 || py_i < 0 {
+                    continue;
+                }
+                let px = px_i as u32;
+                let py = py_i as u32;
                 if !layer.buffer.in_bounds(px, py) {
                     continue;
                 }
