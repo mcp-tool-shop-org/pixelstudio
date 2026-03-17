@@ -17,10 +17,11 @@ import type {
   EllipseGeometry,
   LineGeometry,
   PolygonGeometry,
+  PathGeometry,
   Rgba,
   SpritePixelBuffer,
 } from '@glyphstudio/domain';
-import { createBlankPixelBuffer } from '@glyphstudio/domain';
+import { createBlankPixelBuffer, flattenPath } from '@glyphstudio/domain';
 
 // ── Alpha compositing ──
 
@@ -293,6 +294,66 @@ function rasterizePolygon(
   }
 }
 
+function rasterizePath(
+  geo: PathGeometry,
+  t: VectorTransform,
+  fill: Rgba | null,
+  stroke: { color: Rgba; width: number } | null,
+  buf: SpritePixelBuffer,
+  artW: number,
+  artH: number,
+): void {
+  // Flatten curves to polygon points in artboard space
+  const flatPoints = flattenPath(geo, 2);
+  if (flatPoints.length < 2) return;
+
+  // Transform and scale to target
+  const scaledPoints = flatPoints.map((p) => {
+    const [tx, ty] = transformPoint(p.x, p.y, t);
+    return {
+      x: toTarget(tx, artW, buf.width),
+      y: toTarget(ty, artH, buf.height),
+    };
+  });
+
+  if (fill && geo.closed && scaledPoints.length >= 3) {
+    scanlineFillPolygon(buf, scaledPoints, fill);
+  }
+  if (stroke) {
+    const sw = Math.max(1, toTargetDim(stroke.width, artW, buf.width));
+    if (geo.closed && scaledPoints.length >= 3) {
+      drawPolygonStroke(buf, scaledPoints, stroke.color, sw);
+    } else {
+      // Open path — draw edges but don't close
+      drawOpenPathStroke(buf, scaledPoints, stroke.color, sw);
+    }
+  }
+}
+
+/** Stroke an open path (no closing segment). */
+function drawOpenPathStroke(
+  buf: SpritePixelBuffer,
+  points: ReadonlyArray<{ x: number; y: number }>,
+  color: Rgba,
+  sw: number,
+): void {
+  for (let i = 0; i < points.length - 1; i++) {
+    const line = bresenhamLine(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
+    for (const [px, py] of line) {
+      if (sw === 1) {
+        compositePixel(buf, px, py, color);
+      } else {
+        const half = Math.floor(sw / 2);
+        for (let dy = -half; dy <= half; dy++) {
+          for (let dx = -half; dx <= half; dx++) {
+            compositePixel(buf, px + dx, py + dy, color);
+          }
+        }
+      }
+    }
+  }
+}
+
 // ── Scanline polygon fill (even-odd rule) ──
 
 function scanlineFillPolygon(
@@ -419,6 +480,9 @@ export function rasterizeShape(
     case 'polygon':
       rasterizePolygon(geo, t, fill, stroke, buf, artboardWidth, artboardHeight);
       break;
+    case 'path':
+      rasterizePath(geo, t, fill, stroke, buf, artboardWidth, artboardHeight);
+      break;
   }
 }
 
@@ -484,6 +548,20 @@ export function wouldShapeCollapse(
     case 'polygon': {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const p of geo.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      extentX = (maxX - minX) * Math.abs(shape.transform.scaleX);
+      extentY = (maxY - minY) * Math.abs(shape.transform.scaleY);
+      break;
+    }
+    case 'path': {
+      // Flatten path to get actual bounds including curve bulge
+      const flat = flattenPath(geo, 2);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of flat) {
         if (p.x < minX) minX = p.x;
         if (p.x > maxX) maxX = p.x;
         if (p.y < minY) minY = p.y;

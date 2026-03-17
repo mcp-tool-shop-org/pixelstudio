@@ -57,12 +57,59 @@ export interface PolygonGeometry {
   points: ReadonlyArray<{ x: number; y: number }>;
 }
 
+// ── Path geometry (quadratic curves) ──
+
+/** A point on a path — anchor position + point type. */
+export interface PathPoint {
+  /** Anchor position X. */
+  x: number;
+  /** Anchor position Y. */
+  y: number;
+  /**
+   * Point type:
+   * - 'corner': sharp junction — no tangent constraint
+   * - 'smooth': tangent is continuous across this point
+   */
+  pointType: 'corner' | 'smooth';
+}
+
+/**
+ * A segment connects two consecutive path points.
+ *
+ * - 'line': straight segment from previous point to next point
+ * - 'quadratic': quadratic Bézier from previous point through cpX,cpY to next point
+ */
+export type PathSegment =
+  | { kind: 'line' }
+  | { kind: 'quadratic'; cpX: number; cpY: number };
+
+/**
+ * Path geometry — a sequence of points connected by line or quadratic curve segments.
+ *
+ * Supports open and closed paths. Mixed line + curve segments in one path.
+ * Designed for organic forms: tails, capes, flames, muscle contours.
+ *
+ * segments[i] connects points[i] to points[i+1] (or points[0] if closed and i === last).
+ * For a closed path with N points, there are N segments.
+ * For an open path with N points, there are N-1 segments.
+ */
+export interface PathGeometry {
+  kind: 'path';
+  /** Ordered anchor points. Minimum 2. */
+  points: ReadonlyArray<PathPoint>;
+  /** Segments connecting consecutive points. */
+  segments: ReadonlyArray<PathSegment>;
+  /** Whether the path is closed (last point connects back to first). */
+  closed: boolean;
+}
+
 /** Union of all supported geometry types. */
 export type VectorGeometry =
   | RectGeometry
   | EllipseGeometry
   | LineGeometry
-  | PolygonGeometry;
+  | PolygonGeometry
+  | PathGeometry;
 
 /** Discriminant for geometry kind. */
 export type VectorShapeKind = VectorGeometry['kind'];
@@ -376,6 +423,337 @@ export function createPolygonShape(
     visible: true,
     locked: false,
   };
+}
+
+/** Create a path shape with sensible defaults. */
+export function createPathShape(
+  name: string,
+  points: ReadonlyArray<PathPoint>,
+  segments: ReadonlyArray<PathSegment>,
+  closed: boolean,
+  fill: Rgba | null = null,
+): VectorShape {
+  if (points.length < 2) {
+    throw new Error('Path requires at least 2 points');
+  }
+  const expectedSegments = closed ? points.length : points.length - 1;
+  if (segments.length !== expectedSegments) {
+    throw new Error(
+      `Path with ${points.length} points and closed=${closed} requires ${expectedSegments} segments, got ${segments.length}`,
+    );
+  }
+  return {
+    id: generateVectorShapeId(),
+    name,
+    groupId: null,
+    zOrder: 0,
+    geometry: { kind: 'path', points, segments, closed },
+    fill,
+    stroke: null,
+    transform: { ...DEFAULT_VECTOR_TRANSFORM },
+    reduction: { ...DEFAULT_REDUCTION_META },
+    visible: true,
+    locked: false,
+  };
+}
+
+// ── Path editing operations ──
+
+/**
+ * Evaluate a quadratic Bézier at parameter t.
+ * P(t) = (1-t)²·P0 + 2(1-t)t·CP + t²·P1
+ */
+export function evalQuadratic(
+  p0x: number, p0y: number,
+  cpx: number, cpy: number,
+  p1x: number, p1y: number,
+  t: number,
+): { x: number; y: number } {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0x + 2 * mt * t * cpx + t * t * p1x,
+    y: mt * mt * p0y + 2 * mt * t * cpy + t * t * p1y,
+  };
+}
+
+/**
+ * Flatten a path geometry into polygon points for rasterization.
+ *
+ * Quadratic curves are subdivided via de Casteljau until segments are
+ * shorter than `tolerance` pixels in artboard space. Line segments
+ * contribute their endpoints directly.
+ *
+ * @param geo - Path geometry to flatten
+ * @param tolerance - Max distance between subdivision points (default 2px artboard)
+ * @returns Array of {x, y} points suitable for scanline fill
+ */
+export function flattenPath(
+  geo: PathGeometry,
+  tolerance: number = 2,
+): Array<{ x: number; y: number }> {
+  const result: Array<{ x: number; y: number }> = [];
+  const pts = geo.points;
+  const segs = geo.segments;
+  const n = pts.length;
+
+  if (n < 2) return result;
+
+  // Add first point
+  result.push({ x: pts[0].x, y: pts[0].y });
+
+  const segCount = geo.closed ? n : n - 1;
+  for (let i = 0; i < segCount; i++) {
+    const p0 = pts[i];
+    const p1 = pts[(i + 1) % n];
+    const seg = segs[i];
+
+    if (seg.kind === 'line') {
+      result.push({ x: p1.x, y: p1.y });
+    } else {
+      // Quadratic Bézier — adaptive subdivision
+      flattenQuadratic(
+        p0.x, p0.y,
+        seg.cpX, seg.cpY,
+        p1.x, p1.y,
+        tolerance,
+        result,
+      );
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Adaptively subdivide a quadratic Bézier curve into line segments.
+ * Uses midpoint distance criterion for subdivision.
+ */
+function flattenQuadratic(
+  p0x: number, p0y: number,
+  cpx: number, cpy: number,
+  p1x: number, p1y: number,
+  tolerance: number,
+  result: Array<{ x: number; y: number }>,
+): void {
+  // Midpoint of the chord
+  const mx = (p0x + p1x) / 2;
+  const my = (p0y + p1y) / 2;
+  // Distance from control point to chord midpoint
+  const dx = cpx - mx;
+  const dy = cpy - my;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist <= tolerance) {
+    // Flat enough — just add the endpoint
+    result.push({ x: p1x, y: p1y });
+  } else {
+    // Subdivide at t=0.5 using de Casteljau
+    const q0x = (p0x + cpx) / 2;
+    const q0y = (p0y + cpy) / 2;
+    const q1x = (cpx + p1x) / 2;
+    const q1y = (cpy + p1y) / 2;
+    const midx = (q0x + q1x) / 2;
+    const midy = (q0y + q1y) / 2;
+
+    flattenQuadratic(p0x, p0y, q0x, q0y, midx, midy, tolerance, result);
+    flattenQuadratic(midx, midy, q1x, q1y, p1x, p1y, tolerance, result);
+  }
+}
+
+// ── Path point editing ──
+
+/** Add a point to a path at the given index, splitting the segment. */
+export function pathAddPoint(
+  geo: PathGeometry,
+  index: number,
+  point: PathPoint,
+): PathGeometry {
+  const pts = [...geo.points];
+  const segs = [...geo.segments];
+  const segCount = geo.closed ? pts.length : pts.length - 1;
+
+  if (index < 0 || index > pts.length) {
+    throw new Error(`Index ${index} out of bounds for path with ${pts.length} points`);
+  }
+
+  // Insert at the end of an open path — add a line segment
+  if (index === pts.length && !geo.closed) {
+    pts.push(point);
+    segs.push({ kind: 'line' });
+    return { kind: 'path', points: pts, segments: segs, closed: geo.closed };
+  }
+
+  // Insert in the middle — split the preceding segment
+  if (index > 0 && index <= segCount) {
+    const segIdx = index - 1;
+    const oldSeg = segs[segIdx];
+
+    if (oldSeg.kind === 'line') {
+      // Split line into two lines
+      pts.splice(index, 0, point);
+      segs.splice(segIdx, 1, { kind: 'line' }, { kind: 'line' });
+    } else {
+      // Split quadratic at t=0.5
+      const p0 = pts[segIdx];
+      const p1 = pts[index % pts.length];
+      const q0x = (p0.x + oldSeg.cpX) / 2;
+      const q0y = (p0.y + oldSeg.cpY) / 2;
+      const q1x = (oldSeg.cpX + p1.x) / 2;
+      const q1y = (oldSeg.cpY + p1.y) / 2;
+
+      pts.splice(index, 0, point);
+      segs.splice(segIdx, 1,
+        { kind: 'quadratic', cpX: q0x, cpY: q0y },
+        { kind: 'quadratic', cpX: q1x, cpY: q1y },
+      );
+    }
+    return { kind: 'path', points: pts, segments: segs, closed: geo.closed };
+  }
+
+  // Insert at start
+  pts.splice(0, 0, point);
+  segs.splice(0, 0, { kind: 'line' });
+  return { kind: 'path', points: pts, segments: segs, closed: geo.closed };
+}
+
+/** Move a point on a path to a new position. */
+export function pathMovePoint(
+  geo: PathGeometry,
+  index: number,
+  x: number,
+  y: number,
+): PathGeometry {
+  if (index < 0 || index >= geo.points.length) {
+    throw new Error(`Index ${index} out of bounds for path with ${geo.points.length} points`);
+  }
+  const pts = geo.points.map((p, i) =>
+    i === index ? { ...p, x, y } : p,
+  );
+  return { ...geo, points: pts };
+}
+
+/** Delete a point from a path, merging adjacent segments. */
+export function pathDeletePoint(
+  geo: PathGeometry,
+  index: number,
+): PathGeometry {
+  if (index < 0 || index >= geo.points.length) {
+    throw new Error(`Index ${index} out of bounds for path with ${geo.points.length} points`);
+  }
+  if (geo.points.length <= 2) {
+    throw new Error('Cannot delete point: path needs at least 2 points');
+  }
+
+  const pts = [...geo.points];
+  const segs = [...geo.segments];
+
+  if (geo.closed) {
+    // Remove point and one of its adjacent segments
+    pts.splice(index, 1);
+    const segIdx = index < segs.length ? index : index - 1;
+    segs.splice(segIdx, 1);
+    // If we removed the last segment in a closed path, adjust
+    if (segs.length > pts.length) {
+      segs.splice(segs.length - 1, 1);
+    }
+  } else {
+    if (index === 0) {
+      // Remove first point and first segment
+      pts.splice(0, 1);
+      segs.splice(0, 1);
+    } else if (index === pts.length - 1) {
+      // Remove last point and last segment
+      pts.splice(index, 1);
+      segs.splice(index - 1, 1);
+    } else {
+      // Remove middle point — merge to a line segment
+      pts.splice(index, 1);
+      segs.splice(index - 1, 2, { kind: 'line' });
+    }
+  }
+
+  return { kind: 'path', points: pts, segments: segs, closed: geo.closed };
+}
+
+/** Set point type (smooth or corner) at given index. */
+export function pathSetPointType(
+  geo: PathGeometry,
+  index: number,
+  pointType: 'corner' | 'smooth',
+): PathGeometry {
+  if (index < 0 || index >= geo.points.length) {
+    throw new Error(`Index ${index} out of bounds`);
+  }
+  const pts = geo.points.map((p, i) =>
+    i === index ? { ...p, pointType } : p,
+  );
+  return { ...geo, points: pts };
+}
+
+/** Convert a segment between line and quadratic curve. */
+export function pathConvertSegment(
+  geo: PathGeometry,
+  segIndex: number,
+  toKind: 'line' | 'quadratic',
+): PathGeometry {
+  const maxSeg = geo.closed ? geo.points.length : geo.points.length - 1;
+  if (segIndex < 0 || segIndex >= maxSeg) {
+    throw new Error(`Segment index ${segIndex} out of bounds`);
+  }
+
+  const segs = [...geo.segments];
+  const current = segs[segIndex];
+
+  if (current.kind === toKind) return geo; // no-op
+
+  if (toKind === 'line') {
+    segs[segIndex] = { kind: 'line' };
+  } else {
+    // Convert line to quadratic — place control point at midpoint
+    const p0 = geo.points[segIndex];
+    const p1 = geo.points[(segIndex + 1) % geo.points.length];
+    segs[segIndex] = {
+      kind: 'quadratic',
+      cpX: (p0.x + p1.x) / 2,
+      cpY: (p0.y + p1.y) / 2,
+    };
+  }
+
+  return { ...geo, segments: segs };
+}
+
+/** Toggle a path between open and closed. */
+export function pathToggleClosed(geo: PathGeometry): PathGeometry {
+  const segs = [...geo.segments];
+  if (geo.closed) {
+    // Close → open: remove last segment
+    segs.pop();
+  } else {
+    // Open → close: add a line segment from last to first
+    segs.push({ kind: 'line' });
+  }
+  return { kind: 'path', points: geo.points, segments: segs, closed: !geo.closed };
+}
+
+/** Move a control point on a quadratic segment. */
+export function pathMoveControlPoint(
+  geo: PathGeometry,
+  segIndex: number,
+  cpX: number,
+  cpY: number,
+): PathGeometry {
+  const maxSeg = geo.closed ? geo.points.length : geo.points.length - 1;
+  if (segIndex < 0 || segIndex >= maxSeg) {
+    throw new Error(`Segment index ${segIndex} out of bounds`);
+  }
+  const seg = geo.segments[segIndex];
+  if (seg.kind !== 'quadratic') {
+    throw new Error('Cannot move control point on a line segment');
+  }
+  const segs = geo.segments.map((s, i) =>
+    i === segIndex ? { kind: 'quadratic' as const, cpX, cpY } : s,
+  );
+  return { ...geo, segments: segs };
 }
 
 /** Create a vector group. */

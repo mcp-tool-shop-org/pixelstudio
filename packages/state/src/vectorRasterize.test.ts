@@ -11,10 +11,11 @@ import {
   createEllipseShape,
   createLineShape,
   createPolygonShape,
+  createPathShape,
   createBlankPixelBuffer,
   DEFAULT_VECTOR_TRANSFORM,
 } from '@glyphstudio/domain';
-import type { VectorShape, SpritePixelBuffer, Rgba } from '@glyphstudio/domain';
+import type { VectorShape, SpritePixelBuffer, Rgba, PathPoint, PathSegment } from '@glyphstudio/domain';
 
 function readPixel(buf: SpritePixelBuffer, x: number, y: number): Rgba {
   const i = (y * buf.width + x) * 4;
@@ -310,6 +311,207 @@ describe('vectorRasterize', () => {
       const shape = createRectShape('scaled', 0, 0, 50, 50);
       shape.transform = { ...DEFAULT_VECTOR_TRANSFORM, scaleX: 0.01, scaleY: 0.01 };
       expect(wouldShapeCollapse(shape, 500, 500, 48, 48)).toBe(true);
+    });
+
+    it('detects path collapse', () => {
+      const pts: PathPoint[] = [
+        { x: 100, y: 100, pointType: 'corner' },
+        { x: 102, y: 100, pointType: 'corner' },
+        { x: 101, y: 102, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }];
+      const shape = createPathShape('tiny-path', pts, segs, true);
+      expect(wouldShapeCollapse(shape, 500, 500, 16, 16)).toBe(true);
+    });
+
+    it('large path does not collapse', () => {
+      const pts: PathPoint[] = [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 250, y: 0, pointType: 'corner' },
+        { x: 250, y: 250, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }];
+      const shape = createPathShape('big-path', pts, segs, true);
+      expect(wouldShapeCollapse(shape, 500, 500, 32, 32)).toBe(false);
+    });
+
+    it('curved path uses bounding box including curve bulge', () => {
+      // Path with curve that bulges far from anchor points
+      const pts: PathPoint[] = [
+        { x: 100, y: 250, pointType: 'corner' },
+        { x: 400, y: 250, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'quadratic', cpX: 250, cpY: 0 }];
+      const shape = createPathShape('arched-path', pts, segs, false);
+      // Curve bulges up to ~y=125 → vertical extent is ~125px → shouldn't collapse at 32×32
+      expect(wouldShapeCollapse(shape, 500, 500, 32, 32)).toBe(false);
+    });
+  });
+
+  // ── Path rasterization ──
+
+  describe('rasterizeShape — path', () => {
+    it('fills a closed triangle path', () => {
+      const pts: PathPoint[] = [
+        { x: 250, y: 50, pointType: 'corner' },
+        { x: 450, y: 450, pointType: 'corner' },
+        { x: 50, y: 450, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }];
+      const shape = createPathShape('tri', pts, segs, true, [255, 0, 0, 255]);
+      const buf = createBlankPixelBuffer(10, 10);
+      rasterizeShape(shape, buf, 500, 500);
+      const filled = countFilledPixels(buf);
+      expect(filled).toBeGreaterThan(0);
+      // Bottom center should be filled
+      expect(isOpaque(buf, 5, 8)).toBe(true);
+    });
+
+    it('fills a closed curved path (teardrop flame)', () => {
+      // Teardrop: narrow top, wide bottom with curves
+      const pts: PathPoint[] = [
+        { x: 250, y: 50, pointType: 'corner' },   // top tip
+        { x: 350, y: 300, pointType: 'smooth' },   // right
+        { x: 250, y: 450, pointType: 'smooth' },   // bottom
+        { x: 150, y: 300, pointType: 'smooth' },   // left
+      ];
+      const segs: PathSegment[] = [
+        { kind: 'quadratic', cpX: 400, cpY: 150 },  // right bulge
+        { kind: 'quadratic', cpX: 350, cpY: 400 },   // right-bottom curve
+        { kind: 'quadratic', cpX: 150, cpY: 400 },   // left-bottom curve
+        { kind: 'quadratic', cpX: 100, cpY: 150 },   // left bulge back to top
+      ];
+      const shape = createPathShape('flame', pts, segs, true, [255, 160, 0, 255]);
+      const buf = createBlankPixelBuffer(16, 16);
+      rasterizeShape(shape, buf, 500, 500);
+      const filled = countFilledPixels(buf);
+      expect(filled).toBeGreaterThan(10);
+      // Center should be filled
+      expect(isOpaque(buf, 8, 8)).toBe(true);
+    });
+
+    it('renders open path stroke only (no fill)', () => {
+      const pts: PathPoint[] = [
+        { x: 0, y: 250, pointType: 'corner' },
+        { x: 250, y: 50, pointType: 'smooth' },
+        { x: 500, y: 250, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [
+        { kind: 'quadratic', cpX: 125, cpY: 50 },
+        { kind: 'quadratic', cpX: 375, cpY: 50 },
+      ];
+      const shape = createPathShape('arc', pts, segs, false, null);
+      shape.stroke = { color: [0, 255, 0, 255], width: 20 };
+      const buf = createBlankPixelBuffer(20, 20);
+      rasterizeShape(shape, buf, 500, 500);
+      const filled = countFilledPixels(buf);
+      expect(filled).toBeGreaterThan(0);
+      // Should NOT fill center (open path, no fill)
+      // But should have stroked pixels along the arc
+    });
+
+    it('open path without fill has no scanline fill', () => {
+      const pts: PathPoint[] = [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 500, y: 500, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'line' }];
+      const shape = createPathShape('diagonal', pts, segs, false, [255, 0, 0, 255]);
+      // Even though fill is set, open path should NOT scanline-fill
+      const buf = createBlankPixelBuffer(10, 10);
+      rasterizeShape(shape, buf, 500, 500);
+      // Open path with only 2 points can't form a polygon → no fill
+      expect(countFilledPixels(buf)).toBe(0);
+    });
+
+    it('path with transform is rasterized correctly', () => {
+      const pts: PathPoint[] = [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 100, y: 0, pointType: 'corner' },
+        { x: 100, y: 100, pointType: 'corner' },
+        { x: 0, y: 100, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [
+        { kind: 'line' }, { kind: 'line' }, { kind: 'line' }, { kind: 'line' },
+      ];
+      const shape = createPathShape('square-path', pts, segs, true, [0, 0, 255, 255]);
+      shape.transform = { ...DEFAULT_VECTOR_TRANSFORM, x: 200, y: 200 };
+      const buf = createBlankPixelBuffer(10, 10);
+      rasterizeShape(shape, buf, 500, 500);
+      // Shape at (200,200)-(300,300) → pixels at (4,4)-(6,6) on 10×10
+      expect(isOpaque(buf, 4, 4)).toBe(true);
+      expect(isOpaque(buf, 0, 0)).toBe(false);
+    });
+
+    it('mixed line+curve path rasterizes', () => {
+      const pts: PathPoint[] = [
+        { x: 100, y: 100, pointType: 'corner' },
+        { x: 400, y: 100, pointType: 'corner' },
+        { x: 400, y: 400, pointType: 'smooth' },
+        { x: 100, y: 400, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [
+        { kind: 'line' },                              // top edge: straight
+        { kind: 'quadratic', cpX: 500, cpY: 250 },     // right edge: curved outward
+        { kind: 'line' },                              // bottom edge: straight
+        { kind: 'quadratic', cpX: 0, cpY: 250 },       // left edge: curved outward
+      ];
+      const shape = createPathShape('rounded-rect', pts, segs, true, [128, 128, 128, 255]);
+      const buf = createBlankPixelBuffer(16, 16);
+      rasterizeShape(shape, buf, 500, 500);
+      const filled = countFilledPixels(buf);
+      // Should fill more than a plain rectangle due to curve bulges
+      expect(filled).toBeGreaterThan(20);
+    });
+  });
+
+  // ── Path in full document ──
+
+  describe('rasterizeVectorMaster — paths', () => {
+    it('rasterizes document with path shapes', () => {
+      const doc = createVectorMasterDocument('test');
+      const pts: PathPoint[] = [
+        { x: 100, y: 100, pointType: 'corner' },
+        { x: 400, y: 100, pointType: 'corner' },
+        { x: 250, y: 400, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }];
+      const shape = createPathShape('triangle', pts, segs, true, [255, 0, 0, 255]);
+      shape.id = 'path1';
+      doc.shapes = [shape];
+      const buf = rasterizeVectorMaster(doc, 32, 32);
+      expect(countFilledPixels(buf)).toBeGreaterThan(0);
+    });
+
+    it('composites paths with other shapes', () => {
+      const doc = createVectorMasterDocument('composite');
+      const bg = createRectShape('bg', 0, 0, 500, 500, [100, 100, 100, 255]);
+      bg.id = 'bg';
+      bg.zOrder = 0;
+
+      const pts: PathPoint[] = [
+        { x: 150, y: 150, pointType: 'corner' },
+        { x: 350, y: 150, pointType: 'corner' },
+        { x: 350, y: 350, pointType: 'smooth' },
+        { x: 150, y: 350, pointType: 'corner' },
+      ];
+      const segs: PathSegment[] = [
+        { kind: 'line' },
+        { kind: 'quadratic', cpX: 450, cpY: 250 },
+        { kind: 'line' },
+        { kind: 'line' },
+      ];
+      const pathShape = createPathShape('overlay', pts, segs, true, [255, 0, 0, 255]);
+      pathShape.id = 'path1';
+      pathShape.zOrder = 1;
+      doc.shapes = [bg, pathShape];
+
+      const buf = rasterizeVectorMaster(doc, 16, 16);
+      // Everything should be filled (bg covers all)
+      expect(countFilledPixels(buf)).toBe(16 * 16);
+      // Center area should have some red from the path overlay
+      const centerPx = readPixel(buf, 8, 8);
+      expect(centerPx[0]).toBe(255); // red
     });
   });
 

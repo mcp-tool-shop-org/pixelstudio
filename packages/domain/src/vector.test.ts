@@ -5,6 +5,7 @@ import {
   createEllipseShape,
   createLineShape,
   createPolygonShape,
+  createPathShape,
   createVectorGroup,
   generateVectorMasterId,
   generateVectorShapeId,
@@ -13,6 +14,15 @@ import {
   DEFAULT_ARTBOARD_HEIGHT,
   DEFAULT_VECTOR_TRANSFORM,
   DEFAULT_REDUCTION_META,
+  flattenPath,
+  evalQuadratic,
+  pathAddPoint,
+  pathMovePoint,
+  pathDeletePoint,
+  pathSetPointType,
+  pathConvertSegment,
+  pathToggleClosed,
+  pathMoveControlPoint,
 } from './vector';
 import type {
   VectorMasterDocument,
@@ -25,6 +35,9 @@ import type {
   EllipseGeometry,
   LineGeometry,
   PolygonGeometry,
+  PathGeometry,
+  PathPoint,
+  PathSegment,
   Rgba,
   VectorStroke,
   VectorSourceLink,
@@ -276,6 +289,460 @@ describe('vector domain types', () => {
       };
       expect(meta.cueTag).toBe('hood');
       expect(meta.survivalHint).toBe('must-survive');
+    });
+
+    it('PathGeometry discriminates on kind', () => {
+      const path: VectorGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 100, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }],
+        closed: false,
+      };
+      expect(path.kind).toBe('path');
+    });
+  });
+
+  // ── Path factory ──
+
+  describe('createPathShape', () => {
+    const pts: PathPoint[] = [
+      { x: 0, y: 0, pointType: 'corner' },
+      { x: 100, y: 0, pointType: 'smooth' },
+      { x: 100, y: 100, pointType: 'corner' },
+    ];
+
+    it('creates open path with line segments', () => {
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }];
+      const s = createPathShape('cape-edge', pts, segs, false);
+      expect(s.geometry.kind).toBe('path');
+      const geo = s.geometry as PathGeometry;
+      expect(geo.points).toHaveLength(3);
+      expect(geo.segments).toHaveLength(2);
+      expect(geo.closed).toBe(false);
+    });
+
+    it('creates closed path', () => {
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }];
+      const s = createPathShape('flame', pts, segs, true);
+      const geo = s.geometry as PathGeometry;
+      expect(geo.closed).toBe(true);
+      expect(geo.segments).toHaveLength(3); // N segments for N points closed
+    });
+
+    it('creates path with mixed line and curve segments', () => {
+      const segs: PathSegment[] = [
+        { kind: 'line' },
+        { kind: 'quadratic', cpX: 150, cpY: 50 },
+      ];
+      const s = createPathShape('tail', pts, segs, false);
+      const geo = s.geometry as PathGeometry;
+      expect(geo.segments[0].kind).toBe('line');
+      expect(geo.segments[1].kind).toBe('quadratic');
+    });
+
+    it('accepts fill color', () => {
+      const segs: PathSegment[] = [{ kind: 'line' }, { kind: 'line' }];
+      const s = createPathShape('shape', pts, segs, false, [255, 0, 0, 255]);
+      expect(s.fill).toEqual([255, 0, 0, 255]);
+    });
+
+    it('rejects path with fewer than 2 points', () => {
+      expect(() => createPathShape('bad', [{ x: 0, y: 0, pointType: 'corner' }], [], false))
+        .toThrow('Path requires at least 2 points');
+    });
+
+    it('rejects path with wrong segment count (open)', () => {
+      // Open path with 3 points needs 2 segments
+      expect(() => createPathShape('bad', pts, [{ kind: 'line' }], false))
+        .toThrow('requires 2 segments, got 1');
+    });
+
+    it('rejects path with wrong segment count (closed)', () => {
+      // Closed path with 3 points needs 3 segments
+      expect(() => createPathShape('bad', pts, [{ kind: 'line' }, { kind: 'line' }], true))
+        .toThrow('requires 3 segments, got 2');
+    });
+  });
+
+  // ── Quadratic Bézier evaluation ──
+
+  describe('evalQuadratic', () => {
+    it('returns start point at t=0', () => {
+      const p = evalQuadratic(0, 0, 50, 100, 100, 0, 0);
+      expect(p.x).toBeCloseTo(0);
+      expect(p.y).toBeCloseTo(0);
+    });
+
+    it('returns end point at t=1', () => {
+      const p = evalQuadratic(0, 0, 50, 100, 100, 0, 1);
+      expect(p.x).toBeCloseTo(100);
+      expect(p.y).toBeCloseTo(0);
+    });
+
+    it('midpoint is pulled toward control point', () => {
+      const p = evalQuadratic(0, 0, 50, 100, 100, 0, 0.5);
+      expect(p.x).toBeCloseTo(50);
+      expect(p.y).toBeCloseTo(50); // pulled up toward cp at (50,100)
+    });
+
+    it('straight line when control point is on midpoint', () => {
+      const p = evalQuadratic(0, 0, 50, 50, 100, 100, 0.5);
+      expect(p.x).toBeCloseTo(50);
+      expect(p.y).toBeCloseTo(50);
+    });
+  });
+
+  // ── Path flattening ──
+
+  describe('flattenPath', () => {
+    it('flattens all-line path to points', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+          { x: 100, y: 100, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }, { kind: 'line' }],
+        closed: false,
+      };
+      const flat = flattenPath(geo);
+      expect(flat).toHaveLength(3);
+      expect(flat[0]).toEqual({ x: 0, y: 0 });
+      expect(flat[1]).toEqual({ x: 100, y: 0 });
+      expect(flat[2]).toEqual({ x: 100, y: 100 });
+    });
+
+    it('flattens closed line path to include closing segment', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+          { x: 50, y: 80, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }],
+        closed: true,
+      };
+      const flat = flattenPath(geo);
+      // Start + 3 segments → 4 points (last returns to first)
+      expect(flat).toHaveLength(4);
+      expect(flat[3]).toEqual({ x: 0, y: 0 });
+    });
+
+    it('subdivides quadratic curve into multiple points', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 200, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'quadratic', cpX: 100, cpY: 200 }],
+        closed: false,
+      };
+      const flat = flattenPath(geo, 5);
+      // Should have more than 2 points (curve was subdivided)
+      expect(flat.length).toBeGreaterThan(2);
+      // First and last match anchor points
+      expect(flat[0]).toEqual({ x: 0, y: 0 });
+      expect(flat[flat.length - 1]).toEqual({ x: 200, y: 0 });
+      // Some intermediate point should have positive Y (curve bulges toward control point)
+      const midPoints = flat.slice(1, -1);
+      expect(midPoints.some(p => p.y > 0)).toBe(true);
+    });
+
+    it('handles mixed line and curve segments', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+          { x: 200, y: 0, pointType: 'corner' },
+        ],
+        segments: [
+          { kind: 'line' },
+          { kind: 'quadratic', cpX: 150, cpY: 100 },
+        ],
+        closed: false,
+      };
+      const flat = flattenPath(geo, 5);
+      expect(flat.length).toBeGreaterThan(3);
+      // Line segment part
+      expect(flat[0]).toEqual({ x: 0, y: 0 });
+      expect(flat[1]).toEqual({ x: 100, y: 0 });
+      // Curve part has intermediate points
+      expect(flat[flat.length - 1]).toEqual({ x: 200, y: 0 });
+    });
+
+    it('flat curve produces few points', () => {
+      // Control point on the line between anchors — practically straight
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'quadratic', cpX: 50, cpY: 0 }],
+        closed: false,
+      };
+      const flat = flattenPath(geo, 2);
+      // Nearly straight curve → should produce just start + end (or very few)
+      expect(flat.length).toBeLessThanOrEqual(3);
+    });
+  });
+
+  // ── Path point editing ──
+
+  describe('pathMovePoint', () => {
+    const geo: PathGeometry = {
+      kind: 'path',
+      points: [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 100, y: 0, pointType: 'corner' },
+        { x: 100, y: 100, pointType: 'corner' },
+      ],
+      segments: [{ kind: 'line' }, { kind: 'line' }],
+      closed: false,
+    };
+
+    it('moves a point to new position', () => {
+      const result = pathMovePoint(geo, 1, 50, 50);
+      expect(result.points[1].x).toBe(50);
+      expect(result.points[1].y).toBe(50);
+    });
+
+    it('preserves point type', () => {
+      const withSmooth: PathGeometry = {
+        ...geo,
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'smooth' },
+          { x: 100, y: 100, pointType: 'corner' },
+        ],
+      };
+      const result = pathMovePoint(withSmooth, 1, 50, 50);
+      expect(result.points[1].pointType).toBe('smooth');
+    });
+
+    it('preserves other points', () => {
+      const result = pathMovePoint(geo, 1, 50, 50);
+      expect(result.points[0]).toEqual(geo.points[0]);
+      expect(result.points[2]).toEqual(geo.points[2]);
+    });
+
+    it('throws for out-of-bounds index', () => {
+      expect(() => pathMovePoint(geo, 5, 0, 0)).toThrow('out of bounds');
+    });
+  });
+
+  describe('pathDeletePoint', () => {
+    const geo: PathGeometry = {
+      kind: 'path',
+      points: [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 100, y: 0, pointType: 'corner' },
+        { x: 200, y: 0, pointType: 'corner' },
+      ],
+      segments: [{ kind: 'line' }, { kind: 'line' }],
+      closed: false,
+    };
+
+    it('deletes first point', () => {
+      const result = pathDeletePoint(geo, 0);
+      expect(result.points).toHaveLength(2);
+      expect(result.segments).toHaveLength(1);
+      expect(result.points[0].x).toBe(100);
+    });
+
+    it('deletes last point', () => {
+      const result = pathDeletePoint(geo, 2);
+      expect(result.points).toHaveLength(2);
+      expect(result.segments).toHaveLength(1);
+    });
+
+    it('deletes middle point and merges segments', () => {
+      const result = pathDeletePoint(geo, 1);
+      expect(result.points).toHaveLength(2);
+      expect(result.segments).toHaveLength(1);
+      expect(result.segments[0].kind).toBe('line');
+    });
+
+    it('refuses to delete below 2 points', () => {
+      const tiny: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }],
+        closed: false,
+      };
+      expect(() => pathDeletePoint(tiny, 0)).toThrow('at least 2 points');
+    });
+  });
+
+  describe('pathAddPoint', () => {
+    const geo: PathGeometry = {
+      kind: 'path',
+      points: [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 200, y: 0, pointType: 'corner' },
+      ],
+      segments: [{ kind: 'line' }],
+      closed: false,
+    };
+
+    it('adds point at end of open path', () => {
+      const result = pathAddPoint(geo, 2, { x: 200, y: 200, pointType: 'corner' });
+      expect(result.points).toHaveLength(3);
+      expect(result.segments).toHaveLength(2);
+      expect(result.points[2].x).toBe(200);
+    });
+
+    it('splits line segment when inserting in the middle', () => {
+      const result = pathAddPoint(geo, 1, { x: 100, y: 50, pointType: 'smooth' });
+      expect(result.points).toHaveLength(3);
+      expect(result.segments).toHaveLength(2);
+      expect(result.segments[0].kind).toBe('line');
+      expect(result.segments[1].kind).toBe('line');
+    });
+
+    it('splits quadratic segment preserving curve shape', () => {
+      const curveGeo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 200, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'quadratic', cpX: 100, cpY: 200 }],
+        closed: false,
+      };
+      const result = pathAddPoint(curveGeo, 1, { x: 100, y: 100, pointType: 'smooth' });
+      expect(result.points).toHaveLength(3);
+      expect(result.segments).toHaveLength(2);
+      // Both sub-segments should be quadratic
+      expect(result.segments[0].kind).toBe('quadratic');
+      expect(result.segments[1].kind).toBe('quadratic');
+    });
+  });
+
+  describe('pathSetPointType', () => {
+    it('changes point type', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }],
+        closed: false,
+      };
+      const result = pathSetPointType(geo, 0, 'smooth');
+      expect(result.points[0].pointType).toBe('smooth');
+      expect(result.points[1].pointType).toBe('corner'); // unchanged
+    });
+  });
+
+  describe('pathConvertSegment', () => {
+    const geo: PathGeometry = {
+      kind: 'path',
+      points: [
+        { x: 0, y: 0, pointType: 'corner' },
+        { x: 100, y: 100, pointType: 'corner' },
+      ],
+      segments: [{ kind: 'line' }],
+      closed: false,
+    };
+
+    it('converts line to quadratic with midpoint control', () => {
+      const result = pathConvertSegment(geo, 0, 'quadratic');
+      expect(result.segments[0].kind).toBe('quadratic');
+      const seg = result.segments[0] as { kind: 'quadratic'; cpX: number; cpY: number };
+      expect(seg.cpX).toBe(50); // midpoint
+      expect(seg.cpY).toBe(50);
+    });
+
+    it('converts quadratic back to line', () => {
+      const curved: PathGeometry = {
+        ...geo,
+        segments: [{ kind: 'quadratic', cpX: 50, cpY: 200 }],
+      };
+      const result = pathConvertSegment(curved, 0, 'line');
+      expect(result.segments[0].kind).toBe('line');
+    });
+
+    it('no-op when converting to same kind', () => {
+      const result = pathConvertSegment(geo, 0, 'line');
+      expect(result).toBe(geo); // same reference
+    });
+  });
+
+  describe('pathToggleClosed', () => {
+    it('closes an open path', () => {
+      const open: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+          { x: 100, y: 100, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }, { kind: 'line' }],
+        closed: false,
+      };
+      const result = pathToggleClosed(open);
+      expect(result.closed).toBe(true);
+      expect(result.segments).toHaveLength(3); // added closing segment
+      expect(result.segments[2].kind).toBe('line');
+    });
+
+    it('opens a closed path', () => {
+      const closed: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+          { x: 100, y: 100, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }],
+        closed: true,
+      };
+      const result = pathToggleClosed(closed);
+      expect(result.closed).toBe(false);
+      expect(result.segments).toHaveLength(2); // removed closing segment
+    });
+  });
+
+  describe('pathMoveControlPoint', () => {
+    it('moves a control point on a quadratic segment', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 200, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'quadratic', cpX: 100, cpY: 100 }],
+        closed: false,
+      };
+      const result = pathMoveControlPoint(geo, 0, 80, 150);
+      const seg = result.segments[0] as { kind: 'quadratic'; cpX: number; cpY: number };
+      expect(seg.cpX).toBe(80);
+      expect(seg.cpY).toBe(150);
+    });
+
+    it('throws when moving control point on a line segment', () => {
+      const geo: PathGeometry = {
+        kind: 'path',
+        points: [
+          { x: 0, y: 0, pointType: 'corner' },
+          { x: 100, y: 0, pointType: 'corner' },
+        ],
+        segments: [{ kind: 'line' }],
+        closed: false,
+      };
+      expect(() => pathMoveControlPoint(geo, 0, 50, 50)).toThrow('Cannot move control point on a line');
     });
   });
 });
