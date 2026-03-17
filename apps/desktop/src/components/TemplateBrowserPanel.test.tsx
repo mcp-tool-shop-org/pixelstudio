@@ -13,6 +13,12 @@ describe('TemplateBrowserPanel', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
+  it('shows mode toggle buttons', () => {
+    render(<TemplateBrowserPanel />);
+    expect(screen.getByText('Static')).toBeInTheDocument();
+    expect(screen.getByText('Animate')).toBeInTheDocument();
+  });
+
   it('shows all 4 templates by default', () => {
     render(<TemplateBrowserPanel />);
     expect(screen.getByText('Humanoid Warrior')).toBeInTheDocument();
@@ -48,7 +54,6 @@ describe('TemplateBrowserPanel', () => {
   it('shows detail panel when template selected', () => {
     render(<TemplateBrowserPanel />);
     fireEvent.click(screen.getByText('Humanoid Warrior'));
-    // Detail panel appears with color slots
     expect(screen.getByText('Color Slots')).toBeInTheDocument();
     expect(screen.getByText('Instantiate on Canvas')).toBeInTheDocument();
   });
@@ -56,7 +61,6 @@ describe('TemplateBrowserPanel', () => {
   it('shows color slot inputs for selected template', () => {
     render(<TemplateBrowserPanel />);
     fireEvent.click(screen.getByText('Humanoid Warrior'));
-    // Warrior has 6 color slots: skin, hair, armor, pants, boots, outline
     expect(screen.getByText('skin')).toBeInTheDocument();
     expect(screen.getByText('hair')).toBeInTheDocument();
     expect(screen.getByText('armor')).toBeInTheDocument();
@@ -75,5 +79,49 @@ describe('TemplateBrowserPanel', () => {
     expect(screen.getAllByText('16x24')).toHaveLength(2);
     expect(screen.getByText('24x16')).toBeInTheDocument(); // quadruped
     expect(screen.getByText('8x24')).toBeInTheDocument(); // sword
+  });
+
+  it('switches to animate mode and shows preset selector', () => {
+    render(<TemplateBrowserPanel />);
+    fireEvent.click(screen.getByText('Humanoid Warrior'));
+    fireEvent.click(screen.getByText('Animate'));
+    // Should show animation presets compatible with humanoid
+    expect(screen.getByText('Idle Bob')).toBeInTheDocument();
+    expect(screen.getByText('Walk Cycle')).toBeInTheDocument();
+    expect(screen.getByText('Attack Swing')).toBeInTheDocument();
+  });
+
+  it('shows preset details when selected in animate mode', () => {
+    render(<TemplateBrowserPanel />);
+    fireEvent.click(screen.getByText('Humanoid Warrior'));
+    fireEvent.click(screen.getByText('Animate'));
+    fireEvent.click(screen.getByText('Idle Bob'));
+    expect(screen.getByText('Intensity:')).toBeInTheDocument();
+    expect(screen.getByText('Generate 4-Frame Animation')).toBeInTheDocument();
+  });
+
+  it('shows no animations for item templates', () => {
+    render(<TemplateBrowserPanel />);
+    fireEvent.click(screen.getByText('Sword'));
+    fireEvent.click(screen.getByText('Animate'));
+    expect(screen.getByText(/No animations for item templates/)).toBeInTheDocument();
+  });
+
+  it('hides instantiate button in animate mode', () => {
+    render(<TemplateBrowserPanel />);
+    fireEvent.click(screen.getByText('Humanoid Warrior'));
+    // Static mode shows instantiate
+    expect(screen.getByText('Instantiate on Canvas')).toBeInTheDocument();
+    // Switch to animate
+    fireEvent.click(screen.getByText('Animate'));
+    expect(screen.queryByText('Instantiate on Canvas')).not.toBeInTheDocument();
+  });
+
+  it('shows walk cycle frame count', () => {
+    render(<TemplateBrowserPanel />);
+    fireEvent.click(screen.getByText('Humanoid Warrior'));
+    fireEvent.click(screen.getByText('Animate'));
+    fireEvent.click(screen.getByText('Walk Cycle'));
+    expect(screen.getByText('Generate 6-Frame Animation')).toBeInTheDocument();
   });
 });

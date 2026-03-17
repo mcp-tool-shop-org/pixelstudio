@@ -1,20 +1,26 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SpriteTemplate, RGBA, TemplateArchetype } from '@glyphstudio/domain';
+import type { SpriteTemplate, AnimationPreset, RGBA, TemplateArchetype } from '@glyphstudio/domain';
 import {
   SPRITE_TEMPLATE_LIBRARY,
   listTemplatesByArchetype,
   searchTemplates,
 } from '../lib/spriteTemplateLibrary';
 import { resolveTemplate } from '../lib/spriteTemplateRenderer';
+import {
+  listCompatiblePresets,
+} from '../lib/animationPresetLibrary';
+import { generateAnimationSequence } from '../lib/animationSequenceGenerator';
 
 type FilterArchetype = TemplateArchetype | 'all';
+type PanelMode = 'template' | 'animation';
 
 function rgbaToHex([r, g, b]: RGBA): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 export function TemplateBrowserPanel() {
+  const [mode, setMode] = useState<PanelMode>('template');
   const [filter, setFilter] = useState<FilterArchetype>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -22,6 +28,14 @@ export function TemplateBrowserPanel() {
   const [scale, setScale] = useState(1.0);
   const [status, setStatus] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
+
+  // Animation state
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [intensity, setIntensity] = useState(1.0);
+  const [animProgress, setAnimProgress] = useState<string | null>(null);
+  const [animResult, setAnimResult] = useState<{
+    frameCount: number; totalPixels: number; frameIds: string[];
+  } | null>(null);
 
   // Filter templates
   const templates: SpriteTemplate[] = query.trim()
@@ -31,6 +45,14 @@ export function TemplateBrowserPanel() {
       : listTemplatesByArchetype(filter);
 
   const selected = templates.find((t) => t.id === selectedId) ?? null;
+
+  // Compatible animation presets for the selected template
+  const compatiblePresets: AnimationPreset[] = useMemo(
+    () => (selected ? listCompatiblePresets(selected.archetype) : []),
+    [selected],
+  );
+
+  const selectedPreset = compatiblePresets.find((p) => p.id === selectedPresetId) ?? null;
 
   const handleColorChange = useCallback((slotName: string, hex: string) => {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -69,12 +91,64 @@ export function TemplateBrowserPanel() {
     }
   }, [selected, colorOverrides, scale]);
 
+  const handleGenerateAnimation = useCallback(async () => {
+    if (!selected || !selectedPresetId) return;
+    setRendering(true);
+    setStatus(null);
+    setAnimResult(null);
+    setAnimProgress('Starting...');
+
+    try {
+      const result = await generateAnimationSequence(
+        {
+          templateId: selected.id,
+          presetId: selectedPresetId,
+          colors: colorOverrides,
+          scale,
+          intensity,
+        },
+        (frame, total) => {
+          setAnimProgress(`Frame ${frame + 1}/${total}`);
+        },
+      );
+
+      setAnimResult({
+        frameCount: result.frameCount,
+        totalPixels: result.totalPixels,
+        frameIds: result.frameIds,
+      });
+      setStatus(`Generated ${result.frameCount} frames, ${result.totalPixels} total pixels`);
+      setAnimProgress(null);
+    } catch (err: unknown) {
+      setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setAnimProgress(null);
+    } finally {
+      setRendering(false);
+    }
+  }, [selected, selectedPresetId, colorOverrides, scale, intensity]);
+
   const handleResetColors = useCallback(() => {
     setColorOverrides({});
   }, []);
 
   return (
     <div className="template-browser-panel">
+      {/* Mode toggle */}
+      <div className="template-mode-toggle">
+        <button
+          className={`template-mode-btn ${mode === 'template' ? 'active' : ''}`}
+          onClick={() => setMode('template')}
+        >
+          Static
+        </button>
+        <button
+          className={`template-mode-btn ${mode === 'animation' ? 'active' : ''}`}
+          onClick={() => setMode('animation')}
+        >
+          Animate
+        </button>
+      </div>
+
       {/* Search + filter bar */}
       <div className="template-filter-bar">
         <input
@@ -106,7 +180,7 @@ export function TemplateBrowserPanel() {
           <button
             key={t.id}
             className={`template-card ${selectedId === t.id ? 'selected' : ''}`}
-            onClick={() => { setSelectedId(t.id); setColorOverrides({}); }}
+            onClick={() => { setSelectedId(t.id); setColorOverrides({}); setSelectedPresetId(null); setAnimResult(null); }}
           >
             <div className="template-card-header">
               <span className="template-card-name">{t.name}</span>
@@ -176,13 +250,94 @@ export function TemplateBrowserPanel() {
             </label>
           </div>
 
-          <button
-            className="template-instantiate-btn"
-            onClick={handleInstantiate}
-            disabled={rendering}
-          >
-            {rendering ? 'Rendering...' : 'Instantiate on Canvas'}
-          </button>
+          {/* Static mode: instantiate single frame */}
+          {mode === 'template' && (
+            <button
+              className="template-instantiate-btn"
+              onClick={handleInstantiate}
+              disabled={rendering}
+            >
+              {rendering ? 'Rendering...' : 'Instantiate on Canvas'}
+            </button>
+          )}
+
+          {/* Animation mode: preset selector + generate */}
+          {mode === 'animation' && (
+            <div className="template-animation-section">
+              <div className="template-section-header">
+                <span>Animation Preset</span>
+              </div>
+
+              {compatiblePresets.length === 0 ? (
+                <div className="template-empty">No animations for {selected.archetype} templates.</div>
+              ) : (
+                <>
+                  <div className="template-preset-grid">
+                    {compatiblePresets.map((p) => (
+                      <button
+                        key={p.id}
+                        className={`template-preset-card ${selectedPresetId === p.id ? 'selected' : ''}`}
+                        onClick={() => { setSelectedPresetId(p.id); setAnimResult(null); }}
+                      >
+                        <span className="template-preset-name">{p.name}</span>
+                        <span className="template-preset-meta">
+                          {p.frameCount}f · {p.defaultFps}fps · {p.looping ? 'loop' : 'once'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedPreset && (
+                    <>
+                      <p className="template-preset-desc">{selectedPreset.description}</p>
+
+                      <div className="template-scale-row">
+                        <label>
+                          Intensity:
+                          <input
+                            type="range"
+                            min="0.1"
+                            max="3"
+                            step="0.1"
+                            value={intensity}
+                            onChange={(e) => setIntensity(parseFloat(e.target.value))}
+                          />
+                          <span>{intensity.toFixed(1)}x</span>
+                        </label>
+                      </div>
+
+                      <button
+                        className="template-instantiate-btn"
+                        onClick={handleGenerateAnimation}
+                        disabled={rendering}
+                      >
+                        {rendering
+                          ? animProgress ?? 'Generating...'
+                          : `Generate ${selectedPreset.frameCount}-Frame Animation`
+                        }
+                      </button>
+
+                      {animResult && (
+                        <div className="template-anim-result">
+                          <div className="template-anim-result-header">Animation Generated</div>
+                          <div className="template-anim-result-stats">
+                            {animResult.frameCount} frames · {animResult.totalPixels} pixels
+                          </div>
+                          <div className="template-anim-frame-ids">
+                            {animResult.frameIds.map((id, i) => (
+                              <span key={id} className="template-anim-frame-chip">
+                                F{i + 1}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {status && <div className="template-status">{status}</div>}
         </div>

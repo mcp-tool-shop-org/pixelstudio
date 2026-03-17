@@ -10164,3 +10164,125 @@
   border-radius: 3px;
   color: var(--text-secondary, #a0a0b0);
 }
+
+/* ── Template Mode Toggle ── */
+
+.template-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.template-mode-btn {
+  flex: 1;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary, #a0a0b0);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.template-mode-btn.active {
+  background: var(--accent-primary, #7c6fe0);
+  color: white;
+}
+
+.template-mode-btn:hover:not(.active) {
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* ── Animation Section ── */
+
+.template-animation-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-preset-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.template-preset-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 11px;
+  transition: border-color 0.15s;
+}
+
+.template-preset-card:hover {
+  border-color: var(--accent-secondary, #5a5ae0);
+}
+
+.template-preset-card.selected {
+  border-color: var(--accent-primary, #7c6fe0);
+  background: rgba(124, 111, 224, 0.1);
+}
+
+.template-preset-name {
+  font-weight: 600;
+}
+
+.template-preset-meta {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.template-preset-desc {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ── Animation Result ── */
+
+.template-anim-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(124, 111, 224, 0.08);
+  border: 1px solid rgba(124, 111, 224, 0.2);
+  border-radius: 4px;
+}
+
+.template-anim-result-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary, #7c6fe0);
+}
+
+.template-anim-result-stats {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.template-anim-frame-ids {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.template-anim-frame-chip {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border: 1px solid var(--border-primary, #3a3a4a);
+  border-radius: 3px;
+  color: var(--text-secondary, #a0a0b0);
+}
