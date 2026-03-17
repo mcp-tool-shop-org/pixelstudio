@@ -482,6 +482,82 @@ pub fn flood_fill(
     Ok(build_frame(canvas))
 }
 
+// --- Replace color (global color swap on active layer) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceColorInput {
+    /// The color to find (exact RGBA match).
+    pub from_r: u8,
+    pub from_g: u8,
+    pub from_b: u8,
+    pub from_a: u8,
+    /// The replacement color.
+    pub to_r: u8,
+    pub to_g: u8,
+    pub to_b: u8,
+    pub to_a: u8,
+}
+
+#[command]
+pub fn replace_color(
+    input: ReplaceColorInput,
+    state: State<'_, ManagedCanvasState>,
+) -> Result<CanvasFrame, AppError> {
+    let mut guard = state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let from_c = [input.from_r, input.from_g, input.from_b, input.from_a];
+    let to_c = [input.to_r, input.to_g, input.to_b, input.to_a];
+
+    if from_c == to_c {
+        return Ok(build_frame(canvas));
+    }
+
+    let target_id = canvas.active_layer_id.clone()
+        .ok_or_else(|| AppError::Internal("No active layer".to_string()))?;
+
+    let layer = canvas.layers.iter_mut().find(|l| l.id == target_id)
+        .ok_or_else(|| AppError::Internal("Layer not found".to_string()))?;
+
+    if layer.locked {
+        return Err(AppError::Internal("Layer is locked".to_string()));
+    }
+
+    let w = layer.buffer.width;
+    let h = layer.buffer.height;
+    let to_color = Color::rgba(input.to_r, input.to_g, input.to_b, input.to_a);
+    let mut patches = Vec::new();
+
+    for py in 0..h {
+        for px in 0..w {
+            let pixel = layer.buffer.get_pixel(px, py);
+            let pc = [pixel.r, pixel.g, pixel.b, pixel.a];
+            if pc == from_c {
+                patches.push(crate::engine::canvas_state::PixelPatch {
+                    x: px, y: py, before: from_c, after: to_c,
+                });
+                layer.buffer.set_pixel(px, py, &to_color);
+            }
+        }
+    }
+
+    if !patches.is_empty() {
+        let record = crate::engine::canvas_state::StrokeRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            layer_id: target_id,
+            tool: "replace_color".into(),
+            color: to_c,
+            patches,
+        };
+        canvas.undo_stack.push(crate::engine::canvas_state::UndoAction::Stroke(record));
+        canvas.redo_stack.clear();
+    }
+
+    Ok(build_frame(canvas))
+}
+
 // --- Magic select (wand tool — flood fill that returns bounding rect) ---
 
 #[derive(Debug, Deserialize)]

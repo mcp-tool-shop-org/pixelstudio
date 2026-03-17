@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 import { useToolStore, useBrushSettingsStore } from '@glyphstudio/state';
+import { useCanvasFrameStore } from '../lib/canvasFrameStore';
+import type { CanvasFrameData } from '../lib/canvasFrameStore';
+import { syncLayersFromFrame } from '../lib/syncLayers';
+import { useProjectStore } from '@glyphstudio/state';
 import { ColorPickerPopover } from './ColorPickerPopover';
 import { QuickPaletteStrip } from './QuickPaletteStrip';
 
@@ -37,8 +42,29 @@ export function ToolRail() {
   const swapColors = useToolStore((s) => s.swapColors);
   const setPrimaryColor = useToolStore((s) => s.setPrimaryColor);
   const setSecondaryColor = useToolStore((s) => s.setSecondaryColor);
+  const setFrame = useCanvasFrameStore((s) => s.setFrame);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
   const [pickerTarget, setPickerTarget] = useState<'primary' | 'secondary' | null>(null);
+  const [replaceError, setReplaceError] = useState('');
+
+  const handleReplaceColor = useCallback(async () => {
+    setReplaceError('');
+    const pc = useToolStore.getState().primaryColor;
+    const sc = useToolStore.getState().secondaryColor;
+    try {
+      const f = await invoke<CanvasFrameData>('replace_color', {
+        fromR: pc.r, fromG: pc.g, fromB: pc.b, fromA: pc.a,
+        toR: sc.r, toG: sc.g, toB: sc.b, toA: sc.a,
+      });
+      setFrame(f);
+      syncLayersFromFrame(f);
+      markDirty();
+      invoke('mark_dirty').catch(() => {});
+    } catch (err) {
+      setReplaceError(String(err));
+    }
+  }, [setFrame, markDirty]);
 
   const primaryHex = `rgb(${primaryColor.r},${primaryColor.g},${primaryColor.b})`;
   const secondaryHex = `rgb(${secondaryColor.r},${secondaryColor.g},${secondaryColor.b})`;
@@ -79,6 +105,15 @@ export function ToolRail() {
         >
           ⇄
         </button>
+        <button
+          className="color-replace-btn"
+          onClick={handleReplaceColor}
+          title="Replace primary color with secondary on active layer"
+          data-testid="replace-color-btn"
+        >
+          Repl
+        </button>
+        {replaceError && <span className="color-replace-error" title={replaceError}>!</span>}
         {pickerTarget && (
           <ColorPickerPopover
             color={pickerTarget === 'primary' ? primaryColor : secondaryColor}

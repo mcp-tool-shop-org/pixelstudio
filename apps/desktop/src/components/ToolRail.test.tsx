@@ -17,12 +17,12 @@ describe('ToolRail', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('renders all 19 buttons (15 standard + 2 sketch + 1 swap + 1 pin)', () => {
+    it('renders all 20 buttons (15 standard + 2 sketch + 1 swap + 1 pin + 1 replace)', () => {
       seed();
       render(<ToolRail />);
       const buttons = screen.getAllByRole('button');
-      // 15 standard + 2 sketch tools + 1 swap-colors button + 1 QuickPaletteStrip pin button
-      expect(buttons).toHaveLength(19);
+      // 15 standard + 2 sketch tools + 1 swap-colors button + 1 pin + 1 replace-color button
+      expect(buttons).toHaveLength(20);
     });
 
     it('tools with live+displayed manifest entries show shortcut badge', () => {
@@ -94,6 +94,12 @@ describe('ToolRail', () => {
       const state = useToolStore.getState();
       expect(state.primaryColor).toEqual({ r: 0, g: 0, b: 255, a: 255 });
       expect(state.secondaryColor).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+    });
+
+    it('renders replace-color button', () => {
+      seed();
+      render(<ToolRail />);
+      expect(screen.getByTestId('replace-color-btn')).toBeInTheDocument();
     });
 
     it('clicking primary swatch opens color picker', async () => {
