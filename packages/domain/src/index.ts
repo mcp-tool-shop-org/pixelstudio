@@ -21,3 +21,4 @@ export * from './sprite';
 export * from './vector';
 export * from './sizeProfile';
 export * from './workflow';
+export * from './spriteTemplate';
