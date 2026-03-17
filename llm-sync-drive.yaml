@@ -1,0 +1,12 @@
+repo_path: .
+auth_mode: adc
+credentials_path: credentials.json
+token_path: token.json
+drive_folder_id: 1ESh9yCwoXQboSNDgK7PHvfMUBwYi98Ld
+drive_filename: llms.txt
+project_description: "GlyphStudio \u2014 professional desktop sprite studio (Tauri\
+  \ v2 + React + Rust). Pixel art editor with animation, vector pipeline, MCP server,\
+  \ ComfyUI bridge, and AI editing copilot."
+debounce_seconds: 5.0
+max_file_bytes: 100000
+drive_file_id: 10uUSL2mt85hmiSlt7pzSpATyuxVQvwaR

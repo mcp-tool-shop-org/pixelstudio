@@ -18,6 +18,7 @@ import { VectorCopilotPanel } from './VectorCopilotPanel';
 import { VectorAICreationPanel } from './VectorAICreationPanel';
 import { AISettingsPanel } from './AISettingsPanel';
 import { ComfyUIGeneratePanel } from './ComfyUIGeneratePanel';
+import { CopilotPanel } from './CopilotPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -25,10 +26,10 @@ interface RightDockProps {
 
 const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets'],
+  edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Copilot', 'Assets'],
   animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
-  ai: ['AI Assist', 'Generate', 'AI Settings', 'Layers', 'Provenance'],
+  ai: ['Copilot', 'Generate', 'AI Settings', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Properties', 'Provenance'],
   export: ['Export Settings'],
@@ -84,6 +85,9 @@ function PanelContent({ tabName }: { tabName: string }) {
   }
   if (tabName === 'AI Create') {
     return <VectorAICreationPanel />;
+  }
+  if (tabName === 'Copilot') {
+    return <CopilotPanel />;
   }
   if (tabName === 'Generate') {
     return <ComfyUIGeneratePanel />;

@@ -77,6 +77,24 @@ export async function fetchOllamaModels(endpoint: string): Promise<OllamaModelLi
   return invoke<OllamaModelList>('ai_ollama_models', { endpoint });
 }
 
+// ---------- Ollama Chat ----------
+
+export interface OllamaChatResponse {
+  content: string;
+  toolCalls: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
+  done: boolean;
+  totalDurationNs: number | null;
+}
+
+export async function ollamaChat(
+  endpoint: string,
+  model: string,
+  messages: Array<{ role: string; content: string; tool_calls?: unknown[] }>,
+  tools?: unknown[],
+): Promise<OllamaChatResponse> {
+  return invoke<OllamaChatResponse>('ai_ollama_chat', { endpoint, model, messages, tools });
+}
+
 // ---------- Canvas Context ----------
 
 export interface CanvasContext {

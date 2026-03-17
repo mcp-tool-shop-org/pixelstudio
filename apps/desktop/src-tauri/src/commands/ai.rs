@@ -479,6 +479,89 @@ fn urlencoding(s: &str) -> String {
         .collect()
 }
 
+// ---------- Ollama Chat (Stage 48) ----------
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaChatResponse {
+    pub content: String,
+    pub tool_calls: Vec<serde_json::Value>,
+    pub done: bool,
+    pub total_duration_ns: Option<u64>,
+}
+
+/// Send a chat message to Ollama with optional tool definitions.
+/// Returns the assistant's response including any tool calls.
+#[command]
+pub async fn ai_ollama_chat(
+    endpoint: String,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    tools: Option<Vec<serde_json::Value>>,
+) -> Result<OllamaChatResponse, AppError> {
+    let url = format!("{}/api/chat", endpoint.trim_end_matches('/'));
+
+    let mut payload = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": false,
+    });
+
+    if let Some(tools) = tools {
+        if !tools.is_empty() {
+            payload["tools"] = serde_json::Value::Array(tools);
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
+
+    let resp = client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Ollama unreachable: {e}")))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(AppError::Internal(format!(
+            "Ollama returned HTTP {status}: {body}"
+        )));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("Invalid Ollama response: {e}")))?;
+
+    let message = body.get("message").cloned().unwrap_or(serde_json::json!({}));
+    let content = message
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let tool_calls = message
+        .get("tool_calls")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let done = body.get("done").and_then(|v| v.as_bool()).unwrap_or(true);
+    let total_duration_ns = body
+        .get("total_duration")
+        .and_then(|v| v.as_u64());
+
+    Ok(OllamaChatResponse {
+        content,
+        tool_calls,
+        done,
+        total_duration_ns,
+    })
+}
+
 // ---------- Canvas Context Assembly (Stage 46) ----------
 
 #[derive(Debug, Serialize)]
