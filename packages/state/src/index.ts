@@ -15,6 +15,7 @@ export type { DabParams } from './sketchDab';
 export { useTranslationStore, TRANSLATION_RESOLUTIONS } from './translationStore';
 export type { TranslationSession, TranslationResolution } from './translationStore';
 export { useVectorMasterStore } from './vectorMasterStore';
+export { useSizeProfileStore } from './sizeProfileStore';
 export {
   nearestNeighborDownscale,
   countFilledPixels,
