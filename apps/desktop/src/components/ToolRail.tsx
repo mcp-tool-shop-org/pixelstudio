@@ -47,9 +47,11 @@ export function ToolRail() {
 
   const [pickerTarget, setPickerTarget] = useState<'primary' | 'secondary' | null>(null);
   const [replaceError, setReplaceError] = useState('');
+  const [replacePreview, setReplacePreview] = useState(false);
 
   const handleReplaceColor = useCallback(async () => {
     setReplaceError('');
+    setReplacePreview(false);
     const pc = useToolStore.getState().primaryColor;
     const sc = useToolStore.getState().secondaryColor;
     try {
@@ -61,10 +63,26 @@ export function ToolRail() {
       syncLayersFromFrame(f);
       markDirty();
       invoke('mark_dirty').catch(() => {});
+      setReplacePreview(true);
     } catch (err) {
       setReplaceError(String(err));
     }
   }, [setFrame, markDirty]);
+
+  const handleReplaceUndo = useCallback(async () => {
+    try {
+      const f = await invoke<CanvasFrameData>('undo');
+      setFrame(f);
+      syncLayersFromFrame(f);
+    } catch (err) {
+      setReplaceError(String(err));
+    }
+    setReplacePreview(false);
+  }, [setFrame]);
+
+  const handleReplaceKeep = useCallback(() => {
+    setReplacePreview(false);
+  }, []);
 
   const primaryHex = `rgb(${primaryColor.r},${primaryColor.g},${primaryColor.b})`;
   const secondaryHex = `rgb(${secondaryColor.r},${secondaryColor.g},${secondaryColor.b})`;
@@ -105,14 +123,35 @@ export function ToolRail() {
         >
           ⇄
         </button>
-        <button
-          className="color-replace-btn"
-          onClick={handleReplaceColor}
-          title="Replace primary color with secondary on active layer"
-          data-testid="replace-color-btn"
-        >
-          Repl
-        </button>
+        {replacePreview ? (
+          <div className="color-replace-preview" data-testid="replace-preview">
+            <button
+              className="color-replace-keep-btn"
+              onClick={handleReplaceKeep}
+              title="Keep the recolor"
+              data-testid="replace-keep-btn"
+            >
+              Keep
+            </button>
+            <button
+              className="color-replace-undo-btn"
+              onClick={handleReplaceUndo}
+              title="Undo the recolor"
+              data-testid="replace-undo-btn"
+            >
+              Undo
+            </button>
+          </div>
+        ) : (
+          <button
+            className="color-replace-btn"
+            onClick={handleReplaceColor}
+            title="Replace primary color with secondary on active layer"
+            data-testid="replace-color-btn"
+          >
+            Repl
+          </button>
+        )}
         {replaceError && <span className="color-replace-error" title={replaceError}>!</span>}
         {pickerTarget && (
           <ColorPickerPopover
