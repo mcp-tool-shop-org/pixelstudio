@@ -22,6 +22,7 @@ import { ComfyUIGeneratePanel } from './ComfyUIGeneratePanel';
 import { CopilotPanel } from './CopilotPanel';
 import { TemplateBrowserPanel } from './TemplateBrowserPanel';
 import { SliceManagerPanel } from './SliceManagerPanel';
+import { OutputPresetsPanel } from './OutputPresetsPanel';
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -55,6 +56,7 @@ export const PANEL_REGISTRY: Record<string, ComponentType> = {
   'Templates': TemplateBrowserPanel,
   'AI Settings': AISettingsPanel,
   'Slices': SliceManagerPanel,
+  'Presets': OutputPresetsPanel,
 };
 
 /**
@@ -63,7 +65,7 @@ export const PANEL_REGISTRY: Record<string, ComponentType> = {
  */
 export const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Slices', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Copilot', 'Templates', 'Assets'],
+  edit: ['Layers', 'Slices', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Copilot', 'Templates', 'Assets', 'Presets'],
   animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
   ai: ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance'],

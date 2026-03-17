@@ -1176,6 +1176,134 @@ pub fn export_current_frame_png(
     })
 }
 
+// ── Output preset types ────────────────────────────────────────────────────
+
+/// One-click output preset variants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputPreset {
+    /// Current frame, full canvas size, as a single PNG.
+    StaticSprite,
+    /// All frames of the first available clip as a horizontal strip.
+    HorizontalStrip,
+    /// All frames of the first available clip as a grid sprite sheet.
+    SpriteSheet,
+    /// Current frame cropped to its non-transparent content bounding box.
+    PortraitCrop,
+}
+
+/// Compute the bounding box of non-transparent pixels in RGBA data.
+/// Returns `None` if the image is fully transparent.
+fn content_bounds(data: &[u8], width: usize, height: usize) -> Option<(usize, usize, usize, usize)> {
+    let mut min_x = width;
+    let mut min_y = height;
+    let mut max_x = 0usize;
+    let mut max_y = 0usize;
+    for y in 0..height {
+        for x in 0..width {
+            let i = (y * width + x) * 4;
+            if data[i + 3] > 0 {
+                if x < min_x { min_x = x; }
+                if x > max_x { max_x = x; }
+                if y < min_y { min_y = y; }
+                if y > max_y { max_y = y; }
+            }
+        }
+    }
+    if min_x > max_x || min_y > max_y {
+        None
+    } else {
+        Some((min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
+    }
+}
+
+/// Export using a one-click output preset.
+///
+/// - `static_sprite`    → full current frame PNG
+/// - `horizontal_strip` → all frames horizontal strip PNG
+/// - `sprite_sheet`     → all frames grid sheet PNG
+/// - `portrait_crop`    → current frame cropped to content bounds
+#[command]
+pub fn export_preset(
+    preset: OutputPreset,
+    file_path: String,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<ExportResult, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let fw = canvas.width;
+    let fh = canvas.height;
+    let base_path = std::path::Path::new(&file_path);
+    if let Some(parent) = base_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| AppError::Io(e))?;
+    }
+    let (path, was_suffixed) = resolve_collision(base_path);
+
+    match preset {
+        OutputPreset::StaticSprite => {
+            let idx = canvas.active_frame_index;
+            let placement = ExportPreviewFramePlacement {
+                frame_index: idx,
+                frame_id: canvas.frames[idx].id.clone(),
+                x: 0, y: 0, width: fw, height: fh,
+            };
+            let pixel_data = blit_frames_to_sheet(canvas, &[placement], fw as usize, fh as usize);
+            let png_data = encode_png(&pixel_data, fw, fh).map_err(|e| AppError::Internal(e))?;
+            std::fs::write(&path, &png_data).map_err(|e| AppError::Io(e))?;
+            Ok(ExportResult {
+                files: vec![ExportedFileInfo { path: path.to_string_lossy().to_string(), width: fw, height: fh }],
+                manifest: None, frame_count: 1, clip_count: 0, skipped_clips: 0, was_suffixed,
+                warnings: Vec::new(),
+            })
+        }
+        OutputPreset::HorizontalStrip | OutputPreset::SpriteSheet => {
+            let total = canvas.frames.len();
+            let indices: Vec<usize> = (0..total).collect();
+            let frame_pairs: Vec<(usize, String)> = indices.iter()
+                .map(|&i| (i, canvas.frames[i].id.clone()))
+                .collect();
+            let layout = match preset {
+                OutputPreset::HorizontalStrip => ExportLayout::HorizontalStrip,
+                _ => ExportLayout::Grid { columns: None },
+            };
+            let (placements, out_w, out_h, _cols, _rows) = build_placements(&frame_pairs, &layout, fw, fh);
+            let sheet_data = blit_frames_to_sheet(canvas, &placements, out_w as usize, out_h as usize);
+            let png_data = encode_png(&sheet_data, out_w, out_h).map_err(|e| AppError::Internal(e))?;
+            std::fs::write(&path, &png_data).map_err(|e| AppError::Io(e))?;
+            Ok(ExportResult {
+                files: vec![ExportedFileInfo { path: path.to_string_lossy().to_string(), width: out_w, height: out_h }],
+                manifest: None, frame_count: total, clip_count: 0, skipped_clips: 0, was_suffixed,
+                warnings: Vec::new(),
+            })
+        }
+        OutputPreset::PortraitCrop => {
+            let idx = canvas.active_frame_index;
+            let frame_data = canvas.composite_frame_at(idx)
+                .ok_or_else(|| AppError::Internal("Failed to composite frame".to_string()))?;
+            let (cx, cy, cw, ch) = content_bounds(&frame_data, fw as usize, fh as usize)
+                .ok_or_else(|| AppError::Internal("Frame is fully transparent — nothing to crop".to_string()))?;
+            let mut crop = vec![0u8; cw * ch * 4];
+            for y in 0..ch {
+                for x in 0..cw {
+                    let src_i = ((cy + y) * fw as usize + (cx + x)) * 4;
+                    let dst_i = (y * cw + x) * 4;
+                    crop[dst_i..dst_i + 4].copy_from_slice(&frame_data[src_i..src_i + 4]);
+                }
+            }
+            let png_data = encode_png(&crop, cw as u32, ch as u32).map_err(|e| AppError::Internal(e))?;
+            std::fs::write(&path, &png_data).map_err(|e| AppError::Io(e))?;
+            Ok(ExportResult {
+                files: vec![ExportedFileInfo { path: path.to_string_lossy().to_string(), width: cw as u32, height: ch as u32 }],
+                manifest: None, frame_count: 1, clip_count: 0, skipped_clips: 0, was_suffixed,
+                warnings: Vec::new(),
+            })
+        }
+    }
+}
+
 /// Export one or more slice regions from the active frame as individual PNGs.
 ///
 /// Each slice region is cropped from the composited active frame and saved as

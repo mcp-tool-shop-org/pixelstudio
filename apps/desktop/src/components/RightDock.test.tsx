@@ -52,6 +52,9 @@ vi.mock('../components/TemplateBrowserPanel', () => ({
 vi.mock('../components/SliceManagerPanel', () => ({
   SliceManagerPanel: () => <div data-testid="slice-manager-panel">SliceManagerPanel</div>,
 }));
+vi.mock('../components/OutputPresetsPanel', () => ({
+  OutputPresetsPanel: () => <div data-testid="output-presets-panel">OutputPresetsPanel</div>,
+}));
 
 // Import after mocks are declared
 import { RightDock, PANEL_REGISTRY, MODE_TABS } from '../components/RightDock';
@@ -241,7 +244,7 @@ describe('RightDock', () => {
       render(<RightDock activeMode="edit" />);
       await act(async () => { await userEvent.click(screen.getByTestId('dock-overflow-btn')); });
       const menu = screen.getByTestId('dock-overflow-menu');
-      // edit tabs 7-11: Canvas Props, Palette, Copilot, Templates, Assets
+      // edit tabs 7-12: Canvas Props, Palette, Copilot, Templates, Assets, Presets
       expect(menu).toHaveTextContent('Palette');
       expect(menu).toHaveTextContent('Copilot');
       expect(menu).toHaveTextContent('Templates');
