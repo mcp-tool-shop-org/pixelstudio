@@ -17,9 +17,10 @@ interface TopBarProps {
   activeMode: WorkspaceMode;
   onModeChange: (mode: WorkspaceMode) => void;
   onShowHelp?: () => void;
+  onSave?: () => void;
 }
 
-export function TopBar({ activeMode, onModeChange, onShowHelp }: TopBarProps) {
+export function TopBar({ activeMode, onModeChange, onShowHelp, onSave }: TopBarProps) {
   const name = useProjectStore((s) => s.name);
   const isDirty = useProjectStore((s) => s.isDirty);
   const saveStatus = useProjectStore((s) => s.saveStatus);
@@ -53,6 +54,16 @@ export function TopBar({ activeMode, onModeChange, onShowHelp }: TopBarProps) {
         ))}
       </nav>
       <div className="topbar-controls">
+        {onSave && (
+          <button
+            className={`topbar-save-btn${isDirty ? ' dirty' : ''}`}
+            onClick={onSave}
+            data-testid="topbar-save-btn"
+            title={filePath ? 'Save (Ctrl+S)' : 'Save As… (Ctrl+S)'}
+          >
+            {filePath ? 'Save' : 'Save As…'}
+          </button>
+        )}
         {onShowHelp && (
           <button
             className="topbar-help-btn"

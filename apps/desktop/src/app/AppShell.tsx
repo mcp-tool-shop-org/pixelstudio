@@ -149,7 +149,7 @@ export function AppShell() {
     <div className="app-shell">
       <ToastStack />
       <ShortcutHelpOverlay isOpen={showHelp} onClose={() => setShowHelp(false)} />
-      <TopBar activeMode={mode} onModeChange={setMode} onShowHelp={() => setShowHelp(true)} />
+      <TopBar activeMode={mode} onModeChange={setMode} onShowHelp={() => setShowHelp(true)} onSave={handleSave} />
       {mode === 'edit' && <VectorSourceBanner />}
       <TransformBar />
       <div className="workspace-body">

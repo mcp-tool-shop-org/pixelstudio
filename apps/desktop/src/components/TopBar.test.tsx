@@ -150,5 +150,49 @@ describe('TopBar', () => {
       await act(async () => { await userEvent.click(screen.getByTestId('topbar-help-btn')); });
       expect(onShowHelp).toHaveBeenCalledOnce();
     });
+
+    it('does not show save button when onSave is not provided', () => {
+      seed();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
+      expect(screen.queryByTestId('topbar-save-btn')).toBeNull();
+    });
+
+    it('shows save button when onSave is provided', () => {
+      seed();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={vi.fn()} />);
+      expect(screen.getByTestId('topbar-save-btn')).toBeInTheDocument();
+    });
+
+    it('save button shows "Save" when filePath is set', () => {
+      seed({ filePath: 'C:\\projects\\hero.pxs' });
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={vi.fn()} />);
+      expect(screen.getByTestId('topbar-save-btn')).toHaveTextContent('Save');
+    });
+
+    it('save button shows "Save As…" when no filePath', () => {
+      seed({ filePath: null });
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={vi.fn()} />);
+      expect(screen.getByTestId('topbar-save-btn')).toHaveTextContent('Save As\u2026');
+    });
+
+    it('clicking save button calls onSave', async () => {
+      seed();
+      const onSave = vi.fn();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={onSave} />);
+      await act(async () => { await userEvent.click(screen.getByTestId('topbar-save-btn')); });
+      expect(onSave).toHaveBeenCalledOnce();
+    });
+
+    it('save button has dirty class when isDirty', () => {
+      seed({ isDirty: true });
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={vi.fn()} />);
+      expect(screen.getByTestId('topbar-save-btn').className).toContain('dirty');
+    });
+
+    it('save button lacks dirty class when not isDirty', () => {
+      seed({ isDirty: false });
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onSave={vi.fn()} />);
+      expect(screen.getByTestId('topbar-save-btn').className).not.toContain('dirty');
+    });
   });
 });

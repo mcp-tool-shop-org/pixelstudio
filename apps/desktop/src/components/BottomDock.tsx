@@ -331,6 +331,13 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   }
 
   if (!showTimeline) {
+    if (activeMode === 'export') {
+      return (
+        <footer className="bottom-dock">
+          <ExportPreviewPanel />
+        </footer>
+      );
+    }
     return (
       <footer className="bottom-dock">
         <div className="bottom-dock-info">
@@ -351,7 +358,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
       {showMotion && <SandboxPanel />}
       {showMotion && <PresetPanel />}
       {showTimeline && frames.length > 1 && <ClipPanel />}
-      {showTimeline && frames.length > 1 && <ExportPreviewPanel />}
+      {showTimeline && <ExportPreviewPanel />}
       <div className="timeline-panel">
         <div className="timeline-controls">
           <button className="timeline-btn" title="Previous frame (,)" onClick={handlePrevFrame} disabled={playing}>{'\u23EE'}</button>

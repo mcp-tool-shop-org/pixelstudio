@@ -462,10 +462,24 @@ describe('BottomDock', () => {
       expect(screen.queryByTestId('clip-panel')).toBeNull();
     });
 
-    it('ExportPreviewPanel hidden with single frame', () => {
+    it('ExportPreviewPanel visible with single frame (P3-C6: removed single-frame gate)', () => {
       seedTimeline(1);
       render(<BottomDock activeMode="edit" />);
-      expect(screen.queryByTestId('export-preview-panel')).toBeNull();
+      expect(screen.getByTestId('export-preview-panel')).toBeInTheDocument();
+    });
+  });
+
+  describe('export mode (P3-C6)', () => {
+    it('shows ExportPreviewPanel in export mode', () => {
+      seedTimeline(1);
+      render(<BottomDock activeMode="export" />);
+      expect(screen.getByTestId('export-preview-panel')).toBeInTheDocument();
+    });
+
+    it('does not show bare mode label in export mode', () => {
+      seedTimeline(1);
+      render(<BottomDock activeMode="export" />);
+      expect(screen.queryByText('export')).toBeNull();
     });
   });
 });
