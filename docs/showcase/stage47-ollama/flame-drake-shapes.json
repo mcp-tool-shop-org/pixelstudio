@@ -1,0 +1,190 @@
+{
+  "reasoning": "The design focuses on the essential elements of a fire-breathing dragon: a thick body, long neck, triangular head, spread wings, four legs, curved tail, and fire from the mouth. The shapes are kept large and simple to ensure the dragon is recognizable even at 16x16 pixels. High contrast is achieved by using a dark fill for the dragon and a bright fill for the fire.",
+  "shapes": [
+    {
+      "name": "body",
+      "type": "ellipse",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "cx": 250,
+      "cy": 250,
+      "rx": 150,
+      "ry": 100,
+      "mustSurvive": true
+    },
+    {
+      "name": "neck",
+      "type": "rect",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "x": 180,
+      "y": 220,
+      "w": 40,
+      "h": 60,
+      "mustSurvive": true
+    },
+    {
+      "name": "head",
+      "type": "polygon",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "points": [
+        {
+          "x": 160,
+          "y": 180
+        },
+        {
+          "x": 200,
+          "y": 180
+        },
+        {
+          "x": 180,
+          "y": 200
+        }
+      ],
+      "mustSurvive": true
+    },
+    {
+      "name": "wing-left",
+      "type": "ellipse",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "cx": 100,
+      "cy": 250,
+      "rx": 80,
+      "ry": 50,
+      "mustSurvive": true
+    },
+    {
+      "name": "wing-right",
+      "type": "ellipse",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "cx": 400,
+      "cy": 250,
+      "rx": 80,
+      "ry": 50,
+      "mustSurvive": true
+    },
+    {
+      "name": "leg-left-front",
+      "type": "rect",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "x": 160,
+      "y": 320,
+      "w": 20,
+      "h": 40,
+      "mustSurvive": true
+    },
+    {
+      "name": "leg-left-back",
+      "type": "rect",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "x": 140,
+      "y": 360,
+      "w": 20,
+      "h": 40,
+      "mustSurvive": true
+    },
+    {
+      "name": "leg-right-front",
+      "type": "rect",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "x": 340,
+      "y": 320,
+      "w": 20,
+      "h": 40,
+      "mustSurvive": true
+    },
+    {
+      "name": "leg-right-back",
+      "type": "rect",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "x": 360,
+      "y": 360,
+      "w": 20,
+      "h": 40,
+      "mustSurvive": true
+    },
+    {
+      "name": "tail",
+      "type": "ellipse",
+      "fill": [
+        50,
+        20,
+        20,
+        255
+      ],
+      "cx": 480,
+      "cy": 300,
+      "rx": 50,
+      "ry": 30,
+      "mustSurvive": true
+    },
+    {
+      "name": "fire",
+      "type": "polygon",
+      "fill": [
+        255,
+        69,
+        0,
+        255
+      ],
+      "points": [
+        {
+          "x": 190,
+          "y": 200
+        },
+        {
+          "x": 170,
+          "y": 220
+        },
+        {
+          "x": 210,
+          "y": 220
+        }
+      ],
+      "mustSurvive": true
+    }
+  ]
+}
