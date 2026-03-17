@@ -10,7 +10,7 @@ The app has three truths right now:
 
 1. **Core tool behavior is solid.** All 17 canvas tools work. The creative loop survived.
 2. **The interaction layer is drifted.** Shortcut badges, key handling, docs, and focus behavior are out of sync. This is user-trust damage.
-3. **A huge backend capability is not part of the product yet.** 161/211 Rust commands uninvoked. The shipped product boundary is unclear.
+3. **Backend capability boundary is now documented.** Deep scan found 147/184 commands live (80%). 25 reserved, 5 internal, 7 dead. Full classification in `command-capability-manifest.json`.
 
 This spec turns the audit into enforcement and product boundary cleanup.
 

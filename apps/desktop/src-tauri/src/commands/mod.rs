@@ -1,16 +1,11 @@
 pub mod project;
 pub mod canvas;
 pub mod selection;
-pub mod layer;
-pub mod palette;
 pub mod timeline;
-pub mod validation;
 pub mod ai;
-pub mod locomotion;
 pub mod motion;
 pub mod anchor;
 pub mod export;
-pub mod provenance;
 pub mod asset;
 pub mod sandbox;
 pub mod secondary_motion;

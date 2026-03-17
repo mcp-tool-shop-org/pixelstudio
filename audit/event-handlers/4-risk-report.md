@@ -27,29 +27,19 @@ Generated: 2026-03-17 | Stage 63
 
 ## HIGH — Dead Backend Commands
 
-### RISK-004: 161 of 211 Rust commands never called from frontend
-- **Severity:** HIGH (code health, not runtime)
+### RISK-004: Backend capability boundary unclear — RECLASSIFIED in P1-B
+- **Severity:** ~~HIGH~~ MEDIUM (reclassified after deep scan)
 - **Location:** All Rust command modules
-- **Problem:** 76% of registered Tauri commands have no corresponding `invoke()` call in the frontend. Entire modules are dormant:
-  - **analysis** (3 commands): analyze_bounds, analyze_colors, compare_frames — 0 invocations
-  - **motion** (11 commands): Full motion session pipeline — 0 invocations
-  - **preset** (10 commands): Full preset CRUD — 0 invocations
-  - **export** (5 commands): Clip export pipeline — 0 invocations
-  - **asset** (6 commands): Asset catalog — 0 invocations
-  - **bundle** (4 commands): Bundle export — 0 invocations
-  - **secondary_motion** (3 commands) — 0 invocations
-  - **ai** (8 commands): Ollama/ComfyUI pipeline — 0 invocations
-  - **anchor** (14 of 15 commands): Only delete_anchor called — 93% dormant
-  - **sandbox** (6 of 7 commands): Only 1 called — 86% dormant
-- **Impact:** Binary bloat, maintenance burden, false sense of completeness. These commands compile and register but do nothing.
-- **Note:** Some of these may be intentionally pre-built for future UI work (motion, presets, AI). But they should be documented as "backend-ready, no UI" to avoid confusion.
+- **Problem (original):** Initial audit reported 161/211 commands (76%) never called from frontend. This was incorrect — the grep missed non-component callers (executor.ts, aiSettings.ts, animationSequenceGenerator.ts, etc.) and dynamic dispatch patterns (Canvas.tsx builds command names as strings for transform handlers).
+- **Corrected picture (P1-B deep scan):** 184 registered commands. 147 live (80%), 25 reserved, 5 internal, 7 dead. The app's backend utilization is healthy. Truly dormant modules: motion (11), preset (10), export (5), asset (6), bundle (4), secondary_motion (3), analysis (3), ai (8) — these are backend-ready, no UI. 7 commands are removal candidates.
+- **Impact:** Binary includes ~37 unused commands. Not a health crisis — these are intentional pre-builds for planned features.
+- **Fix applied:** Full command capability manifest created (`command-capability-manifest.json`). Every command classified with reason, frontend callers, and removal candidacy.
 
-### RISK-005: 5 Rust modules defined but never registered
-- **Severity:** MEDIUM
+### RISK-005: 5 Rust modules defined but never registered — RESOLVED
+- **Severity:** ~~MEDIUM~~ RESOLVED in P1-B
 - **Location:** `apps/desktop/src-tauri/src/commands/` — layer.rs, palette.rs, validation.rs, locomotion.rs, provenance.rs
-- **Problem:** These .rs files exist with `#[command]` functions but are not exported from `mod.rs` and not registered in `generate_handler![]`. Completely dead code.
-- **Impact:** Confusing for developers. May contain useful logic that was abandoned mid-implementation.
-- **Fix:** Either wire them up or delete them.
+- **Problem:** These .rs files existed as comment-only stubs with no actual `#[command]` functions. Not exported from `mod.rs`, not registered.
+- **Fix applied:** All 5 deleted. `mod.rs` cleaned. `cargo check` passes.
 
 ---
 
@@ -127,8 +117,8 @@ Generated: 2026-03-17 | Stage 63
 | RISK-001 | ~~CRITICAL~~ | Conflict | Canvas.tsx / ToolRail.tsx | RESOLVED — ellipse shortcut fixed, badge hidden |
 | RISK-002 | ~~HIGH~~ | Dead UI | Canvas.tsx / ToolRail.tsx | RESOLVED — unbound badges hidden |
 | RISK-003 | ~~MEDIUM~~ | Missing | Canvas.tsx | RESOLVED — stale tooltip removed |
-| RISK-004 | HIGH | Dead code | Rust backend | 161/211 commands never called |
-| RISK-005 | MEDIUM | Dead code | Rust commands/ | 5 modules not registered |
+| RISK-004 | ~~HIGH~~ MEDIUM | Capability boundary | Rust backend | RECLASSIFIED — 147/184 live (80%), 37 reserved/internal/dead |
+| RISK-005 | ~~MEDIUM~~ | Dead code | Rust commands/ | RESOLVED — 5 stub modules deleted |
 | RISK-006 | MEDIUM | Buried | Canvas.tsx | Transform shortcuts undiscoverable |
 | RISK-007 | LOW | UX | Canvas.tsx | Measure tool no guidance |
 | RISK-008 | MEDIUM | Data loss | Canvas.tsx | Slice regions not persisted |
