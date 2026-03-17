@@ -24,18 +24,17 @@ describe('ToolRail', () => {
       expect(buttons).toHaveLength(17);
     });
 
-    it('each button shows first letter of tool label as icon', () => {
+    it('each button shows full label and shortcut key', () => {
       seed();
       render(<ToolRail />);
-      // Verify via title which is unique per tool
       const pencilBtn = screen.getByTitle('Pencil (B)');
-      expect(pencilBtn.textContent).toBe('P');
+      expect(pencilBtn.textContent).toBe('PencilB');
       const fillBtn = screen.getByTitle('Fill (G)');
-      expect(fillBtn.textContent).toBe('F');
+      expect(fillBtn.textContent).toBe('FillG');
       const rectBtn = screen.getByTitle('Rect (U)');
-      expect(rectBtn.textContent).toBe('R');
+      expect(rectBtn.textContent).toBe('RectU');
       const moveBtn = screen.getByTitle('Move (V)');
-      expect(moveBtn.textContent).toBe('M');
+      expect(moveBtn.textContent).toBe('MoveV');
     });
 
     it('each button has label+shortcut in title', () => {

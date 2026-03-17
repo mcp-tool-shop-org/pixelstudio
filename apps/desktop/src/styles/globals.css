@@ -1,3 +1,5 @@
+@import './layout.css';
+
 :root {
   /* Core palette */
   --bg-workspace: #1a1a1e;
@@ -23,7 +25,7 @@
   --accent-error: #e85454;
 
   /* Sizing */
-  --rail-width: 44px;
+  --rail-width: 76px;
   --panel-min-width: 240px;
   --topbar-height: 36px;
   --bottombar-height: 200px;
@@ -70,5 +72,3 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
-
-@import './layout.css';

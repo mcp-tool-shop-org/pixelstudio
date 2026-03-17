@@ -46,7 +46,8 @@ export function ToolRail() {
           onClick={() => setTool(tool.id)}
           title={`${tool.label} (${tool.shortcut})`}
         >
-          <span className="tool-icon">{tool.label[0]}</span>
+          <span className="tool-label">{tool.label}</span>
+          <span className="tool-shortcut">{tool.shortcut}</span>
         </button>
       ))}
       <div className="tool-rail-divider" />
@@ -57,7 +58,8 @@ export function ToolRail() {
           onClick={() => setTool(tool.id)}
           title={`${tool.label} (${tool.shortcut})`}
         >
-          <span className="tool-icon">{tool.id === 'sketch-brush' ? '~' : '/'}</span>
+          <span className="tool-label">{tool.label}</span>
+          <span className="tool-shortcut">{tool.shortcut}</span>
         </button>
       ))}
       {isSketch && <SketchSettings />}

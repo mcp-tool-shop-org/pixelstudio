@@ -27,10 +27,7 @@
   },
   "plugins": {
     "fs": {
-      "scope": {
-        "allow": ["$APPDATA/**", "$HOME/**", "$DESKTOP/**", "$DOCUMENT/**"],
-        "deny": []
-      }
+      "requireLiteralLeadingDot": false
     }
   }
 }

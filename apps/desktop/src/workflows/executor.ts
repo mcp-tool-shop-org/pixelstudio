@@ -47,13 +47,9 @@ const STEP_RUNNERS: Record<string, Record<string, StepRunner>> = {
         const result = await invoke<{ projectId: string; name: string }>('new_project', {
           input: {
             name: inputs.name ?? 'Untitled',
-            filePath: '',
-            canvasWidth: inputs.width ?? 64,
-            canvasHeight: inputs.height ?? 64,
+            width: inputs.width ?? 64,
+            height: inputs.height ?? 64,
             colorMode: 'rgb',
-            timelineEnabled: false,
-            starterRigId: null,
-            paletteId: null,
           },
         });
         useProjectStore.getState().setProject(
@@ -68,7 +64,7 @@ const STEP_RUNNERS: Record<string, Record<string, StepRunner>> = {
     'init-canvas': async (inputs) => {
       const t0 = Date.now();
       try {
-        await invoke('init_canvas', { frameIndex: 0 });
+        await invoke('init_canvas', { width: inputs.width ?? 64, height: inputs.height ?? 64 });
         return ok('init-canvas', 'Canvas initialized with default layer', Date.now() - t0);
       } catch (e: any) {
         return fail('init-canvas', String(e), Date.now() - t0);
@@ -91,13 +87,9 @@ const STEP_RUNNERS: Record<string, Record<string, StepRunner>> = {
         const result = await invoke<{ projectId: string; name: string }>('new_project', {
           input: {
             name: inputs.name ?? 'Untitled Animation',
-            filePath: '',
-            canvasWidth: inputs.width ?? 64,
-            canvasHeight: inputs.height ?? 64,
+            width: inputs.width ?? 64,
+            height: inputs.height ?? 64,
             colorMode: 'rgb',
-            timelineEnabled: true,
-            starterRigId: null,
-            paletteId: null,
           },
         });
         useProjectStore.getState().setProject(
@@ -109,10 +101,10 @@ const STEP_RUNNERS: Record<string, Record<string, StepRunner>> = {
         return fail('create-project', String(e), Date.now() - t0);
       }
     },
-    'init-canvas': async () => {
+    'init-canvas': async (inputs) => {
       const t0 = Date.now();
       try {
-        await invoke('init_canvas', { frameIndex: 0 });
+        await invoke('init_canvas', { width: inputs.width ?? 64, height: inputs.height ?? 64 });
         return ok('init-canvas', 'Canvas initialized', Date.now() - t0);
       } catch (e: any) {
         return fail('init-canvas', String(e), Date.now() - t0);
