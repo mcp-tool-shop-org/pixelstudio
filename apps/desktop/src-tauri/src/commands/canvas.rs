@@ -390,6 +390,96 @@ pub fn fill_rect(
     Ok(build_frame(canvas))
 }
 
+// --- Flood fill (bucket tool) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FloodFillInput {
+    pub x: u32,
+    pub y: u32,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+    pub layer_id: Option<String>,
+}
+
+#[command]
+pub fn flood_fill(
+    input: FloodFillInput,
+    state: State<'_, ManagedCanvasState>,
+) -> Result<CanvasFrame, AppError> {
+    let mut guard = state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let fill_color = Color::rgba(input.r, input.g, input.b, input.a);
+    let target_id = input.layer_id
+        .or_else(|| canvas.active_layer_id.clone())
+        .ok_or_else(|| AppError::Internal("No active layer".to_string()))?;
+
+    let layer = canvas.layers.iter_mut().find(|l| l.id == target_id)
+        .ok_or_else(|| AppError::Internal("Layer not found".to_string()))?;
+
+    if layer.locked {
+        return Err(AppError::Internal("Layer is locked".to_string()));
+    }
+
+    if !layer.buffer.in_bounds(input.x, input.y) {
+        return Err(AppError::Internal("Pixel out of bounds".to_string()));
+    }
+
+    let target_color = layer.buffer.get_pixel(input.x, input.y);
+    let tc = [target_color.r, target_color.g, target_color.b, target_color.a];
+    let fc = [fill_color.r, fill_color.g, fill_color.b, fill_color.a];
+
+    // Don't fill if the target color is the same as fill color
+    if tc == fc {
+        return Ok(build_frame(canvas));
+    }
+
+    // Flood fill with undo patch tracking
+    let w = canvas.width;
+    let h = canvas.height;
+    let mut visited = vec![false; (w * h) as usize];
+    let mut stack: Vec<(u32, u32)> = vec![(input.x, input.y)];
+    let mut patches = Vec::new();
+
+    while let Some((cx, cy)) = stack.pop() {
+        let idx = (cy * w + cx) as usize;
+        if visited[idx] { continue; }
+
+        let pixel = layer.buffer.get_pixel(cx, cy);
+        let pc = [pixel.r, pixel.g, pixel.b, pixel.a];
+        if pc != tc { continue; }
+
+        visited[idx] = true;
+        patches.push(crate::engine::canvas_state::PixelPatch {
+            x: cx, y: cy, before: pc, after: fc,
+        });
+        layer.buffer.set_pixel(cx, cy, &fill_color);
+
+        if cx > 0 { stack.push((cx - 1, cy)); }
+        if cx + 1 < w { stack.push((cx + 1, cy)); }
+        if cy > 0 { stack.push((cx, cy - 1)); }
+        if cy + 1 < h { stack.push((cx, cy + 1)); }
+    }
+
+    if !patches.is_empty() {
+        let record = crate::engine::canvas_state::StrokeRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            layer_id: target_id,
+            tool: "fill".into(),
+            color: fc,
+            patches,
+        };
+        canvas.undo_stack.push(record);
+        canvas.redo_stack.clear();
+    }
+
+    Ok(build_frame(canvas))
+}
+
 // --- Template rendering (for AI copilot sprite generation) ---
 
 #[derive(Debug, Deserialize)]

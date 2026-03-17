@@ -39,6 +39,76 @@ function bresenhamLine(x0: number, y0: number, x1: number, y1: number): [number,
   return points;
 }
 
+function rectangleOutline(x0: number, y0: number, x1: number, y1: number): [number, number][] {
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const set = new Set<string>();
+  const points: [number, number][] = [];
+  const add = (x: number, y: number) => {
+    const key = `${x},${y}`;
+    if (!set.has(key)) { set.add(key); points.push([x, y]); }
+  };
+  for (let x = minX; x <= maxX; x++) { add(x, minY); add(x, maxY); }
+  for (let y = minY + 1; y < maxY; y++) { add(minX, y); add(maxX, y); }
+  return points;
+}
+
+function ellipseOutline(x0: number, y0: number, x1: number, y1: number): [number, number][] {
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  const rx = Math.abs(x1 - x0) / 2;
+  const ry = Math.abs(y1 - y0) / 2;
+  if (rx < 0.5 && ry < 0.5) return [[Math.round(cx), Math.round(cy)]];
+  if (rx < 0.5) {
+    const points: [number, number][] = [];
+    for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) points.push([Math.round(cx), y]);
+    return points;
+  }
+  if (ry < 0.5) {
+    const points: [number, number][] = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) points.push([x, Math.round(cy)]);
+    return points;
+  }
+  // Midpoint ellipse algorithm
+  const set = new Set<string>();
+  const points: [number, number][] = [];
+  const plot = (px: number, py: number) => {
+    const ix = Math.round(cx + px);
+    const iy = Math.round(cy + py);
+    const key = `${ix},${iy}`;
+    if (!set.has(key)) { set.add(key); points.push([ix, iy]); }
+  };
+  const plotSymmetric = (px: number, py: number) => {
+    plot(px, py); plot(-px, py); plot(px, -py); plot(-px, -py);
+  };
+  let x = 0, y = ry;
+  let rx2 = rx * rx, ry2 = ry * ry;
+  let p1 = ry2 - rx2 * ry + 0.25 * rx2;
+  let dx = 2 * ry2 * x, dy = 2 * rx2 * y;
+  // Region 1
+  while (dx < dy) {
+    plotSymmetric(x, y);
+    x++;
+    dx += 2 * ry2;
+    if (p1 < 0) { p1 += dx + ry2; }
+    else { y--; dy -= 2 * rx2; p1 += dx - dy + ry2; }
+  }
+  // Region 2
+  let p2 = ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
+  while (y >= 0) {
+    plotSymmetric(x, y);
+    y--;
+    dy -= 2 * rx2;
+    if (p2 > 0) { p2 += rx2 - dy; }
+    else { x++; dx += 2 * ry2; p2 += dx - dy + rx2; }
+  }
+  return points;
+}
+
+const SHAPE_TOOLS = new Set(['line', 'rectangle', 'ellipse']);
+
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,6 +128,14 @@ export function Canvas() {
   // Transform drag state
   const isTransformDraggingRef = useRef(false);
   const transformDragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+
+  // Shape tool drag state (line, rectangle, ellipse)
+  const isShapeDraggingRef = useRef(false);
+  const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const shapeEndRef = useRef<{ x: number; y: number } | null>(null);
+  // Measure tool state
+  const measureStartRef = useRef<{ x: number; y: number } | null>(null);
+  const measureEndRef = useRef<{ x: number; y: number } | null>(null);
 
   const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -390,10 +468,59 @@ export function Canvas() {
       }
     }
 
+    // Shape tool preview overlay
+    if (isShapeDraggingRef.current && shapeStartRef.current && shapeEndRef.current) {
+      const s = shapeStartRef.current;
+      const en = shapeEndRef.current;
+      let previewPoints: [number, number][] = [];
+      if (activeTool === 'line') previewPoints = bresenhamLine(s.x, s.y, en.x, en.y);
+      else if (activeTool === 'rectangle') previewPoints = rectangleOutline(s.x, s.y, en.x, en.y);
+      else if (activeTool === 'ellipse') previewPoints = ellipseOutline(s.x, s.y, en.x, en.y);
+      const pc = primaryColor;
+      ctx.fillStyle = `rgba(${pc.r},${pc.g},${pc.b},0.7)`;
+      for (const [px, py] of previewPoints) {
+        const sx = originX + px * zoom;
+        const sy = originY + py * zoom;
+        ctx.fillRect(sx, sy, zoom, zoom);
+      }
+    }
+
+    // Measure tool overlay
+    if (activeTool === 'measure' && measureStartRef.current) {
+      const ms = measureStartRef.current;
+      const me = measureEndRef.current;
+      const sx1 = originX + (ms.x + 0.5) * zoom;
+      const sy1 = originY + (ms.y + 0.5) * zoom;
+      // Start point marker
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(originX + ms.x * zoom, originY + ms.y * zoom, zoom, zoom);
+      if (me) {
+        ctx.fillStyle = '#44ff44';
+        ctx.fillRect(originX + me.x * zoom, originY + me.y * zoom, zoom, zoom);
+        const sx2 = originX + (me.x + 0.5) * zoom;
+        const sy2 = originY + (me.y + 0.5) * zoom;
+        ctx.save();
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+        ctx.restore();
+        const dx = me.x - ms.x;
+        const dy = me.y - ms.y;
+        const dist = Math.sqrt(dx * dx + dy * dy).toFixed(1);
+        ctx.fillStyle = '#ffff00';
+        ctx.font = '12px monospace';
+        ctx.fillText(`${dist}px (${Math.abs(dx)}×${Math.abs(dy)})`, (sx1 + sx2) / 2 + 6, (sy1 + sy2) / 2 - 6);
+      }
+    }
+
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -457,8 +584,8 @@ export function Canvas() {
         return;
       }
 
-      // Move tool or drag inside selection during transform — begin or continue transform
-      if (e.button === 0 && (activeTool === 'move' || isTransforming)) {
+      // Move/Transform tool or drag inside selection during transform — begin or continue transform
+      if (e.button === 0 && (activeTool === 'move' || activeTool === 'transform' || isTransforming)) {
         const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
         if (!pixel) return;
 
@@ -509,6 +636,64 @@ export function Canvas() {
           selectionStartRef.current = pixel;
           canvas.setPointerCapture(e.pointerId);
           setDragSelection(null);
+        }
+        return;
+      }
+
+      // Eyedropper (color-select)
+      if (e.button === 0 && activeTool === 'color-select') {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          try {
+            const color = await invoke<{ r: number; g: number; b: number; a: number }>('read_pixel', { x: pixel.x, y: pixel.y, layerId: null });
+            useToolStore.getState().setPrimaryColor(color);
+          } catch (err) { console.error('read_pixel failed:', err); }
+        }
+        return;
+      }
+
+      // Fill (flood fill)
+      if (e.button === 0 && activeTool === 'fill') {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
+          try {
+            const f = await invoke<CanvasFrameData>('flood_fill', {
+              input: { x: pixel.x, y: pixel.y, r: primaryColor.r, g: primaryColor.g, b: primaryColor.b, a: primaryColor.a },
+            });
+            setFrame(f);
+            syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch (err) { console.error('flood_fill failed:', err); }
+        }
+        return;
+      }
+
+      // Shape tools (line, rectangle, ellipse) — start drag
+      if (e.button === 0 && SHAPE_TOOLS.has(activeTool)) {
+        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (pixel && frame) {
+          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
+          isShapeDraggingRef.current = true;
+          shapeStartRef.current = pixel;
+          shapeEndRef.current = pixel;
+          canvas.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+
+      // Measure tool — click to set start/end points
+      if (e.button === 0 && activeTool === 'measure') {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          if (!measureStartRef.current || measureEndRef.current) {
+            measureStartRef.current = pixel;
+            measureEndRef.current = null;
+          } else {
+            measureEndRef.current = pixel;
+          }
+          render();
         }
         return;
       }
@@ -595,6 +780,16 @@ export function Canvas() {
         return;
       }
 
+      // Shape tool drag
+      if (isShapeDraggingRef.current) {
+        const current = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (current) {
+          shapeEndRef.current = current;
+          render();
+        }
+        return;
+      }
+
       // Marquee drag
       if (isSelectingRef.current && frame) {
         const current = screenToPixelUnclamped(e.clientX, e.clientY);
@@ -660,6 +855,40 @@ export function Canvas() {
   );
 
   const handlePointerUp = useCallback(async () => {
+    // Shape tool complete — commit shape to canvas
+    if (isShapeDraggingRef.current) {
+      isShapeDraggingRef.current = false;
+      const start = shapeStartRef.current;
+      const end = shapeEndRef.current;
+      shapeStartRef.current = null;
+      shapeEndRef.current = null;
+      if (start && end && (start.x !== end.x || start.y !== end.y)) {
+        let points: [number, number][] = [];
+        if (activeTool === 'line') {
+          points = bresenhamLine(start.x, start.y, end.x, end.y);
+        } else if (activeTool === 'rectangle') {
+          points = rectangleOutline(start.x, start.y, end.x, end.y);
+        } else if (activeTool === 'ellipse') {
+          points = ellipseOutline(start.x, start.y, end.x, end.y);
+        }
+        if (points.length > 0) {
+          try {
+            await invoke('begin_stroke', {
+              input: { tool: activeTool, r: primaryColor.r, g: primaryColor.g, b: primaryColor.b, a: primaryColor.a },
+            });
+            await sendStrokePoints(points);
+            const f = await invoke<CanvasFrameData>('end_stroke');
+            setFrame(f);
+            syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch (err) { console.error('shape commit failed:', err); }
+        }
+      }
+      render();
+      return;
+    }
+
     // Transform drag complete (just stop dragging, don't commit)
     if (isTransformDraggingRef.current) {
       isTransformDraggingRef.current = false;
@@ -939,11 +1168,15 @@ export function Canvas() {
     ? 'move'
     : activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool)
       ? 'crosshair'
-      : activeTool === 'marquee'
+      : activeTool === 'marquee' || SHAPE_TOOLS.has(activeTool) || activeTool === 'fill'
         ? 'crosshair'
-        : activeTool === 'move'
-          ? 'move'
-          : 'default';
+        : activeTool === 'color-select'
+          ? 'copy'
+          : activeTool === 'move' || activeTool === 'transform'
+            ? 'move'
+            : activeTool === 'measure'
+              ? 'crosshair'
+              : 'default';
 
   return (
     <main className="canvas-container" ref={containerRef}>

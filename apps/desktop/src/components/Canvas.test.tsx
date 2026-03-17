@@ -217,6 +217,55 @@ describe('Canvas component', () => {
       const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
       expect(canvas.style.cursor).toBe('move');
     });
+
+    it('uses crosshair for line tool', () => {
+      seedStores({ activeTool: 'line' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
+
+    it('uses crosshair for rectangle tool', () => {
+      seedStores({ activeTool: 'rectangle' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
+
+    it('uses crosshair for ellipse tool', () => {
+      seedStores({ activeTool: 'ellipse' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
+
+    it('uses crosshair for fill tool', () => {
+      seedStores({ activeTool: 'fill' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
+
+    it('uses copy cursor for color-select (eyedropper)', () => {
+      seedStores({ activeTool: 'color-select' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('copy');
+    });
+
+    it('uses move cursor for transform tool', () => {
+      seedStores({ activeTool: 'transform' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('move');
+    });
+
+    it('uses crosshair for measure tool', () => {
+      seedStores({ activeTool: 'measure' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
   });
 
   describe('keyboard dispatch', () => {

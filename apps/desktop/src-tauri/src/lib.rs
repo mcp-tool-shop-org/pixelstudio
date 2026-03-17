@@ -58,6 +58,7 @@ pub fn run() {
             canvas::set_layer_opacity,
             canvas::reorder_layer,
             canvas::fill_rect,
+            canvas::flood_fill,
             canvas::render_template,
             selection::set_selection_rect,
             selection::clear_selection,
