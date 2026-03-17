@@ -2,12 +2,12 @@
   "meta": {
     "generated": "2026-03-17",
     "description": "Backend command capability manifest. Every registered Tauri command classified by status with reason.",
-    "registeredCommands": 184,
-    "frontendCallers": 147,
+    "registeredCommands": 186,
+    "frontendCallers": 151,
     "summary": {
-      "live": 147,
-      "reserved": 25,
-      "internal": 5,
+      "live": 151,
+      "reserved": 24,
+      "internal": 4,
       "dead": 7
     }
   },
@@ -208,7 +208,12 @@
     { "command": "ai_comfyui_poll",              "module": "ai",         "status": "live",     "reason": "ComfyUI job polling in aiSettings",                   "callers": ["aiSettings.ts"] },
     { "command": "ai_comfyui_fetch_image",       "module": "ai",         "status": "live",     "reason": "ComfyUI image fetch in aiSettings",                   "callers": ["aiSettings.ts"] },
     { "command": "ai_ollama_chat",               "module": "ai",         "status": "live",     "reason": "Ollama chat for copilot in aiSettings",               "callers": ["aiSettings.ts"] },
-    { "command": "ai_get_canvas_context",        "module": "ai",         "status": "live",     "reason": "Canvas context for AI in aiSettings",                 "callers": ["aiSettings.ts"] }
+    { "command": "ai_get_canvas_context",        "module": "ai",         "status": "live",     "reason": "Canvas context for AI in aiSettings",                 "callers": ["aiSettings.ts"] },
+
+    { "command": "create_slice_region",          "module": "slice",      "status": "live",     "reason": "Create named slice region on active frame (P0-C)",    "callers": ["Canvas.tsx"] },
+    { "command": "delete_slice_region",          "module": "slice",      "status": "live",     "reason": "Delete slice region by ID from active frame (P0-C)",  "callers": ["Canvas.tsx"] },
+    { "command": "list_slice_regions",           "module": "slice",      "status": "live",     "reason": "List all slice regions on active frame (P0-C)",       "callers": ["Canvas.tsx"] },
+    { "command": "clear_slice_regions",          "module": "slice",      "status": "live",     "reason": "Clear all slice regions on active frame (P0-C)",      "callers": ["Canvas.tsx"] }
   ],
 
   "deletedModules": [
