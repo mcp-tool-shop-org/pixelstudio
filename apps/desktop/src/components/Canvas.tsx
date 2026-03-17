@@ -798,6 +798,19 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+Shift+D — duplicate active layer (experiment on a copy)
+        if (e.code === 'KeyD' && e.shiftKey) {
+          e.preventDefault();
+          try {
+            const f = await invoke<CanvasFrameData>('duplicate_layer');
+            setFrame(f);
+            syncLayersFromFrame(f);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+          } catch (err) { console.error('duplicate_layer failed:', err); }
+          return;
+        }
+
         // Ctrl+Shift+S — quick snapshot capture
         if (e.code === 'KeyS' && e.shiftKey) {
           e.preventDefault();

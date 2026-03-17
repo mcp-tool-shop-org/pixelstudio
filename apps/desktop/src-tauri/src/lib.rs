@@ -50,6 +50,7 @@ pub fn run() {
             canvas::undo,
             canvas::redo,
             canvas::create_layer,
+            canvas::duplicate_layer,
             canvas::delete_layer,
             canvas::rename_layer,
             canvas::select_layer,

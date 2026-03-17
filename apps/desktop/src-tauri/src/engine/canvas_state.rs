@@ -261,6 +261,27 @@ impl CanvasState {
         id
     }
 
+    pub fn duplicate_layer(&mut self) -> Result<String, String> {
+        let source = self.active_layer_id.as_deref()
+            .ok_or_else(|| "No active layer".to_string())?;
+        let source_layer = self.layers.iter().find(|l| l.id == source)
+            .ok_or_else(|| "Active layer not found".to_string())?;
+        self.layer_counter += 1;
+        let new_name = format!("{} Copy", source_layer.name);
+        let new_layer = Layer {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: new_name,
+            visible: true,
+            locked: false,
+            opacity: source_layer.opacity,
+            buffer: source_layer.buffer.clone(),
+        };
+        let id = new_layer.id.clone();
+        self.layers.push(new_layer);
+        self.active_layer_id = Some(id.clone());
+        Ok(id)
+    }
+
     pub fn delete_layer(&mut self, layer_id: &str) -> Result<(), String> {
         if self.layers.len() <= 1 {
             return Err("Cannot delete the last layer".to_string());

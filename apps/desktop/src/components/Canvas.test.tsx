@@ -601,6 +601,26 @@ describe('Canvas component', () => {
       expect(transformCalls.length).toBe(0);
     });
 
+    it('Ctrl+Shift+D invokes duplicate_layer', async () => {
+      seedStores();
+      mock.on('duplicate_layer', () => ({
+        width: 32, height: 32, data: new Array(32 * 32 * 4).fill(0),
+        layers: [
+          { id: 'l1', name: 'Layer 1', visible: true, locked: false, opacity: 1 },
+          { id: 'l2', name: 'Layer 1 Copy', visible: true, locked: false, opacity: 1 },
+        ],
+        activeLayerId: 'l2', canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0,
+      }));
+      mock.on('mark_dirty', () => null);
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', ctrlKey: true, shiftKey: true, bubbles: true }));
+      });
+      await vi.waitFor(() => {
+        expect(mock.fn).toHaveBeenCalledWith('duplicate_layer');
+      });
+    });
+
     it('Ctrl+Shift+S captures a snapshot', async () => {
       seedStores();
       useSnapshotStore.setState({ snapshots: [] });

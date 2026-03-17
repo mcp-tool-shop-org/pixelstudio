@@ -247,6 +247,18 @@ pub fn create_layer(
 }
 
 #[command]
+pub fn duplicate_layer(
+    state: State<'_, ManagedCanvasState>,
+) -> Result<CanvasFrame, AppError> {
+    let mut guard = state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    canvas.duplicate_layer().map_err(|e| AppError::Internal(e))?;
+    Ok(build_frame(canvas))
+}
+
+#[command]
 pub fn delete_layer(
     layer_id: String,
     state: State<'_, ManagedCanvasState>,

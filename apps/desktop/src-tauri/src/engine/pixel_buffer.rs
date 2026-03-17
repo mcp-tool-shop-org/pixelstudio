@@ -17,6 +17,7 @@ impl Color {
 }
 
 /// Per-layer pixel buffer. RGBA, row-major, origin top-left.
+#[derive(Clone)]
 pub struct PixelBuffer {
     pub width: u32,
     pub height: u32,
