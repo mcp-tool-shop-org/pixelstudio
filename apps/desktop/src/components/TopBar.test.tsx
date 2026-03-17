@@ -130,5 +130,25 @@ describe('TopBar', () => {
       render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
       expect(screen.queryByText('Valid')).toBeNull();
     });
+
+    it('does not show help button when onShowHelp is not provided', () => {
+      seed();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} />);
+      expect(screen.queryByTestId('topbar-help-btn')).toBeNull();
+    });
+
+    it('shows help button when onShowHelp is provided', () => {
+      seed();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onShowHelp={vi.fn()} />);
+      expect(screen.getByTestId('topbar-help-btn')).toBeInTheDocument();
+    });
+
+    it('clicking help button calls onShowHelp', async () => {
+      seed();
+      const onShowHelp = vi.fn();
+      render(<TopBar activeMode="edit" onModeChange={vi.fn()} onShowHelp={onShowHelp} />);
+      await act(async () => { await userEvent.click(screen.getByTestId('topbar-help-btn')); });
+      expect(onShowHelp).toHaveBeenCalledOnce();
+    });
   });
 });

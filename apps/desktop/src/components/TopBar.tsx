@@ -16,9 +16,10 @@ const MODES: { id: WorkspaceMode; label: string }[] = [
 interface TopBarProps {
   activeMode: WorkspaceMode;
   onModeChange: (mode: WorkspaceMode) => void;
+  onShowHelp?: () => void;
 }
 
-export function TopBar({ activeMode, onModeChange }: TopBarProps) {
+export function TopBar({ activeMode, onModeChange, onShowHelp }: TopBarProps) {
   const name = useProjectStore((s) => s.name);
   const isDirty = useProjectStore((s) => s.isDirty);
   const saveStatus = useProjectStore((s) => s.saveStatus);
@@ -51,7 +52,19 @@ export function TopBar({ activeMode, onModeChange }: TopBarProps) {
           </button>
         ))}
       </nav>
-      <div className="topbar-controls" />
+      <div className="topbar-controls">
+        {onShowHelp && (
+          <button
+            className="topbar-help-btn"
+            onClick={onShowHelp}
+            data-testid="topbar-help-btn"
+            title="Keyboard shortcuts (?)"
+            aria-label="Show keyboard shortcuts"
+          >
+            ?
+          </button>
+        )}
+      </div>
     </header>
   );
 }

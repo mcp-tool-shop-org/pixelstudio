@@ -16,12 +16,14 @@ import { VectorWorkspace } from '../components/VectorWorkspace';
 import { VectorSourceBanner } from '../components/VectorSourceBanner';
 import { EditorStatusBar } from '../components/EditorStatusBar';
 import { ToastStack } from '../components/ToastStack';
+import { ShortcutHelpOverlay } from '../components/ShortcutHelpOverlay';
 import { toast } from '../lib/toast';
 
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
 export function AppShell() {
   const [mode, setMode] = useState<WorkspaceMode>('project-home');
+  const [showHelp, setShowHelp] = useState(false);
   const [recoveryItems, setRecoveryItems] = useState<Array<{
     projectId: string;
     name: string;
@@ -87,6 +89,12 @@ export function AppShell() {
         e.preventDefault();
         handleSave();
       }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          setShowHelp((v) => !v);
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -140,7 +148,8 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <ToastStack />
-      <TopBar activeMode={mode} onModeChange={setMode} />
+      <ShortcutHelpOverlay isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      <TopBar activeMode={mode} onModeChange={setMode} onShowHelp={() => setShowHelp(true)} />
       {mode === 'edit' && <VectorSourceBanner />}
       <TransformBar />
       <div className="workspace-body">
