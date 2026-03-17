@@ -17,7 +17,10 @@ import { DEFAULT_VECTOR_TRANSFORM, flattenPath, pathMovePoint, pathMoveControlPo
 const GRID_COLOR = 'rgba(255,255,255,0.04)';
 const ARTBOARD_BG = '#1a1a1a';
 const SELECTION_COLOR = '#4fc3f7';
-const HOVER_COLOR = 'rgba(79, 195, 247, 0.3)';
+const SELECTION_SHADOW = 'rgba(0, 0, 0, 0.6)';
+const HOVER_COLOR = 'rgba(79, 195, 247, 0.15)';
+const HOVER_STROKE = 'rgba(79, 195, 247, 0.4)';
+const HANDLE_SIZE = 5; // pixels at 1x zoom
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 
@@ -140,7 +143,106 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShape): void {
+function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShape, zoom: number): void {
+  const geo = shape.geometry;
+  const t = shape.transform;
+
+  // Dual-stroke selection: dark shadow underneath for contrast
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    if (t.rotation !== 0) ctx.rotate((t.rotation * Math.PI) / 180);
+    if (t.flipX || t.flipY) ctx.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
+    ctx.scale(t.scaleX, t.scaleY);
+    ctx.translate(-t.x, -t.y);
+    ctx.translate(t.x, t.y);
+
+    if (pass === 0) {
+      ctx.strokeStyle = SELECTION_SHADOW;
+      ctx.lineWidth = 3 / Math.max(t.scaleX, t.scaleY) / zoom;
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.lineWidth = 1.5 / Math.max(t.scaleX, t.scaleY) / zoom;
+      ctx.setLineDash([6 / zoom, 3 / zoom]);
+    }
+
+    switch (geo.kind) {
+      case 'rect':
+        ctx.strokeRect(geo.x - t.x, geo.y - t.y, geo.w, geo.h);
+        break;
+      case 'ellipse':
+        ctx.beginPath();
+        ctx.ellipse(geo.cx - t.x, geo.cy - t.y, Math.abs(geo.rx), Math.abs(geo.ry), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      case 'line':
+        ctx.beginPath();
+        ctx.moveTo(geo.x1 - t.x, geo.y1 - t.y);
+        ctx.lineTo(geo.x2 - t.x, geo.y2 - t.y);
+        ctx.stroke();
+        break;
+      case 'polygon':
+        if (geo.points.length > 0) {
+          ctx.beginPath();
+          ctx.moveTo(geo.points[0].x - t.x, geo.points[0].y - t.y);
+          for (let i = 1; i < geo.points.length; i++) {
+            ctx.lineTo(geo.points[i].x - t.x, geo.points[i].y - t.y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+        break;
+      case 'path':
+        if (geo.points.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(geo.points[0].x - t.x, geo.points[0].y - t.y);
+          const segCount = geo.closed ? geo.points.length : geo.points.length - 1;
+          for (let i = 0; i < segCount; i++) {
+            const p1 = geo.points[(i + 1) % geo.points.length];
+            const seg = geo.segments[i];
+            if (seg.kind === 'line') {
+              ctx.lineTo(p1.x - t.x, p1.y - t.y);
+            } else {
+              ctx.quadraticCurveTo(seg.cpX - t.x, seg.cpY - t.y, p1.x - t.x, p1.y - t.y);
+            }
+          }
+          if (geo.closed) ctx.closePath();
+          ctx.stroke();
+        }
+        break;
+    }
+
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // Draw resize handles for rect/ellipse
+  if (geo.kind === 'rect' || geo.kind === 'ellipse') {
+    const hs = HANDLE_SIZE / zoom;
+    let corners: Array<[number, number]>;
+    if (geo.kind === 'rect') {
+      corners = [
+        [geo.x, geo.y], [geo.x + geo.w, geo.y],
+        [geo.x + geo.w, geo.y + geo.h], [geo.x, geo.y + geo.h],
+      ];
+    } else {
+      corners = [
+        [geo.cx - geo.rx, geo.cy - geo.ry], [geo.cx + geo.rx, geo.cy - geo.ry],
+        [geo.cx + geo.rx, geo.cy + geo.ry], [geo.cx - geo.rx, geo.cy + geo.ry],
+      ];
+    }
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.lineWidth = 1 / zoom;
+    for (const [hx, hy] of corners) {
+      ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+      ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+    }
+  }
+}
+
+function renderHoverHighlight(ctx: CanvasRenderingContext2D, shape: VectorShape, zoom: number): void {
   const geo = shape.geometry;
   const t = shape.transform;
 
@@ -152,23 +254,20 @@ function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShap
   ctx.translate(-t.x, -t.y);
   ctx.translate(t.x, t.y);
 
-  ctx.strokeStyle = SELECTION_COLOR;
-  ctx.lineWidth = 2 / Math.max(t.scaleX, t.scaleY);
-  ctx.setLineDash([6, 3]);
+  ctx.fillStyle = HOVER_COLOR;
+  ctx.strokeStyle = HOVER_STROKE;
+  ctx.lineWidth = 1.5 / Math.max(t.scaleX, t.scaleY) / zoom;
+  ctx.setLineDash([4 / zoom, 2 / zoom]);
 
   switch (geo.kind) {
     case 'rect':
+      ctx.fillRect(geo.x - t.x, geo.y - t.y, geo.w, geo.h);
       ctx.strokeRect(geo.x - t.x, geo.y - t.y, geo.w, geo.h);
       break;
     case 'ellipse':
       ctx.beginPath();
       ctx.ellipse(geo.cx - t.x, geo.cy - t.y, Math.abs(geo.rx), Math.abs(geo.ry), 0, 0, Math.PI * 2);
-      ctx.stroke();
-      break;
-    case 'line':
-      ctx.beginPath();
-      ctx.moveTo(geo.x1 - t.x, geo.y1 - t.y);
-      ctx.lineTo(geo.x2 - t.x, geo.y2 - t.y);
+      ctx.fill();
       ctx.stroke();
       break;
     case 'polygon':
@@ -179,6 +278,7 @@ function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShap
           ctx.lineTo(geo.points[i].x - t.x, geo.points[i].y - t.y);
         }
         ctx.closePath();
+        ctx.fill();
         ctx.stroke();
       }
       break;
@@ -196,9 +296,15 @@ function renderSelectionOutline(ctx: CanvasRenderingContext2D, shape: VectorShap
             ctx.quadraticCurveTo(seg.cpX - t.x, seg.cpY - t.y, p1.x - t.x, p1.y - t.y);
           }
         }
-        if (geo.closed) ctx.closePath();
+        if (geo.closed) { ctx.closePath(); ctx.fill(); }
         ctx.stroke();
       }
+      break;
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(geo.x1 - t.x, geo.y1 - t.y);
+      ctx.lineTo(geo.x2 - t.x, geo.y2 - t.y);
+      ctx.stroke();
       break;
   }
 
@@ -331,8 +437,8 @@ function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape
   if (shape.geometry.kind !== 'path') return;
   const geo = shape.geometry as PathGeometry;
   const t = shape.transform;
-  const pointSize = 4 / zoom;
-  const cpSize = 3 / zoom;
+  const pointSize = 5 / zoom;
+  const cpSize = 4 / zoom;
 
   ctx.save();
 
@@ -350,9 +456,9 @@ function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape
       const p1x = p1.x * t.scaleX + t.x;
       const p1y = p1.y * t.scaleY + t.y;
 
-      // Handle lines
-      ctx.strokeStyle = 'rgba(255, 150, 50, 0.6)';
-      ctx.lineWidth = 1 / zoom;
+      // Handle lines — thicker for visibility
+      ctx.strokeStyle = 'rgba(255, 150, 50, 0.7)';
+      ctx.lineWidth = 1.5 / zoom;
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(p0x, p0y);
@@ -383,7 +489,7 @@ function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape
       // Smooth = circle
       ctx.fillStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
       ctx.strokeStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
-      ctx.lineWidth = 1.5 / zoom;
+      ctx.lineWidth = 2 / zoom;
       ctx.beginPath();
       ctx.arc(px, py, pointSize, 0, Math.PI * 2);
       if (isSelected) { ctx.fill(); } else { ctx.stroke(); }
@@ -391,7 +497,7 @@ function renderPathEditOverlay(ctx: CanvasRenderingContext2D, shape: VectorShape
       // Corner = square
       ctx.fillStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
       ctx.strokeStyle = isSelected ? '#ffffff' : SELECTION_COLOR;
-      ctx.lineWidth = 1.5 / zoom;
+      ctx.lineWidth = 2 / zoom;
       if (isSelected) {
         ctx.fillRect(px - pointSize, py - pointSize, pointSize * 2, pointSize * 2);
       } else {
@@ -596,6 +702,8 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth, 
   // Path point editing state
   const [editingPoint, setEditingPoint] = useState<{ shapeId: string; kind: 'point' | 'control'; index: number } | null>(null);
   const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
+  // Hover state
+  const [hoveredShapeId, setHoveredShapeId] = useState<string | null>(null);
 
   const doc = useVectorMasterStore((s) => s.document);
   const selectedIds = useVectorMasterStore((s) => s.selectedShapeIds);
@@ -673,10 +781,16 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth, 
       }
     }
 
+    // Hover highlight (before selection so selection draws on top)
+    if (hoveredShapeId && !selectedIds.includes(hoveredShapeId) && activeTool === 'v-select') {
+      const hoverShape = doc.shapes.find((s) => s.id === hoveredShapeId);
+      if (hoverShape) renderHoverHighlight(ctx, hoverShape, zoom);
+    }
+
     // Selection outlines
     for (const id of selectedIds) {
       const shape = doc.shapes.find((s) => s.id === id);
-      if (shape) renderSelectionOutline(ctx, shape);
+      if (shape) renderSelectionOutline(ctx, shape, zoom);
     }
 
     // Draw preview (rect/ellipse/line being drawn)
@@ -794,7 +908,7 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth, 
     }
 
     ctx.restore();
-  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints, pathPoints, pathSegments, selectedPointIdx, collapseOverlay]);
+  }, [doc, selectedIds, zoom, panX, panY, drawStart, drawCurrent, activeTool, polyPoints, pathPoints, pathSegments, selectedPointIdx, collapseOverlay, hoveredShapeId]);
 
   // Resize observer
   useEffect(() => {
@@ -941,7 +1055,22 @@ export function VectorCanvas({ activeTool, fillColor, strokeColor, strokeWidth, 
     if ((activeTool === 'v-polygon' || activeTool === 'v-path') && (polyPoints.length > 0 || pathPoints.length > 0)) {
       setDrawCurrent({ x: ax, y: ay });
     }
-  }, [isPanning, zoom, toArtboard, activeTool, dragStart, drawStart, selectedIds, setShapeTransform, polyPoints, pathPoints, editingPoint, doc, setShapeGeometry]);
+
+    // Hover detection for select tool
+    if (activeTool === 'v-select' && doc && !dragStart && !editingPoint) {
+      const sortedDesc = [...doc.shapes].sort((a, b) => b.zOrder - a.zOrder);
+      let found: string | null = null;
+      for (const shape of sortedDesc) {
+        if (hitTestShape(shape, ax, ay)) {
+          found = shape.id;
+          break;
+        }
+      }
+      if (found !== hoveredShapeId) {
+        setHoveredShapeId(found);
+      }
+    }
+  }, [isPanning, zoom, toArtboard, activeTool, dragStart, drawStart, selectedIds, setShapeTransform, polyPoints, pathPoints, editingPoint, doc, setShapeGeometry, hoveredShapeId]);
 
   const handlePointerUp = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (isPanning) {
