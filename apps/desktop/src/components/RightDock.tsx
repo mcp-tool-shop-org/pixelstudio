@@ -1,7 +1,6 @@
 import type { WorkspaceMode } from '@glyphstudio/domain';
 import { useEffect, useRef, useState } from 'react';
-
-const TAB_OVERFLOW_THRESHOLD = 6;
+import type { ComponentType } from 'react';
 import { LayerPanel } from './LayerPanel';
 import { AssetBrowserPanel } from './AssetBrowserPanel';
 import { SceneInstancesPanel } from './SceneInstancesPanel';
@@ -27,7 +26,40 @@ interface RightDockProps {
   activeMode: WorkspaceMode;
 }
 
-const MODE_TABS: Record<WorkspaceMode, string[]> = {
+/**
+ * Declarative tab → component registry.
+ *
+ * To wire a new panel: add its tab label as a key and the component as the value.
+ * Tabs present in MODE_TABS but absent from this registry render a placeholder.
+ */
+export const PANEL_REGISTRY: Record<string, ComponentType> = {
+  'Layers': LayerPanel,
+  'Assets': AssetBrowserPanel,
+  'Instances': SceneInstancesPanel,
+  'Camera': CameraKeyframePanel,
+  'Character': CharacterBuilderPanel,
+  'Activity': SceneProvenancePanel,
+  'Reference': ReferencePanel,
+  'Snapshots': SnapshotPanel,
+  'Analysis': AnalysisPanel,
+  'Palette Props': PalettePropsPanel,
+  'Validation': ValidationPanel,
+  'Shapes': VectorShapesPanel,
+  'Shape Props': VectorPropertiesPanel,
+  'Reduction': VectorReductionPanel,
+  'Vec Copilot': VectorCopilotPanel,
+  'AI Create': VectorAICreationPanel,
+  'Copilot': CopilotPanel,
+  'Generate': ComfyUIGeneratePanel,
+  'Templates': TemplateBrowserPanel,
+  'AI Settings': AISettingsPanel,
+};
+
+/**
+ * Which tabs appear in each workspace mode, in display order.
+ * Tabs beyond TAB_OVERFLOW_THRESHOLD are accessible via the overflow menu.
+ */
+export const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
   edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Copilot', 'Templates', 'Assets'],
   animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Locomotion'],
@@ -40,68 +72,11 @@ const MODE_TABS: Record<WorkspaceMode, string[]> = {
   vector: ['Shapes', 'Shape Props', 'Reduction', 'Vec Copilot', 'AI Create'],
 };
 
-function PanelContent({ tabName }: { tabName: string }) {
-  if (tabName === 'Layers') {
-    return <LayerPanel />;
-  }
-  if (tabName === 'Assets') {
-    return <AssetBrowserPanel />;
-  }
-  if (tabName === 'Instances') {
-    return <SceneInstancesPanel />;
-  }
-  if (tabName === 'Camera') {
-    return <CameraKeyframePanel />;
-  }
-  if (tabName === 'Character') {
-    return <CharacterBuilderPanel />;
-  }
-  if (tabName === 'Activity') {
-    return <SceneProvenancePanel />;
-  }
-  if (tabName === 'Reference') {
-    return <ReferencePanel />;
-  }
-  if (tabName === 'Snapshots') {
-    return <SnapshotPanel />;
-  }
-  if (tabName === 'Analysis') {
-    return <AnalysisPanel />;
-  }
-  if (tabName === 'Palette Props') {
-    return <PalettePropsPanel />;
-  }
-  if (tabName === 'Validation') {
-    return <ValidationPanel />;
-  }
-  if (tabName === 'Shapes') {
-    return <VectorShapesPanel />;
-  }
-  if (tabName === 'Shape Props') {
-    return <VectorPropertiesPanel />;
-  }
-  if (tabName === 'Reduction') {
-    return <VectorReductionPanel />;
-  }
-  if (tabName === 'Vec Copilot') {
-    return <VectorCopilotPanel />;
-  }
-  if (tabName === 'AI Create') {
-    return <VectorAICreationPanel />;
-  }
-  if (tabName === 'Copilot') {
-    return <CopilotPanel />;
-  }
-  if (tabName === 'Generate') {
-    return <ComfyUIGeneratePanel />;
-  }
-  if (tabName === 'Templates') {
-    return <TemplateBrowserPanel />;
-  }
-  if (tabName === 'AI Settings') {
-    return <AISettingsPanel />;
-  }
+const TAB_OVERFLOW_THRESHOLD = 6;
 
+function PanelContent({ tabName }: { tabName: string }) {
+  const Component = PANEL_REGISTRY[tabName];
+  if (Component) return <Component />;
   return (
     <div className="dock-panel-placeholder">
       <span className="placeholder-label">{tabName}</span>

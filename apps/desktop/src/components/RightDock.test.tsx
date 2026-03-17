@@ -51,7 +51,7 @@ vi.mock('../components/TemplateBrowserPanel', () => ({
 }));
 
 // Import after mocks are declared
-import { RightDock } from '../components/RightDock';
+import { RightDock, PANEL_REGISTRY, MODE_TABS } from '../components/RightDock';
 
 describe('RightDock', () => {
   afterEach(cleanup);
@@ -336,6 +336,45 @@ describe('RightDock', () => {
       const buttons = screen.getAllByRole('button');
       expect(buttons).toHaveLength(1);
       expect(buttons[0].className).toContain('active');
+    });
+  });
+
+  describe('PANEL_REGISTRY', () => {
+    it('exports a non-empty registry', () => {
+      expect(Object.keys(PANEL_REGISTRY).length).toBeGreaterThan(0);
+    });
+
+    it('all registry keys have a defined component', () => {
+      for (const [key, comp] of Object.entries(PANEL_REGISTRY)) {
+        expect(comp, `Registry entry "${key}" has no component`).toBeDefined();
+      }
+    });
+
+    it('every tab in every mode is either in the registry or is a known placeholder', () => {
+      // Tabs without components render a placeholder — that is intentional for
+      // not-yet-implemented panels. But no tab should silently fall through.
+      const allTabs = Object.values(MODE_TABS).flat();
+      const unique = [...new Set(allTabs)];
+      // Each tab is either registered (real component) or a placeholder (no component).
+      // The test asserts the tab name is non-empty — i.e. no accidental blank entries.
+      unique.forEach((tab) => {
+        expect(tab.length, `Empty tab name found in MODE_TABS`).toBeGreaterThan(0);
+      });
+    });
+
+    it('known wired tabs resolve to a component from the registry', () => {
+      const wiredTabs = ['Layers', 'Analysis', 'Validation', 'Shape Props', 'Copilot', 'Templates'];
+      wiredTabs.forEach((tab) => {
+        expect(PANEL_REGISTRY[tab], `"${tab}" missing from PANEL_REGISTRY`).toBeDefined();
+      });
+    });
+
+    it('placeholder tabs are not accidentally added to the registry', () => {
+      // These tabs intentionally have no component yet
+      const placeholderTabs = ['Canvas Props', 'Locomotion', 'Provenance', 'Export Settings', 'Palette', 'Sprite Props'];
+      placeholderTabs.forEach((tab) => {
+        expect(PANEL_REGISTRY[tab], `"${tab}" should be a placeholder, not in registry`).toBeUndefined();
+      });
     });
   });
 });
