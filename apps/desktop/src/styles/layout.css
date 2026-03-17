@@ -10446,3 +10446,18 @@
   color: #e05050;
   background: rgba(224, 80, 80, 0.12);
 }
+
+.slice-export-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.slice-export-msg {
+  font-size: 10px;
+  color: var(--text-secondary, #a0a0b0);
+  padding: 2px 4px;
+  background: var(--bg-tertiary, #1e1e2e);
+  border-radius: 3px;
+  text-align: center;
+}

@@ -1,11 +1,17 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 import { useSliceStore, useCanvasViewStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import type { CanvasFrameData } from '../lib/canvasFrameStore';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { useProjectStore } from '@glyphstudio/state';
+
+interface ExportResult {
+  files: Array<{ path: string; width: number; height: number }>;
+  frame_count: number;
+}
 
 export function SliceManagerPanel() {
   const sliceRegions = useSliceStore((s) => s.sliceRegions);
@@ -17,6 +23,8 @@ export function SliceManagerPanel() {
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
   const setPan = useCanvasViewStore((s) => s.setPan);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
 
   /** Pan canvas so the given slice region is centered in the viewport. */
   const focusSlice = useCallback((region: typeof sliceRegions[number]) => {
@@ -85,6 +93,23 @@ export function SliceManagerPanel() {
     }
   }, [setFrame, markDirty, setSelectedSliceId, setSliceRegions]);
 
+  const handleExport = useCallback(async (ids: string[]) => {
+    setExportMsg('');
+    const dirPath = await save({ title: 'Export Slice PNGs — Choose output folder' });
+    if (!dirPath) return;
+    setExporting(true);
+    try {
+      const result = await invoke<ExportResult>('export_slice_regions', { sliceIds: ids, dirPath });
+      setExportMsg(`Exported ${result.frame_count} PNG${result.frame_count !== 1 ? 's' : ''}`);
+    } catch (err) {
+      setExportMsg(`Error: ${String(err)}`);
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
+  const canExportSelected = !!selectedSliceId;
+
   return (
     <div className="slice-manager-panel">
       <div className="slice-manager-toolbar">
@@ -108,6 +133,32 @@ export function SliceManagerPanel() {
           </button>
         )}
       </div>
+
+      {sliceRegions.length > 0 && (
+        <div className="slice-export-toolbar">
+          <button
+            className="slice-toolbar-btn"
+            onClick={() => handleExport(selectedSliceId ? [selectedSliceId] : [])}
+            disabled={exporting || !canExportSelected}
+            title={canExportSelected ? 'Export selected slice as PNG' : 'Select a slice first'}
+            data-testid="slice-export-selected-btn"
+          >
+            {exporting ? '…' : 'Exp Sel'}
+          </button>
+          <button
+            className="slice-toolbar-btn"
+            onClick={() => handleExport([])}
+            disabled={exporting}
+            title="Export all slices as individual PNGs"
+            data-testid="slice-export-all-btn"
+          >
+            {exporting ? '…' : 'Exp All'}
+          </button>
+        </div>
+      )}
+      {exportMsg && (
+        <div className="slice-export-msg" data-testid="slice-export-msg">{exportMsg}</div>
+      )}
 
       {sliceRegions.length === 0 ? (
         <div className="slice-empty-state" data-testid="slice-empty-state">

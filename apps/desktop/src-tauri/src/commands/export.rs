@@ -1176,6 +1176,102 @@ pub fn export_current_frame_png(
     })
 }
 
+/// Export one or more slice regions from the active frame as individual PNGs.
+///
+/// Each slice region is cropped from the composited active frame and saved as
+/// `<dir_path>/<slice_name>.png`.  Returns one `ExportedFileInfo` per slice.
+#[command]
+pub fn export_slice_regions(
+    // IDs of slices to export. Empty = export all slices on the active frame.
+    slice_ids: Vec<String>,
+    dir_path: String,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<ExportResult, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let idx = canvas.active_frame_index;
+    let frame = canvas
+        .frames
+        .get(idx)
+        .ok_or_else(|| AppError::Internal("No active frame".to_string()))?;
+
+    // Collect the requested slice regions.
+    let regions: Vec<_> = frame
+        .slice_regions
+        .iter()
+        .filter(|r| slice_ids.is_empty() || slice_ids.contains(&r.id))
+        .collect();
+
+    if regions.is_empty() {
+        return Err(AppError::Internal("No matching slice regions found".to_string()));
+    }
+
+    // Composite the full frame once — we crop from it.
+    let frame_data = canvas
+        .composite_frame_at(idx)
+        .ok_or_else(|| AppError::Internal("Failed to composite frame".to_string()))?;
+
+    let fw = canvas.width as usize;
+    let fh = canvas.height as usize;
+
+    let base_dir = std::path::Path::new(&dir_path);
+    std::fs::create_dir_all(base_dir).map_err(|e| AppError::Io(e))?;
+
+    let mut files = Vec::new();
+    let mut was_suffixed = false;
+
+    for region in regions {
+        // Clamp region to frame bounds.
+        let rx = (region.x as usize).min(fw);
+        let ry = (region.y as usize).min(fh);
+        let rw = (region.width as usize).min(fw.saturating_sub(rx));
+        let rh = (region.height as usize).min(fh.saturating_sub(ry));
+
+        if rw == 0 || rh == 0 {
+            continue;
+        }
+
+        // Crop RGBA strip.
+        let mut crop = vec![0u8; rw * rh * 4];
+        for y in 0..rh {
+            for x in 0..rw {
+                let src_i = ((ry + y) * fw + (rx + x)) * 4;
+                let dst_i = (y * rw + x) * 4;
+                crop[dst_i..dst_i + 4].copy_from_slice(&frame_data[src_i..src_i + 4]);
+            }
+        }
+
+        let safe_name = sanitize_name(&region.name);
+        let base_path = base_dir.join(format!("{}.png", safe_name));
+        let (file_path, file_suffixed) = resolve_collision(&base_path);
+        if file_suffixed { was_suffixed = true; }
+
+        let png_data = encode_png(&crop, rw as u32, rh as u32)
+            .map_err(|e| AppError::Internal(e))?;
+        std::fs::write(&file_path, &png_data).map_err(|e| AppError::Io(e))?;
+
+        files.push(ExportedFileInfo {
+            path: file_path.to_string_lossy().to_string(),
+            width: rw as u32,
+            height: rh as u32,
+        });
+    }
+
+    let file_count = files.len();
+    Ok(ExportResult {
+        files,
+        manifest: None,
+        frame_count: file_count,
+        clip_count: 0,
+        skipped_clips: 0,
+        was_suffixed,
+        warnings: Vec::new(),
+    })
+}
+
 // ==========================================================================
 // Tests
 // ==========================================================================

@@ -152,6 +152,7 @@ pub fn run() {
             export::export_all_clips_sheet,
             export::export_clip_sequence_with_manifest,
             export::export_current_frame_png,
+            export::export_slice_regions,
             clip::create_clip,
             clip::list_clips,
             clip::update_clip,

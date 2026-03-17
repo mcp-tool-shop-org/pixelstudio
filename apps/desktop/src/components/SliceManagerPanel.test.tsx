@@ -19,6 +19,12 @@ vi.mock('@tauri-apps/api/core', () => ({
   }),
 }));
 
+// save dialog returns a path by default; tests can override via saveMock
+let saveMockValue: string | null = '/tmp/export';
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: vi.fn(() => Promise.resolve(saveMockValue)),
+}));
+
 function onCmd(cmd: string, fn: InvokeHandler) {
   invokeHandlers.set(cmd, fn);
 }
@@ -47,13 +53,18 @@ function seedPanel(overrides?: {
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('SliceManagerPanel', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     invokeHandlers.clear();
     onCmd('list_slice_regions', () => []);
     onCmd('create_slice_region', () => EMPTY_FRAME);
     onCmd('delete_slice_region', () => EMPTY_FRAME);
     onCmd('clear_slice_regions', () => EMPTY_FRAME);
     onCmd('mark_dirty', () => null);
+    onCmd('export_slice_regions', () => ({ files: [{ path: '/tmp/export/slice_1.png', width: 8, height: 8 }], frame_count: 1 }));
+    saveMockValue = '/tmp/export';
+    // Reset mock call history before each test
+    const { invoke } = await import('@tauri-apps/api/core');
+    (invoke as ReturnType<typeof vi.fn>).mockClear();
   });
 
   afterEach(cleanup);
@@ -220,5 +231,96 @@ describe('SliceManagerPanel', () => {
     const calls = (invoke as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.some(([cmd]: [string]) => cmd === 'clear_slice_regions')).toBe(true);
     expect(useSliceStore.getState().sliceRegions).toHaveLength(0);
+  });
+
+  // ── Export ───────────────────────────────────────────────────────
+
+  it('export toolbar only appears when slices exist', () => {
+    seedPanel();
+    render(<SliceManagerPanel />);
+    expect(screen.queryByTestId('slice-export-all-btn')).toBeNull();
+    expect(screen.queryByTestId('slice-export-selected-btn')).toBeNull();
+  });
+
+  it('shows export buttons when slices exist', () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    render(<SliceManagerPanel />);
+    expect(screen.getByTestId('slice-export-all-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('slice-export-selected-btn')).toBeInTheDocument();
+  });
+
+  it('Exp Sel is disabled when no slice is selected', () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    render(<SliceManagerPanel />);
+    expect(screen.getByTestId('slice-export-selected-btn')).toBeDisabled();
+  });
+
+  it('Exp Sel is enabled when a slice is selected', () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+      selectedSliceId: 'r1',
+    });
+    render(<SliceManagerPanel />);
+    expect(screen.getByTestId('slice-export-selected-btn')).not.toBeDisabled();
+  });
+
+  it('clicking Exp All invokes export_slice_regions with empty ids', async () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    const { invoke } = await import('@tauri-apps/api/core');
+    render(<SliceManagerPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('slice-export-all-btn'));
+    });
+    const calls = (invoke as ReturnType<typeof vi.fn>).mock.calls;
+    const exportCall = calls.find(([cmd]: [string]) => cmd === 'export_slice_regions');
+    expect(exportCall).toBeDefined();
+    expect((exportCall[1] as { sliceIds: string[] }).sliceIds).toEqual([]);
+  });
+
+  it('clicking Exp Sel invokes export_slice_regions with the selected id', async () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+      selectedSliceId: 'r1',
+    });
+    const { invoke } = await import('@tauri-apps/api/core');
+    render(<SliceManagerPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('slice-export-selected-btn'));
+    });
+    const calls = (invoke as ReturnType<typeof vi.fn>).mock.calls;
+    const exportCall = calls.find(([cmd]: [string]) => cmd === 'export_slice_regions');
+    expect(exportCall).toBeDefined();
+    expect((exportCall[1] as { sliceIds: string[] }).sliceIds).toEqual(['r1']);
+  });
+
+  it('shows success message after export', async () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    render(<SliceManagerPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('slice-export-all-btn'));
+    });
+    expect(screen.getByTestId('slice-export-msg')).toHaveTextContent('Exported 1 PNG');
+  });
+
+  it('cancelling the save dialog does not invoke export', async () => {
+    saveMockValue = null;
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    const { invoke } = await import('@tauri-apps/api/core');
+    render(<SliceManagerPanel />);
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('slice-export-all-btn'));
+    });
+    const calls = (invoke as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some(([cmd]: [string]) => cmd === 'export_slice_regions')).toBe(false);
   });
 });
