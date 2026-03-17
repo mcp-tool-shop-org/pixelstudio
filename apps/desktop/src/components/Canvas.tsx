@@ -638,6 +638,19 @@ export function Canvas() {
         }
       }
 
+      // [ / ] — darken / lighten primary color by a step
+      // Shift+[ / Shift+] — larger step
+      if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && !e.ctrlKey && !e.metaKey && !e.repeat) {
+        e.preventDefault();
+        const step = e.shiftKey ? 30 : 15;
+        const delta = e.code === 'BracketLeft' ? -step : step;
+        const pc = useToolStore.getState().primaryColor;
+        const clamp = (v: number) => Math.max(0, Math.min(255, v));
+        const next = { r: clamp(pc.r + delta), g: clamp(pc.g + delta), b: clamp(pc.b + delta), a: pc.a };
+        useToolStore.getState().setPrimaryColor(next);
+        return;
+      }
+
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         // If actively drawing, Space = pan; otherwise Space = play/pause

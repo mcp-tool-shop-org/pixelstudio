@@ -486,6 +486,85 @@ describe('Canvas component', () => {
       expect(mock.fn).not.toHaveBeenCalledWith('flip_selection_horizontal');
     });
 
+    it('[ darkens primary color by 15', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 100, g: 100, b: 100, a: 255 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketLeft', bubbles: true }));
+      });
+      const pc = useToolStore.getState().primaryColor;
+      expect(pc.r).toBe(85);
+      expect(pc.g).toBe(85);
+      expect(pc.b).toBe(85);
+    });
+
+    it('] lightens primary color by 15', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 100, g: 100, b: 100, a: 255 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketRight', bubbles: true }));
+      });
+      const pc = useToolStore.getState().primaryColor;
+      expect(pc.r).toBe(115);
+      expect(pc.g).toBe(115);
+      expect(pc.b).toBe(115);
+    });
+
+    it('[ clamps at 0 — does not go negative', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 5, g: 5, b: 5, a: 255 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketLeft', bubbles: true }));
+      });
+      const pc = useToolStore.getState().primaryColor;
+      expect(pc.r).toBe(0);
+    });
+
+    it('] clamps at 255 — does not exceed max', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 250, g: 250, b: 250, a: 255 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketRight', bubbles: true }));
+      });
+      const pc = useToolStore.getState().primaryColor;
+      expect(pc.r).toBe(255);
+    });
+
+    it('Shift+[ uses larger step (30)', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 100, g: 100, b: 100, a: 255 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketLeft', shiftKey: true, bubbles: true }));
+      });
+      const pc = useToolStore.getState().primaryColor;
+      expect(pc.r).toBe(70);
+    });
+
+    it('[ does not change alpha', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 100, g: 100, b: 100, a: 200 } });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketLeft', bubbles: true }));
+      });
+      expect(useToolStore.getState().primaryColor.a).toBe(200);
+    });
+
+    it('[ pushes new color to recentColors', async () => {
+      seedStores();
+      useToolStore.setState({ primaryColor: { r: 100, g: 100, b: 100, a: 255 }, recentColors: [] });
+      render(<Canvas />);
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'BracketLeft', bubbles: true }));
+      });
+      expect(useToolStore.getState().recentColors).toHaveLength(1);
+    });
+
     it('Ctrl+Shift+T does nothing when no lastTransformCommand', async () => {
       seedStores({ isTransforming: true });
       useSelectionStore.setState({ lastTransformCommand: null });
