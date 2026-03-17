@@ -20,6 +20,7 @@ const CANVAS_BG = '#111114';
 const GRID_COLOR = 'rgba(255,255,255,0.08)';
 const SELECTION_COLOR = 'rgba(100,160,255,0.5)';
 const SELECTION_DASH = [4, 4];
+const SELECTION_HANDLE_SIZE = 5;
 
 const SHAPE_TOOLS = new Set(['line', 'rectangle', 'ellipse']);
 
@@ -324,6 +325,13 @@ export function Canvas() {
       const tpSW = tp.payloadWidth * zoom;
       const tpSH = tp.payloadHeight * zoom;
       ctx.save();
+
+      // Dark outer ring
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tpX - 0.5, tpY - 0.5, tpSW + 1, tpSH + 1);
+
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1;
       ctx.setLineDash(SELECTION_DASH);
@@ -332,6 +340,25 @@ export function Canvas() {
       ctx.strokeStyle = '#000';
       ctx.lineDashOffset = -(antOffsetRef.current + 4);
       ctx.strokeRect(tpX + 0.5, tpY + 0.5, tpSW - 1, tpSH - 1);
+
+      // Corner handles
+      ctx.setLineDash([]);
+      const tpHs = SELECTION_HANDLE_SIZE;
+      const tpHh = Math.floor(tpHs / 2);
+      const tpCorners: [number, number][] = [
+        [tpX - tpHh, tpY - tpHh],
+        [tpX + tpSW - tpHh, tpY - tpHh],
+        [tpX - tpHh, tpY + tpSH - tpHh],
+        [tpX + tpSW - tpHh, tpY + tpSH - tpHh],
+      ];
+      for (const [cx, cy] of tpCorners) {
+        ctx.fillStyle = '#64a0ff';
+        ctx.fillRect(cx, cy, tpHs, tpHs);
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx + 0.5, cy + 0.5, tpHs - 1, tpHs - 1);
+      }
+
       ctx.restore();
     } else {
       // --- Selection overlay (only when not transforming) ---
@@ -342,21 +369,46 @@ export function Canvas() {
         const sw = sel.width * zoom;
         const sh = sel.height * zoom;
 
-        // Semi-transparent fill
-        ctx.fillStyle = 'rgba(100,160,255,0.08)';
+        // Semi-transparent fill — visible on both dark and checker backgrounds
+        ctx.fillStyle = 'rgba(100,160,255,0.15)';
         ctx.fillRect(sx, sy, sw, sh);
 
-        // Marching ants border
         ctx.save();
+
+        // Dark outer ring for contrast against light pixels
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx - 0.5, sy - 0.5, sw + 1, sh + 1);
+
+        // Marching ants border
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
         ctx.setLineDash(SELECTION_DASH);
         ctx.lineDashOffset = -antOffsetRef.current;
         ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
-
         ctx.strokeStyle = '#000';
         ctx.lineDashOffset = -(antOffsetRef.current + 4);
         ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+
+        // Corner handles — 5px filled squares at each corner
+        ctx.setLineDash([]);
+        const hs = SELECTION_HANDLE_SIZE;
+        const hh = Math.floor(hs / 2);
+        const corners: [number, number][] = [
+          [sx - hh, sy - hh],
+          [sx + sw - hh, sy - hh],
+          [sx - hh, sy + sh - hh],
+          [sx + sw - hh, sy + sh - hh],
+        ];
+        for (const [cx, cy] of corners) {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(cx, cy, hs, hs);
+          ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(cx + 0.5, cy + 0.5, hs - 1, hs - 1);
+        }
+
         ctx.restore();
       }
     }
