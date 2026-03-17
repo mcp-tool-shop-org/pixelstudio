@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3402%2B%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3445%2B%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 41 shipped stages, an MCP server with 76 programmable tools, and 3,402+ tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 42 shipped stages, an MCP server with 76 programmable tools, and 3,445+ tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -82,6 +82,18 @@ Translation discipline: rebuild at target resolution, don't downscale. Identify 
 - **Separate format** — `.glyphvec` vector master documents, `.glyph` raster sprites, provenance link between them
 
 Pipeline: design vector master with reduction rules (exaggerate, space apart, value chunks) → rasterize to target sizes → inspect readability → pixel cleanup per size.
+
+### Translation UI and Pixel Cleanup Handoff (Stage 42)
+- **Vector workspace mode** — full workspace with tool rail (rect/ellipse/line/polygon/select), Canvas2D rendering, pan/zoom, keyboard shortcuts
+- **Shape management panels** — shapes list with visibility/lock/z-order/grouping, properties panel with transform inputs and reduction metadata
+- **Size profile selector** — toggle built-in profiles, add custom sizes, All/None bulk actions
+- **Multi-size preview** — live pixel-perfect upscaled preview strip for all active profiles with checkerboard transparency
+- **Reduction analysis** — per-profile survival report: survived/collapsed shapes, fill percentage, silhouette bounds, collapsed shape names with warning styling
+- **Pixel cleanup handoff** — "Rasterize & Edit as Sprite" rasterizes vector master at chosen size, creates SpriteDocument with extracted palette, loads into sprite editor
+- **Source provenance** — VectorSourceLink tracks which vector master and profile produced each sprite, displayed as provenance banner in edit mode
+- **Regeneration** — re-rasterize from source vector master with dirty-edit confirmation safety, preserves source link across regeneration cycles
+
+Workflow: design in vector workspace → select size profiles → preview readability → hand off to sprite editor → pixel cleanup → regenerate if vector changes.
 
 ### Scene Compositor (frontend + Rust)
 - Scene composition with asset instances, z-ordering, visibility, opacity, parallax
