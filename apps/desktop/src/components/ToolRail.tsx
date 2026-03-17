@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
-import { useToolStore, useBrushSettingsStore } from '@glyphstudio/state';
+import { useToolStore, useBrushSettingsStore, useSelectionStore } from '@glyphstudio/state';
 import { useCanvasFrameStore } from '../lib/canvasFrameStore';
 import type { CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
@@ -42,6 +42,7 @@ export function ToolRail() {
   const swapColors = useToolStore((s) => s.swapColors);
   const setPrimaryColor = useToolStore((s) => s.setPrimaryColor);
   const setSecondaryColor = useToolStore((s) => s.setSecondaryColor);
+  const hasSelection = useSelectionStore((s) => s.hasSelection);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
 
@@ -54,11 +55,19 @@ export function ToolRail() {
     setReplacePreview(false);
     const pc = useToolStore.getState().primaryColor;
     const sc = useToolStore.getState().secondaryColor;
+    const sel = useSelectionStore.getState().selectionBounds;
+    const args: Record<string, unknown> = {
+      fromR: pc.r, fromG: pc.g, fromB: pc.b, fromA: pc.a,
+      toR: sc.r, toG: sc.g, toB: sc.b, toA: sc.a,
+    };
+    if (sel) {
+      args.selX = sel.x;
+      args.selY = sel.y;
+      args.selW = sel.width;
+      args.selH = sel.height;
+    }
     try {
-      const f = await invoke<CanvasFrameData>('replace_color', {
-        fromR: pc.r, fromG: pc.g, fromB: pc.b, fromA: pc.a,
-        toR: sc.r, toG: sc.g, toB: sc.b, toA: sc.a,
-      });
+      const f = await invoke<CanvasFrameData>('replace_color', args);
       setFrame(f);
       syncLayersFromFrame(f);
       markDirty();
@@ -146,10 +155,10 @@ export function ToolRail() {
           <button
             className="color-replace-btn"
             onClick={handleReplaceColor}
-            title="Replace primary color with secondary on active layer"
+            title={hasSelection ? 'Replace primary→secondary in selection' : 'Replace primary→secondary on active layer'}
             data-testid="replace-color-btn"
           >
-            Repl
+            {hasSelection ? 'Repl Sel' : 'Repl'}
           </button>
         )}
         {replaceError && <span className="color-replace-error" title={replaceError}>!</span>}

@@ -509,6 +509,11 @@ pub struct ReplaceColorInput {
     pub to_g: u8,
     pub to_b: u8,
     pub to_a: u8,
+    /// Optional selection scope — when set, only pixels within this rect are checked.
+    pub sel_x: Option<u32>,
+    pub sel_y: Option<u32>,
+    pub sel_w: Option<u32>,
+    pub sel_h: Option<u32>,
 }
 
 #[command]
@@ -537,13 +542,24 @@ pub fn replace_color(
         return Err(AppError::Internal("Layer is locked".to_string()));
     }
 
-    let w = layer.buffer.width;
-    let h = layer.buffer.height;
+    let buf_w = layer.buffer.width;
+    let buf_h = layer.buffer.height;
+
+    // Determine scan region — full layer or selection-scoped
+    let (rx, ry, rw, rh) = match (input.sel_x, input.sel_y, input.sel_w, input.sel_h) {
+        (Some(sx), Some(sy), Some(sw), Some(sh)) => {
+            let clamped_w = sw.min(buf_w.saturating_sub(sx));
+            let clamped_h = sh.min(buf_h.saturating_sub(sy));
+            (sx, sy, clamped_w, clamped_h)
+        }
+        _ => (0, 0, buf_w, buf_h),
+    };
+
     let to_color = Color::rgba(input.to_r, input.to_g, input.to_b, input.to_a);
     let mut patches = Vec::new();
 
-    for py in 0..h {
-        for px in 0..w {
+    for py in ry..(ry + rh) {
+        for px in rx..(rx + rw) {
             let pixel = layer.buffer.get_pixel(px, py);
             let pc = [pixel.r, pixel.g, pixel.b, pixel.a];
             if pc == from_c {
