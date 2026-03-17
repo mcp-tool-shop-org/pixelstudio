@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3236%2B%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-3402%2B%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 40 shipped stages, an MCP server with 76 programmable tools, and 3,236+ tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 41 shipped stages, an MCP server with 76 programmable tools, and 3,402+ tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -70,6 +70,18 @@ Intended workflow: import reference → create sketch layer → rough block-in �
 - **Tested translations** — ranger/scout (500→48), treasure chest (500→32 + 48)
 
 Translation discipline: rebuild at target resolution, don't downscale. Identify strongest read cues, accept detail loss, exaggerate where needed.
+
+### Vector Master Pipeline (Stage 41)
+- **Vector domain model** — rect, ellipse, line, polygon primitives with per-shape transforms (translate/scale/rotate/flip), fill, stroke, and reduction metadata
+- **Reduction-aware metadata** — cueTag, survivalHint (must-survive / prefer-survive / droppable), dropPriority per shape
+- **Groups** — one-level named grouping for body regions (head, torso, weapon, etc.)
+- **Size profiles** — 7 built-in sprite target sizes (16×16 through 64×64), custom profiles
+- **Vector rasterizer** — scanline polygon fill (even-odd rule), ellipse scanline, Bresenham lines, alpha compositing, pixel-grid-aware (no anti-aliasing, 1px minimum clamping)
+- **Multi-size comparison** — rasterize to all profiles, pixel-perfect upscaled comparison strip
+- **Reduction analysis** — per-profile survival/collapse report with silhouette bounds and fill coverage
+- **Separate format** — `.glyphvec` vector master documents, `.glyph` raster sprites, provenance link between them
+
+Pipeline: design vector master with reduction rules (exaggerate, space apart, value chunks) → rasterize to target sizes → inspect readability → pixel cleanup per size.
 
 ### Scene Compositor (frontend + Rust)
 - Scene composition with asset instances, z-ordering, visibility, opacity, parallax
