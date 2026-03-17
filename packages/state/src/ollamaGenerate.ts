@@ -11,10 +11,16 @@ import type {
   VectorMasterDocument,
   VectorGeometry,
   VectorTransform,
+  VectorShape,
   Rgba,
   SizeProfile,
 } from '@glyphstudio/domain';
-import { DEFAULT_VECTOR_TRANSFORM, DEFAULT_REDUCTION_META } from '@glyphstudio/domain';
+import {
+  DEFAULT_VECTOR_TRANSFORM,
+  DEFAULT_REDUCTION_META,
+  createVectorMasterDocument,
+  generateVectorShapeId,
+} from '@glyphstudio/domain';
 import type {
   Proposal,
   ProposalSet,
@@ -510,6 +516,35 @@ function serializeDocShapes(doc: VectorMasterDocument): string {
     null,
     2,
   );
+}
+
+/**
+ * Convert LLMShapeDefs into a temporary VectorMasterDocument
+ * so we can use the real rasterizer for the critique loop.
+ */
+export function llmShapesToDocument(
+  shapes: LLMShapeDef[],
+  artboardWidth: number = 500,
+  artboardHeight: number = 500,
+): VectorMasterDocument {
+  const doc = createVectorMasterDocument('AI-Preview', artboardWidth, artboardHeight);
+  const vectorShapes: VectorShape[] = shapes.map((s, i) => ({
+    id: generateVectorShapeId(),
+    name: s.name,
+    groupId: null,
+    zOrder: i,
+    geometry: shapeDefToGeometry(s),
+    fill: s.fill as Rgba,
+    stroke: null,
+    transform: { ...DEFAULT_VECTOR_TRANSFORM },
+    reduction: {
+      ...DEFAULT_REDUCTION_META,
+      ...(s.mustSurvive ? { survivalHint: 'must-survive' as const, cueTag: s.name } : {}),
+    },
+    visible: true,
+    locked: false,
+  }));
+  return { ...doc, shapes: vectorShapes };
 }
 
 // ── Public API ──

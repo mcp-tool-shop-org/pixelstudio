@@ -45,6 +45,7 @@ export {
   refineShapesFromCritique,
   shapesToProposalSet,
   generateWithCritiqueLoop,
+  llmShapesToDocument,
   DEFAULT_GENERATE_CONFIG,
   PALETTES,
 } from './ollamaGenerate';

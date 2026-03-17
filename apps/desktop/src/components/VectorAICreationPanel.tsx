@@ -14,12 +14,13 @@ import {
   applyProposal,
   duplicateProposalToGroup,
   wouldShapeCollapse,
-  generateShapesFromDescription,
-  critiqueRenderedSprite,
-  refineShapesFromCritique,
   shapesToProposalSet,
+  generateWithCritiqueLoop,
+  llmShapesToDocument,
+  rasterizeVectorMaster,
   checkOllamaAvailability,
   DEFAULT_GENERATE_CONFIG,
+  PALETTES,
 } from '@glyphstudio/state';
 import type {
   ProposalSession,
@@ -29,7 +30,7 @@ import type {
   ProposalStoreApi,
   ProposalAction,
   LLMShapeDef,
-  OllamaGenerateConfig,
+  ColorPalette,
 } from '@glyphstudio/state';
 import type { VectorMasterDocument } from '@glyphstudio/domain';
 
@@ -54,6 +55,8 @@ export function VectorAICreationPanel() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLog, setAiLog] = useState<string[]>([]);
+  const [aiPaletteKey, setAiPaletteKey] = useState<string>('fantasy-dark');
+  const [aiRefinements, setAiRefinements] = useState<number>(2);
 
   const activeProfiles = useMemo(
     () => profiles.filter((p) => activeProfileIds.includes(p.id)),
@@ -87,6 +90,8 @@ export function VectorAICreationPanel() {
       ? activeProfiles.map(p => p.targetWidth).sort((a, b) => a - b)
       : [16, 32, 48];
 
+    const palette = PALETTES[aiPaletteKey] ?? PALETTES['fantasy-dark'];
+
     try {
       // Check Ollama availability
       setAiLog(prev => [...prev, `Checking Ollama (${DEFAULT_GENERATE_CONFIG.textModel})...`]);
@@ -102,30 +107,43 @@ export function VectorAICreationPanel() {
         return;
       }
 
-      // Step 1: Generate shapes
-      setAiLog(prev => [...prev, `Generating shapes for "${aiPrompt}"...`]);
-      const genResult = await generateShapesFromDescription(
-        aiPrompt, artW, artH, sizes, doc ?? undefined,
+      // Rasterizer bridge: LLMShapeDefs → pixel buffer via real rasterizer
+      const rasterizeFn = (shapes: LLMShapeDef[], w: number, h: number) => {
+        const tempDoc = llmShapesToDocument(shapes, artW, artH);
+        return rasterizeVectorMaster(tempDoc, w, h);
+      };
+
+      // Run full generate → critique → refine loop
+      setAiLog(prev => [...prev, `Generating "${aiPrompt}" with ${aiRefinements} critique rounds...`]);
+      const result = await generateWithCritiqueLoop(
+        aiPrompt,
+        artW,
+        artH,
+        sizes,
+        rasterizeFn,
+        DEFAULT_GENERATE_CONFIG,
+        aiRefinements,
+        palette,
+        (step) => setAiLog(prev => [...prev, step]),
       );
 
-      if (!genResult.ok) {
-        setAiError(genResult.error ?? 'Generation failed');
+      if (!result.ok || result.shapes.length === 0) {
+        setAiError(result.error ?? 'No shapes generated');
         setAiLoading(false);
         return;
       }
 
-      setAiLog(prev => [...prev, `Got ${genResult.shapes.length} shapes (${genResult.responseTimeMs}ms)`]);
-
-      if (genResult.shapes.length === 0) {
-        setAiError('LLM returned no valid shapes');
-        setAiLoading(false);
-        return;
+      // Log critique results
+      for (const c of result.critiques) {
+        if (c.ok) {
+          setAiLog(prev => [...prev, `Vision: "${c.critique?.slice(0, 100)}"`]);
+        }
       }
 
       // Convert to proposals
-      const { set, proposals } = shapesToProposalSet(genResult.shapes, genResult.reasoning, aiPrompt);
+      const { set, proposals } = shapesToProposalSet(result.shapes, result.reasoning, aiPrompt);
 
-      setAiLog(prev => [...prev, `${genResult.reasoning}`]);
+      setAiLog(prev => [...prev, `Done: ${result.shapes.length} shapes after ${result.critiques.length} critique rounds`]);
       setSession(prev => addProposalSetToSession(prev, set, proposals));
       setSelectedSetId(set.id);
     } catch (err: unknown) {
@@ -133,7 +151,7 @@ export function VectorAICreationPanel() {
     } finally {
       setAiLoading(false);
     }
-  }, [aiPrompt, doc, activeProfiles]);
+  }, [aiPrompt, doc, activeProfiles, aiPaletteKey, aiRefinements]);
 
   // ── Algorithmic Generate ──
 
@@ -251,12 +269,41 @@ export function VectorAICreationPanel() {
             rows={3}
             disabled={aiLoading}
           />
+          <div className="ai-options-row">
+            <div className="ai-option">
+              <label className="prop-mini-label">Palette</label>
+              <select
+                className="prop-select"
+                value={aiPaletteKey}
+                onChange={(e) => setAiPaletteKey(e.target.value)}
+                disabled={aiLoading}
+              >
+                {Object.entries(PALETTES).map(([key, p]) => (
+                  <option key={key} value={key}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ai-option">
+              <label className="prop-mini-label">Critique rounds</label>
+              <select
+                className="prop-select"
+                value={String(aiRefinements)}
+                onChange={(e) => setAiRefinements(Number(e.target.value))}
+                disabled={aiLoading}
+              >
+                <option value="0">0 (no critique)</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </div>
+          </div>
           <button
             className="ai-generate-btn ollama"
             onClick={handleAiGenerate}
             disabled={aiLoading || !aiPrompt.trim()}
           >
-            {aiLoading ? 'Generating...' : 'Generate with Ollama'}
+            {aiLoading ? 'Generating...' : `Generate with Ollama (${aiRefinements} critique rounds)`}
           </button>
           {aiError && <div className="ai-error">{aiError}</div>}
           {aiLog.length > 0 && (

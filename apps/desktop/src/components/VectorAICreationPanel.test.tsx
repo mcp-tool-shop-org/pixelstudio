@@ -76,7 +76,7 @@ describe('VectorAICreationPanel', () => {
     expect(screen.getByText('Pose')).toBeTruthy();
     expect(screen.getByText('Simplify')).toBeTruthy();
     // Default mode shows prompt input and Ollama button
-    expect(screen.getByText('Generate with Ollama')).toBeTruthy();
+    expect(screen.getByText(/Generate with Ollama/)).toBeTruthy();
   });
 
   it('shows prompt textarea in AI Generate mode', () => {
