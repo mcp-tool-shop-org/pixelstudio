@@ -88,6 +88,13 @@ export function AppShell() {
     return () => clearInterval(interval);
   }, [mode]);
 
+  // Listen for vector-to-sprite handoff events
+  useEffect(() => {
+    const handleHandoff = () => setMode('edit');
+    window.addEventListener('glyphstudio:handoff-to-edit', handleHandoff);
+    return () => window.removeEventListener('glyphstudio:handoff-to-edit', handleHandoff);
+  }, []);
+
   // Window title with dirty indicator
   useEffect(() => {
     const state = useProjectStore.getState();

@@ -8484,3 +8484,39 @@
   color: #ff9800;
   margin-top: 2px;
 }
+
+.reduction-handoff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(79, 195, 247, 0.04);
+  border: 1px solid rgba(79, 195, 247, 0.15);
+  border-radius: 4px;
+}
+
+.reduction-handoff-btn {
+  background: rgba(79, 195, 247, 0.15);
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  color: #4fc3f7;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reduction-handoff-btn:hover:not(:disabled) {
+  background: rgba(79, 195, 247, 0.25);
+  border-color: #4fc3f7;
+}
+
+.reduction-handoff-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reduction-handoff-hint {
+  font-size: 10px;
+  color: var(--text-muted, #666);
+}

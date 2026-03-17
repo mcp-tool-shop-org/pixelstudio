@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
-import { useVectorMasterStore, useSizeProfileStore, rasterizeVectorMaster, analyzeReduction } from '@glyphstudio/state';
+import { useVectorMasterStore, useSizeProfileStore, useSpriteEditorStore, rasterizeVectorMaster, analyzeReduction, vectorToSpriteHandoff } from '@glyphstudio/state';
 import type { SizeProfile, ReductionReport, SpritePixelBuffer } from '@glyphstudio/domain';
 
 /**
@@ -177,6 +177,7 @@ export function VectorReductionPanel() {
   const [newName, setNewName] = useState('');
   const [newWidth, setNewWidth] = useState('32');
   const [newHeight, setNewHeight] = useState('32');
+  const [handoffProfileId, setHandoffProfileId] = useState<string>('');
 
   const activeProfiles = useMemo(
     () => profiles.filter((p) => activeProfileIds.includes(p.id)),
@@ -215,6 +216,33 @@ export function VectorReductionPanel() {
     () => shapes.map((s) => ({ id: s.id, name: s.name })),
     [shapes],
   );
+
+  const handleHandoff = useCallback(() => {
+    if (!doc || !handoffProfileId) return;
+    const profile = profiles.find((p) => p.id === handoffProfileId);
+    if (!profile) return;
+    const result = vectorToSpriteHandoff(doc, profile);
+    // Load the rasterized sprite into the sprite editor
+    const spriteStore = useSpriteEditorStore.getState();
+    const firstLayer = result.document.frames[0].layers[0];
+    useSpriteEditorStore.setState({
+      document: result.document,
+      pixelBuffers: result.pixelBuffers,
+      activeLayerId: firstLayer.id,
+      filePath: null,
+      activeFrameIndex: 0,
+      selectionRect: null,
+      selectionBuffer: null,
+      clipboardBuffer: null,
+      isPlaying: false,
+      zoom: Math.max(4, Math.floor(256 / profile.targetWidth)),
+      panX: 0,
+      panY: 0,
+      dirty: true,
+    });
+    // Signal mode switch to edit
+    window.dispatchEvent(new CustomEvent('glyphstudio:handoff-to-edit'));
+  }, [doc, handoffProfileId, profiles]);
 
   return (
     <div className="vector-reduction-panel">
@@ -307,6 +335,37 @@ export function VectorReductionPanel() {
                 shapes={shapeInfo}
               />
             ))}
+          </div>
+        </>
+      )}
+
+      {/* Handoff to Sprite Editor */}
+      {doc && activeProfiles.length > 0 && (
+        <>
+          <div className="prop-section-header">Hand Off</div>
+          <div className="reduction-handoff-section">
+            <select
+              className="prop-input"
+              value={handoffProfileId}
+              onChange={(e) => setHandoffProfileId(e.target.value)}
+            >
+              <option value="">Choose size...</option>
+              {activeProfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.targetWidth}×{p.targetHeight} — {p.name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="reduction-handoff-btn"
+              disabled={!handoffProfileId}
+              onClick={handleHandoff}
+            >
+              Rasterize & Edit as Sprite
+            </button>
+            <span className="reduction-handoff-hint">
+              Creates a new sprite at the chosen size for pixel cleanup.
+            </span>
           </div>
         </>
       )}

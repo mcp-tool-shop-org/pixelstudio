@@ -18,6 +18,8 @@ export { useVectorMasterStore } from './vectorMasterStore';
 export { useSizeProfileStore } from './sizeProfileStore';
 export { rasterizeVectorMaster, rasterizeShape, wouldShapeCollapse, transformPoint } from './vectorRasterize';
 export { rasterizeAllProfiles, analyzeReduction, generateMultiSizeLayout, summarizeReduction } from './vectorComparison';
+export { vectorToSpriteHandoff, extractPaletteFromBuffer } from './vectorHandoff';
+export type { VectorHandoffResult } from './vectorHandoff';
 export {
   nearestNeighborDownscale,
   countFilledPixels,
