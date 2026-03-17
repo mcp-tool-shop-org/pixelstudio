@@ -17,6 +17,8 @@ pub struct CanvasFrame {
     pub active_layer_id: Option<String>,
     pub can_undo: bool,
     pub can_redo: bool,
+    pub undo_depth: usize,
+    pub redo_depth: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -825,5 +827,7 @@ pub fn build_frame(canvas: &CanvasState) -> CanvasFrame {
         active_layer_id: canvas.active_layer_id.clone(),
         can_undo: !canvas.undo_stack.is_empty(),
         can_redo: !canvas.redo_stack.is_empty(),
+        undo_depth: canvas.undo_stack.len(),
+        redo_depth: canvas.redo_stack.len(),
     }
 }

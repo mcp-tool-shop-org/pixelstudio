@@ -14,6 +14,7 @@ import { RecoveryPrompt } from '../components/RecoveryPrompt';
 import { TransformBar } from '../components/TransformBar';
 import { VectorWorkspace } from '../components/VectorWorkspace';
 import { VectorSourceBanner } from '../components/VectorSourceBanner';
+import { EditorStatusBar } from '../components/EditorStatusBar';
 
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -148,6 +149,7 @@ export function AppShell() {
         )}
         <RightDock activeMode={mode} />
       </div>
+      <EditorStatusBar />
       <BottomDock activeMode={mode} />
     </div>
   );

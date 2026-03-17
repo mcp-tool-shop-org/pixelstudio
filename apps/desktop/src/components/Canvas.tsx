@@ -173,6 +173,7 @@ export function Canvas() {
   }, [liveFrame, compareSnapshot]);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
   const panBy = useCanvasViewStore((s) => s.panBy);
+  const setCursorPixel = useCanvasViewStore((s) => s.setCursorPixel);
   const zoomIn = useCanvasViewStore((s) => s.zoomIn);
   const zoomOut = useCanvasViewStore((s) => s.zoomOut);
 
@@ -922,6 +923,7 @@ export function Canvas() {
     (e: React.PointerEvent) => {
       const pixel = screenToPixel(e.clientX, e.clientY);
       setHoveredPixel(pixel);
+      setCursorPixel(pixel?.x ?? null, pixel?.y ?? null);
 
       if (isPanningRef.current) {
         const dx = e.clientX - lastPanRef.current.x;
@@ -1469,7 +1471,7 @@ export function Canvas() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerLeave={() => { handlePointerUp(); setCursorPixel(null, null); setHoveredPixel(null); }}
         onWheel={handleWheel}
         style={{ cursor }}
       />

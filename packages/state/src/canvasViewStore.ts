@@ -22,6 +22,8 @@ interface CanvasViewState {
   zoom: number;
   panX: number;
   panY: number;
+  cursorPixelX: number | null;
+  cursorPixelY: number | null;
   showPixelGrid: boolean;
   showMajorGrid: boolean;
   showTileGrid: boolean;
@@ -35,6 +37,7 @@ interface CanvasViewState {
   compareSnapshotId: string | null;
   previewBackground: 'dark' | 'light' | 'checker';
 
+  setCursorPixel: (x: number | null, y: number | null) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -65,6 +68,8 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   zoom: 8,
   panX: 0,
   panY: 0,
+  cursorPixelX: null,
+  cursorPixelY: null,
   showPixelGrid: true,
   showMajorGrid: false,
   showTileGrid: false,
@@ -78,6 +83,7 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   compareSnapshotId: null,
   previewBackground: 'checker',
 
+  setCursorPixel: (x, y) => set({ cursorPixelX: x, cursorPixelY: y }),
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
   zoomIn: () => set((s) => ({ zoom: nextZoomStep(s.zoom) })),
   zoomOut: () => set((s) => ({ zoom: prevZoomStep(s.zoom) })),

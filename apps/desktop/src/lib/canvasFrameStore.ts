@@ -14,6 +14,8 @@ interface CanvasFrameData {
   activeLayerId: string | null;
   canUndo: boolean;
   canRedo: boolean;
+  undoDepth: number;
+  redoDepth: number;
 }
 
 interface CanvasFrameStore {
