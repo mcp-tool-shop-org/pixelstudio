@@ -45,6 +45,12 @@ describe('ProjectHome', () => {
       expect(screen.getByTestId('create-height')).toBeInTheDocument();
     });
 
+    it('shows Open Project button', () => {
+      render(<ProjectHome onEnterWorkspace={vi.fn()} />);
+      expect(screen.getByTestId('open-project-btn')).toBeInTheDocument();
+      expect(screen.getByText('Open Project…')).toBeInTheDocument();
+    });
+
     it('shows static/animation mode toggle', () => {
       render(<ProjectHome onEnterWorkspace={vi.fn()} />);
       expect(screen.getByTestId('create-mode-toggle')).toBeInTheDocument();

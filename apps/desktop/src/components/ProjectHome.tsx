@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useWorkflowStore } from '@glyphstudio/state';
 import type { WorkflowDef, WorkspaceMode } from '@glyphstudio/domain';
 import { ALL_WORKFLOWS } from '../workflows/definitions';
 import { executeWorkflow, type WorkflowInputs } from '../workflows/executor';
 import { WorkflowRunner } from './WorkflowRunner';
+import { toast } from '../lib/toast';
 
 interface ProjectHomeProps {
   onEnterWorkspace: (mode?: WorkspaceMode) => void;
@@ -83,6 +86,21 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
     registerWorkflows(ALL_WORKFLOWS);
   }, [registerWorkflows]);
 
+  const handleOpen = async () => {
+    try {
+      const filePath = await open({
+        filters: [{ name: 'GlyphStudio Project', extensions: ['pxs'] }],
+        multiple: false,
+      });
+      if (!filePath || typeof filePath !== 'string') return;
+      await invoke('open_project', { filePath });
+      onEnterWorkspace('edit');
+    } catch (err) {
+      console.error('open_project failed:', err);
+      toast.error('Failed to open project');
+    }
+  };
+
   const handleRunWorkflow = (wfId: string, inputs: WorkflowInputs = {}) => {
     const def = workflows.find((w) => w.id === wfId);
     if (!def) return;
@@ -111,6 +129,11 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
             <p className="project-home-tagline">
               Build sprites with deterministic tools first. AI stays in the passenger seat.
             </p>
+            <div className="ph-open-row">
+              <button className="btn-secondary ph-open-btn" onClick={handleOpen} data-testid="open-project-btn">
+                Open Project…
+              </button>
+            </div>
             <CreateForm onRun={handleRunWorkflow} />
           </div>
           <div className="project-home-right">
