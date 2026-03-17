@@ -234,6 +234,7 @@ export function VectorReductionPanel() {
       selectionRect: null,
       selectionBuffer: null,
       clipboardBuffer: null,
+      vectorSourceLink: result.sourceLink,
       isPlaying: false,
       zoom: Math.max(4, Math.floor(256 / profile.targetWidth)),
       panX: 0,

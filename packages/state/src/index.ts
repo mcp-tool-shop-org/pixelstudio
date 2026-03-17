@@ -20,6 +20,8 @@ export { rasterizeVectorMaster, rasterizeShape, wouldShapeCollapse, transformPoi
 export { rasterizeAllProfiles, analyzeReduction, generateMultiSizeLayout, summarizeReduction } from './vectorComparison';
 export { vectorToSpriteHandoff, extractPaletteFromBuffer } from './vectorHandoff';
 export type { VectorHandoffResult } from './vectorHandoff';
+export { regenerateFromVector, checkRegenerationStatus } from './vectorRegenerate';
+export type { RegenerateResult } from './vectorRegenerate';
 export {
   nearestNeighborDownscale,
   countFilledPixels,

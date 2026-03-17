@@ -12,6 +12,7 @@ import { ProjectHome } from '../components/ProjectHome';
 import { RecoveryPrompt } from '../components/RecoveryPrompt';
 import { TransformBar } from '../components/TransformBar';
 import { VectorWorkspace } from '../components/VectorWorkspace';
+import { VectorSourceBanner } from '../components/VectorSourceBanner';
 
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
@@ -121,6 +122,7 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <TopBar activeMode={mode} onModeChange={setMode} />
+      {mode === 'edit' && <VectorSourceBanner />}
       <TransformBar />
       <div className="workspace-body">
         {mode === 'vector' ? (

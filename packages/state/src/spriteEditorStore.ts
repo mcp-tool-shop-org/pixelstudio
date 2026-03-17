@@ -10,6 +10,7 @@ import type {
   SpriteColor,
   SpriteColorGroup,
   SpriteSelectionRect,
+  VectorSourceLink,
 } from '@glyphstudio/domain';
 import {
   createSpriteDocument,
@@ -54,6 +55,9 @@ export interface SpriteEditorStoreState {
 
   // -- Clipboard (editor-only, survives frame switches) --
   clipboardBuffer: SpritePixelBuffer | null;
+
+  // -- Vector source provenance (set during handoff, null otherwise) --
+  vectorSourceLink: VectorSourceLink | null;
 
   // -- Preview state (transient view state, never affects document) --
   isPlaying: boolean;
@@ -190,6 +194,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   selectionRect: null,
   selectionBuffer: null,
   clipboardBuffer: null,
+  vectorSourceLink: null,
   showGrid: true,
   isPlaying: false,
   isLooping: true,
