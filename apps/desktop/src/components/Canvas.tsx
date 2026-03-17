@@ -105,6 +105,7 @@ export function Canvas() {
   const clearTransform = useSelectionStore((s) => s.clearTransform);
 
   const selectedSliceId = useSliceStore((s) => s.selectedSliceId);
+  const hoveredSliceId = useSliceStore((s) => s.hoveredSliceId);
 
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const frameCount = useTimelineStore((s) => s.frames.length);
@@ -422,19 +423,26 @@ export function Canvas() {
       // Draw existing slice regions
       for (const region of sliceRegions) {
         const isSelected = selectedSliceId === region.id;
+        const isHovered = !isSelected && hoveredSliceId === region.id;
         const sx = originX + region.x * zoom;
         const sy = originY + region.y * zoom;
         const sw = region.width * zoom;
         const sh = region.height * zoom;
-        ctx.strokeStyle = isSelected ? '#ffe066' : '#ff6b35';
-        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.strokeStyle = isSelected ? '#ffe066' : isHovered ? '#ffb347' : '#ff6b35';
+        ctx.lineWidth = isSelected ? 2 : isHovered ? 1.5 : 1;
         ctx.setLineDash(isSelected ? [] : [4, 2]);
         ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
-        ctx.fillStyle = isSelected ? 'rgba(255,224,102,0.18)' : 'rgba(255,107,53,0.1)';
+        ctx.fillStyle = isSelected ? 'rgba(255,224,102,0.18)' : isHovered ? 'rgba(255,179,71,0.15)' : 'rgba(255,107,53,0.1)';
         ctx.fillRect(sx, sy, sw, sh);
-        ctx.fillStyle = isSelected ? '#ffe066' : '#ff6b35';
+        ctx.fillStyle = isSelected ? '#ffe066' : isHovered ? '#ffb347' : '#ff6b35';
         ctx.font = `${isSelected ? 'bold ' : ''}10px monospace`;
         ctx.fillText(region.name, sx + 2, sy + 10);
+        // Show dimensions when selected or hovered
+        if (isSelected || isHovered) {
+          const dimLabel = `${region.width}×${region.height}`;
+          ctx.font = '9px monospace';
+          ctx.fillText(dimLabel, sx + 2, sy + sh - 3);
+        }
       }
       // Draw active slice drag
       if (isSliceDraggingRef.current && sliceStartRef.current && sliceEndRef.current) {
@@ -548,7 +556,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId]);
 
   useEffect(() => { render(); }, [render]);
 

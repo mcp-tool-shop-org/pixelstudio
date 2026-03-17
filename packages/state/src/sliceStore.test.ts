@@ -50,4 +50,22 @@ describe('useSliceStore', () => {
     // selection intentionally persists — caller must clear if needed
     expect(useSliceStore.getState().selectedSliceId).toBe('r1');
   });
+
+  it('hoveredSliceId initialises to null', () => {
+    expect(useSliceStore.getState().hoveredSliceId).toBeNull();
+  });
+
+  it('setHoveredSliceId sets and clears', () => {
+    useSliceStore.getState().setHoveredSliceId('r1');
+    expect(useSliceStore.getState().hoveredSliceId).toBe('r1');
+    useSliceStore.getState().setHoveredSliceId(null);
+    expect(useSliceStore.getState().hoveredSliceId).toBeNull();
+  });
+
+  it('hoveredSliceId is independent of selectedSliceId', () => {
+    useSliceStore.getState().setSelectedSliceId('r1');
+    useSliceStore.getState().setHoveredSliceId('r2');
+    expect(useSliceStore.getState().selectedSliceId).toBe('r1');
+    expect(useSliceStore.getState().hoveredSliceId).toBe('r2');
+  });
 });

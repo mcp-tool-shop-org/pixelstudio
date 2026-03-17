@@ -183,6 +183,29 @@ describe('SliceManagerPanel', () => {
     expect(args.height).toBe(12);
   });
 
+  // ── Hover ────────────────────────────────────────────────────────
+
+  it('hovering a slice item sets hoveredSliceId', async () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    render(<SliceManagerPanel />);
+    await act(async () => {
+      await userEvent.hover(screen.getByTestId('slice-item-r1'));
+    });
+    expect(useSliceStore.getState().hoveredSliceId).toBe('r1');
+  });
+
+  it('unhovering a slice item clears hoveredSliceId', async () => {
+    seedPanel({
+      sliceRegions: [{ id: 'r1', name: 'slice_1', x: 0, y: 0, width: 8, height: 8 }],
+    });
+    render(<SliceManagerPanel />);
+    await act(async () => { await userEvent.hover(screen.getByTestId('slice-item-r1')); });
+    await act(async () => { await userEvent.unhover(screen.getByTestId('slice-item-r1')); });
+    expect(useSliceStore.getState().hoveredSliceId).toBeNull();
+  });
+
   // ── Clear All ───────────────────────────────────────────────────
 
   it('Clear All invokes clear_slice_regions and empties the list', async () => {
