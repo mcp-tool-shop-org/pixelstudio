@@ -60,6 +60,8 @@ function seedStores(overrides?: {
       activeLayerId: 'l1',
       canUndo: o.canUndo ?? false,
       canRedo: o.canRedo ?? false,
+      undoDepth: 0,
+      redoDepth: 0,
     },
     version: 0,
   });

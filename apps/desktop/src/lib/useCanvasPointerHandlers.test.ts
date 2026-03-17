@@ -12,7 +12,6 @@ function makeCanvasRef() {
   const canvas = document.createElement('canvas');
   canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200, x: 0, y: 0, toJSON: () => ({}) });
   canvas.setPointerCapture = vi.fn();
-  // @ts-expect-error – partial mock
   return { current: canvas } as React.RefObject<HTMLCanvasElement>;
 }
 
