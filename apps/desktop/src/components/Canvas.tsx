@@ -7,7 +7,9 @@ import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
 import { useBrushSettingsStore, expandStrokeDabs } from '@glyphstudio/state';
+import { useAnchorStore } from '@glyphstudio/state';
 import { isSketchTool } from '@glyphstudio/domain';
+import type { AnchorKind } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 
@@ -136,6 +138,11 @@ export function Canvas() {
   // Lasso tool drag state
   const isLassoDraggingRef = useRef(false);
   const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
+  // Slice tool drag state
+  const isSliceDraggingRef = useRef(false);
+  const sliceStartRef = useRef<{ x: number; y: number } | null>(null);
+  const sliceEndRef = useRef<{ x: number; y: number } | null>(null);
+  const [sliceRegions, setSliceRegions] = useState<{ x: number; y: number; width: number; height: number; name: string }[]>([]);
   // Measure tool state
   const measureStartRef = useRef<{ x: number; y: number } | null>(null);
   const measureEndRef = useRef<{ x: number; y: number } | null>(null);
@@ -471,6 +478,69 @@ export function Canvas() {
       }
     }
 
+    // Slice regions overlay
+    if (sliceRegions.length > 0 || isSliceDraggingRef.current) {
+      ctx.save();
+      // Draw existing slice regions
+      for (const region of sliceRegions) {
+        const sx = originX + region.x * zoom;
+        const sy = originY + region.y * zoom;
+        const sw = region.width * zoom;
+        const sh = region.height * zoom;
+        ctx.strokeStyle = '#ff6b35';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+        ctx.fillStyle = 'rgba(255,107,53,0.1)';
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.fillStyle = '#ff6b35';
+        ctx.font = '10px monospace';
+        ctx.fillText(region.name, sx + 2, sy + 10);
+      }
+      // Draw active slice drag
+      if (isSliceDraggingRef.current && sliceStartRef.current && sliceEndRef.current) {
+        const s = sliceStartRef.current;
+        const en = sliceEndRef.current;
+        const sx = originX + Math.min(s.x, en.x) * zoom;
+        const sy = originY + Math.min(s.y, en.y) * zoom;
+        const sw = (Math.abs(en.x - s.x) + 1) * zoom;
+        const sh = (Math.abs(en.y - s.y) + 1) * zoom;
+        ctx.strokeStyle = '#ffab00';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+        ctx.fillStyle = 'rgba(255,171,0,0.15)';
+        ctx.fillRect(sx, sy, sw, sh);
+      }
+      ctx.restore();
+    }
+
+    // Anchor overlay (socket tool or when anchors exist)
+    {
+      const anchorState = useAnchorStore.getState();
+      if (anchorState.overlayVisible && anchorState.anchors.length > 0) {
+        for (const anchor of anchorState.anchors) {
+          const ax = originX + (anchor.x + 0.5) * zoom;
+          const ay = originY + (anchor.y + 0.5) * zoom;
+          const r = Math.max(3, zoom * 0.4);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(ax, ay, r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(144,164,174,0.6)';
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+          if (zoom >= 4) {
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.fillText(anchor.name, ax + r + 2, ay + 3);
+          }
+        }
+      }
+    }
+
     // Lasso preview overlay
     if (isLassoDraggingRef.current && lassoPointsRef.current.length >= 2) {
       const pts = lassoPointsRef.current;
@@ -539,7 +609,7 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor]);
+  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -732,6 +802,43 @@ export function Canvas() {
         return;
       }
 
+      // Socket tool — place anchor at clicked pixel
+      if (e.button === 0 && activeTool === 'socket') {
+        const pixel = screenToPixel(e.clientX, e.clientY);
+        if (pixel) {
+          try {
+            const result = await invoke<{ id: string; name: string; kind: string; x: number; y: number; bounds: null; parentName: string | null; falloffWeight: number }>('create_anchor', {
+              kind: 'custom' as AnchorKind,
+              x: pixel.x,
+              y: pixel.y,
+            });
+            useAnchorStore.getState().addAnchor({
+              id: result.id,
+              name: result.name,
+              kind: result.kind as AnchorKind,
+              x: result.x,
+              y: result.y,
+              bounds: result.bounds,
+              parentName: result.parentName ?? null,
+              falloffWeight: result.falloffWeight ?? 1.0,
+            });
+          } catch (err) { console.error('create_anchor failed:', err); }
+        }
+        return;
+      }
+
+      // Slice tool — drag to define export region
+      if (e.button === 0 && activeTool === 'slice') {
+        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (pixel && frame) {
+          isSliceDraggingRef.current = true;
+          sliceStartRef.current = pixel;
+          sliceEndRef.current = pixel;
+          canvas.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+
       // Measure tool — click to set start/end points
       if (e.button === 0 && activeTool === 'measure') {
         const pixel = screenToPixel(e.clientX, e.clientY);
@@ -829,6 +936,16 @@ export function Canvas() {
         return;
       }
 
+      // Slice drag
+      if (isSliceDraggingRef.current) {
+        const current = screenToPixelUnclamped(e.clientX, e.clientY);
+        if (current) {
+          sliceEndRef.current = current;
+          render();
+        }
+        return;
+      }
+
       // Lasso drag
       if (isLassoDraggingRef.current) {
         const current = screenToPixelUnclamped(e.clientX, e.clientY);
@@ -918,6 +1035,31 @@ export function Canvas() {
   );
 
   const handlePointerUp = useCallback(async () => {
+    // Slice complete — add region
+    if (isSliceDraggingRef.current) {
+      isSliceDraggingRef.current = false;
+      const start = sliceStartRef.current;
+      const end = sliceEndRef.current;
+      sliceStartRef.current = null;
+      sliceEndRef.current = null;
+      if (start && end && frame) {
+        const minX = Math.max(0, Math.min(start.x, end.x));
+        const minY = Math.max(0, Math.min(start.y, end.y));
+        const maxX = Math.min(frame.width - 1, Math.max(start.x, end.x));
+        const maxY = Math.min(frame.height - 1, Math.max(start.y, end.y));
+        const w = maxX - minX + 1;
+        const h = maxY - minY + 1;
+        if (w > 1 && h > 1) {
+          setSliceRegions((prev) => [
+            ...prev,
+            { x: minX, y: minY, width: w, height: h, name: `slice_${prev.length + 1}` },
+          ]);
+        }
+      }
+      render();
+      return;
+    }
+
     // Lasso complete — compute bounding rect of freehand path
     if (isLassoDraggingRef.current) {
       isLassoDraggingRef.current = false;
@@ -1262,8 +1404,10 @@ export function Canvas() {
     ? 'move'
     : activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool)
       ? 'crosshair'
-      : activeTool === 'marquee' || SHAPE_TOOLS.has(activeTool) || activeTool === 'fill' || activeTool === 'lasso' || activeTool === 'magic-select'
+      : activeTool === 'marquee' || SHAPE_TOOLS.has(activeTool) || activeTool === 'fill' || activeTool === 'lasso' || activeTool === 'magic-select' || activeTool === 'slice'
         ? 'crosshair'
+        : activeTool === 'socket'
+          ? 'cell'
         : activeTool === 'color-select'
           ? 'copy'
           : activeTool === 'move' || activeTool === 'transform'

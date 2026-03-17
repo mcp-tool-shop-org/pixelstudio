@@ -280,6 +280,20 @@ describe('Canvas component', () => {
       const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
       expect(canvas.style.cursor).toBe('crosshair');
     });
+
+    it('uses cell cursor for socket tool', () => {
+      seedStores({ activeTool: 'socket' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('cell');
+    });
+
+    it('uses crosshair for slice tool', () => {
+      seedStores({ activeTool: 'slice' });
+      render(<Canvas />);
+      const canvas = document.querySelector('.pixel-canvas') as HTMLElement;
+      expect(canvas.style.cursor).toBe('crosshair');
+    });
   });
 
   describe('keyboard dispatch', () => {

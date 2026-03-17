@@ -3,8 +3,8 @@
 ## What is GlyphStudio?
 A **Tauri v2 + React + Rust** desktop pixel-art/sprite studio at `F:\AI\GlyphStudio`. It has an AI copilot shell (LLM-driven editing), but the core manual tools must work first. The app was dogfooded and the original verdict was: **"most of the buttons don't work."**
 
-## Current Status (after Stage 62)
-**15 of 17 tools now work.** Only 2 remain: `slice` and `socket` (Tier 3 metadata tools).
+## Current Status (after Stage 63)
+**All 17 tools work.** Zero dead buttons. Every tool in the ToolRail has a working canvas handler.
 
 ---
 
@@ -50,11 +50,11 @@ A **Tauri v2 + React + Rust** desktop pixel-art/sprite studio at `F:\AI\GlyphStu
 | `lasso` (Q) | Freehand drag → dashed path preview → bounding rect selection on release |
 | `magic-select` (W) | Rust `magic_select` command — flood fill algorithm that returns bounding rect → `set_selection_rect` |
 
-### REMAINING — Tier 3 (2 tools):
-| Tool ID | Shortcut | What it should do | Implementation approach |
-|---------|----------|-------------------|----------------------|
-| `slice` | K | **Slice tool.** Define named rectangular regions for sprite sheet export. | Needs new state (slice regions array stored in project metadata). Draw rects on canvas, show labels, store as metadata. The `ExportPreviewPanel.tsx` already exists and could consume slice data. |
-| `socket` | S | **Socket/anchor point.** Place named attachment points on sprite. | `AnchorPanel.tsx` and `apps/desktop/src-tauri/src/engine/anchor.rs` already exist with full anchor CRUD. The tool just needs to: on click → create anchor at pixel position, or if near existing anchor → select it for editing. Wire to existing `useAnchorStore` or the Rust anchor commands. |
+### WORKING — Added in Stage 63 (Tier 3, 2 tools):
+| Tool ID | How it works |
+|---------|-------------|
+| `socket` (S) | Click on canvas → creates 'custom' anchor at pixel via `invoke('create_anchor')` → syncs to `useAnchorStore`. Anchors render as circles with labels at zoom >= 4. |
+| `slice` (K) | Drag to define named region → stored in component state → rendered as orange dashed rects with labels. Regions auto-named `slice_1`, `slice_2`, etc. |
 
 ## Key Implementation Patterns
 
@@ -119,8 +119,9 @@ cd F:/AI/GlyphStudio/apps/desktop && pnpm tauri dev
 - Don't add new dependencies
 
 ## Coordination Note
-This brief tracks a multi-Claude collaboration. Claude 1 mapped the architecture, implemented Tiers 1+2 (Stages 61-62), and maintains this document. Claude 2 should read this before any GlyphStudio work. The remaining Tier 3 tools (`slice`, `socket`) are lower priority — the next major work may be dogfooding, polish, or new features rather than finishing these two.
+This brief tracks a multi-Claude collaboration. Claude 1 mapped the architecture, implemented Tiers 1+2 (Stages 61-62), and maintains this document. Claude 2 should read this before any GlyphStudio work. All 17 tools are now implemented. The next major work is dogfooding — launch the app, test every tool end-to-end, and fix what breaks.
 
 ## Change Log
 - **Stage 61** (Claude 1): Implemented fill, line, rect, ellipse, eyedropper, measure, transform. Added `flood_fill` Rust command. 6→13 working tools.
 - **Stage 62** (Claude 1): Implemented lasso, magic-select. Added `magic_select` Rust command with bounding rect output. Lasso uses freehand drag → bounding rect. 13→15 working tools.
+- **Stage 63** (Claude 1): Implemented socket (anchor placement via `create_anchor`) and slice (drag-to-define export regions with overlay rendering). 15→17 working tools. **All tools complete.**
