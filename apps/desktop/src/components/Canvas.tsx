@@ -6,19 +6,12 @@ import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
-import { useBrushSettingsStore, expandStrokeDabs } from '@glyphstudio/state';
 import { useAnchorStore } from '@glyphstudio/state';
 import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
-import type { AnchorKind } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
-import {
-  bresenhamLine,
-  rectangleOutline,
-  ellipseOutline,
-  screenToCanvasPixelUnclamped,
-  screenToCanvasPixelClamped,
-} from '../lib/canvasPixelMath';
+import { bresenhamLine, rectangleOutline, ellipseOutline } from '../lib/canvasPixelMath';
+import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
 const CHECK_DARK = '#222226';
@@ -33,41 +26,40 @@ const SHAPE_TOOLS = new Set(['line', 'rectangle', 'ellipse']);
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isPanningRef = useRef(false);
-  const lastPanRef = useRef({ x: 0, y: 0 });
-  const isDrawingRef = useRef(false);
-  const lastPixelRef = useRef<{ x: number; y: number } | null>(null);
   const renderRequestRef = useRef<number | null>(null);
-
-  // Marquee drag state
-  const isSelectingRef = useRef(false);
-  const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [dragSelection, setDragSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   // Marching ants animation
   const antOffsetRef = useRef(0);
   const antAnimRef = useRef<number | null>(null);
-  // Transform drag state
-  const isTransformDraggingRef = useRef(false);
-  const transformDragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
 
-  // Shape tool drag state (line, rectangle, ellipse)
-  const isShapeDraggingRef = useRef(false);
-  const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const shapeEndRef = useRef<{ x: number; y: number } | null>(null);
-  // Lasso tool drag state
-  const isLassoDraggingRef = useRef(false);
-  const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
-  // Slice tool drag state
-  const isSliceDraggingRef = useRef(false);
-  const sliceStartRef = useRef<{ x: number; y: number } | null>(null);
-  const sliceEndRef = useRef<{ x: number; y: number } | null>(null);
-  const [sliceRegions, setSliceRegions] = useState<{ id: string; x: number; y: number; width: number; height: number; name: string }[]>([]);
-  // Measure tool state
-  const measureStartRef = useRef<{ x: number; y: number } | null>(null);
-  const measureEndRef = useRef<{ x: number; y: number } | null>(null);
-
-  const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
+
+  // renderRef is kept current each render cycle so the pointer handler hook
+  // can call render() without a stale-closure dependency.
+  const renderRef = useRef<() => void>(() => {});
+
+  // All pointer handler logic, drag refs, and related state live in this hook.
+  const {
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    dragSelection,
+    sliceRegions,
+    loadSliceRegions,
+    hoveredPixel,
+    clearHoveredPixel,
+    isSliceDraggingRef,
+    sliceStartRef,
+    sliceEndRef,
+    isLassoDraggingRef,
+    lassoPointsRef,
+    isShapeDraggingRef,
+    shapeStartRef,
+    shapeEndRef,
+    measureStartRef,
+    measureEndRef,
+    isPanningRef,
+    isDrawingRef,
+  } = useCanvasPointerHandlers({ canvasRef, renderRef });
 
   const liveFrame = useCanvasFrameStore((s) => s.frame);
   const frameVersion = useCanvasFrameStore((s) => s.version);
@@ -121,33 +113,6 @@ export function Canvas() {
   const onionSkinData = useTimelineStore((s) => s.onionSkinData);
   const setOnionSkinData = useTimelineStore((s) => s.setOnionSkinData);
 
-  // Unclamped screen-to-pixel (allows coords outside canvas for drag)
-  const screenToPixelUnclamped = useCallback(
-    (screenX: number, screenY: number): { x: number; y: number } | null => {
-      const canvas = canvasRef.current;
-      if (!canvas || !frame) return null;
-      const rect = canvas.getBoundingClientRect();
-      return screenToCanvasPixelUnclamped(screenX, screenY, {
-        rectLeft: rect.left, rectTop: rect.top, rectWidth: rect.width, rectHeight: rect.height,
-        zoom, panX, panY, frameWidth: frame.width, frameHeight: frame.height,
-      });
-    },
-    [zoom, panX, panY, frame],
-  );
-
-  const screenToPixel = useCallback(
-    (screenX: number, screenY: number): { x: number; y: number } | null => {
-      const canvas = canvasRef.current;
-      if (!canvas || !frame) return null;
-      const rect = canvas.getBoundingClientRect();
-      return screenToCanvasPixelClamped(screenX, screenY, {
-        rectLeft: rect.left, rectTop: rect.top, rectWidth: rect.width, rectHeight: rect.height,
-        zoom, panX, panY, frameWidth: frame.width, frameHeight: frame.height,
-      });
-    },
-    [zoom, panX, panY, frame],
-  );
-
   // Initialize canvas from Rust
   useEffect(() => {
     async function init() {
@@ -177,13 +142,7 @@ export function Canvas() {
       .catch(() => setOnionSkinData(null));
   }, [onionSkinEnabled, activeFrameIndex, frameVersion, canvasReady, frameCount, setOnionSkinData]);
 
-  // Load slice regions from Rust backend whenever frame changes
-  const loadSliceRegions = useCallback(() => {
-    invoke<{ id: string; x: number; y: number; width: number; height: number; name: string }[]>('list_slice_regions')
-      .then(setSliceRegions)
-      .catch(() => setSliceRegions([]));
-  }, []);
-
+  // Reload slice regions when frame version changes (hook owns loadSliceRegions)
   useEffect(() => {
     if (canvasReady) loadSliceRegions();
   }, [frameVersion, canvasReady, loadSliceRegions]);
@@ -571,531 +530,10 @@ export function Canvas() {
     return () => observer.disconnect();
   }, [render]);
 
-  // Stroke lifecycle
-  const sendStrokePoints = useCallback(
-    async (points: [number, number][]) => {
-      if (points.length === 0) return;
-      try {
-        const f = await invoke<CanvasFrameData>('stroke_points', { input: { points } });
-        setFrame(f);
-      } catch (err) {
-        console.error('stroke_points failed:', err);
-      }
-    },
-    [setFrame],
-  );
+  // Keep renderRef pointing at the latest render callback so the pointer
+  // handler hook can call render() without a stale-closure dep.
+  useEffect(() => { renderRef.current = render; }, [render]);
 
-  const handlePointerDown = useCallback(
-    async (e: React.PointerEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      if (e.button === 1) {
-        isPanningRef.current = true;
-        lastPanRef.current = { x: e.clientX, y: e.clientY };
-        canvas.setPointerCapture(e.pointerId);
-        return;
-      }
-
-      // Move/Transform tool or drag inside selection during transform — begin or continue transform
-      if (e.button === 0 && (activeTool === 'move' || activeTool === 'transform' || isTransforming)) {
-        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (!pixel) return;
-
-        const selState = useSelectionStore.getState();
-
-        // If we have a selection but no active transform yet, begin one
-        if (selState.hasSelection && !selState.isTransforming) {
-          const sel = selState.selectionBounds;
-          if (sel && pixel.x >= sel.x && pixel.x < sel.x + sel.width && pixel.y >= sel.y && pixel.y < sel.y + sel.height) {
-            try {
-              const result = await invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>('begin_selection_transform');
-              setFrame(result.frame);
-              syncLayersFromFrame(result.frame);
-              setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
-              isTransformDraggingRef.current = true;
-              transformDragStartRef.current = { x: pixel.x, y: pixel.y, offsetX: 0, offsetY: 0 };
-              canvas.setPointerCapture(e.pointerId);
-            } catch (err) { console.error('begin_selection_transform failed:', err); }
-            return;
-          }
-        }
-
-        // Already transforming — drag to move
-        if (selState.isTransforming && selState.transformPreview) {
-          isTransformDraggingRef.current = true;
-          transformDragStartRef.current = { x: pixel.x, y: pixel.y, offsetX: selState.transformPreview.offsetX, offsetY: selState.transformPreview.offsetY };
-          canvas.setPointerCapture(e.pointerId);
-          return;
-        }
-      }
-
-      // Marquee tool
-      if (e.button === 0 && activeTool === 'marquee') {
-        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (pixel && frame) {
-          // If transforming and clicking outside, commit first
-          if (isTransforming) {
-            try {
-              const f = await invoke<CanvasFrameData>('commit_selection_transform');
-              setFrame(f);
-              syncLayersFromFrame(f);
-              clearTransform();
-              markDirty();
-              invoke('mark_dirty').catch(() => {});
-            } catch (err) { console.error('commit_selection_transform failed:', err); }
-          }
-          isSelectingRef.current = true;
-          selectionStartRef.current = pixel;
-          canvas.setPointerCapture(e.pointerId);
-          setDragSelection(null);
-        }
-        return;
-      }
-
-      // Eyedropper (color-select)
-      if (e.button === 0 && activeTool === 'color-select') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          try {
-            const color = await invoke<{ r: number; g: number; b: number; a: number }>('read_pixel', { x: pixel.x, y: pixel.y, layerId: null });
-            useToolStore.getState().setPrimaryColor(color);
-          } catch (err) { console.error('read_pixel failed:', err); }
-        }
-        return;
-      }
-
-      // Fill (flood fill)
-      if (e.button === 0 && activeTool === 'fill') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
-          try {
-            const f = await invoke<CanvasFrameData>('flood_fill', {
-              input: { x: pixel.x, y: pixel.y, r: primaryColor.r, g: primaryColor.g, b: primaryColor.b, a: primaryColor.a },
-            });
-            setFrame(f);
-            syncLayersFromFrame(f);
-            markDirty();
-            invoke('mark_dirty').catch(() => {});
-          } catch (err) { console.error('flood_fill failed:', err); }
-        }
-        return;
-      }
-
-      // Shape tools (line, rectangle, ellipse) — start drag
-      if (e.button === 0 && SHAPE_TOOLS.has(activeTool)) {
-        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (pixel && frame) {
-          if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
-          isShapeDraggingRef.current = true;
-          shapeStartRef.current = pixel;
-          shapeEndRef.current = pixel;
-          canvas.setPointerCapture(e.pointerId);
-        }
-        return;
-      }
-
-      // Magic wand (magic-select) — flood fill → selection rect
-      if (e.button === 0 && activeTool === 'magic-select') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          try {
-            const result = await invoke<{ x: number; y: number; width: number; height: number; pixelCount: number }>('magic_select', {
-              input: { x: pixel.x, y: pixel.y },
-            });
-            if (result.pixelCount > 0) {
-              setSelection({ x: result.x, y: result.y, width: result.width, height: result.height });
-              invoke('set_selection_rect', {
-                input: { x: result.x, y: result.y, width: result.width, height: result.height },
-              }).catch(() => {});
-            }
-          } catch (err) { console.error('magic_select failed:', err); }
-        }
-        return;
-      }
-
-      // Lasso tool — start freehand path
-      if (e.button === 0 && activeTool === 'lasso') {
-        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (pixel && frame) {
-          isLassoDraggingRef.current = true;
-          lassoPointsRef.current = [pixel];
-          canvas.setPointerCapture(e.pointerId);
-        }
-        return;
-      }
-
-      // Socket tool — place anchor at clicked pixel
-      if (e.button === 0 && activeTool === 'socket') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          try {
-            const result = await invoke<{ id: string; name: string; kind: string; x: number; y: number; bounds: null; parentName: string | null; falloffWeight: number }>('create_anchor', {
-              kind: 'custom' as AnchorKind,
-              x: pixel.x,
-              y: pixel.y,
-            });
-            useAnchorStore.getState().addAnchor({
-              id: result.id,
-              name: result.name,
-              kind: result.kind as AnchorKind,
-              x: result.x,
-              y: result.y,
-              bounds: result.bounds,
-              parentName: result.parentName ?? null,
-              falloffWeight: result.falloffWeight ?? 1.0,
-            });
-          } catch (err) { console.error('create_anchor failed:', err); }
-        }
-        return;
-      }
-
-      // Slice tool — drag to define export region
-      if (e.button === 0 && activeTool === 'slice') {
-        const pixel = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (pixel && frame) {
-          isSliceDraggingRef.current = true;
-          sliceStartRef.current = pixel;
-          sliceEndRef.current = pixel;
-          canvas.setPointerCapture(e.pointerId);
-        }
-        return;
-      }
-
-      // Measure tool — click to set start/end points
-      if (e.button === 0 && activeTool === 'measure') {
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          if (!measureStartRef.current || measureEndRef.current) {
-            measureStartRef.current = pixel;
-            measureEndRef.current = null;
-          } else {
-            measureEndRef.current = pixel;
-          }
-          render();
-        }
-        return;
-      }
-
-      if (e.button === 0 && (activeTool === 'pencil' || activeTool === 'eraser' || isSketchTool(activeTool))) {
-        // Pause playback on edit
-        if (useTimelineStore.getState().playing) useTimelineStore.getState().setPlaying(false);
-
-        const isSketch = isSketchTool(activeTool);
-        const isErase = activeTool === 'eraser' || activeTool === 'sketch-eraser';
-        const brushState = useBrushSettingsStore.getState();
-
-        let color: { r: number; g: number; b: number; a: number };
-        if (isErase) {
-          color = { r: 0, g: 0, b: 0, a: 0 };
-        } else if (isSketch) {
-          // Apply brush opacity to the primary color alpha
-          const opacity = brushState.sketchBrush.opacity;
-          color = { ...primaryColor, a: Math.round(primaryColor.a * opacity) };
-        } else {
-          color = primaryColor;
-        }
-
-        try {
-          await invoke<string>('begin_stroke', {
-            input: { tool: activeTool, r: color.r, g: color.g, b: color.b, a: color.a },
-          });
-        } catch (err) {
-          console.error('begin_stroke failed:', err);
-          return;
-        }
-
-        if (isSketch) {
-          useBrushSettingsStore.getState().setRoughModeActive(true);
-        }
-
-        isDrawingRef.current = true;
-        canvas.setPointerCapture(e.pointerId);
-        const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) {
-          lastPixelRef.current = pixel;
-          if (isSketch && frame) {
-            const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
-            const dabPoints = expandStrokeDabs(
-              [[pixel.x, pixel.y]],
-              { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
-            );
-            sendStrokePoints(dabPoints);
-          } else {
-            sendStrokePoints([[pixel.x, pixel.y]]);
-          }
-        }
-      }
-    },
-    [activeTool, primaryColor, screenToPixel, screenToPixelUnclamped, sendStrokePoints, frame, isTransforming, setTransform, setFrame, clearTransform, markDirty],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      const pixel = screenToPixel(e.clientX, e.clientY);
-      setHoveredPixel(pixel);
-      setCursorPixel(pixel?.x ?? null, pixel?.y ?? null);
-
-      if (isPanningRef.current) {
-        const dx = e.clientX - lastPanRef.current.x;
-        const dy = e.clientY - lastPanRef.current.y;
-        lastPanRef.current = { x: e.clientX, y: e.clientY };
-        panBy(dx, dy);
-        return;
-      }
-
-      // Transform drag
-      if (isTransformDraggingRef.current) {
-        const current = screenToPixelUnclamped(e.clientX, e.clientY);
-        const start = transformDragStartRef.current;
-        if (current && start) {
-          const newOffsetX = start.offsetX + (current.x - start.x);
-          const newOffsetY = start.offsetY + (current.y - start.y);
-          invoke<{ sourceX: number; sourceY: number; payloadWidth: number; payloadHeight: number; offsetX: number; offsetY: number; payloadData: number[]; frame: CanvasFrameData }>('move_selection_preview', { offsetX: newOffsetX, offsetY: newOffsetY })
-            .then((result) => {
-              setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
-            })
-            .catch(() => {});
-        }
-        return;
-      }
-
-      // Slice drag
-      if (isSliceDraggingRef.current) {
-        const current = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (current) {
-          sliceEndRef.current = current;
-          render();
-        }
-        return;
-      }
-
-      // Lasso drag
-      if (isLassoDraggingRef.current) {
-        const current = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (current) {
-          const pts = lassoPointsRef.current;
-          const last = pts[pts.length - 1];
-          if (!last || last.x !== current.x || last.y !== current.y) {
-            pts.push(current);
-            render();
-          }
-        }
-        return;
-      }
-
-      // Shape tool drag
-      if (isShapeDraggingRef.current) {
-        const current = screenToPixelUnclamped(e.clientX, e.clientY);
-        if (current) {
-          shapeEndRef.current = current;
-          render();
-        }
-        return;
-      }
-
-      // Marquee drag
-      if (isSelectingRef.current && frame) {
-        const current = screenToPixelUnclamped(e.clientX, e.clientY);
-        const start = selectionStartRef.current;
-        if (current && start) {
-          // Clamp to canvas bounds
-          const cx = Math.max(0, Math.min(current.x, frame.width));
-          const cy = Math.max(0, Math.min(current.y, frame.height));
-          const sx = Math.max(0, Math.min(start.x, frame.width));
-          const sy = Math.max(0, Math.min(start.y, frame.height));
-
-          const x = Math.min(sx, cx);
-          const y = Math.min(sy, cy);
-          const w = Math.abs(cx - sx);
-          const h = Math.abs(cy - sy);
-
-          if (w > 0 && h > 0) {
-            setDragSelection({ x, y, width: w, height: h });
-          } else {
-            setDragSelection(null);
-          }
-        }
-        return;
-      }
-
-      if (isDrawingRef.current && pixel) {
-        const last = lastPixelRef.current;
-        const isSketch = isSketchTool(activeTool);
-
-        if (last && (last.x !== pixel.x || last.y !== pixel.y)) {
-          const points = bresenhamLine(last.x, last.y, pixel.x, pixel.y);
-          const newPoints = points.slice(1);
-          if (newPoints.length > 0) {
-            if (isSketch && frame) {
-              const brushState = useBrushSettingsStore.getState();
-              const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
-              const dabPoints = expandStrokeDabs(
-                newPoints,
-                { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
-              );
-              if (dabPoints.length > 0) sendStrokePoints(dabPoints);
-            } else {
-              sendStrokePoints(newPoints);
-            }
-          }
-        } else if (!last) {
-          if (isSketch && frame) {
-            const brushState = useBrushSettingsStore.getState();
-            const settings = activeTool === 'sketch-eraser' ? brushState.sketchEraser : brushState.sketchBrush;
-            const dabPoints = expandStrokeDabs(
-              [[pixel.x, pixel.y]],
-              { size: settings.size, scatter: settings.scatter, spacing: settings.spacing, canvasWidth: frame.width, canvasHeight: frame.height },
-            );
-            sendStrokePoints(dabPoints);
-          } else {
-            sendStrokePoints([[pixel.x, pixel.y]]);
-          }
-        }
-        lastPixelRef.current = pixel;
-      }
-    },
-    [screenToPixel, screenToPixelUnclamped, panBy, sendStrokePoints, frame, setTransform],
-  );
-
-  const handlePointerUp = useCallback(async () => {
-    // Slice complete — add region
-    if (isSliceDraggingRef.current) {
-      isSliceDraggingRef.current = false;
-      const start = sliceStartRef.current;
-      const end = sliceEndRef.current;
-      sliceStartRef.current = null;
-      sliceEndRef.current = null;
-      if (start && end && frame) {
-        const minX = Math.max(0, Math.min(start.x, end.x));
-        const minY = Math.max(0, Math.min(start.y, end.y));
-        const maxX = Math.min(frame.width - 1, Math.max(start.x, end.x));
-        const maxY = Math.min(frame.height - 1, Math.max(start.y, end.y));
-        const w = maxX - minX + 1;
-        const h = maxY - minY + 1;
-        if (w > 1 && h > 1) {
-          invoke('create_slice_region', {
-            name: `slice_${sliceRegions.length + 1}`,
-            x: minX, y: minY, width: w, height: h,
-          }).then(() => loadSliceRegions()).catch(() => {});
-        }
-      }
-      render();
-      return;
-    }
-
-    // Lasso complete — compute bounding rect of freehand path
-    if (isLassoDraggingRef.current) {
-      isLassoDraggingRef.current = false;
-      const pts = lassoPointsRef.current;
-      lassoPointsRef.current = [];
-      if (pts.length >= 3 && frame) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const p of pts) {
-          if (p.x < minX) minX = p.x;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.y > maxY) maxY = p.y;
-        }
-        // Clamp to canvas bounds
-        minX = Math.max(0, minX);
-        minY = Math.max(0, minY);
-        maxX = Math.min(frame.width - 1, maxX);
-        maxY = Math.min(frame.height - 1, maxY);
-        const w = maxX - minX + 1;
-        const h = maxY - minY + 1;
-        if (w > 0 && h > 0) {
-          setSelection({ x: minX, y: minY, width: w, height: h });
-          invoke('set_selection_rect', {
-            input: { x: minX, y: minY, width: w, height: h },
-          }).catch(() => {});
-        }
-      }
-      render();
-      return;
-    }
-
-    // Shape tool complete — commit shape to canvas
-    if (isShapeDraggingRef.current) {
-      isShapeDraggingRef.current = false;
-      const start = shapeStartRef.current;
-      const end = shapeEndRef.current;
-      shapeStartRef.current = null;
-      shapeEndRef.current = null;
-      if (start && end && (start.x !== end.x || start.y !== end.y)) {
-        let points: [number, number][] = [];
-        if (activeTool === 'line') {
-          points = bresenhamLine(start.x, start.y, end.x, end.y);
-        } else if (activeTool === 'rectangle') {
-          points = rectangleOutline(start.x, start.y, end.x, end.y);
-        } else if (activeTool === 'ellipse') {
-          points = ellipseOutline(start.x, start.y, end.x, end.y);
-        }
-        if (points.length > 0) {
-          try {
-            await invoke('begin_stroke', {
-              input: { tool: activeTool, r: primaryColor.r, g: primaryColor.g, b: primaryColor.b, a: primaryColor.a },
-            });
-            await sendStrokePoints(points);
-            const f = await invoke<CanvasFrameData>('end_stroke');
-            setFrame(f);
-            syncLayersFromFrame(f);
-            markDirty();
-            invoke('mark_dirty').catch(() => {});
-          } catch (err) { console.error('shape commit failed:', err); }
-        }
-      }
-      render();
-      return;
-    }
-
-    // Transform drag complete (just stop dragging, don't commit)
-    if (isTransformDraggingRef.current) {
-      isTransformDraggingRef.current = false;
-      transformDragStartRef.current = null;
-      return;
-    }
-
-    // Marquee complete
-    if (isSelectingRef.current) {
-      isSelectingRef.current = false;
-      selectionStartRef.current = null;
-      if (dragSelection && dragSelection.width > 0 && dragSelection.height > 0) {
-        setSelection({
-          x: dragSelection.x,
-          y: dragSelection.y,
-          width: dragSelection.width,
-          height: dragSelection.height,
-        });
-        // Sync to backend
-        invoke('set_selection_rect', {
-          input: { x: dragSelection.x, y: dragSelection.y, width: dragSelection.width, height: dragSelection.height },
-        }).catch(() => {});
-      } else {
-        clearSelection();
-        invoke('clear_selection').catch(() => {});
-      }
-      setDragSelection(null);
-      return;
-    }
-
-    if (isDrawingRef.current) {
-      isDrawingRef.current = false;
-      lastPixelRef.current = null;
-      useBrushSettingsStore.getState().setRoughModeActive(false);
-      try {
-        const f = await invoke<CanvasFrameData>('end_stroke');
-        setFrame(f);
-        syncLayersFromFrame(f);
-        markDirty();
-        invoke('mark_dirty').catch(() => {});
-      } catch (err) {
-        console.error('end_stroke failed:', err);
-      }
-    }
-    isPanningRef.current = false;
-  }, [setFrame, markDirty, dragSelection, setSelection, clearSelection, loadSliceRegions, sliceRegions]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -1383,7 +821,7 @@ export function Canvas() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={() => { handlePointerUp(); setCursorPixel(null, null); setHoveredPixel(null); }}
+        onPointerLeave={() => { handlePointerUp(); setCursorPixel(null, null); clearHoveredPixel(); }}
         onWheel={handleWheel}
         style={{ cursor }}
       />
