@@ -29,15 +29,15 @@ interface RightDockProps {
 
 const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Copilot', 'Templates', 'Assets'],
-  animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion'],
+  edit: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Copilot', 'Templates', 'Assets'],
+  animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Locomotion'],
   palette: ['Palette Props', 'Validation'],
   ai: ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
-  validate: ['Validation', 'Properties', 'Provenance'],
+  validate: ['Validation', 'Sprite Props', 'Provenance'],
   export: ['Export Settings'],
   scene: ['Instances', 'Camera', 'Assets', 'Activity'],
-  vector: ['Shapes', 'Properties', 'Reduction', 'Vec Copilot', 'AI Create'],
+  vector: ['Shapes', 'Shape Props', 'Reduction', 'Vec Copilot', 'AI Create'],
 };
 
 function PanelContent({ tabName }: { tabName: string }) {
@@ -77,7 +77,7 @@ function PanelContent({ tabName }: { tabName: string }) {
   if (tabName === 'Shapes') {
     return <VectorShapesPanel />;
   }
-  if (tabName === 'Properties') {
+  if (tabName === 'Shape Props') {
     return <VectorPropertiesPanel />;
   }
   if (tabName === 'Reduction') {

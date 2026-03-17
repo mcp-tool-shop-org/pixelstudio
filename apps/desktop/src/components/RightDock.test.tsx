@@ -60,12 +60,12 @@ describe('RightDock', () => {
     // For modes with >6 tabs, only the first 6 are shown plus a "More ▾" overflow trigger.
     // animate has exactly 8 tabs but threshold is 6, so it also overflows.
     const modeTabs: [WorkspaceMode, string[]][] = [
-      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'More ▾']],
-      ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'More ▾']],
+      ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'More ▾']],
+      ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'More ▾']],
       ['palette', ['Palette Props', 'Validation']],
       ['ai', ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
-      ['validate', ['Validation', 'Properties', 'Provenance']],
+      ['validate', ['Validation', 'Sprite Props', 'Provenance']],
       ['export', ['Export Settings']],
       ['scene', ['Instances', 'Camera', 'Assets', 'Activity']],
     ];
@@ -204,9 +204,9 @@ describe('RightDock', () => {
 
     it('non-first placeholder tabs work', async () => {
       render(<RightDock activeMode="edit" />);
-      // Click "Properties" which is a placeholder panel
+      // Click "Canvas Props" which is a placeholder panel
       await act(async () => {
-        await userEvent.click(screen.getByText('Properties'));
+        await userEvent.click(screen.getByText('Canvas Props'));
       });
       const placeholder = document.querySelector('.dock-panel-placeholder');
       expect(placeholder).not.toBeNull();
