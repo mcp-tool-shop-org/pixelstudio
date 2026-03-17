@@ -195,6 +195,57 @@ export function applyMirrorPoints(
 }
 
 // ---------------------------------------------------------------------------
+// Shape construction helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Constrain a shape's end point when Shift is held during drag.
+ *
+ * - line:              snaps to the nearest cardinal/diagonal (8-direction octagonal).
+ * - rectangle/ellipse: forces a square/circle by equating dx and dy to the smaller axis.
+ *
+ * The function operates in pixel space. Any unknown tool passes through unchanged.
+ *
+ * @param tool  'line' | 'rectangle' | 'ellipse' (or any other string = no-op)
+ * @param start drag origin pixel
+ * @param end   current drag endpoint pixel (unconstrained)
+ */
+export function constrainShapeEnd(
+  tool: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): { x: number; y: number } {
+  let dx = end.x - start.x;
+  let dy = end.y - start.y;
+
+  if (dx === 0 && dy === 0) return end;
+
+  if (tool === 'line') {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX >= 2 * absY) {
+      // Horizontal — flatten y
+      dy = 0;
+    } else if (absY >= 2 * absX) {
+      // Vertical — flatten x
+      dx = 0;
+    } else {
+      // Diagonal — equalize to the shorter axis (true 45°)
+      const size = Math.min(absX, absY);
+      dx = Math.sign(dx) * size;
+      dy = Math.sign(dy) * size;
+    }
+  } else if (tool === 'rectangle' || tool === 'ellipse') {
+    // Force square / circle — use the shorter axis
+    const size = Math.min(Math.abs(dx), Math.abs(dy));
+    dx = Math.sign(dx) * size;
+    dy = Math.sign(dy) * size;
+  }
+
+  return { x: start.x + dx, y: start.y + dy };
+}
+
+// ---------------------------------------------------------------------------
 // Dither pattern filter
 // ---------------------------------------------------------------------------
 

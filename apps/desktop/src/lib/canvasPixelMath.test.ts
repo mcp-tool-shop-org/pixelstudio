@@ -385,3 +385,143 @@ describe('applyDitherFilter', () => {
     expect(applyDitherFilter([], 'checker', 1.0)).toHaveLength(0);
   });
 });
+
+// constrainShapeEnd
+import { constrainShapeEnd } from './canvasPixelMath';
+
+describe('constrainShapeEnd', () => {
+  const start = { x: 0, y: 0 };
+
+  // --- Line ---
+  it('line: horizontal bias snaps to horizontal (dy → 0)', () => {
+    const result = constrainShapeEnd('line', start, { x: 10, y: 2 });
+    expect(result).toEqual({ x: 10, y: 0 });
+  });
+
+  it('line: vertical bias snaps to vertical (dx → 0)', () => {
+    const result = constrainShapeEnd('line', start, { x: 1, y: 10 });
+    expect(result).toEqual({ x: 0, y: 10 });
+  });
+
+  it('line: diagonal (equal dx/dy) stays diagonal', () => {
+    const result = constrainShapeEnd('line', start, { x: 5, y: 5 });
+    expect(result).toEqual({ x: 5, y: 5 });
+  });
+
+  it('line: near-diagonal equalizes to shorter axis', () => {
+    const result = constrainShapeEnd('line', start, { x: 5, y: 4 });
+    expect(result).toEqual({ x: 4, y: 4 });
+  });
+
+  it('line: negative direction diagonal', () => {
+    const result = constrainShapeEnd('line', start, { x: -5, y: -4 });
+    expect(result).toEqual({ x: -4, y: -4 });
+  });
+
+  it('line: at exactly 2:1 ratio snaps horizontal', () => {
+    const result = constrainShapeEnd('line', start, { x: 4, y: 2 });
+    expect(result).toEqual({ x: 4, y: 0 });
+  });
+
+  it('line: negative horizontal bias', () => {
+    const result = constrainShapeEnd('line', start, { x: -10, y: 2 });
+    expect(result).toEqual({ x: -10, y: 0 });
+  });
+
+  // --- Rectangle ---
+  it('rectangle: wide → squares to height dimension', () => {
+    const result = constrainShapeEnd('rectangle', start, { x: 10, y: 7 });
+    expect(result).toEqual({ x: 7, y: 7 });
+  });
+
+  it('rectangle: tall → squares to width dimension', () => {
+    const result = constrainShapeEnd('rectangle', start, { x: 3, y: 9 });
+    expect(result).toEqual({ x: 3, y: 3 });
+  });
+
+  it('rectangle: negative direction preserves signs', () => {
+    const result = constrainShapeEnd('rectangle', start, { x: -8, y: -5 });
+    expect(result).toEqual({ x: -5, y: -5 });
+  });
+
+  it('rectangle: already square passes through', () => {
+    const result = constrainShapeEnd('rectangle', start, { x: 6, y: 6 });
+    expect(result).toEqual({ x: 6, y: 6 });
+  });
+
+  // --- Ellipse ---
+  it('ellipse: same constraint as rectangle', () => {
+    const result = constrainShapeEnd('ellipse', start, { x: 10, y: 6 });
+    expect(result).toEqual({ x: 6, y: 6 });
+  });
+
+  // --- Unknown tool ---
+  it('unknown tool passes end through unchanged', () => {
+    const end = { x: 7, y: 3 };
+    expect(constrainShapeEnd('pencil', start, end)).toEqual(end);
+    expect(constrainShapeEnd('fill', start, end)).toEqual(end);
+  });
+
+  // --- Edge cases ---
+  it('dx=0 dy=0 returns end unchanged', () => {
+    expect(constrainShapeEnd('line', start, start)).toEqual(start);
+    expect(constrainShapeEnd('rectangle', start, start)).toEqual(start);
+  });
+
+  it('non-zero-origin start point', () => {
+    const s = { x: 5, y: 5 };
+    const result = constrainShapeEnd('rectangle', s, { x: 15, y: 12 });
+    // dx=10, dy=7 → size=7 → x=5+7=12, y=5+7=12
+    expect(result).toEqual({ x: 12, y: 12 });
+  });
+});
+
+// Geometry nasty cases (preview/commit parity + reversed drag + edge sizes)
+describe('geometry nasty cases', () => {
+  it('rectangleOutline: reversed coordinates produce same pixel set as forward', () => {
+    const forward = new Set(rectangleOutline(0, 0, 5, 3).map(([x, y]) => `${x},${y}`));
+    const reversed = new Set(rectangleOutline(5, 3, 0, 0).map(([x, y]) => `${x},${y}`));
+    expect(forward).toEqual(reversed);
+  });
+
+  it('rectangleOutline: 1×1 (same start/end) returns single pixel', () => {
+    const pts = rectangleOutline(4, 4, 4, 4);
+    expect(pts).toHaveLength(1);
+    expect(pts[0]).toEqual([4, 4]);
+  });
+
+  it('rectangleOutline: 1×n (single column) returns all column pixels', () => {
+    const pts = rectangleOutline(3, 1, 3, 4);
+    const ys = pts.map(([, y]) => y).sort((a, b) => a - b);
+    expect(ys).toEqual([1, 2, 3, 4]);
+  });
+
+  it('ellipseOutline: reversed coordinates produce same pixel set', () => {
+    const forward = new Set(ellipseOutline(0, 0, 8, 6).map(([x, y]) => `${x},${y}`));
+    const reversed = new Set(ellipseOutline(8, 6, 0, 0).map(([x, y]) => `${x},${y}`));
+    expect(forward).toEqual(reversed);
+  });
+
+  it('ellipseOutline: 1×1 returns single pixel', () => {
+    const pts = ellipseOutline(5, 5, 5, 5);
+    expect(pts).toHaveLength(1);
+  });
+
+  it('bresenhamLine: zero-length returns single pixel', () => {
+    const pts = bresenhamLine(3, 7, 3, 7);
+    expect(pts).toHaveLength(1);
+    expect(pts[0]).toEqual([3, 7]);
+  });
+
+  it('bresenhamLine: reversed diagonal produces same pixel set as forward', () => {
+    const forward = new Set(bresenhamLine(0, 0, 5, 5).map(([x, y]) => `${x},${y}`));
+    const reversed = new Set(bresenhamLine(5, 5, 0, 0).map(([x, y]) => `${x},${y}`));
+    expect(forward).toEqual(reversed);
+  });
+
+  it('rectangleOutline: no duplicate pixels', () => {
+    const pts = rectangleOutline(0, 0, 6, 4);
+    const keys = pts.map(([x, y]) => `${x},${y}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});

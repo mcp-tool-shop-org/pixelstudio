@@ -11,7 +11,7 @@ import { useSliceStore } from '@glyphstudio/state';
 import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
-import { bresenhamLine, rectangleOutline, ellipseOutline } from '../lib/canvasPixelMath';
+import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd } from '../lib/canvasPixelMath';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
@@ -513,13 +513,58 @@ export function Canvas() {
       if (activeTool === 'line') previewPoints = bresenhamLine(s.x, s.y, en.x, en.y);
       else if (activeTool === 'rectangle') previewPoints = rectangleOutline(s.x, s.y, en.x, en.y);
       else if (activeTool === 'ellipse') previewPoints = ellipseOutline(s.x, s.y, en.x, en.y);
+
+      ctx.save();
       const pc = primaryColor;
-      ctx.fillStyle = `rgba(${pc.r},${pc.g},${pc.b},0.7)`;
+
+      // 1. Preview pixels — same rasterization as commit, slightly more opaque
+      ctx.fillStyle = `rgba(${pc.r},${pc.g},${pc.b},0.85)`;
       for (const [px, py] of previewPoints) {
-        const sx = originX + px * zoom;
-        const sy = originY + py * zoom;
-        ctx.fillRect(sx, sy, zoom, zoom);
+        ctx.fillRect(originX + px * zoom, originY + py * zoom, zoom, zoom);
       }
+
+      // 2. Bounding box ghost — dashed outline shows extents before commit
+      const bbMinX = Math.min(s.x, en.x);
+      const bbMinY = Math.min(s.y, en.y);
+      const bbMaxX = Math.max(s.x, en.x);
+      const bbMaxY = Math.max(s.y, en.y);
+      const bbSX = originX + bbMinX * zoom;
+      const bbSY = originY + bbMinY * zoom;
+      const bbSW = (bbMaxX - bbMinX + 1) * zoom;
+      const bbSH = (bbMaxY - bbMinY + 1) * zoom;
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(bbSX - 0.5, bbSY - 0.5, bbSW + 1, bbSH + 1);
+      ctx.setLineDash([]);
+
+      // 3. Start anchor — white-ringed pixel so origin is never lost during drag
+      const ax = originX + s.x * zoom;
+      const ay = originY + s.y * zoom;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(ax - 1, ay - 1, zoom + 2, zoom + 2);
+      ctx.fillStyle = `rgb(${pc.r},${pc.g},${pc.b})`;
+      ctx.fillRect(ax, ay, zoom, zoom);
+
+      // 4. Dimension label — W×H for shapes, length for lines
+      const ddx = en.x - s.x;
+      const ddy = en.y - s.y;
+      let label = '';
+      if (activeTool === 'line') {
+        label = `${Math.round(Math.sqrt(ddx * ddx + ddy * ddy))}px`;
+      } else {
+        label = `${Math.abs(ddx) + 1}\u00d7${Math.abs(ddy) + 1}`;
+      }
+      const labelScreenX = originX + en.x * zoom + zoom + 6;
+      const labelScreenY = originY + en.y * zoom + zoom / 2;
+      ctx.font = '11px monospace';
+      const textW = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.72)';
+      ctx.fillRect(labelScreenX - 3, labelScreenY - 11, textW + 6, 15);
+      ctx.fillStyle = '#e8e8ff';
+      ctx.fillText(label, labelScreenX, labelScreenY);
+
+      ctx.restore();
     }
 
     // Measure tool overlay

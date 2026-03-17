@@ -31,6 +31,7 @@ import {
   rectangleOutline,
   applyMirrorPoints,
   applyDitherFilter,
+  constrainShapeEnd,
   ellipseOutline,
 } from './canvasPixelMath';
 
@@ -487,7 +488,15 @@ export function useCanvasPointerHandlers({
 
       if (isShapeDraggingRef.current) {
         const current = toPixelUnclamped(e.clientX, e.clientY);
-        if (current) { shapeEndRef.current = current; renderRef.current(); }
+        if (current) {
+          if (e.shiftKey && shapeStartRef.current) {
+            const { activeTool } = useToolStore.getState();
+            shapeEndRef.current = constrainShapeEnd(activeTool, shapeStartRef.current, current);
+          } else {
+            shapeEndRef.current = current;
+          }
+          renderRef.current();
+        }
         return;
       }
 
