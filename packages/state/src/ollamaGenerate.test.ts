@@ -109,6 +109,22 @@ describe('generateShapesFromDescription', () => {
     expect(result.shapes[0].name).toBe('good-tri');
   });
 
+  it('auto-generates name when LLM omits it', async () => {
+    const llmOutput = JSON.stringify({
+      reasoning: 'test',
+      shapes: [
+        { type: 'rect', x: 100, y: 100, w: 80, h: 120, fill: [40, 30, 60, 255] },
+        { type: 'ellipse', cx: 250, cy: 80, rx: 40, ry: 40, fill: [200, 160, 130, 255] },
+      ],
+    });
+    mockFetch.mockResolvedValueOnce(ollamaResponse(llmOutput));
+
+    const result = await generateShapesFromDescription('test', 500, 500, [16]);
+    expect(result.shapes).toHaveLength(2);
+    expect(result.shapes[0].name).toBe('shape-0');
+    expect(result.shapes[1].name).toBe('shape-1');
+  });
+
   it('clamps fill values to 0-255', async () => {
     const llmOutput = JSON.stringify({
       reasoning: 'test',

@@ -394,22 +394,30 @@ async function callOllamaVision(
 
 // ── JSON extraction ──
 
-/** Extract JSON from LLM response (handles markdown fences, preamble, etc.) */
+/** Strip // comments from JSON (LLMs often add them). Preserves strings. */
+function stripJsonComments(s: string): string {
+  return s.replace(/("(?:[^"\\]|\\.)*")|\/\/[^\n]*/g, (_m, str) => str || '');
+}
+
+/** Extract JSON from LLM response (handles markdown fences, comments, preamble, etc.) */
 function extractJson(raw: string): string | null {
+  // Strip comments first — LLMs frequently add // comments in JSON
+  const cleaned = stripJsonComments(raw);
+
   // Try direct parse first
-  try { JSON.parse(raw); return raw; } catch { /* continue */ }
+  try { JSON.parse(cleaned); return cleaned; } catch { /* continue */ }
 
   // Try markdown fence
-  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
   if (fenceMatch) {
     try { JSON.parse(fenceMatch[1].trim()); return fenceMatch[1].trim(); } catch { /* continue */ }
   }
 
   // Try finding first { to last }
-  const firstBrace = raw.indexOf('{');
-  const lastBrace = raw.lastIndexOf('}');
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
-    const candidate = raw.slice(firstBrace, lastBrace + 1);
+    const candidate = cleaned.slice(firstBrace, lastBrace + 1);
     try { JSON.parse(candidate); return candidate; } catch { /* continue */ }
   }
 
@@ -418,8 +426,10 @@ function extractJson(raw: string): string | null {
 
 // ── Shape validation ──
 
-function validateShapeDef(s: LLMShapeDef, artW: number, artH: number): LLMShapeDef | null {
-  if (!s.name || !s.type || !s.fill || s.fill.length !== 4) return null;
+function validateShapeDef(s: LLMShapeDef, artW: number, artH: number, index: number = 0): LLMShapeDef | null {
+  if (!s.type || !s.fill || s.fill.length !== 4) return null;
+  // Auto-generate name if LLM omitted it
+  if (!s.name) s.name = `shape-${index}`;
 
   // Clamp fill values
   s.fill = s.fill.map(v => Math.max(0, Math.min(255, Math.round(v)))) as [number, number, number, number];
@@ -589,7 +599,7 @@ export async function generateShapesFromDescription(
     const parsed = JSON.parse(jsonStr);
     const rawShapes: LLMShapeDef[] = parsed.shapes ?? [];
     const validated = rawShapes
-      .map(s => validateShapeDef(s, artboardWidth, artboardHeight))
+      .map((s, i) => validateShapeDef(s, artboardWidth, artboardHeight, i))
       .filter((s): s is LLMShapeDef => s !== null);
 
     return {
@@ -690,7 +700,7 @@ export async function refineShapesFromCritique(
     const parsed = JSON.parse(jsonStr);
     const rawShapes: LLMShapeDef[] = parsed.shapes ?? [];
     const validated = rawShapes
-      .map(s => validateShapeDef(s, artboardWidth, artboardHeight))
+      .map((s, i) => validateShapeDef(s, artboardWidth, artboardHeight, i))
       .filter((s): s is LLMShapeDef => s !== null);
 
     return {
