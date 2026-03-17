@@ -77,6 +77,43 @@ export async function fetchOllamaModels(endpoint: string): Promise<OllamaModelLi
   return invoke<OllamaModelList>('ai_ollama_models', { endpoint });
 }
 
+// ---------- Canvas Context ----------
+
+export interface CanvasContext {
+  document: {
+    width: number;
+    height: number;
+    activeFrameName: string;
+    activeLayerName: string | null;
+    packageName: string;
+  };
+  layers: Array<{
+    name: string;
+    visible: boolean;
+    locked: boolean;
+    opacity: number;
+    zIndex: number;
+  }>;
+  selection: { x: number; y: number; width: number; height: number } | null;
+  animation: {
+    frameCount: number;
+    activeFrameIndex: number;
+    frames: Array<{ name: string; durationMs: number | null }>;
+  };
+  history: {
+    canUndo: boolean;
+    canRedo: boolean;
+    undoDepth: number;
+    redoDepth: number;
+    recentTools: string[];
+  };
+  snapshotBase64: string | null;
+}
+
+export async function getCanvasContext(includeSnapshot: boolean = true): Promise<CanvasContext> {
+  return invoke<CanvasContext>('ai_get_canvas_context', { includeSnapshot });
+}
+
 export function formatModelSize(bytes: number): string {
   if (bytes === 0) return 'unknown';
   const gb = bytes / (1024 * 1024 * 1024);

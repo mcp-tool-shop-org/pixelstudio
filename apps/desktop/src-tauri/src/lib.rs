@@ -203,6 +203,7 @@ pub fn run() {
             ai::ai_comfyui_generate,
             ai::ai_comfyui_poll,
             ai::ai_comfyui_fetch_image,
+            ai::ai_get_canvas_context,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GlyphStudio");

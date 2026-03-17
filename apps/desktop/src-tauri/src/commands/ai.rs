@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
-use tauri::command;
+use tauri::{command, State};
 
+use crate::engine::canvas_state::ManagedCanvasState;
+use crate::engine::selection::ManagedSelectionState;
 use crate::errors::AppError;
 
 // ---------- Response types ----------
@@ -475,4 +477,203 @@ fn urlencoding(s: &str) -> String {
             _ => format!("%{:02X}", c as u32),
         })
         .collect()
+}
+
+// ---------- Canvas Context Assembly (Stage 46) ----------
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasContext {
+    pub document: DocumentMeta,
+    pub layers: Vec<ContextLayer>,
+    pub selection: Option<SelectionInfo>,
+    pub animation: AnimationInfo,
+    pub history: HistoryInfo,
+    pub snapshot_base64: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentMeta {
+    pub width: u32,
+    pub height: u32,
+    pub active_frame_name: String,
+    pub active_layer_name: Option<String>,
+    pub package_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextLayer {
+    pub name: String,
+    pub visible: bool,
+    pub locked: bool,
+    pub opacity: f32,
+    pub z_index: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectionInfo {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnimationInfo {
+    pub frame_count: usize,
+    pub active_frame_index: usize,
+    pub frames: Vec<FrameInfo>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameInfo {
+    pub name: String,
+    pub duration_ms: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryInfo {
+    pub can_undo: bool,
+    pub can_redo: bool,
+    pub undo_depth: usize,
+    pub redo_depth: usize,
+    pub recent_tools: Vec<String>,
+}
+
+/// Encode raw RGBA pixel data as a PNG and return base64.
+fn rgba_to_base64_png(data: &[u8], width: u32, height: u32) -> Result<String, AppError> {
+    let mut buf = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(std::io::Cursor::new(&mut buf), width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| AppError::Internal(format!("PNG header error: {e}")))?;
+        writer
+            .write_image_data(data)
+            .map_err(|e| AppError::Internal(format!("PNG write error: {e}")))?;
+    }
+    Ok(base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &buf,
+    ))
+}
+
+/// Assemble the full canvas context for LLM consumption.
+/// Returns structured metadata + optional base64 PNG snapshot of the current frame.
+#[command]
+pub fn ai_get_canvas_context(
+    include_snapshot: bool,
+    canvas_state: State<'_, ManagedCanvasState>,
+    selection_state: State<'_, ManagedSelectionState>,
+) -> Result<CanvasContext, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".into()))?;
+
+    let sel_guard = selection_state.0.lock().unwrap();
+
+    // Document meta
+    let active_layer_name = canvas.active_layer_id.as_ref().and_then(|lid| {
+        canvas.layers.iter().find(|l| &l.id == lid).map(|l| l.name.clone())
+    });
+
+    let document = DocumentMeta {
+        width: canvas.width,
+        height: canvas.height,
+        active_frame_name: canvas.active_frame_name().to_string(),
+        active_layer_name,
+        package_name: canvas.package_metadata.package_name.clone(),
+    };
+
+    // Layers (bottom-to-top z-order)
+    let layers: Vec<ContextLayer> = canvas
+        .layers
+        .iter()
+        .enumerate()
+        .map(|(i, l)| ContextLayer {
+            name: l.name.clone(),
+            visible: l.visible,
+            locked: l.locked,
+            opacity: l.opacity,
+            z_index: i,
+        })
+        .collect();
+
+    // Selection
+    let selection = sel_guard.selection.as_ref().map(|s| SelectionInfo {
+        x: s.x,
+        y: s.y,
+        width: s.width,
+        height: s.height,
+    });
+
+    // Animation
+    let frames: Vec<FrameInfo> = canvas
+        .frames
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            if i == canvas.active_frame_index {
+                // Active frame name comes from top-level state
+                FrameInfo {
+                    name: canvas.active_frame_name().to_string(),
+                    duration_ms: f.duration_ms,
+                }
+            } else {
+                FrameInfo {
+                    name: f.name.clone(),
+                    duration_ms: f.duration_ms,
+                }
+            }
+        })
+        .collect();
+
+    let animation = AnimationInfo {
+        frame_count: canvas.frames.len(),
+        active_frame_index: canvas.active_frame_index,
+        frames,
+    };
+
+    // History — extract last 10 unique tool names from undo stack
+    let recent_tools: Vec<String> = canvas
+        .undo_stack
+        .iter()
+        .rev()
+        .take(10)
+        .map(|s| s.tool.clone())
+        .collect();
+
+    let history = HistoryInfo {
+        can_undo: !canvas.undo_stack.is_empty(),
+        can_redo: !canvas.redo_stack.is_empty(),
+        undo_depth: canvas.undo_stack.len(),
+        redo_depth: canvas.redo_stack.len(),
+        recent_tools,
+    };
+
+    // Visual snapshot
+    let snapshot_base64 = if include_snapshot {
+        let frame_data = canvas.composite_frame();
+        Some(rgba_to_base64_png(&frame_data, canvas.width, canvas.height)?)
+    } else {
+        None
+    };
+
+    Ok(CanvasContext {
+        document,
+        layers,
+        selection,
+        animation,
+        history,
+        snapshot_base64,
+    })
 }
