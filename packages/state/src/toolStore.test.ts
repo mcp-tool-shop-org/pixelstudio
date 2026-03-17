@@ -11,6 +11,8 @@ describe('toolStore', () => {
       secondaryColor: { r: 0, g: 0, b: 0, a: 0 },
       primaryColorSlotId: null,
       secondaryColorSlotId: null,
+      recentColors: [],
+      pinnedColors: [],
       palettePopup: { open: false, screenX: 0, screenY: 0 },
     });
   });
@@ -75,6 +77,88 @@ describe('toolStore', () => {
     expect(useToolStore.getState().primaryColorSlotId).toBe('slot-1');
     useToolStore.getState().setPrimaryColor({ r: 0, g: 255, b: 0, a: 255 });
     expect(useToolStore.getState().primaryColorSlotId).toBeNull();
+  });
+
+  // --- Recent colors ---
+
+  it('recentColors starts empty', () => {
+    expect(useToolStore.getState().recentColors).toHaveLength(0);
+  });
+
+  it('setPrimaryColor pushes to recentColors', () => {
+    useToolStore.getState().setPrimaryColor({ r: 255, g: 0, b: 0, a: 255 });
+    expect(useToolStore.getState().recentColors).toHaveLength(1);
+    expect(useToolStore.getState().recentColors[0]).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+  });
+
+  it('setPrimaryColor deduplicates by rgb', () => {
+    useToolStore.getState().setPrimaryColor({ r: 255, g: 0, b: 0, a: 255 });
+    useToolStore.getState().setPrimaryColor({ r: 0, g: 255, b: 0, a: 255 });
+    useToolStore.getState().setPrimaryColor({ r: 255, g: 0, b: 0, a: 128 }); // same rgb, different alpha
+    // Dedup by rgb so only 2 entries: red moved to front, green remains
+    expect(useToolStore.getState().recentColors).toHaveLength(2);
+    expect(useToolStore.getState().recentColors[0].r).toBe(255);
+    expect(useToolStore.getState().recentColors[0].g).toBe(0);
+  });
+
+  it('recentColors is capped at 12', () => {
+    for (let i = 0; i < 20; i++) {
+      useToolStore.getState().setPrimaryColor({ r: i * 10, g: 0, b: 0, a: 255 });
+    }
+    expect(useToolStore.getState().recentColors).toHaveLength(12);
+  });
+
+  it('most recently set color is first in recentColors', () => {
+    useToolStore.getState().setPrimaryColor({ r: 10, g: 0, b: 0, a: 255 });
+    useToolStore.getState().setPrimaryColor({ r: 20, g: 0, b: 0, a: 255 });
+    expect(useToolStore.getState().recentColors[0].r).toBe(20);
+  });
+
+  it('pushRecentColor adds without changing primaryColor', () => {
+    const before = useToolStore.getState().primaryColor;
+    useToolStore.getState().pushRecentColor({ r: 100, g: 100, b: 100, a: 255 });
+    expect(useToolStore.getState().primaryColor).toEqual(before);
+    expect(useToolStore.getState().recentColors[0].r).toBe(100);
+  });
+
+  // --- Pinned colors ---
+
+  it('pinnedColors starts empty', () => {
+    expect(useToolStore.getState().pinnedColors).toHaveLength(0);
+  });
+
+  it('pinColor adds a color', () => {
+    useToolStore.getState().pinColor({ r: 50, g: 100, b: 150, a: 255 });
+    expect(useToolStore.getState().pinnedColors).toHaveLength(1);
+    expect(useToolStore.getState().pinnedColors[0]).toEqual({ r: 50, g: 100, b: 150, a: 255 });
+  });
+
+  it('pinColor ignores duplicates by rgb', () => {
+    useToolStore.getState().pinColor({ r: 50, g: 100, b: 150, a: 255 });
+    useToolStore.getState().pinColor({ r: 50, g: 100, b: 150, a: 128 }); // same rgb
+    expect(useToolStore.getState().pinnedColors).toHaveLength(1);
+  });
+
+  it('pinColor caps at 8', () => {
+    for (let i = 0; i < 12; i++) {
+      useToolStore.getState().pinColor({ r: i * 20, g: 0, b: 0, a: 255 });
+    }
+    expect(useToolStore.getState().pinnedColors).toHaveLength(8);
+  });
+
+  it('unpinColor removes by index', () => {
+    useToolStore.getState().pinColor({ r: 10, g: 0, b: 0, a: 255 });
+    useToolStore.getState().pinColor({ r: 20, g: 0, b: 0, a: 255 });
+    useToolStore.getState().unpinColor(0);
+    const s = useToolStore.getState();
+    expect(s.pinnedColors).toHaveLength(1);
+    expect(s.pinnedColors[0].r).toBe(20);
+  });
+
+  it('unpinColor with out-of-range index is a no-op that does not throw', () => {
+    useToolStore.getState().pinColor({ r: 10, g: 0, b: 0, a: 255 });
+    useToolStore.getState().unpinColor(99);
+    expect(useToolStore.getState().pinnedColors).toHaveLength(1);
   });
 
   // --- Palette popup ---

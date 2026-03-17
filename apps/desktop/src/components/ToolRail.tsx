@@ -3,6 +3,7 @@ import type { ToolId } from '@glyphstudio/domain';
 import { isSketchTool, TOOL_SHORTCUT_LABEL, SWAP_COLORS_BINDING } from '@glyphstudio/domain';
 import { useToolStore, useBrushSettingsStore } from '@glyphstudio/state';
 import { ColorPickerPopover } from './ColorPickerPopover';
+import { QuickPaletteStrip } from './QuickPaletteStrip';
 
 /** Tool definitions for UI layout. Shortcut display is derived from the manifest. */
 const TOOLS: { id: ToolId; label: string }[] = [
@@ -86,6 +87,7 @@ export function ToolRail() {
           />
         )}
       </div>
+      <QuickPaletteStrip />
     </aside>
   );
 }

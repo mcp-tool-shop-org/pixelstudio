@@ -17,12 +17,12 @@ describe('ToolRail', () => {
   afterEach(cleanup);
 
   describe('rendering', () => {
-    it('renders all 18 buttons (15 standard + 2 sketch + 1 swap)', () => {
+    it('renders all 19 buttons (15 standard + 2 sketch + 1 swap + 1 pin)', () => {
       seed();
       render(<ToolRail />);
       const buttons = screen.getAllByRole('button');
-      // 15 standard + 2 sketch tools + 1 swap-colors button
-      expect(buttons).toHaveLength(18);
+      // 15 standard + 2 sketch tools + 1 swap-colors button + 1 QuickPaletteStrip pin button
+      expect(buttons).toHaveLength(19);
     });
 
     it('tools with live+displayed manifest entries show shortcut badge', () => {
