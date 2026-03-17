@@ -390,6 +390,243 @@ pub fn fill_rect(
     Ok(build_frame(canvas))
 }
 
+// --- Template rendering (for AI copilot sprite generation) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderRegionInput {
+    /// Absolute pixel x offset on canvas.
+    pub x: u32,
+    /// Absolute pixel y offset on canvas.
+    pub y: u32,
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// Shape to rasterize: "rect", "ellipse", "triangle-up", "triangle-down", "diamond".
+    pub shape: String,
+    /// Fill color RGBA.
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+    /// Z-order for render sorting (higher = rendered later = on top).
+    pub z_order: i32,
+    /// Optional 1px outline color.
+    pub outline_r: Option<u8>,
+    pub outline_g: Option<u8>,
+    pub outline_b: Option<u8>,
+    pub outline_a: Option<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderConnectionInput {
+    /// Center of source region.
+    pub from_x: u32,
+    pub from_y: u32,
+    /// Center of destination region.
+    pub to_x: u32,
+    pub to_y: u32,
+    /// Bridge color RGBA.
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderTemplateInput {
+    pub regions: Vec<RenderRegionInput>,
+    pub connections: Vec<RenderConnectionInput>,
+    pub layer_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderTemplateResult {
+    pub region_count: u32,
+    pub connection_count: u32,
+    pub pixel_count: u32,
+}
+
+/// Check if a pixel is inside an ellipse inscribed in (0,0)-(w,h).
+fn in_ellipse(px: u32, py: u32, w: u32, h: u32) -> bool {
+    if w == 0 || h == 0 { return false; }
+    let cx = w as f64 / 2.0;
+    let cy = h as f64 / 2.0;
+    let dx = (px as f64 + 0.5 - cx) / cx;
+    let dy = (py as f64 + 0.5 - cy) / cy;
+    dx * dx + dy * dy <= 1.0
+}
+
+/// Check if a pixel is inside an upward-pointing triangle inscribed in (0,0)-(w,h).
+fn in_triangle_up(px: u32, py: u32, w: u32, h: u32) -> bool {
+    if w == 0 || h == 0 { return false; }
+    let fx = px as f64 + 0.5;
+    let fy = py as f64 + 0.5;
+    let hw = w as f64 / 2.0;
+    let fh = h as f64;
+    // Triangle: apex at (hw, 0), base from (0, h) to (w, h)
+    let t = fy / fh; // 0 at top, 1 at bottom
+    let half_width_at_y = hw * t;
+    fx >= (hw - half_width_at_y) && fx <= (hw + half_width_at_y)
+}
+
+/// Check if a pixel is inside a downward-pointing triangle inscribed in (0,0)-(w,h).
+fn in_triangle_down(px: u32, py: u32, w: u32, h: u32) -> bool {
+    if w == 0 || h == 0 { return false; }
+    let fx = px as f64 + 0.5;
+    let fy = py as f64 + 0.5;
+    let hw = w as f64 / 2.0;
+    let fh = h as f64;
+    // Triangle: base from (0, 0) to (w, 0), apex at (hw, h)
+    let t = fy / fh; // 0 at top, 1 at bottom
+    let half_width_at_y = hw * (1.0 - t);
+    fx >= (hw - half_width_at_y) && fx <= (hw + half_width_at_y)
+}
+
+/// Check if a pixel is inside a diamond inscribed in (0,0)-(w,h).
+fn in_diamond(px: u32, py: u32, w: u32, h: u32) -> bool {
+    if w == 0 || h == 0 { return false; }
+    let cx = w as f64 / 2.0;
+    let cy = h as f64 / 2.0;
+    let dx = ((px as f64 + 0.5) - cx).abs() / cx;
+    let dy = ((py as f64 + 0.5) - cy).abs() / cy;
+    dx + dy <= 1.0
+}
+
+/// Check if a pixel is on the 1px outline of a shape.
+fn on_outline(px: u32, py: u32, w: u32, h: u32, shape: &str) -> bool {
+    if w < 3 || h < 3 { return true; } // too small, all pixels are outline
+    // Border pixels
+    let is_border = px == 0 || py == 0 || px == w - 1 || py == h - 1;
+    match shape {
+        "rect" => is_border,
+        "ellipse" => {
+            // On the ellipse edge: inside but at least one neighbor is outside
+            if !in_ellipse(px, py, w, h) { return false; }
+            let check_outside = |dx: i32, dy: i32| {
+                let nx = px as i32 + dx;
+                let ny = py as i32 + dy;
+                if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                    return true;
+                }
+                !in_ellipse(nx as u32, ny as u32, w, h)
+            };
+            check_outside(-1, 0) || check_outside(1, 0) || check_outside(0, -1) || check_outside(0, 1)
+        }
+        _ => is_border, // simplified for triangles/diamond
+    }
+}
+
+/// Test if a local pixel (relative to region origin) is inside the shape.
+fn pixel_in_shape(px: u32, py: u32, w: u32, h: u32, shape: &str) -> bool {
+    match shape {
+        "rect" => true,
+        "ellipse" => in_ellipse(px, py, w, h),
+        "triangle-up" => in_triangle_up(px, py, w, h),
+        "triangle-down" => in_triangle_down(px, py, w, h),
+        "diamond" => in_diamond(px, py, w, h),
+        _ => true, // fallback to rect
+    }
+}
+
+#[command]
+pub fn render_template(
+    input: RenderTemplateInput,
+    state: State<'_, ManagedCanvasState>,
+) -> Result<RenderTemplateResult, AppError> {
+    let mut guard = state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let target_id = input.layer_id
+        .or_else(|| canvas.active_layer_id.clone())
+        .ok_or_else(|| AppError::Internal("No active layer".to_string()))?;
+
+    let layer = canvas.layers.iter_mut().find(|l| l.id == target_id)
+        .ok_or_else(|| AppError::Internal("Layer not found".to_string()))?;
+
+    if layer.locked {
+        return Err(AppError::Internal("Layer is locked".to_string()));
+    }
+
+    let mut pixel_count: u32 = 0;
+
+    // Sort regions by z_order (lower first = painted first = behind)
+    let mut sorted_regions = input.regions;
+    sorted_regions.sort_by_key(|r| r.z_order);
+
+    // Render connections first (they go behind regions)
+    for conn in &input.connections {
+        let color = Color::rgba(conn.r, conn.g, conn.b, conn.a);
+        // Bresenham-style thick line (2px wide)
+        let dx = (conn.to_x as i64) - (conn.from_x as i64);
+        let dy = (conn.to_y as i64) - (conn.from_y as i64);
+        let steps = dx.abs().max(dy.abs()).max(1);
+        for i in 0..=steps {
+            let t = i as f64 / steps as f64;
+            let cx = conn.from_x as f64 + dx as f64 * t;
+            let cy = conn.from_y as f64 + dy as f64 * t;
+            // 2px wide line
+            for ox in -1i32..=0 {
+                for oy in -1i32..=0 {
+                    let px = (cx as i32 + ox) as u32;
+                    let py = (cy as i32 + oy) as u32;
+                    if layer.buffer.in_bounds(px, py) {
+                        layer.buffer.set_pixel(px, py, &color);
+                        pixel_count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    // Render regions in z-order
+    for region in &sorted_regions {
+        let fill = Color::rgba(region.r, region.g, region.b, region.a);
+        let has_outline = region.outline_r.is_some();
+        let outline = if has_outline {
+            Color::rgba(
+                region.outline_r.unwrap_or(0),
+                region.outline_g.unwrap_or(0),
+                region.outline_b.unwrap_or(0),
+                region.outline_a.unwrap_or(255),
+            )
+        } else {
+            Color::TRANSPARENT
+        };
+
+        for ly in 0..region.height {
+            for lx in 0..region.width {
+                if !pixel_in_shape(lx, ly, region.width, region.height, &region.shape) {
+                    continue;
+                }
+                let px = region.x + lx;
+                let py = region.y + ly;
+                if !layer.buffer.in_bounds(px, py) {
+                    continue;
+                }
+                let color = if has_outline && on_outline(lx, ly, region.width, region.height, &region.shape) {
+                    &outline
+                } else {
+                    &fill
+                };
+                layer.buffer.set_pixel(px, py, color);
+                pixel_count += 1;
+            }
+        }
+    }
+
+    Ok(RenderTemplateResult {
+        region_count: sorted_regions.len() as u32,
+        connection_count: input.connections.len() as u32,
+        pixel_count,
+    })
+}
+
 // --- Helpers ---
 
 pub fn build_frame(canvas: &CanvasState) -> CanvasFrame {
