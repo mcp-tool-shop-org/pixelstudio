@@ -439,6 +439,20 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
     tauriCommand: 'compare_frames',
   },
 
+  // --- Batch frame operations ---
+  {
+    name: 'apply_to_all_frames',
+    description: 'Apply a set of tool calls to every frame in the animation. Provide the tool calls as a JSON array in the "calls" parameter. Each call is { name, arguments }. The system will switch to each frame and execute the calls sequentially.',
+    parameters: {
+      type: 'object',
+      properties: {
+        calls: { type: 'array', description: 'Array of { name, arguments } tool call objects to run on each frame' },
+      },
+      required: ['calls'],
+    },
+    tauriCommand: '__meta_batch_frames__',
+  },
+
   // --- Undo/Redo ---
   {
     name: 'undo',
@@ -517,6 +531,7 @@ export function getRelevantTools(context: {
   const FRAME_ALWAYS = new Set(['create_frame', 'duplicate_frame']);
   const FRAME_MULTI = new Set([
     'select_frame', 'set_frame_duration', 'delete_frame', 'rename_frame', 'compare_frames',
+    'apply_to_all_frames',
   ]);
 
   return TOOL_REGISTRY.filter((t) => {

@@ -8,7 +8,7 @@ import {
 
 describe('TOOL_REGISTRY', () => {
   it('has 22 tools', () => {
-    expect(TOOL_REGISTRY).toHaveLength(35);
+    expect(TOOL_REGISTRY).toHaveLength(36);
   });
 
   it('all tools have unique names', () => {
@@ -38,7 +38,7 @@ describe('TOOL_REGISTRY', () => {
 describe('toolsToOllamaFormat', () => {
   it('converts all tools to Ollama format', () => {
     const formatted = toolsToOllamaFormat();
-    expect(formatted).toHaveLength(35);
+    expect(formatted).toHaveLength(36);
     for (const t of formatted) {
       expect(t.type).toBe('function');
       expect(t.function.name).toBeTruthy();

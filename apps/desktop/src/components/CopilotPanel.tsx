@@ -38,6 +38,7 @@ export function CopilotPanel() {
   const [turnCount, setTurnCount] = useState(0);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const latestContextRef = useRef<CanvasContext | null>(null);
 
   // Check Ollama on mount
   useEffect(() => {
@@ -60,6 +61,7 @@ export function CopilotPanel() {
       const summary = `${ctx.document.width}x${ctx.document.height} | Frame ${ctx.animation.activeFrameIndex + 1}/${ctx.animation.frameCount} "${ctx.document.activeFrameName}" | Layers: ${layerNames || 'none'} | ${ctx.selection ? `Selection: ${ctx.selection.width}x${ctx.selection.height}` : 'No selection'}`;
       setContextSummary(summary);
       setSuggestions(generateSuggestions(ctx));
+      latestContextRef.current = ctx;
       return ctx;
     } catch {
       setContextSummary('No project open');
@@ -234,9 +236,12 @@ After tool results come back, you may call more tools or give a text summary. Ma
     if (!pendingOps) return;
     setState('executing');
 
+    const frameIds = latestContextRef.current?.animation.frames.map((f) => f.id) ?? [];
+    const toolContext = { frameIds };
+
     const results: ToolCallResult[] = [];
     for (const call of pendingOps.calls) {
-      const result = await executeToolCall(call);
+      const result = await executeToolCall(call, toolContext);
       results.push(result);
       if (!result.success) break;
     }

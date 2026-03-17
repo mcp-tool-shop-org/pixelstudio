@@ -26,8 +26,17 @@ export interface ToolCallResult {
  * Execute a single tool call against the live editor state.
  * Returns a structured result suitable for feeding back to the LLM.
  */
-export async function executeToolCall(call: ToolCallRequest): Promise<ToolCallResult> {
+export async function executeToolCall(
+  call: ToolCallRequest,
+  context?: { frameIds?: string[] },
+): Promise<ToolCallResult> {
   const start = Date.now();
+
+  // Handle meta-tool: apply_to_all_frames
+  if (call.name === 'apply_to_all_frames') {
+    return executeApplyToAllFrames(call, context, start);
+  }
+
   const tool = findTool(call.name);
 
   if (!tool) {
@@ -59,6 +68,81 @@ export async function executeToolCall(call: ToolCallRequest): Promise<ToolCallRe
       success: true,
       data,
       error: null,
+      durationMs: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Handle the apply_to_all_frames meta-tool.
+ * Parses the calls argument, gets frame IDs from context, and delegates to executeBatchAcrossFrames.
+ */
+async function executeApplyToAllFrames(
+  call: ToolCallRequest,
+  context: { frameIds?: string[] } | undefined,
+  start: number,
+): Promise<ToolCallResult> {
+  const rawCalls = call.arguments.calls;
+  if (!Array.isArray(rawCalls) || rawCalls.length === 0) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: 'apply_to_all_frames requires a non-empty "calls" array',
+      durationMs: Date.now() - start,
+    };
+  }
+
+  const frameIds = context?.frameIds;
+  if (!frameIds || frameIds.length === 0) {
+    return {
+      name: call.name,
+      success: false,
+      data: null,
+      error: 'No frame IDs available. Cannot apply to frames without canvas context.',
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // Validate each inner call
+  const innerCalls: ToolCallRequest[] = [];
+  for (const raw of rawCalls) {
+    if (!raw || typeof raw.name !== 'string') {
+      return {
+        name: call.name,
+        success: false,
+        data: null,
+        error: `Invalid inner call: each call must have a "name" string. Got: ${JSON.stringify(raw)}`,
+        durationMs: Date.now() - start,
+      };
+    }
+    innerCalls.push({ name: raw.name, arguments: raw.arguments ?? {} });
+  }
+
+  try {
+    const batchResults = await executeBatchAcrossFrames(frameIds, innerCalls, {
+      continueOnError: true,
+    });
+
+    const totalOps = batchResults.reduce((sum, fr) => sum + fr.results.length, 0);
+    const failedFrames = batchResults.filter((fr) => !fr.success).length;
+    const summary = failedFrames === 0
+      ? `Applied ${innerCalls.length} operation(s) to ${frameIds.length} frames (${totalOps} total ops)`
+      : `Applied to ${frameIds.length} frames, ${failedFrames} frame(s) had errors`;
+
+    return {
+      name: call.name,
+      success: failedFrames === 0,
+      data: { batchResults, totalOps, failedFrames },
+      error: failedFrames > 0 ? summary : null,
       durationMs: Date.now() - start,
     };
   } catch (err: unknown) {
@@ -127,6 +211,84 @@ export function parseToolCalls(message: {
   }
 
   return [];
+}
+
+/**
+ * Execute tool calls across multiple frames.
+ * Switches to each frame, runs the calls, then returns to the original frame.
+ *
+ * @param frameIds - Array of frame UUIDs to iterate over
+ * @param calls - Tool calls to execute on each frame
+ * @param onFrameResult - Optional callback after each frame completes
+ * @returns Results grouped by frame
+ */
+export interface FrameBatchResult {
+  frameId: string;
+  frameIndex: number;
+  results: ToolCallResult[];
+  success: boolean;
+}
+
+export async function executeBatchAcrossFrames(
+  frameIds: string[],
+  calls: ToolCallRequest[],
+  options: {
+    continueOnError?: boolean;
+    onFrameResult?: (result: FrameBatchResult) => void;
+  } = {},
+): Promise<FrameBatchResult[]> {
+  const batchResults: FrameBatchResult[] = [];
+
+  for (let i = 0; i < frameIds.length; i++) {
+    const frameId = frameIds[i];
+
+    // Switch to this frame
+    try {
+      await invoke('select_frame', { frameId });
+    } catch (err: unknown) {
+      const errorResult: FrameBatchResult = {
+        frameId,
+        frameIndex: i,
+        results: [{
+          name: 'select_frame',
+          success: false,
+          data: null,
+          error: `Failed to switch to frame: ${err instanceof Error ? err.message : String(err)}`,
+          durationMs: 0,
+        }],
+        success: false,
+      };
+      batchResults.push(errorResult);
+      options.onFrameResult?.(errorResult);
+      if (!options.continueOnError) break;
+      continue;
+    }
+
+    // Execute all calls on this frame
+    const frameResults: ToolCallResult[] = [];
+    let frameSuccess = true;
+    for (const call of calls) {
+      const result = await executeToolCall(call);
+      frameResults.push(result);
+      if (!result.success) {
+        frameSuccess = false;
+        if (!options.continueOnError) break;
+      }
+    }
+
+    const batchResult: FrameBatchResult = {
+      frameId,
+      frameIndex: i,
+      results: frameResults,
+      success: frameSuccess,
+    };
+    batchResults.push(batchResult);
+    options.onFrameResult?.(batchResult);
+
+    if (!frameSuccess && !options.continueOnError) break;
+  }
+
+  return batchResults;
 }
 
 /**
