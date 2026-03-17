@@ -33,7 +33,7 @@ GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. I
 
 ## Current Status
 
-GlyphStudio is a working desktop editor with 42 shipped stages, an MCP server with 76 programmable tools, and 3,445+ tests across Rust and TypeScript.
+GlyphStudio is a working desktop editor with 43 shipped stages, an MCP server with 76 programmable tools, and 3,445+ tests across Rust and TypeScript.
 
 ### Canvas Editor (Rust backend)
 - Deterministic pixel canvas with nearest-neighbor rendering
@@ -94,6 +94,13 @@ Pipeline: design vector master with reduction rules (exaggerate, space apart, va
 - **Regeneration** — re-rasterize from source vector master with dirty-edit confirmation safety, preserves source link across regeneration cycles
 
 Workflow: design in vector workspace → select size profiles → preview readability → hand off to sprite editor → pixel cleanup → regenerate if vector changes.
+
+### Vector Workflow Dogfood and Curves Decision (Stage 43)
+- **Three assets tested** — Templar Knight (humanoid, 25 shapes), Iron Lantern (prop, 19 shapes), Dire Wolf (creature, 27 shapes)
+- **Size recommendations** — humanoids → 32×48, props → 32×32, creatures → 48×48
+- **Full pipeline validated** — each asset went through vector master → multi-size reduction → best size choice → sprite handoff → cleanup → export
+- **Polygon-only assessment** — geometric designs (armor, metal, glass) have zero friction; organic forms (tail arcs, body curves, muscle bulges) require ~2× more points than curves but produce identical pixel output
+- **Curves decision: quadratic curves next** — friction is in authoring comfort, not output quality. Organic creatures need ~180 polygon points vs ~90 with curves. Stage 44 scope: QuadCurveGeometry type, curve drawing tool, curve-to-polygon flattening for rasterizer. No cubic Béziers, no path operations.
 
 ### Scene Compositor (frontend + Rust)
 - Scene composition with asset instances, z-ordering, visibility, opacity, parallax
