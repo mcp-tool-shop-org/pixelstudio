@@ -114,6 +114,11 @@ describe('toolStore', () => {
     expect(useToolStore.getState().recentColors[0].r).toBe(20);
   });
 
+  it('setSecondaryColor also pushes to recentColors', () => {
+    useToolStore.getState().setSecondaryColor({ r: 0, g: 128, b: 255, a: 255 });
+    expect(useToolStore.getState().recentColors[0]).toEqual({ r: 0, g: 128, b: 255, a: 255 });
+  });
+
   it('pushRecentColor adds without changing primaryColor', () => {
     const before = useToolStore.getState().primaryColor;
     useToolStore.getState().pushRecentColor({ r: 100, g: 100, b: 100, a: 255 });

@@ -18,10 +18,11 @@ interface SwatchProps {
   onPrimary: () => void;
   onSecondary: () => void;
   onRemove?: () => void;
+  onPin?: () => void;
   testId?: string;
 }
 
-function Swatch({ color, title, onPrimary, onSecondary, onRemove, testId }: SwatchProps) {
+function Swatch({ color, title, onPrimary, onSecondary, onRemove, onPin, testId }: SwatchProps) {
   return (
     <div
       className="qps-swatch-wrap"
@@ -32,6 +33,7 @@ function Swatch({ color, title, onPrimary, onSecondary, onRemove, testId }: Swat
         className="qps-swatch"
         style={{ backgroundColor: toRgb(color) }}
         onClick={(e) => { e.shiftKey ? onSecondary() : onPrimary(); }}
+        onContextMenu={(e) => { e.preventDefault(); onPin ? onPin() : onPrimary(); }}
         aria-label={title}
       />
       {onRemove && (
@@ -113,9 +115,10 @@ export function QuickPaletteStrip() {
               <Swatch
                 key={i}
                 color={c}
-                title={`rgb(${c.r},${c.g},${c.b})\nClick: set primary | Shift+click: set secondary`}
+                title={`rgb(${c.r},${c.g},${c.b})\nClick: set primary | Shift+click: set secondary | Right-click: pin`}
                 onPrimary={() => setPrimaryColor(c)}
                 onSecondary={() => setSecondaryColor(c)}
+                onPin={() => pinColor(c)}
                 testId={`qps-recent-${i}`}
               />
             ))}

@@ -64,7 +64,15 @@ export const useToolStore = create<ToolState>((set) => ({
       };
     }),
   setSecondaryColor: (color, slotId) =>
-    set({ secondaryColor: color, secondaryColorSlotId: slotId ?? null }),
+    set((s) => {
+      const key = colorKey(color);
+      const deduped = s.recentColors.filter((c) => colorKey(c) !== key);
+      return {
+        secondaryColor: color,
+        secondaryColorSlotId: slotId ?? null,
+        recentColors: [color, ...deduped].slice(0, RECENT_MAX),
+      };
+    }),
   swapColors: () =>
     set((s) => ({
       primaryColor: s.secondaryColor,

@@ -126,6 +126,18 @@ describe('QuickPaletteStrip', () => {
     });
   });
 
+  describe('right-click to pin from recent', () => {
+    it('right-clicking a recent swatch pins the color', async () => {
+      const user = userEvent.setup();
+      seedStore({ recentColors: [{ r: 33, g: 44, b: 55, a: 255 }] });
+      render(<QuickPaletteStrip />);
+      const swatch = screen.getByTestId('qps-recent-0').querySelector('.qps-swatch')!;
+      await user.pointer({ target: swatch, keys: '[MouseRight]' });
+      expect(useToolStore.getState().pinnedColors).toHaveLength(1);
+      expect(useToolStore.getState().pinnedColors[0]).toEqual({ r: 33, g: 44, b: 55, a: 255 });
+    });
+  });
+
   describe('both sections', () => {
     it('shows both pinned and recent sections together', () => {
       seedStore({
