@@ -49,7 +49,7 @@ describe('RightDock', () => {
       ['edit', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Assets']],
       ['animate', ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Properties', 'Palette', 'Locomotion']],
       ['palette', ['Palette Props', 'Validation']],
-      ['ai', ['AI Assist', 'Layers', 'Provenance']],
+      ['ai', ['AI Assist', 'AI Settings', 'Layers', 'Provenance']],
       ['locomotion', ['Locomotion', 'Layers', 'Validation']],
       ['validate', ['Validation', 'Properties', 'Provenance']],
       ['export', ['Export Settings']],

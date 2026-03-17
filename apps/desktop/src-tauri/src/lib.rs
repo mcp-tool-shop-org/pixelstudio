@@ -6,7 +6,7 @@ pub mod types;
 
 use std::sync::Mutex;
 
-use commands::{analysis, anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
+use commands::{ai, analysis, anchor, asset, bundle, canvas, clip, export, motion, preset, project, sandbox, scene, secondary_motion, selection, timeline};
 use engine::canvas_state::{ManagedCanvasState, ManagedProjectMeta};
 use engine::motion::ManagedMotionState;
 use engine::sandbox::ManagedSandboxState;
@@ -197,6 +197,9 @@ pub fn run() {
             scene::relink_scene_instance_to_source,
             scene::get_scene_provenance,
             scene::sync_scene_provenance,
+            ai::ai_ollama_status,
+            ai::ai_comfyui_status,
+            ai::ai_ollama_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GlyphStudio");
