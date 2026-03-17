@@ -16,6 +16,7 @@ export { useTranslationStore, TRANSLATION_RESOLUTIONS } from './translationStore
 export type { TranslationSession, TranslationResolution } from './translationStore';
 export { useVectorMasterStore } from './vectorMasterStore';
 export { useSizeProfileStore } from './sizeProfileStore';
+export { rasterizeVectorMaster, rasterizeShape, wouldShapeCollapse, transformPoint } from './vectorRasterize';
 export {
   nearestNeighborDownscale,
   countFilledPixels,
