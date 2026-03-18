@@ -1116,16 +1116,35 @@ export function Canvas() {
           return;
         }
 
-        // Ctrl+Shift+S — quick snapshot capture
+        // Ctrl+Shift+S — snapshot: range checkpoint if frames selected, else single-frame
         if (e.code === 'KeyS' && e.shiftKey) {
           e.preventDefault();
-          const fr = useCanvasFrameStore.getState().frame;
-          if (fr) {
-            const snaps = useSnapshotStore.getState().snapshots;
-            useSnapshotStore.getState().createSnapshot(
-              `Snapshot ${snaps.length + 1}`,
-              fr.width, fr.height, fr.data,
-            );
+          const tl = useTimelineStore.getState();
+          if (tl.selectedFrameIndices.length > 0) {
+            // Range snapshot
+            try {
+              const snapData = await invoke<Array<{ frameIndex: number; frameId: string; frameName: string; width: number; height: number; data: number[] }>>('snapshot_frame_range', {
+                frameIndices: tl.selectedFrameIndices,
+              });
+              const { useRangeSnapshotStore } = await import('@glyphstudio/state');
+              const checkpoints = useRangeSnapshotStore.getState().checkpoints;
+              const id = useRangeSnapshotStore.getState().createCheckpoint(
+                `Range ${checkpoints.length + 1} (${snapData.length} frames)`,
+                snapData,
+              );
+              toast.info(`Checkpoint saved: ${snapData.length} frames`);
+            } catch (err) { console.error('snapshot_frame_range failed:', err); }
+          } else {
+            // Single-frame snapshot (existing behavior)
+            const fr = useCanvasFrameStore.getState().frame;
+            if (fr) {
+              const snaps = useSnapshotStore.getState().snapshots;
+              useSnapshotStore.getState().createSnapshot(
+                `Snapshot ${snaps.length + 1}`,
+                fr.width, fr.height, fr.data,
+              );
+              toast.info('Snapshot captured');
+            }
           }
           return;
         }

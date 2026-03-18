@@ -109,6 +109,8 @@ export type { TransformPreviewData } from './selectionStore';
 export { useLayerStore } from './layerStore';
 export { useSnapshotStore } from './snapshotStore';
 export type { CanvasSnapshot } from './snapshotStore';
+export { useRangeSnapshotStore } from './rangeSnapshotStore';
+export type { RangeCheckpoint, FrameSnapshot } from './rangeSnapshotStore';
 export { useSliceStore } from './sliceStore';
 export type { SliceRegion } from './sliceStore';
 export { usePaletteStore } from './paletteStore';

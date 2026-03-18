@@ -224,6 +224,45 @@ pub fn duplicate_frame_at(
     Ok(build_timeline_state(canvas))
 }
 
+/// Snapshot composited RGBA data for a range of frames.
+/// Returns per-frame composited pixel data for comparison/checkpoint use.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameSnapshotData {
+    pub frame_index: usize,
+    pub frame_id: String,
+    pub frame_name: String,
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>,
+}
+
+#[command]
+pub fn snapshot_frame_range(
+    frame_indices: Vec<usize>,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<Vec<FrameSnapshotData>, AppError> {
+    let guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let mut snapshots = Vec::new();
+    for &idx in &frame_indices {
+        let data = canvas.composite_frame_at(idx)
+            .ok_or_else(|| AppError::Internal(format!("Frame index {} out of range", idx)))?;
+        let frame = &canvas.frames[idx];
+        snapshots.push(FrameSnapshotData {
+            frame_index: idx,
+            frame_id: frame.id.clone(),
+            frame_name: frame.name.clone(),
+            width: canvas.width,
+            height: canvas.height,
+            data,
+        });
+    }
+    Ok(snapshots)
+}
+
 /// Duplicate a range of frames, inserting copies right after the range.
 /// Switches to the first new frame.
 #[command]
