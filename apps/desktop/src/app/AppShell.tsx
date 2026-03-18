@@ -14,6 +14,7 @@ import { RecoveryPrompt } from '../components/RecoveryPrompt';
 import { TransformBar } from '../components/TransformBar';
 import { VectorWorkspace } from '../components/VectorWorkspace';
 import { VectorSourceBanner } from '../components/VectorSourceBanner';
+import { VariantBar } from '../components/VariantBar';
 import { EditorStatusBar } from '../components/EditorStatusBar';
 import { ToastStack } from '../components/ToastStack';
 import { ShortcutHelpOverlay } from '../components/ShortcutHelpOverlay';
@@ -163,6 +164,7 @@ export function AppShell() {
       <TopBar activeMode={mode} onModeChange={setMode} onShowHelp={() => setShowHelp(true)} onSave={handleSave} />
       {mode === 'edit' && <VectorSourceBanner />}
       <TransformBar />
+      <VariantBar />
       <div className="workspace-body">
         {mode === 'vector' ? (
           <VectorWorkspace />

@@ -7854,6 +7854,103 @@
   color: var(--text-primary);
 }
 
+/* ── Variant Bar ── */
+.variant-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 8px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.variant-bar.minimal {
+  padding: 2px 8px;
+}
+.variant-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.variant-tab:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.variant-tab.active {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.variant-tab-label {
+  cursor: default;
+}
+.variant-tab-input {
+  font-size: 11px;
+  padding: 0 2px;
+  background: var(--bg-input);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  color: var(--text-primary);
+  outline: none;
+  width: 80px;
+}
+.variant-tab-actions {
+  display: flex;
+  gap: 1px;
+}
+.variant-tab-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 10px;
+  padding: 1px;
+  line-height: 1;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+.variant-tab-btn:hover {
+  opacity: 1;
+}
+.variant-tab-btn.delete:hover {
+  color: var(--accent-error, #e84545);
+}
+.variant-bar-add-btn {
+  padding: 2px 8px;
+  font-size: 13px;
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.variant-bar-add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+.variant-bar-create-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.variant-bar-create-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 /* ── Parts Panel ── */
 .parts-panel {
   display: flex;
