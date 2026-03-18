@@ -20,7 +20,7 @@ Production workflows organized by what you are trying to accomplish.
 
 **Goal:** Create a smooth motion cycle.
 
-1. ProjectHome &rarr; **Animated Loop** recipe (32x32, 4 frames, 120ms)
+1. ProjectHome &rarr; **Animated Loop** recipe (32x32, 4 frames, 100ms)
 2. Draw frame 1
 3. `Ctrl+D` to duplicate frame, edit the next pose
 4. Enable onion skin for alignment across frames

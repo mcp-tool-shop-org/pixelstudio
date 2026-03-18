@@ -33,7 +33,7 @@ Preview uses the same exact RGBA mapping logic as commit. What you see is what y
 
 ### How remap works
 
-Remap is exact color matching — each source RGBA value maps to the corresponding position in the destination palette set. Transparency and alpha are preserved. Colors with no match in the destination palette are left unchanged and flagged visibly.
+Remap is exact color matching — each source RGBA value maps to the corresponding position in the destination palette set. Transparency and alpha are preserved. Colors with no match in the destination palette are left unchanged (passed through as-is).
 
 There is no heuristic recoloring. The mapping is deterministic and testable.
 
@@ -207,7 +207,7 @@ ProjectHome offers multiple start paths:
 Recipes are thin orchestration over existing start flows:
 
 - **Static Sprite** — 32×32 blank, palette-ready
-- **Animated Loop** — 32×32, 4 frames at 120ms, timeline visible
+- **Animated Loop** — 32×32, 4 frames at 100ms, timeline visible
 - **Variant Family** — variant-ready setup with palette support
 - **Asset Pack Project** — blank project with pack applied
 
@@ -235,9 +235,12 @@ GlyphStudio shows relevant keyboard shortcuts based on what you are doing. The s
 
 State-triggered hints surface the strongest next moves at the moment they become relevant:
 
-- First range selection → timing and batch transform hints
-- First animation frame → onion skin and compare hints
-- First stamp mode → placement and exit hints
-- First bundle export → scope and naming hints
+- First selection → promote to reusable part hint
+- Multiple frames added → onion skin hint
+- Palette preview active → apply/cancel hint
+- Variants exist → compare overlay hint
+- Stamp mode entered → placement hint
+- Multiple bundle outputs → scope and export hint
+- Parts in library → keyboard search hint
 
-Hints are dismissible, non-repeating, and never block work.
+Hints are dismissible, non-repeating (persisted across sessions), and never block work.
