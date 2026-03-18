@@ -1063,6 +1063,42 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+Alt+D — experiment: snapshot range → duplicate → compare mode
+        if (e.code === 'KeyD' && e.altKey && !e.shiftKey) {
+          const tl = useTimelineStore.getState();
+          if (tl.selectedFrameIndices.length === 0) return;
+          if (tl.playing) tl.setPlaying(false);
+          e.preventDefault();
+          try {
+            // 1. Snapshot the selected range
+            const snapData = await invoke<Array<{ frameIndex: number; frameId: string; frameName: string; width: number; height: number; data: number[] }>>('snapshot_frame_range', {
+              frameIndices: tl.selectedFrameIndices,
+            });
+            const rs = useRangeSnapshotStore.getState();
+            const cpCount = rs.checkpoints.length;
+            const cpId = rs.createCheckpoint(
+              `Experiment ${cpCount + 1} (${snapData.length} frames)`,
+              snapData,
+            );
+
+            // 2. Duplicate the range
+            const result = await invoke<TimelineResult>('duplicate_frame_range', {
+              frameIndices: tl.selectedFrameIndices,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            tl.clearFrameSelection();
+
+            // 3. Enter range compare mode against the checkpoint
+            rs.setCompareCheckpoint(cpId);
+            toast.info(`Experiment: ${snapData.length} frames duplicated · Shift+\` to compare originals`);
+          } catch (err) { console.error('experiment duplicate failed:', err); }
+          return;
+        }
+
         // Ctrl+Delete / Ctrl+Backspace — delete active frame
         if ((e.code === 'Delete' || e.code === 'Backspace') && !e.shiftKey) {
           const tl = useTimelineStore.getState();
