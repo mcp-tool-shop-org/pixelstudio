@@ -30,6 +30,8 @@ interface TimelineState {
 
   /** Frame range selection for batch operations (sorted indices). */
   selectedFrameIndices: number[];
+  /** Last batch transform applied (for repeat). */
+  lastBatchTransform: string | null;
 
   setFrames: (frames: FrameInfo[], activeId: string, activeIndex: number) => void;
   setActiveFrame: (id: string | null) => void;
@@ -44,6 +46,7 @@ interface TimelineState {
   setOnionSkinNextOpacity: (opacity: number) => void;
   setOnionSkinData: (data: OnionSkinData | null) => void;
 
+  setLastBatchTransform: (cmd: string) => void;
   /** Select a contiguous range from anchor to target (Shift+click). */
   selectFrameRange: (anchorIndex: number, targetIndex: number) => void;
   /** Toggle a single frame in/out of the selection (Ctrl+click). */
@@ -68,6 +71,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   onionSkinNextOpacity: 0.2,
   onionSkinData: null,
   selectedFrameIndices: [],
+  lastBatchTransform: null,
 
   setFrames: (frames, activeId, activeIndex) => set({ frames, activeFrameId: activeId, activeFrameIndex: activeIndex, onionSkinData: null }),
   setActiveFrame: (id) => set({ activeFrameId: id }),
@@ -81,6 +85,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setOnionSkinPrevOpacity: (opacity) => set({ onionSkinPrevOpacity: Math.max(0, Math.min(1, opacity)) }),
   setOnionSkinNextOpacity: (opacity) => set({ onionSkinNextOpacity: Math.max(0, Math.min(1, opacity)) }),
   setOnionSkinData: (data) => set({ onionSkinData: data }),
+  setLastBatchTransform: (cmd) => set({ lastBatchTransform: cmd }),
 
   selectFrameRange: (anchorIndex, targetIndex) => {
     const lo = Math.min(anchorIndex, targetIndex);

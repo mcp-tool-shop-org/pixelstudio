@@ -927,6 +927,7 @@ export function Canvas() {
             syncLayersFromFrame(result.frame);
             markDirty();
             invoke('mark_dirty').catch(() => {});
+            tl.setLastBatchTransform(batchCmd);
             const scope = tl.selectedFrameIndices.length > 0
               ? `${indices.length} frames`
               : `Frame ${tl.activeFrameIndex + 1}`;
@@ -1061,6 +1062,44 @@ export function Canvas() {
             invoke('mark_dirty').catch(() => {});
             toast.info(`Deleted → now Frame ${result.activeFrameIndex + 1}`);
           } catch (err) { console.error('delete_frame failed:', err); }
+          return;
+        }
+
+        // Ctrl+Shift+T — repeat last batch transform on selected range / current frame
+        // Ctrl+Alt+T — repeat last batch transform from current frame onward
+        if (e.code === 'KeyT' && (e.shiftKey || e.altKey) && !useSelectionStore.getState().isTransforming) {
+          const tl = useTimelineStore.getState();
+          if (!tl.lastBatchTransform) return;
+          e.preventDefault();
+          if (tl.playing) tl.setPlaying(false);
+
+          let indices: number[];
+          let scopeLabel: string;
+          if (e.altKey) {
+            // Current frame onward
+            indices = [];
+            for (let i = tl.activeFrameIndex; i < tl.frames.length; i++) indices.push(i);
+            scopeLabel = `frames ${tl.activeFrameIndex + 1}→${tl.frames.length}`;
+          } else if (tl.selectedFrameIndices.length > 0) {
+            indices = tl.selectedFrameIndices;
+            scopeLabel = `${indices.length} selected frames`;
+          } else {
+            indices = [tl.activeFrameIndex];
+            scopeLabel = `Frame ${tl.activeFrameIndex + 1}`;
+          }
+
+          try {
+            const result = await invoke<TimelineResult>('transform_frame_range', {
+              frameIndices: indices,
+              transform: tl.lastBatchTransform,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            toast.info(`Repeat ${tl.lastBatchTransform.replace('_', ' ')} → ${scopeLabel}`);
+          } catch (err) { console.error('repeat transform_frame_range failed:', err); }
           return;
         }
 
