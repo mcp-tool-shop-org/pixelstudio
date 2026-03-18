@@ -58,7 +58,9 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const clearFrameSelection = useTimelineStore((s) => s.clearFrameSelection);
 
   const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
+  const showMotionTrail = useCanvasViewStore((s) => s.showMotionTrail);
   const toggleSilhouette = useCanvasViewStore((s) => s.toggleOverlay);
+  const toggleMotionTrail = useCanvasViewStore((s) => s.toggleOverlay);
 
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const markDirty = useProjectStore((s) => s.markDirty);
@@ -601,6 +603,14 @@ export function BottomDock({ activeMode }: BottomDockProps) {
             onClick={() => toggleSilhouette('showSilhouette')}
           >
             Sil
+          </button>
+          <button
+            className={`timeline-btn ${showMotionTrail ? 'active' : ''}`}
+            title="Toggle motion trail — show centroid path across frames (M)"
+            onClick={() => toggleMotionTrail('showMotionTrail')}
+            disabled={frames.length <= 1}
+          >
+            Trail
           </button>
         </div>
         <div className="timeline-info">
