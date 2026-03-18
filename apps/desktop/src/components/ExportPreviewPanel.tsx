@@ -110,11 +110,39 @@ export function ExportPreviewPanel() {
     }
   }, [selectedFrameIndices]);
 
-  // Mark stale when scope inputs change
+  // Auto-preview with debounce when scope/layout inputs change
+  const autoPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (previewState === 'ready') setPreviewState('stale');
     setExportResult(null);
-  }, [scopeChoice, layoutChoice, selectedClipId, spanStart, spanEnd, activeFrameIndex]);
+    // Debounce 300ms to avoid hammering during rapid span changes
+    if (autoPreviewRef.current) clearTimeout(autoPreviewRef.current);
+    autoPreviewRef.current = setTimeout(() => {
+      // Only auto-preview if we have frames
+      if (frames.length > 0) {
+        const scope = (() => {
+          switch (scopeChoice) {
+            case 'current_frame': return { type: 'current_frame' as const };
+            case 'selected_span': return { type: 'selected_span' as const, start: spanStart - 1, end: spanEnd - 1 };
+            case 'current_clip': return { type: 'current_clip' as const, clipId: selectedClipId ?? '' };
+            case 'all_clips': return { type: 'all_clips' as const };
+          }
+        })();
+        const layout = (() => {
+          switch (layoutChoice) {
+            case 'horizontal_strip': return { type: 'horizontal_strip' as const };
+            case 'vertical_strip': return { type: 'vertical_strip' as const };
+            case 'grid': return { type: 'grid' as const, columns: null };
+          }
+        })();
+        setPreviewState('loading');
+        invoke<ExportPreviewResult>('preview_sprite_sheet_layout', { scope, layout })
+          .then((result) => { setPreview(result); setPreviewState('ready'); })
+          .catch((err) => { setErrorMsg(String(err)); setPreviewState('error'); });
+      }
+    }, 300);
+    return () => { if (autoPreviewRef.current) clearTimeout(autoPreviewRef.current); };
+  }, [scopeChoice, layoutChoice, selectedClipId, spanStart, spanEnd, activeFrameIndex, frames.length]);
 
   const buildScope = useCallback((): ExportScope => {
     switch (scopeChoice) {
