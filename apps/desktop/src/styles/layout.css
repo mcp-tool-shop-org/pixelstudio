@@ -7651,6 +7651,209 @@
   border: 1px solid var(--border-subtle);
 }
 
+/* ── Palette Sets Panel ── */
+.palette-sets-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: 11px;
+  height: 100%;
+}
+.palette-sets-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.palette-sets-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 11px;
+}
+.palette-sets-save-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: none;
+  border: 1px solid var(--accent-primary);
+  border-radius: 3px;
+  color: var(--accent-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.palette-sets-save-btn:hover {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.palette-sets-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 12px 8px;
+  font-size: 11px;
+}
+.palette-sets-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+}
+.palette-set-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.palette-set-row:hover {
+  background: var(--bg-surface);
+}
+.palette-set-row.active {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: -1px;
+}
+.palette-set-row.previewing {
+  background: rgba(74, 158, 255, 0.08);
+}
+.palette-set-swatches {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.palette-set-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  border: 1px solid var(--border-subtle);
+}
+.palette-set-swatch-more {
+  font-size: 8px;
+  color: var(--text-muted);
+  line-height: 10px;
+  padding-left: 2px;
+}
+.palette-set-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.palette-set-name {
+  flex: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.palette-set-name-input {
+  flex: 1;
+  font-size: 11px;
+  padding: 0 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--accent-primary);
+  border-radius: 2px;
+  color: var(--text-primary);
+  outline: none;
+}
+.palette-set-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.palette-set-badge.active-badge {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.palette-set-badge.preview-badge {
+  background: var(--accent-warning, #f0a030);
+  color: #000;
+}
+.palette-set-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.palette-set-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px;
+  line-height: 1;
+  border-radius: 2px;
+}
+.palette-set-action-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+.palette-set-action-btn.delete:hover {
+  color: var(--accent-error, #e84545);
+}
+.palette-sets-commit-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-panel-raised);
+}
+.palette-sets-scope {
+  display: flex;
+  gap: 12px;
+}
+.palette-sets-scope-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.palette-sets-scope-label input[type="radio"] {
+  margin: 0;
+}
+.palette-sets-commit-actions {
+  display: flex;
+  gap: 6px;
+}
+.palette-sets-commit-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+.palette-sets-commit-btn:hover {
+  filter: brightness(1.1);
+}
+.palette-sets-cancel-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.palette-sets-cancel-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
 /* ── Validation Panel ── */
 .validation-panel {
   display: flex;
