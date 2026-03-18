@@ -137,6 +137,7 @@ export function Canvas() {
     return liveFrame;
   }, [liveFrame, compareSnapshot, rangeCompareFrame]);
   const showMotionTrail = useCanvasViewStore((s) => s.showMotionTrail);
+  const [ghostTrailData, setGhostTrailData] = useState<Array<{ frameIndex: number; cx: number; cy: number; empty: boolean }> | null>(null);
   const motionTrailData = useCanvasViewStore((s) => s.motionTrailData);
   const setMotionTrailData = useCanvasViewStore((s) => s.setMotionTrailData);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
@@ -236,6 +237,7 @@ export function Canvas() {
 
   // Loop seam delta — compare first vs last frame
   const [seamDelta, setSeamDelta] = useState<{ changedPercent: number; changedPixelCount: number; identical: boolean } | null>(null);
+  const [seamBaseline, setSeamBaseline] = useState<number | null>(null); // saved "before" seam %
   useEffect(() => {
     if (!loopSeamMode || !canvasReady || frameCount <= 1) {
       setSeamDelta(null);
@@ -614,6 +616,40 @@ export function Canvas() {
       ctx.restore();
     }
 
+    // Ghost trail overlay (before-state for comparison)
+    if (showMotionTrail && ghostTrailData && ghostTrailData.length > 1) {
+      const viewState = useCanvasViewStore.getState();
+      const z = viewState.zoom;
+      const px = viewState.panX;
+      const py = viewState.panY;
+      const spriteW2 = canvasSize.width * z;
+      const spriteH2 = canvasSize.height * z;
+      const gox = Math.floor(w / 2 - spriteW2 / 2 + px);
+      const goy = Math.floor(h / 2 - spriteH2 / 2 + py);
+      const ghostNonEmpty = ghostTrailData.filter((p) => !p.empty);
+      if (ghostNonEmpty.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        ctx.moveTo(gox + ghostNonEmpty[0].cx * z, goy + ghostNonEmpty[0].cy * z);
+        for (let i = 1; i < ghostNonEmpty.length; i++) {
+          ctx.lineTo(gox + ghostNonEmpty[i].cx * z, goy + ghostNonEmpty[i].cy * z);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Small dots
+        for (const pt of ghostNonEmpty) {
+          ctx.beginPath();
+          ctx.arc(gox + pt.cx * z, goy + pt.cy * z, 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
     // Motion trail overlay — centroid path across frames
     if (showMotionTrail && motionTrailData && motionTrailData.length > 1) {
       const viewState = useCanvasViewStore.getState();
@@ -851,7 +887,7 @@ export function Canvas() {
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
   // zoom/panX/panY intentionally omitted — read imperatively inside render.
   // Pan/zoom changes trigger a direct scheduleRender subscription below.
-  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode, showMotionTrail, motionTrailData, loopSeamMode, loopSeamData]);
+  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode, showMotionTrail, motionTrailData, ghostTrailData, loopSeamMode, loopSeamData]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -1574,14 +1610,36 @@ export function Canvas() {
         return;
       }
 
-      // Toggle loop seam mode with L
-      if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      // Toggle loop seam mode with L; Shift+L saves seam baseline for comparison
+      if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        useTimelineStore.getState().toggleLoopSeamMode();
+        if (e.shiftKey) {
+          // Save current seam % as baseline, or clear if already set
+          if (seamBaseline !== null) {
+            setSeamBaseline(null);
+            toast.info('Seam baseline cleared');
+          } else if (seamDelta) {
+            setSeamBaseline(seamDelta.changedPercent);
+            toast.info(`Seam baseline saved: ${seamDelta.changedPercent.toFixed(1)}%`);
+          }
+        } else {
+          useTimelineStore.getState().toggleLoopSeamMode();
+        }
         return;
       }
 
-      // Toggle motion trail with M
+      // Toggle motion trail with M; Shift+M saves/clears ghost trail for before/after
+      if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey) {
+        e.preventDefault();
+        if (ghostTrailData) {
+          setGhostTrailData(null);
+          toast.info('Ghost trail cleared');
+        } else if (motionTrailData) {
+          setGhostTrailData([...motionTrailData]);
+          toast.info('Ghost trail saved — shows previous path');
+        }
+        return;
+      }
       if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         useCanvasViewStore.getState().toggleOverlay('showMotionTrail');
@@ -1700,8 +1758,11 @@ export function Canvas() {
           <span className="status-onion" title="M to toggle motion trail">trail</span>
         )}
         {loopSeamMode && frameCount > 1 && (
-          <span className="status-loop-seam" title={seamDelta ? `${seamDelta.changedPixelCount} pixels differ (${seamDelta.changedPercent.toFixed(1)}%) · L to toggle` : 'L to toggle loop seam'}>
+          <span className="status-loop-seam" title={seamDelta ? `${seamDelta.changedPixelCount}px differ (${seamDelta.changedPercent.toFixed(1)}%) · Shift+L to ${seamBaseline !== null ? 'clear' : 'save'} baseline` : 'L to toggle loop seam'}>
             seam{seamDelta ? (seamDelta.identical ? ' ✓' : ` ${seamDelta.changedPercent.toFixed(1)}%`) : ''}
+            {seamBaseline !== null && seamDelta && !seamDelta.identical && (
+              <> {seamDelta.changedPercent < seamBaseline ? '↓' : seamDelta.changedPercent > seamBaseline ? '↑' : '='}{Math.abs(seamDelta.changedPercent - seamBaseline).toFixed(1)}%</>
+            )}
           </span>
         )}
         {loopSeamMode && seamDelta && !seamDelta.identical && seamDelta.changedPercent > 5 && (
