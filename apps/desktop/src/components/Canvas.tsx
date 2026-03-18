@@ -1037,6 +1037,37 @@ export function Canvas() {
         }
       }
 
+      // Alt+1/2/3/4 — set hold ×1/2/3/4 on current frame or selected range
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const holdMap: Record<string, number> = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4 };
+        const holdN = holdMap[e.code];
+        if (holdN !== undefined) {
+          e.preventDefault();
+          const tl = useTimelineStore.getState();
+          if (tl.playing) tl.setPlaying(false);
+          const currentFps = tl.fps;
+          const baseDuration = Math.round(1000 / currentFps);
+          const durationMs = holdN === 1 ? null : baseDuration * holdN;
+          const indices = tl.selectedFrameIndices.length > 0
+            ? tl.selectedFrameIndices
+            : [tl.activeFrameIndex];
+          try {
+            const result = await invoke<TimelineResult>('set_frame_duration_range', {
+              frameIndices: indices,
+              durationMs: durationMs,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            const scope = indices.length > 1 ? `${indices.length} frames` : `Frame ${tl.activeFrameIndex + 1}`;
+            toast.info(holdN === 1 ? `Reset timing → ${scope}` : `Hold ×${holdN} → ${scope}`);
+          } catch (err) { console.error('set_frame_duration_range failed:', err); }
+          return;
+        }
+      }
+
       // Flip/rotate shortcuts during transform
       if (useSelectionStore.getState().isTransforming && !e.ctrlKey && !e.metaKey) {
         const transformCmd =

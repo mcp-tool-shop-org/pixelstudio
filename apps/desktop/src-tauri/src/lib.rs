@@ -90,6 +90,7 @@ pub fn run() {
             timeline::insert_frame_at,
             timeline::duplicate_frame_at,
             timeline::set_frame_duration,
+            timeline::set_frame_duration_range,
             timeline::transform_frame_range,
             timeline::duplicate_frame_range,
             timeline::snapshot_frame_range,

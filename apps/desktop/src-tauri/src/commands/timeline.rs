@@ -319,6 +319,25 @@ pub fn transform_frame_range(
     Ok(build_timeline_state(canvas))
 }
 
+/// Set per-frame duration on a range of frames by index.
+#[command]
+pub fn set_frame_duration_range(
+    frame_indices: Vec<usize>,
+    duration_ms: Option<u32>,
+    canvas_state: State<'_, ManagedCanvasState>,
+) -> Result<TimelineState, AppError> {
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    for &idx in &frame_indices {
+        if idx < canvas.frames.len() {
+            canvas.frames[idx].duration_ms = duration_ms;
+        }
+    }
+    Ok(build_timeline_state(canvas))
+}
+
 /// Set per-frame duration override. Pass null/None to clear.
 #[command]
 pub fn set_frame_duration(
