@@ -2221,5 +2221,58 @@ describe('spriteEditorStore', () => {
       expect(doc.variants).toHaveLength(3);
       expect(doc.variants!.map((v) => v.name)).toEqual(['Left', 'Right', 'Up']);
     });
+
+    it('setCompareVariant sets comparison target', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().setCompareVariant(id);
+      expect(useSpriteEditorStore.getState().compareVariantId).toBe(id);
+    });
+
+    it('setCompareVariant(null) clears comparison', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().setCompareVariant(id);
+      useSpriteEditorStore.getState().setCompareVariant(null);
+      expect(useSpriteEditorStore.getState().compareVariantId).toBeNull();
+    });
+
+    it('setCompareVariant rejects self-comparison', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+      useSpriteEditorStore.getState().setCompareVariant(id);
+      expect(useSpriteEditorStore.getState().compareVariantId).toBeNull();
+    });
+
+    it('setCompareVariant accepts "base" when editing a variant', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+      useSpriteEditorStore.getState().setCompareVariant('base');
+      expect(useSpriteEditorStore.getState().compareVariantId).toBe('base');
+    });
+
+    it('getCompareFrames returns base frames when comparing base', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+      useSpriteEditorStore.getState().setCompareVariant('base');
+      const frames = useSpriteEditorStore.getState().getCompareFrames();
+      expect(frames).toBe(useSpriteEditorStore.getState().document!.frames);
+    });
+
+    it('getCompareFrames returns variant frames when comparing a variant', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().setCompareVariant(id);
+      const frames = useSpriteEditorStore.getState().getCompareFrames();
+      expect(frames).toBe(useSpriteEditorStore.getState().document!.variants![0].frames);
+    });
+
+    it('getCompareFrames returns empty when no comparison active', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().getCompareFrames()).toEqual([]);
+    });
   });
 });

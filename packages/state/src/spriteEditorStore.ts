@@ -72,6 +72,8 @@ export interface SpriteEditorStoreState {
   previewPaletteSetId: string | null;
   /** ID of the part being stamped (null = not in stamp mode). */
   activeStampPartId: string | null;
+  /** ID of variant to compare against as ghost overlay (null = no comparison). */
+  compareVariantId: string | null;
 
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
@@ -166,6 +168,10 @@ export interface SpriteEditorStoreState {
   deleteVariant: (id: string) => void;
   /** Switch to a variant (or null for base sequence). */
   switchToVariant: (id: string | null) => void;
+  /** Set variant to compare against as ghost overlay (null to clear). */
+  setCompareVariant: (id: string | null) => void;
+  /** Get frames for the compare variant (for overlay rendering). */
+  getCompareFrames: () => SpriteFrame[];
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -252,6 +258,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   previewFrameIndex: 0,
   previewPaletteSetId: null,
   activeStampPartId: null,
+  compareVariantId: null,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -276,6 +283,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       previewFrameIndex: 0,
       previewPaletteSetId: null,
       activeStampPartId: null,
+      compareVariantId: null,
       zoom: 8,
       panX: 0,
       panY: 0,
@@ -297,6 +305,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       previewFrameIndex: 0,
       previewPaletteSetId: null,
       activeStampPartId: null,
+      compareVariantId: null,
       ...createDefaultSpriteEditorState(),
     });
   },
@@ -1032,6 +1041,26 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       activeFrameIndex: 0,
       activeLayerId: firstLayer,
     });
+  },
+
+  setCompareVariant: (id) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (id !== null) {
+      // Cannot compare against self
+      if (id === doc.activeVariantId) return;
+      // Must be a valid variant ID or 'base'
+      if (id !== 'base' && !(doc.variants ?? []).some((v) => v.id === id)) return;
+    }
+    set({ compareVariantId: id });
+  },
+
+  getCompareFrames: () => {
+    const { document: doc, compareVariantId } = get();
+    if (!doc || !compareVariantId) return [];
+    if (compareVariantId === 'base') return doc.frames;
+    const variant = (doc.variants ?? []).find((v) => v.id === compareVariantId);
+    return variant ? variant.frames : [];
   },
 
   // -- Selection --

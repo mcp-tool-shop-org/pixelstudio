@@ -7888,6 +7888,10 @@
   background: var(--accent-primary);
   color: #fff;
 }
+.variant-tab.comparing {
+  outline: 1px dashed var(--accent-warning, #f0a030);
+  outline-offset: -1px;
+}
 .variant-tab-label {
   cursor: default;
 }
@@ -7918,6 +7922,10 @@
 }
 .variant-tab-btn:hover {
   opacity: 1;
+}
+.variant-tab-btn.compare.active {
+  opacity: 1;
+  color: var(--accent-warning, #f0a030);
 }
 .variant-tab-btn.delete:hover {
   color: var(--accent-error, #e84545);
