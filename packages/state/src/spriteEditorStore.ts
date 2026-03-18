@@ -11,6 +11,7 @@ import type {
   SpriteColorGroup,
   SpriteSelectionRect,
   VectorSourceLink,
+  PaletteSet,
 } from '@glyphstudio/domain';
 import {
   createSpriteDocument,
@@ -18,6 +19,7 @@ import {
   createSpriteLayer,
   createBlankPixelBuffer,
   createDefaultSpriteEditorState,
+  generatePaletteSetId,
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
@@ -115,6 +117,18 @@ export interface SpriteEditorStoreState {
   renameColorGroup: (groupId: string, name: string) => void;
   deleteColorGroup: (groupId: string) => void;
   assignColorToGroup: (colorIndex: number, groupId: string | undefined) => void;
+
+  // -- Actions: Palette sets --
+  /** Save current palette colors as a new named palette set. */
+  createPaletteSet: (name: string) => string | null;
+  /** Rename an existing palette set. */
+  renamePaletteSet: (id: string, name: string) => void;
+  /** Duplicate a palette set with " (Copy)" suffix. */
+  duplicatePaletteSet: (id: string) => string | null;
+  /** Delete a palette set. Clears activePaletteSetId if it was the active one. */
+  deletePaletteSet: (id: string) => void;
+  /** Set the active palette set (or null for base palette). */
+  setActivePaletteSet: (id: string | null) => void;
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -669,6 +683,61 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (colorIndex < 0 || colorIndex >= doc.palette.colors.length) return;
     const colors = doc.palette.colors.map((c, i) => i === colorIndex ? { ...c, groupId } : c);
     set({ document: { ...doc, palette: { ...doc.palette, colors } } });
+  },
+
+  // -- Palette sets --
+  createPaletteSet: (name) => {
+    const { document: doc } = get();
+    if (!doc) return null;
+    const id = generatePaletteSetId();
+    const paletteSet: PaletteSet = {
+      id,
+      name,
+      colors: doc.palette.colors.map((c) => ({ ...c })),
+    };
+    const paletteSets = [...(doc.paletteSets ?? []), paletteSet];
+    set({ document: { ...doc, paletteSets, updatedAt: new Date().toISOString() }, dirty: true });
+    return id;
+  },
+
+  renamePaletteSet: (id, name) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const paletteSets = (doc.paletteSets ?? []).map((ps) =>
+      ps.id === id ? { ...ps, name } : ps,
+    );
+    set({ document: { ...doc, paletteSets, updatedAt: new Date().toISOString() }, dirty: true });
+  },
+
+  duplicatePaletteSet: (id) => {
+    const { document: doc } = get();
+    if (!doc) return null;
+    const source = (doc.paletteSets ?? []).find((ps) => ps.id === id);
+    if (!source) return null;
+    const newId = generatePaletteSetId();
+    const duplicate: PaletteSet = {
+      id: newId,
+      name: `${source.name} (Copy)`,
+      colors: source.colors.map((c) => ({ ...c })),
+    };
+    const paletteSets = [...(doc.paletteSets ?? []), duplicate];
+    set({ document: { ...doc, paletteSets, updatedAt: new Date().toISOString() }, dirty: true });
+    return newId;
+  },
+
+  deletePaletteSet: (id) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const paletteSets = (doc.paletteSets ?? []).filter((ps) => ps.id !== id);
+    const activePaletteSetId = doc.activePaletteSetId === id ? null : doc.activePaletteSetId;
+    set({ document: { ...doc, paletteSets, activePaletteSetId, updatedAt: new Date().toISOString() }, dirty: true });
+  },
+
+  setActivePaletteSet: (id) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (id !== null && !(doc.paletteSets ?? []).some((ps) => ps.id === id)) return;
+    set({ document: { ...doc, activePaletteSetId: id, updatedAt: new Date().toISOString() } });
   },
 
   // -- Selection --

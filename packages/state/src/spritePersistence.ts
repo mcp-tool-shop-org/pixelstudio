@@ -125,6 +125,14 @@ export function deserializeSpriteFile(
 
   const document = doc as SpriteDocument;
 
+  // Backward compatibility: default paletteSets for older files
+  if (!Array.isArray(document.paletteSets)) {
+    document.paletteSets = [];
+  }
+  if (document.activePaletteSetId === undefined) {
+    document.activePaletteSetId = null;
+  }
+
   // Basic document validation
   if (!document.id || typeof document.id !== 'string') {
     return { error: 'Document missing id' };

@@ -38,6 +38,14 @@ export interface SpriteColorGroup {
   name: string;
 }
 
+/** A named palette variant — a reusable set of colors for recoloring. */
+export interface PaletteSet {
+  id: string;
+  name: string;
+  /** Ordered color entries matching SpritePalette.colors structure. */
+  colors: SpriteColor[];
+}
+
 /** A sprite-local palette — flat ordered list of colors. */
 export interface SpritePalette {
   /** Ordered color entries. Index 0 is typically transparent. */
@@ -140,6 +148,10 @@ export interface SpriteDocument {
   frames: SpriteFrame[];
   /** Sprite-local palette. */
   palette: SpritePalette;
+  /** Named palette variants for recoloring workflows. */
+  paletteSets?: PaletteSet[];
+  /** ID of the currently active palette set, or null/undefined for base palette. */
+  activePaletteSetId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -247,6 +259,11 @@ export const DEFAULT_SPRITE_PALETTE: SpritePalette = {
   foregroundIndex: 1,
   backgroundIndex: 0,
 };
+
+/** Generate a unique palette set ID. */
+export function generatePaletteSetId(): string {
+  return `ps_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** Generate a unique sprite layer ID. */
 export function generateSpriteLayerId(): string {

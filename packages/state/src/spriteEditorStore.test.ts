@@ -1675,4 +1675,114 @@ describe('spriteEditorStore', () => {
       expect(useSpriteEditorStore.getState().selectionBuffer).toBeNull();
     });
   });
+
+  // ── Palette sets ──
+
+  describe('palette set CRUD', () => {
+    it('createPaletteSet saves current palette colors as a named set', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Warm');
+      expect(id).toBeTruthy();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets).toHaveLength(1);
+      expect(doc.paletteSets![0].name).toBe('Warm');
+      expect(doc.paletteSets![0].colors).toHaveLength(doc.palette.colors.length);
+      expect(doc.paletteSets![0].id).toBe(id);
+    });
+
+    it('createPaletteSet deep-copies colors (not a reference)', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().createPaletteSet('Copy');
+      const doc = useSpriteEditorStore.getState().document!;
+      // Mutate original palette — set should not change
+      doc.palette.colors[1].rgba = [99, 99, 99, 255];
+      const setColor = doc.paletteSets![0].colors[1].rgba;
+      expect(setColor).not.toEqual([99, 99, 99, 255]);
+    });
+
+    it('createPaletteSet returns null without a document', () => {
+      const id = useSpriteEditorStore.getState().createPaletteSet('Fail');
+      expect(id).toBeNull();
+    });
+
+    it('createPaletteSet marks document dirty', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().createPaletteSet('Dirty');
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('renamePaletteSet changes the name', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Old')!;
+      useSpriteEditorStore.getState().renamePaletteSet(id, 'New');
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets![0].name).toBe('New');
+    });
+
+    it('duplicatePaletteSet creates a copy with suffix', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Base')!;
+      const dupId = useSpriteEditorStore.getState().duplicatePaletteSet(id);
+      expect(dupId).toBeTruthy();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets).toHaveLength(2);
+      expect(doc.paletteSets![1].name).toBe('Base (Copy)');
+      expect(doc.paletteSets![1].id).toBe(dupId);
+      expect(doc.paletteSets![1].colors).toHaveLength(doc.paletteSets![0].colors.length);
+    });
+
+    it('duplicatePaletteSet returns null for non-existent id', () => {
+      openTestDoc();
+      const dupId = useSpriteEditorStore.getState().duplicatePaletteSet('bogus');
+      expect(dupId).toBeNull();
+    });
+
+    it('deletePaletteSet removes the set', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Delete me')!;
+      useSpriteEditorStore.getState().deletePaletteSet(id);
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets).toHaveLength(0);
+    });
+
+    it('deletePaletteSet clears activePaletteSetId if it was the active one', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Active')!;
+      useSpriteEditorStore.getState().setActivePaletteSet(id);
+      expect(useSpriteEditorStore.getState().document!.activePaletteSetId).toBe(id);
+      useSpriteEditorStore.getState().deletePaletteSet(id);
+      expect(useSpriteEditorStore.getState().document!.activePaletteSetId).toBeNull();
+    });
+
+    it('setActivePaletteSet sets the active palette set', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Set')!;
+      useSpriteEditorStore.getState().setActivePaletteSet(id);
+      expect(useSpriteEditorStore.getState().document!.activePaletteSetId).toBe(id);
+    });
+
+    it('setActivePaletteSet accepts null to clear', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Set')!;
+      useSpriteEditorStore.getState().setActivePaletteSet(id);
+      useSpriteEditorStore.getState().setActivePaletteSet(null);
+      expect(useSpriteEditorStore.getState().document!.activePaletteSetId).toBeNull();
+    });
+
+    it('setActivePaletteSet rejects unknown id', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().setActivePaletteSet('bogus');
+      expect(useSpriteEditorStore.getState().document!.activePaletteSetId).toBeUndefined();
+    });
+
+    it('multiple palette sets coexist', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().createPaletteSet('A');
+      useSpriteEditorStore.getState().createPaletteSet('B');
+      useSpriteEditorStore.getState().createPaletteSet('C');
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets).toHaveLength(3);
+      expect(doc.paletteSets!.map((ps) => ps.name)).toEqual(['A', 'B', 'C']);
+    });
+  });
 });

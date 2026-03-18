@@ -238,4 +238,42 @@ describe('spritePersistence', () => {
       if ('error' in result) expect(result.error).toContain('data length');
     });
   });
+
+  // ── Palette sets persistence ──
+
+  describe('palette sets persistence', () => {
+    it('roundtrips palette sets', () => {
+      const { doc, pixelBuffers } = makeTestDocWithBuffers();
+      doc.paletteSets = [
+        { id: 'ps1', name: 'Warm', colors: [{ rgba: [255, 128, 0, 255], name: 'Orange' }] },
+        { id: 'ps2', name: 'Cool', colors: [{ rgba: [0, 128, 255, 255], name: 'Sky' }] },
+      ];
+      doc.activePaletteSetId = 'ps1';
+
+      const json = serializeSpriteFile(doc, pixelBuffers);
+      const result = deserializeSpriteFile(json);
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.document.paletteSets).toHaveLength(2);
+      expect(result.document.paletteSets![0].name).toBe('Warm');
+      expect(result.document.paletteSets![1].name).toBe('Cool');
+      expect(result.document.activePaletteSetId).toBe('ps1');
+    });
+
+    it('defaults paletteSets to empty array for older files', () => {
+      const { doc, pixelBuffers } = makeTestDocWithBuffers();
+      const json = serializeSpriteFile(doc, pixelBuffers);
+      // Simulate older file without paletteSets
+      const parsed = JSON.parse(json);
+      delete parsed.document.paletteSets;
+      delete parsed.document.activePaletteSetId;
+      const result = deserializeSpriteFile(JSON.stringify(parsed));
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.document.paletteSets).toEqual([]);
+      expect(result.document.activePaletteSetId).toBeNull();
+    });
+  });
 });
