@@ -51,9 +51,9 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   loop: true,
   onionSkinEnabled: false,
   onionSkinShowPrev: true,
-  onionSkinShowNext: false,
-  onionSkinPrevOpacity: 0.25,
-  onionSkinNextOpacity: 0.15,
+  onionSkinShowNext: true,
+  onionSkinPrevOpacity: 0.3,
+  onionSkinNextOpacity: 0.2,
   onionSkinData: null,
 
   setFrames: (frames, activeId, activeIndex) => set({ frames, activeFrameId: activeId, activeFrameIndex: activeIndex, onionSkinData: null }),

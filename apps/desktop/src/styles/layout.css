@@ -296,6 +296,10 @@
   font-weight: 600;
 }
 
+.status-onion {
+  color: #a0c8ff;
+}
+
 .canvas-init-overlay {
   position: absolute;
   inset: 0;
@@ -1144,6 +1148,13 @@
   margin: 0;
   width: 12px;
   height: 12px;
+}
+
+.onion-opacity-slider {
+  width: 48px;
+  height: 12px;
+  cursor: pointer;
+  accent-color: var(--accent-primary, #64a0ff);
 }
 
 .transport-play {

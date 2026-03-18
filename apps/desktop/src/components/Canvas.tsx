@@ -1158,7 +1158,11 @@ export function Canvas() {
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}
-        {onionSkinEnabled && frameCount > 1 && <span title="O to toggle">onion</span>}
+        {onionSkinEnabled && frameCount > 1 && (
+          <span className="status-onion" title="O to toggle onion skin">
+            onion{onionSkinShowPrev && onionSkinShowNext ? ': prev+next' : onionSkinShowPrev ? ': prev' : onionSkinShowNext ? ': next' : ''}
+          </span>
+        )}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
         {compareSnapshotId && (

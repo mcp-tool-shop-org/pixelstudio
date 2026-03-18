@@ -48,6 +48,10 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const toggleOnionSkin = useTimelineStore((s) => s.toggleOnionSkin);
   const setOnionSkinShowPrev = useTimelineStore((s) => s.setOnionSkinShowPrev);
   const setOnionSkinShowNext = useTimelineStore((s) => s.setOnionSkinShowNext);
+  const onionSkinPrevOpacity = useTimelineStore((s) => s.onionSkinPrevOpacity);
+  const onionSkinNextOpacity = useTimelineStore((s) => s.onionSkinNextOpacity);
+  const setOnionSkinPrevOpacity = useTimelineStore((s) => s.setOnionSkinPrevOpacity);
+  const setOnionSkinNextOpacity = useTimelineStore((s) => s.setOnionSkinNextOpacity);
 
   const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
   const toggleSilhouette = useCanvasViewStore((s) => s.toggleOverlay);
@@ -456,14 +460,36 @@ export function BottomDock({ activeMode }: BottomDockProps) {
           </button>
           {onionSkinEnabled && (
             <>
-              <label className="onion-check" title="Show previous frame">
+              <label className="onion-check" title="Show previous frame (blue tint)">
                 <input type="checkbox" checked={onionSkinShowPrev} onChange={(e) => setOnionSkinShowPrev(e.target.checked)} />
                 prev
               </label>
-              <label className="onion-check" title="Show next frame">
+              {onionSkinShowPrev && (
+                <input
+                  type="range"
+                  className="onion-opacity-slider"
+                  min={0}
+                  max={100}
+                  value={Math.round(onionSkinPrevOpacity * 100)}
+                  onChange={(e) => setOnionSkinPrevOpacity(Number(e.target.value) / 100)}
+                  title={`Previous opacity: ${Math.round(onionSkinPrevOpacity * 100)}%`}
+                />
+              )}
+              <label className="onion-check" title="Show next frame (red tint)">
                 <input type="checkbox" checked={onionSkinShowNext} onChange={(e) => setOnionSkinShowNext(e.target.checked)} />
                 next
               </label>
+              {onionSkinShowNext && (
+                <input
+                  type="range"
+                  className="onion-opacity-slider"
+                  min={0}
+                  max={100}
+                  value={Math.round(onionSkinNextOpacity * 100)}
+                  onChange={(e) => setOnionSkinNextOpacity(Number(e.target.value) / 100)}
+                  title={`Next opacity: ${Math.round(onionSkinNextOpacity * 100)}%`}
+                />
+              )}
             </>
           )}
         </div>
