@@ -129,6 +129,18 @@ export interface SpriteOnionSkin {
   opacity: number;
 }
 
+// ── Variants ──
+
+/** A named document variant — a forked frame sequence for directional/pose work. */
+export interface DocumentVariant {
+  id: string;
+  name: string;
+  /** Forked frame sequence — independent from the base document's frames. */
+  frames: SpriteFrame[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Document ──
 
 /**
@@ -152,6 +164,10 @@ export interface SpriteDocument {
   paletteSets?: PaletteSet[];
   /** ID of the currently active palette set, or null/undefined for base palette. */
   activePaletteSetId?: string | null;
+  /** Named document variants (directional/pose forks). */
+  variants?: DocumentVariant[];
+  /** ID of the active variant being edited, or null for base sequence. */
+  activeVariantId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -259,6 +275,11 @@ export const DEFAULT_SPRITE_PALETTE: SpritePalette = {
   foregroundIndex: 1,
   backgroundIndex: 0,
 };
+
+/** Generate a unique document variant ID. */
+export function generateVariantId(): string {
+  return `var_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** Generate a unique palette set ID. */
 export function generatePaletteSetId(): string {

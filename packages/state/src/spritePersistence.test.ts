@@ -276,4 +276,54 @@ describe('spritePersistence', () => {
       expect(result.document.activePaletteSetId).toBeNull();
     });
   });
+
+  // ── Variants persistence ──
+
+  describe('variants persistence', () => {
+    it('defaults variants to empty array for older files', () => {
+      const { doc, pixelBuffers } = makeTestDocWithBuffers();
+      const json = serializeSpriteFile(doc, pixelBuffers);
+      const parsed = JSON.parse(json);
+      delete parsed.document.variants;
+      delete parsed.document.activeVariantId;
+      const result = deserializeSpriteFile(JSON.stringify(parsed));
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.document.variants).toEqual([]);
+      expect(result.document.activeVariantId).toBeNull();
+    });
+
+    it('roundtrips variants with pixel buffers', () => {
+      const { doc, pixelBuffers } = makeTestDocWithBuffers();
+      const variantLayerId = 'var-layer-1';
+      const variantBuf = createBlankPixelBuffer(4, 4);
+      setPixel(variantBuf, 2, 2, RED);
+      pixelBuffers[variantLayerId] = variantBuf;
+
+      doc.variants = [{
+        id: 'var1',
+        name: 'Walk Left',
+        frames: [{
+          id: 'vf1',
+          index: 0,
+          durationMs: 100,
+          layers: [{ id: variantLayerId, name: 'Layer 1', visible: true, index: 0 }],
+        }],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      }];
+      doc.activeVariantId = 'var1';
+
+      const json = serializeSpriteFile(doc, pixelBuffers);
+      const result = deserializeSpriteFile(json);
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.document.variants).toHaveLength(1);
+      expect(result.document.variants![0].name).toBe('Walk Left');
+      expect(result.document.activeVariantId).toBe('var1');
+      expect(samplePixel(result.pixelBuffers[variantLayerId], 2, 2)).toEqual(RED);
+    });
+  });
 });

@@ -132,6 +132,13 @@ export function deserializeSpriteFile(
   if (document.activePaletteSetId === undefined) {
     document.activePaletteSetId = null;
   }
+  // Backward compatibility: default variants for older files
+  if (!Array.isArray(document.variants)) {
+    document.variants = [];
+  }
+  if (document.activeVariantId === undefined) {
+    document.activeVariantId = null;
+  }
 
   // Basic document validation
   if (!document.id || typeof document.id !== 'string') {

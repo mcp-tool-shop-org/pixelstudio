@@ -12,6 +12,7 @@ import type {
   SpriteSelectionRect,
   VectorSourceLink,
   PaletteSet,
+  DocumentVariant,
 } from '@glyphstudio/domain';
 import {
   createSpriteDocument,
@@ -20,6 +21,7 @@ import {
   createBlankPixelBuffer,
   createDefaultSpriteEditorState,
   generatePaletteSetId,
+  generateVariantId,
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
@@ -150,6 +152,20 @@ export interface SpriteEditorStoreState {
   setActiveStampPart: (partId: string | null) => void;
   /** Stamp part pixels onto the active layer at (destX, destY). */
   stampPart: (pixelData: number[], partWidth: number, partHeight: number, destX: number, destY: number) => void;
+
+  // -- Actions: Variants --
+  /** Get the active frame sequence (base or active variant). */
+  getActiveFrames: () => SpriteFrame[];
+  /** Create a variant by forking the current active frame sequence. */
+  createVariant: (name: string) => string | null;
+  /** Rename a variant. */
+  renameVariant: (id: string, name: string) => void;
+  /** Duplicate a variant. */
+  duplicateVariant: (id: string) => string | null;
+  /** Delete a variant and its pixel buffers. */
+  deleteVariant: (id: string) => void;
+  /** Switch to a variant (or null for base sequence). */
+  switchToVariant: (id: string | null) => void;
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -864,6 +880,157 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       pixelBuffers: { ...pixelBuffers, [activeLayerId]: cloned },
       document: { ...doc, updatedAt: new Date().toISOString() },
       dirty: true,
+    });
+  },
+
+  // -- Variants --
+  getActiveFrames: () => {
+    const { document: doc } = get();
+    if (!doc) return [];
+    if (doc.activeVariantId) {
+      const variant = (doc.variants ?? []).find((v) => v.id === doc.activeVariantId);
+      if (variant) return variant.frames;
+    }
+    return doc.frames;
+  },
+
+  createVariant: (name) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return null;
+
+    const id = generateVariantId();
+    const now = new Date().toISOString();
+    const sourceFrames = get().getActiveFrames();
+
+    // Deep-copy frames with fresh layer IDs and clone pixel buffers
+    const newBuffers = { ...pixelBuffers };
+    const newFrames = sourceFrames.map((srcFrame, fi) => {
+      const newLayers = srcFrame.layers.map((srcLayer, li) => {
+        const layer = createSpriteLayer(li, srcLayer.name);
+        layer.visible = srcLayer.visible;
+        layer.sketch = srcLayer.sketch;
+        // Clone pixel buffer under new layer ID
+        const srcBuf = pixelBuffers[srcLayer.id];
+        newBuffers[layer.id] = srcBuf ? clonePixelBuffer(srcBuf) : createBlankPixelBuffer(doc.width, doc.height);
+        return layer;
+      });
+      return {
+        ...createSpriteFrame(fi, srcFrame.durationMs),
+        layers: newLayers,
+      };
+    });
+
+    const variant: DocumentVariant = { id, name, frames: newFrames, createdAt: now, updatedAt: now };
+    const variants = [...(doc.variants ?? []), variant];
+
+    set({
+      document: { ...doc, variants, updatedAt: now },
+      pixelBuffers: newBuffers,
+      dirty: true,
+    });
+    return id;
+  },
+
+  renameVariant: (id, name) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    const variants = (doc.variants ?? []).map((v) =>
+      v.id === id ? { ...v, name, updatedAt: new Date().toISOString() } : v,
+    );
+    set({ document: { ...doc, variants, updatedAt: new Date().toISOString() }, dirty: true });
+  },
+
+  duplicateVariant: (id) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return null;
+    const source = (doc.variants ?? []).find((v) => v.id === id);
+    if (!source) return null;
+
+    const newId = generateVariantId();
+    const now = new Date().toISOString();
+    const newBuffers = { ...pixelBuffers };
+
+    const newFrames = source.frames.map((srcFrame, fi) => {
+      const newLayers = srcFrame.layers.map((srcLayer, li) => {
+        const layer = createSpriteLayer(li, srcLayer.name);
+        layer.visible = srcLayer.visible;
+        layer.sketch = srcLayer.sketch;
+        const srcBuf = pixelBuffers[srcLayer.id];
+        newBuffers[layer.id] = srcBuf ? clonePixelBuffer(srcBuf) : createBlankPixelBuffer(doc.width, doc.height);
+        return layer;
+      });
+      return { ...createSpriteFrame(fi, srcFrame.durationMs), layers: newLayers };
+    });
+
+    const variant: DocumentVariant = {
+      id: newId,
+      name: `${source.name} (Copy)`,
+      frames: newFrames,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const variants = [...(doc.variants ?? []), variant];
+
+    set({
+      document: { ...doc, variants, updatedAt: now },
+      pixelBuffers: newBuffers,
+      dirty: true,
+    });
+    return newId;
+  },
+
+  deleteVariant: (id) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return;
+    const variant = (doc.variants ?? []).find((v) => v.id === id);
+    if (!variant) return;
+
+    // Remove variant's pixel buffers
+    const newBuffers = { ...pixelBuffers };
+    for (const frame of variant.frames) {
+      for (const layer of frame.layers) {
+        delete newBuffers[layer.id];
+      }
+    }
+
+    const variants = (doc.variants ?? []).filter((v) => v.id !== id);
+    const activeVariantId = doc.activeVariantId === id ? null : doc.activeVariantId;
+
+    // If we were editing the deleted variant, switch back to base
+    const switchingBack = doc.activeVariantId === id;
+    const baseFirstLayer = doc.frames[0]?.layers[0]?.id ?? null;
+
+    set({
+      document: { ...doc, variants, activeVariantId, updatedAt: new Date().toISOString() },
+      pixelBuffers: newBuffers,
+      dirty: true,
+      ...(switchingBack ? { activeFrameIndex: 0, activeLayerId: baseFirstLayer } : {}),
+    });
+  },
+
+  switchToVariant: (id) => {
+    const { document: doc } = get();
+    if (!doc) return;
+
+    if (id === null) {
+      // Switch to base
+      const firstLayer = doc.frames[0]?.layers[0]?.id ?? null;
+      set({
+        document: { ...doc, activeVariantId: null },
+        activeFrameIndex: 0,
+        activeLayerId: firstLayer,
+      });
+      return;
+    }
+
+    const variant = (doc.variants ?? []).find((v) => v.id === id);
+    if (!variant) return;
+
+    const firstLayer = variant.frames[0]?.layers[0]?.id ?? null;
+    set({
+      document: { ...doc, activeVariantId: id },
+      activeFrameIndex: 0,
+      activeLayerId: firstLayer,
     });
   },
 

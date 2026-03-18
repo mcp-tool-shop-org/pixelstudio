@@ -2090,4 +2090,136 @@ describe('spriteEditorStore', () => {
       expect(useSpriteEditorStore.getState().activeStampPartId).toBeNull();
     });
   });
+
+  // ── Document variants ──
+
+  describe('document variants', () => {
+    beforeEach(() => resetStore());
+
+    it('createVariant forks the current frame sequence', () => {
+      openTestDoc(4, 4);
+      const id = useSpriteEditorStore.getState().createVariant('Walk Left')!;
+      expect(id).toBeTruthy();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.variants).toHaveLength(1);
+      expect(doc.variants![0].name).toBe('Walk Left');
+      expect(doc.variants![0].frames).toHaveLength(doc.frames.length);
+    });
+
+    it('createVariant deep-copies pixel buffers with fresh layer IDs', () => {
+      openTestDoc(4, 4);
+      const lid = layerId(0);
+      const buf = useSpriteEditorStore.getState().pixelBuffers[lid];
+      setPixel(buf, 0, 0, [255, 0, 0, 255] as Rgba);
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      const varId = useSpriteEditorStore.getState().createVariant('Fork')!;
+      const doc = useSpriteEditorStore.getState().document!;
+      const variantLayerId = doc.variants![0].frames[0].layers[0].id;
+
+      // Different layer IDs
+      expect(variantLayerId).not.toBe(lid);
+      // Pixel data copied
+      const varBuf = useSpriteEditorStore.getState().pixelBuffers[variantLayerId];
+      expect(samplePixel(varBuf, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('createVariant returns null without document', () => {
+      expect(useSpriteEditorStore.getState().createVariant('x')).toBeNull();
+    });
+
+    it('renameVariant updates name', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Old')!;
+      useSpriteEditorStore.getState().renameVariant(id, 'New');
+      expect(useSpriteEditorStore.getState().document!.variants![0].name).toBe('New');
+    });
+
+    it('duplicateVariant creates a copy', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Original')!;
+      const dupId = useSpriteEditorStore.getState().duplicateVariant(id)!;
+      expect(dupId).toBeTruthy();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.variants).toHaveLength(2);
+      expect(doc.variants![1].name).toBe('Original (Copy)');
+    });
+
+    it('duplicateVariant returns null for unknown id', () => {
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().duplicateVariant('bogus')).toBeNull();
+    });
+
+    it('deleteVariant removes variant and its pixel buffers', () => {
+      openTestDoc(4, 4);
+      const id = useSpriteEditorStore.getState().createVariant('Delete Me')!;
+      const doc = useSpriteEditorStore.getState().document!;
+      const variantLayerId = doc.variants![0].frames[0].layers[0].id;
+      expect(useSpriteEditorStore.getState().pixelBuffers[variantLayerId]).toBeDefined();
+
+      useSpriteEditorStore.getState().deleteVariant(id);
+      expect(useSpriteEditorStore.getState().document!.variants).toHaveLength(0);
+      expect(useSpriteEditorStore.getState().pixelBuffers[variantLayerId]).toBeUndefined();
+    });
+
+    it('deleteVariant switches back to base if active variant is deleted', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Active')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+      expect(useSpriteEditorStore.getState().document!.activeVariantId).toBe(id);
+
+      useSpriteEditorStore.getState().deleteVariant(id);
+      expect(useSpriteEditorStore.getState().document!.activeVariantId).toBeNull();
+      expect(useSpriteEditorStore.getState().activeFrameIndex).toBe(0);
+    });
+
+    it('switchToVariant switches editor to variant frames', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.activeVariantId).toBe(id);
+      const activeFrames = useSpriteEditorStore.getState().getActiveFrames();
+      expect(activeFrames).toBe(doc.variants![0].frames);
+    });
+
+    it('switchToVariant(null) switches back to base', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createVariant('Left')!;
+      useSpriteEditorStore.getState().switchToVariant(id);
+      useSpriteEditorStore.getState().switchToVariant(null);
+
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.activeVariantId).toBeNull();
+      const activeFrames = useSpriteEditorStore.getState().getActiveFrames();
+      expect(activeFrames).toBe(doc.frames);
+    });
+
+    it('switchToVariant rejects unknown id', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().switchToVariant('bogus');
+      expect(useSpriteEditorStore.getState().document!.activeVariantId).toBeUndefined();
+    });
+
+    it('getActiveFrames returns base frames when no variant active', () => {
+      openTestDoc();
+      const frames = useSpriteEditorStore.getState().getActiveFrames();
+      expect(frames).toBe(useSpriteEditorStore.getState().document!.frames);
+    });
+
+    it('getActiveFrames returns empty array when no document', () => {
+      expect(useSpriteEditorStore.getState().getActiveFrames()).toEqual([]);
+    });
+
+    it('multiple variants coexist', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().createVariant('Left');
+      useSpriteEditorStore.getState().createVariant('Right');
+      useSpriteEditorStore.getState().createVariant('Up');
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.variants).toHaveLength(3);
+      expect(doc.variants!.map((v) => v.name)).toEqual(['Left', 'Right', 'Up']);
+    });
+  });
 });
