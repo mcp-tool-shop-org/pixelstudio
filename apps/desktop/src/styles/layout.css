@@ -300,6 +300,10 @@
   color: #a0c8ff;
 }
 
+.status-timing {
+  color: #e8a838;
+}
+
 .status-frame-range {
   color: #e8a838;
   font-weight: 600;
@@ -323,6 +327,12 @@
 .timeline-frame-counter {
   font-weight: 600;
   color: var(--text-primary, #e0e0e0);
+}
+
+.timeline-duration {
+  color: #e8a838;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .timeline-frame-name {

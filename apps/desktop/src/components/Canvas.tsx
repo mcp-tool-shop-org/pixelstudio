@@ -167,6 +167,14 @@ export function Canvas() {
   const activeFrameName = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.name ?? '');
   const frameCount = useTimelineStore((s) => s.frames.length);
   const selectedFrameCount = useTimelineStore((s) => s.selectedFrameIndices.length);
+  const timelineFps = useTimelineStore((s) => s.fps);
+  const activeFrameDurationMs = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.durationMs ?? null);
+
+  // Compute total sequence duration from authored timing
+  const totalDurationMs = useTimelineStore((s) => {
+    const baseDur = Math.round(1000 / s.fps);
+    return s.frames.reduce((sum, f) => sum + (f.durationMs ?? baseDur), 0);
+  });
   const playing = useTimelineStore((s) => s.playing);
   const onionSkinEnabled = useTimelineStore((s) => s.onionSkinEnabled);
   const onionSkinShowPrev = useTimelineStore((s) => s.onionSkinShowPrev);
@@ -1535,6 +1543,11 @@ export function Canvas() {
         {frameCount > 0 && (
           <span className="status-frame-indicator" title={frameCount > 1 ? ', / . to step · Ctrl+D to duplicate · O for onion skin' : 'Ctrl+D to duplicate frame'}>
             {frameCount > 1 ? `${activeFrameIndex + 1}/${frameCount} ${activeFrameName}` : '1 frame'}
+          </span>
+        )}
+        {frameCount > 1 && (
+          <span className="status-timing" title={`${timelineFps}fps · ${(totalDurationMs / 1000).toFixed(2)}s total${activeFrameDurationMs ? ` · this frame: ${activeFrameDurationMs}ms` : ''} · Alt+1/2/3/4 to set hold`}>
+            {(totalDurationMs / 1000).toFixed(1)}s{activeFrameDurationMs ? ` ×${Math.round(activeFrameDurationMs / (1000 / timelineFps))}` : ''}
           </span>
         )}
         {selectedFrameCount > 0 && (

@@ -632,6 +632,15 @@ export function BottomDock({ activeMode }: BottomDockProps) {
               {selectedFrameIndices.length} selected
             </span>
           )}
+          {frames.length > 1 && (
+            <span className="timeline-duration" title={`${fps}fps · Alt+1/2/3/4 for hold · Alt+[/] to compress/expand`}>
+              {(() => {
+                const baseDur = Math.round(1000 / fps);
+                const totalMs = frames.reduce((sum, f) => sum + (f.durationMs ?? baseDur), 0);
+                return `${(totalMs / 1000).toFixed(1)}s`;
+              })()}
+            </span>
+          )}
           {playing && <span className="playback-indicator">playing</span>}
         </div>
       </div>
