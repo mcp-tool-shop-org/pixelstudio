@@ -61,6 +61,7 @@ export function ExportPreviewPanel() {
 
   const frames = useTimelineStore((s) => s.frames);
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
+  const selectedFrameIndices = useTimelineStore((s) => s.selectedFrameIndices);
   const projectName = useProjectStore((s) => s.name);
   const markDirty = useProjectStore((s) => s.markDirty);
 
@@ -97,6 +98,17 @@ export function ExportPreviewPanel() {
       if (spanEnd > frames.length) setSpanEnd(frames.length);
     }
   }, [frames.length]);
+
+  // Sync timeline frame selection into export span
+  useEffect(() => {
+    if (selectedFrameIndices.length > 0) {
+      const min = Math.min(...selectedFrameIndices);
+      const max = Math.max(...selectedFrameIndices);
+      setSpanStart(min + 1); // 1-based
+      setSpanEnd(max + 1);
+      setScopeChoice('selected_span');
+    }
+  }, [selectedFrameIndices]);
 
   // Mark stale when scope inputs change
   useEffect(() => {
@@ -634,6 +646,21 @@ export function ExportPreviewPanel() {
             )}
           </div>
         )}
+
+        <div className="export-scope-truth">
+          {scopeChoice === 'current_frame' && (
+            <span>Will export: Frame {activeFrameIndex + 1} of {frames.length}</span>
+          )}
+          {scopeChoice === 'selected_span' && (
+            <span>Will export: Frames {spanStart}–{spanEnd} ({spanEnd - spanStart + 1} frame{spanEnd - spanStart !== 0 ? 's' : ''}){selectedFrameIndices.length > 0 ? ' (from timeline selection)' : ''}</span>
+          )}
+          {scopeChoice === 'current_clip' && selectedClipId && (
+            <span>Will export: {clips.find((c) => c.id === selectedClipId)?.name ?? 'clip'}</span>
+          )}
+          {scopeChoice === 'all_clips' && (
+            <span>Will export: All {clips.length} clip{clips.length !== 1 ? 's' : ''} ({frames.length} total frames)</span>
+          )}
+        </div>
 
         <div className="export-preview-row">
           <label className="export-label">Layout</label>

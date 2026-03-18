@@ -3543,6 +3543,14 @@
   font-size: 9px;
 }
 
+.export-scope-truth {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--accent-primary, #64a0ff);
+  background: rgba(100, 160, 255, 0.08);
+  border-radius: 3px;
+}
+
 /* --- Export Actions --- */
 
 .export-actions {
