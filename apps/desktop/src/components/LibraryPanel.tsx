@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
-import { buildLibraryIndex, filterLibraryItems, groupByKind } from '@glyphstudio/state';
-import type { LibraryItem, LibraryItemKind } from '@glyphstudio/state';
+import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority } from '@glyphstudio/state';
+import { useLibraryStore } from '@glyphstudio/state';
+import type { LibraryItem, LibraryItemKind, LibraryViewMode } from '@glyphstudio/state';
 import type { PartLibrary } from '@glyphstudio/domain';
 import { loadPartLibrary } from '../lib/partLibraryStorage';
 
@@ -24,7 +25,6 @@ function PartThumb({ item }: { item: LibraryItem }) {
     canvas.height = size;
     ctx.clearRect(0, 0, size, size);
 
-    // Checker
     for (let y = 0; y < size; y += 4) {
       for (let x = 0; x < size; x += 4) {
         ctx.fillStyle = ((x / 4 + y / 4) % 2 === 0) ? '#3a3a3a' : '#2a2a2a';
@@ -51,7 +51,6 @@ function PartThumb({ item }: { item: LibraryItem }) {
   return <canvas ref={canvasRef} className="lib-part-thumb" />;
 }
 
-/** Color swatch strip for a palette set. */
 function SwatchStrip({ colors, count }: { colors: [number, number, number, number][]; count: number }) {
   return (
     <div className="lib-swatch-strip">
@@ -65,10 +64,18 @@ function SwatchStrip({ colors, count }: { colors: [number, number, number, numbe
   );
 }
 
-function LibraryItemRow({ item, onClick }: { item: LibraryItem; onClick: () => void }) {
+function LibraryItemRow({
+  item,
+  onClick,
+  onTogglePin,
+}: {
+  item: LibraryItem;
+  onClick: () => void;
+  onTogglePin: () => void;
+}) {
   return (
     <div
-      className={`lib-item${item.isActive ? ' active' : ''}`}
+      className={`lib-item${item.isActive ? ' active' : ''}${item.isPinned ? ' pinned' : ''}`}
       onClick={onClick}
       data-testid={`lib-item-${item.id}`}
     >
@@ -88,6 +95,14 @@ function LibraryItemRow({ item, onClick }: { item: LibraryItem; onClick: () => v
         </span>
       </div>
       {item.isActive && <span className="lib-active-badge">Active</span>}
+      <button
+        className={`lib-pin-btn${item.isPinned ? ' pinned' : ''}`}
+        onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+        title={item.isPinned ? 'Unpin' : 'Pin'}
+        data-testid={`lib-pin-${item.id}`}
+      >
+        {item.isPinned ? '\u2759' : '\u25CB'}
+      </button>
     </div>
   );
 }
@@ -96,12 +111,14 @@ function LibrarySection({
   title,
   items,
   onItemClick,
+  onTogglePin,
   collapsed,
   onToggle,
 }: {
   title: string;
   items: LibraryItem[];
   onItemClick: (item: LibraryItem) => void;
+  onTogglePin: (id: string) => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -117,10 +134,43 @@ function LibrarySection({
       {!collapsed && (
         <div className="lib-section-list">
           {items.map((item) => (
-            <LibraryItemRow key={item.id} item={item} onClick={() => onItemClick(item)} />
+            <LibraryItemRow
+              key={item.id}
+              item={item}
+              onClick={() => onItemClick(item)}
+              onTogglePin={() => onTogglePin(item.id)}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Flat list for Recent/Pinned view modes. */
+function FlatList({
+  items,
+  onItemClick,
+  onTogglePin,
+}: {
+  items: LibraryItem[];
+  onItemClick: (item: LibraryItem) => void;
+  onTogglePin: (id: string) => void;
+}) {
+  if (items.length === 0) {
+    return <div className="lib-empty">Nothing here yet.</div>;
+  }
+
+  return (
+    <div className="lib-flat-list">
+      {items.map((item) => (
+        <LibraryItemRow
+          key={item.id}
+          item={item}
+          onClick={() => onItemClick(item)}
+          onTogglePin={() => onTogglePin(item.id)}
+        />
+      ))}
     </div>
   );
 }
@@ -135,6 +185,13 @@ export function LibraryPanel() {
   const activePaletteSetId = doc?.activePaletteSetId ?? null;
   const activeVariantId = doc?.activeVariantId ?? null;
 
+  const pinnedIds = useLibraryStore((s) => s.pinnedIds);
+  const recentIds = useLibraryStore((s) => s.recentIds);
+  const viewMode = useLibraryStore((s) => s.viewMode);
+  const pushRecent = useLibraryStore((s) => s.pushRecent);
+  const togglePin = useLibraryStore((s) => s.togglePin);
+  const setViewMode = useLibraryStore((s) => s.setViewMode);
+
   const [partLibrary] = useState<PartLibrary>(() => loadPartLibrary());
   const [query, setQuery] = useState('');
   const [activeKinds, setActiveKinds] = useState<Set<LibraryItemKind>>(
@@ -143,8 +200,8 @@ export function LibraryPanel() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const allItems = useMemo(
-    () => buildLibraryIndex(doc, partLibrary, activeStampPartId, activePaletteSetId, activeVariantId),
-    [doc, partLibrary, activeStampPartId, activePaletteSetId, activeVariantId],
+    () => buildLibraryIndex(doc, partLibrary, activeStampPartId, activePaletteSetId, activeVariantId, pinnedIds, recentIds),
+    [doc, partLibrary, activeStampPartId, activePaletteSetId, activeVariantId, pinnedIds, recentIds],
   );
 
   const filtered = useMemo(
@@ -152,13 +209,30 @@ export function LibraryPanel() {
     [allItems, query, activeKinds],
   );
 
-  const groups = useMemo(() => groupByKind(filtered), [filtered]);
+  const sortedFiltered = useMemo(() => sortWithPriority(filtered), [filtered]);
+
+  const groups = useMemo(() => groupByKind(sortedFiltered), [sortedFiltered]);
+
+  // View-mode filtered lists
+  const recentItems = useMemo(
+    () => {
+      // Maintain recent order from recentIds
+      const itemMap = new Map(allItems.map((i) => [i.id, i]));
+      return recentIds.map((id) => itemMap.get(id)).filter((i): i is LibraryItem => !!i);
+    },
+    [allItems, recentIds],
+  );
+
+  const pinnedItems = useMemo(
+    () => allItems.filter((i) => i.isPinned),
+    [allItems],
+  );
 
   const toggleKind = useCallback((kind: LibraryItemKind) => {
     setActiveKinds((prev) => {
       const next = new Set(prev);
       if (next.has(kind)) {
-        if (next.size > 1) next.delete(kind); // keep at least one active
+        if (next.size > 1) next.delete(kind);
       } else {
         next.add(kind);
       }
@@ -175,6 +249,7 @@ export function LibraryPanel() {
   }, []);
 
   const handleItemClick = useCallback((item: LibraryItem) => {
+    pushRecent(item.id);
     switch (item.kind) {
       case 'part':
         setActiveStampPart(activeStampPartId === item.id ? null : item.id);
@@ -186,7 +261,7 @@ export function LibraryPanel() {
         switchToVariant(activeVariantId === item.id ? null : item.id);
         break;
     }
-  }, [setActiveStampPart, previewPaletteSet, switchToVariant, activeStampPartId, activeVariantId]);
+  }, [setActiveStampPart, previewPaletteSet, switchToVariant, activeStampPartId, activeVariantId, pushRecent]);
 
   if (!doc) {
     return (
@@ -212,23 +287,43 @@ export function LibraryPanel() {
         />
       </div>
 
-      {/* Type filters */}
-      <div className="lib-filters">
-        {(['part', 'palette-set', 'variant'] as LibraryItemKind[]).map((kind) => (
-          <button
-            key={kind}
-            className={`lib-filter-btn${activeKinds.has(kind) ? ' active' : ''}`}
-            onClick={() => toggleKind(kind)}
-            data-testid={`lib-filter-${kind}`}
-          >
-            {kind === 'part' ? 'Parts' : kind === 'palette-set' ? 'Palettes' : 'Variants'}
-          </button>
-        ))}
+      {/* View mode + Type filters */}
+      <div className="lib-toolbar">
+        <div className="lib-view-modes">
+          {(['all', 'recent', 'pinned'] as LibraryViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              className={`lib-view-btn${viewMode === mode ? ' active' : ''}`}
+              onClick={() => setViewMode(mode)}
+              data-testid={`lib-view-${mode}`}
+            >
+              {mode === 'all' ? 'All' : mode === 'recent' ? 'Recent' : 'Pinned'}
+            </button>
+          ))}
+        </div>
+        {viewMode === 'all' && (
+          <div className="lib-filters">
+            {(['part', 'palette-set', 'variant'] as LibraryItemKind[]).map((kind) => (
+              <button
+                key={kind}
+                className={`lib-filter-btn${activeKinds.has(kind) ? ' active' : ''}`}
+                onClick={() => toggleKind(kind)}
+                data-testid={`lib-filter-${kind}`}
+              >
+                {kind === 'part' ? 'Parts' : kind === 'palette-set' ? 'Palettes' : 'Variants'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Sections */}
+      {/* Content */}
       {totalCount === 0 ? (
         <div className="lib-empty">No authored assets yet.</div>
+      ) : viewMode === 'recent' ? (
+        <FlatList items={recentItems} onItemClick={handleItemClick} onTogglePin={togglePin} />
+      ) : viewMode === 'pinned' ? (
+        <FlatList items={pinnedItems} onItemClick={handleItemClick} onTogglePin={togglePin} />
       ) : filtered.length === 0 ? (
         <div className="lib-empty">No matches.</div>
       ) : (
@@ -237,6 +332,7 @@ export function LibraryPanel() {
             title="Parts"
             items={groups['part']}
             onItemClick={handleItemClick}
+            onTogglePin={togglePin}
             collapsed={collapsedSections.has('Parts')}
             onToggle={() => toggleSection('Parts')}
           />
@@ -244,6 +340,7 @@ export function LibraryPanel() {
             title="Palette Sets"
             items={groups['palette-set']}
             onItemClick={handleItemClick}
+            onTogglePin={togglePin}
             collapsed={collapsedSections.has('Palette Sets')}
             onToggle={() => toggleSection('Palette Sets')}
           />
@@ -251,6 +348,7 @@ export function LibraryPanel() {
             title="Variants"
             items={groups['variant']}
             onItemClick={handleItemClick}
+            onTogglePin={togglePin}
             collapsed={collapsedSections.has('Variants')}
             onToggle={() => toggleSection('Variants')}
           />

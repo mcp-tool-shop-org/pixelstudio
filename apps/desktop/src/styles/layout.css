@@ -7884,11 +7884,36 @@
 .lib-search-input:focus {
   border-color: var(--accent-primary);
 }
-.lib-filters {
+.lib-toolbar {
   display: flex;
+  flex-direction: column;
   gap: 4px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--border-subtle);
+}
+.lib-view-modes {
+  display: flex;
+  gap: 2px;
+}
+.lib-view-btn {
+  flex: 1;
+  padding: 3px 4px;
+  font-size: 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.lib-view-btn:first-child { border-radius: 3px 0 0 3px; }
+.lib-view-btn:last-child { border-radius: 0 3px 3px 0; }
+.lib-view-btn.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+.lib-filters {
+  display: flex;
+  gap: 4px;
 }
 .lib-filter-btn {
   padding: 2px 8px;
@@ -8016,6 +8041,37 @@
 .lib-item-meta {
   font-size: 9px;
   color: var(--text-muted);
+}
+.lib-pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px;
+  line-height: 1;
+  border-radius: 2px;
+  opacity: 0.3;
+  flex-shrink: 0;
+}
+.lib-pin-btn:hover {
+  opacity: 0.8;
+}
+.lib-pin-btn.pinned {
+  opacity: 1;
+  color: var(--accent-primary);
+}
+.lib-item.pinned {
+  border-left: 2px solid var(--accent-primary);
+  padding-left: 18px;
+}
+.lib-flat-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
 }
 .lib-active-badge {
   font-size: 8px;

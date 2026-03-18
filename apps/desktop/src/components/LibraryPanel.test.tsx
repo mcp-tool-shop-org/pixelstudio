@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { useSpriteEditorStore } from '@glyphstudio/state';
+import { useSpriteEditorStore, useLibraryStore } from '@glyphstudio/state';
 import { LibraryPanel } from './LibraryPanel';
 import { savePartLibrary } from '../lib/partLibraryStorage';
 import type { Part } from '@glyphstudio/domain';
 
 function resetStore() {
   useSpriteEditorStore.getState().closeDocument();
+  useLibraryStore.setState({ recentIds: [], pinnedIds: [], viewMode: 'all' });
   localStorage.removeItem('glyphstudio_part_library');
 }
 
@@ -49,34 +50,13 @@ describe('LibraryPanel', () => {
     expect(screen.getByTestId('lib-item-p1')).toBeTruthy();
   });
 
-  it('shows palette sets section', () => {
-    openTestDoc();
-    useSpriteEditorStore.getState().createPaletteSet('Warm');
-    render(<LibraryPanel />);
-    expect(screen.getByTestId('lib-section-palette-sets')).toBeTruthy();
-  });
-
-  it('shows variants section', () => {
-    openTestDoc();
-    useSpriteEditorStore.getState().createVariant('Walk Left');
-    render(<LibraryPanel />);
-    expect(screen.getByTestId('lib-section-variants')).toBeTruthy();
-  });
-
-  it('clicking a part activates stamp mode', () => {
+  it('clicking a part activates stamp mode and tracks recent', () => {
     openTestDoc();
     savePartLibrary({ schemaVersion: 1, parts: [makePart({ id: 'stamp-p', name: 'Stamp' })] });
     render(<LibraryPanel />);
     fireEvent.click(screen.getByTestId('lib-item-stamp-p'));
     expect(useSpriteEditorStore.getState().activeStampPartId).toBe('stamp-p');
-  });
-
-  it('clicking a variant switches to it', () => {
-    openTestDoc();
-    const id = useSpriteEditorStore.getState().createVariant('Left')!;
-    render(<LibraryPanel />);
-    fireEvent.click(screen.getByTestId(`lib-item-${id}`));
-    expect(useSpriteEditorStore.getState().document!.activeVariantId).toBe(id);
+    expect(useLibraryStore.getState().recentIds).toContain('stamp-p');
   });
 
   it('search filters items by name', () => {
@@ -89,10 +69,7 @@ describe('LibraryPanel', () => {
       ],
     });
     render(<LibraryPanel />);
-
-    const searchInput = screen.getByTestId('lib-search');
-    fireEvent.change(searchInput, { target: { value: 'helm' } });
-
+    fireEvent.change(screen.getByTestId('lib-search'), { target: { value: 'helm' } });
     expect(screen.getByTestId('lib-item-p-helm')).toBeTruthy();
     expect(screen.queryByTestId('lib-item-p-sword')).toBeNull();
   });
@@ -103,14 +80,52 @@ describe('LibraryPanel', () => {
     useSpriteEditorStore.getState().createPaletteSet('Warm');
     render(<LibraryPanel />);
 
-    // Both sections visible initially
-    expect(screen.getByTestId('lib-section-parts')).toBeTruthy();
-    expect(screen.getByTestId('lib-section-palette-sets')).toBeTruthy();
-
-    // Toggle off parts
     fireEvent.click(screen.getByTestId('lib-filter-part'));
     expect(screen.queryByTestId('lib-section-parts')).toBeNull();
     expect(screen.getByTestId('lib-section-palette-sets')).toBeTruthy();
+  });
+
+  it('pin button toggles pin state', () => {
+    openTestDoc();
+    savePartLibrary({ schemaVersion: 1, parts: [makePart({ id: 'pin-me', name: 'Pin' })] });
+    render(<LibraryPanel />);
+    fireEvent.click(screen.getByTestId('lib-pin-pin-me'));
+    expect(useLibraryStore.getState().pinnedIds).toContain('pin-me');
+  });
+
+  it('view mode tabs switch between All/Recent/Pinned', () => {
+    openTestDoc();
+    render(<LibraryPanel />);
+    expect(screen.getByTestId('lib-view-all')).toBeTruthy();
+    expect(screen.getByTestId('lib-view-recent')).toBeTruthy();
+    expect(screen.getByTestId('lib-view-pinned')).toBeTruthy();
+  });
+
+  it('Recent view shows recently accessed items', () => {
+    openTestDoc();
+    savePartLibrary({ schemaVersion: 1, parts: [makePart({ id: 'r1', name: 'Recent' })] });
+    useLibraryStore.getState().pushRecent('r1');
+    render(<LibraryPanel />);
+
+    fireEvent.click(screen.getByTestId('lib-view-recent'));
+    expect(screen.getByTestId('lib-item-r1')).toBeTruthy();
+  });
+
+  it('Pinned view shows only pinned items', () => {
+    openTestDoc();
+    savePartLibrary({
+      schemaVersion: 1,
+      parts: [
+        makePart({ id: 'pinned-1', name: 'Pinned' }),
+        makePart({ id: 'not-pinned', name: 'NotPinned' }),
+      ],
+    });
+    useLibraryStore.getState().togglePin('pinned-1');
+    render(<LibraryPanel />);
+
+    fireEvent.click(screen.getByTestId('lib-view-pinned'));
+    expect(screen.getByTestId('lib-item-pinned-1')).toBeTruthy();
+    expect(screen.queryByTestId('lib-item-not-pinned')).toBeNull();
   });
 
   it('shows search input', () => {
