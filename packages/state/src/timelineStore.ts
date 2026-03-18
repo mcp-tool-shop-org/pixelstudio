@@ -34,6 +34,10 @@ interface TimelineState {
   lastBatchTransform: string | null;
   /** Loop seam inspection mode — shows first↔last frame overlay. */
   loopSeamMode: boolean;
+  /** Playback mode: loop (default), ping-pong, or seam-focus. */
+  playbackMode: 'loop' | 'ping-pong' | 'seam-focus';
+  /** Ping-pong direction: 1 = forward, -1 = reverse. */
+  pingPongDirection: 1 | -1;
 
   setFrames: (frames: FrameInfo[], activeId: string, activeIndex: number) => void;
   setActiveFrame: (id: string | null) => void;
@@ -50,6 +54,8 @@ interface TimelineState {
 
   setLastBatchTransform: (cmd: string) => void;
   toggleLoopSeamMode: () => void;
+  cyclePlaybackMode: () => void;
+  setPingPongDirection: (dir: 1 | -1) => void;
   /** Select a contiguous range from anchor to target (Shift+click). */
   selectFrameRange: (anchorIndex: number, targetIndex: number) => void;
   /** Toggle a single frame in/out of the selection (Ctrl+click). */
@@ -76,6 +82,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   selectedFrameIndices: [],
   lastBatchTransform: null,
   loopSeamMode: false,
+  playbackMode: 'loop',
+  pingPongDirection: 1,
 
   setFrames: (frames, activeId, activeIndex) => set({ frames, activeFrameId: activeId, activeFrameIndex: activeIndex, onionSkinData: null }),
   setActiveFrame: (id) => set({ activeFrameId: id }),
@@ -91,6 +99,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setOnionSkinData: (data) => set({ onionSkinData: data }),
   setLastBatchTransform: (cmd) => set({ lastBatchTransform: cmd }),
   toggleLoopSeamMode: () => set((s) => ({ loopSeamMode: !s.loopSeamMode })),
+  cyclePlaybackMode: () => set((s) => {
+    const modes: Array<'loop' | 'ping-pong' | 'seam-focus'> = ['loop', 'ping-pong', 'seam-focus'];
+    const idx = modes.indexOf(s.playbackMode);
+    return { playbackMode: modes[(idx + 1) % modes.length], pingPongDirection: 1 };
+  }),
+  setPingPongDirection: (dir) => set({ pingPongDirection: dir }),
 
   selectFrameRange: (anchorIndex, targetIndex) => {
     const lo = Math.min(anchorIndex, targetIndex);

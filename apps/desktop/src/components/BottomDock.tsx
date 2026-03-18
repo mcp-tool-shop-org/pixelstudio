@@ -45,6 +45,8 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const onionSkinEnabled = useTimelineStore((s) => s.onionSkinEnabled);
   const onionSkinShowPrev = useTimelineStore((s) => s.onionSkinShowPrev);
   const onionSkinShowNext = useTimelineStore((s) => s.onionSkinShowNext);
+  const playbackMode = useTimelineStore((s) => s.playbackMode);
+  const cyclePlaybackMode = useTimelineStore((s) => s.cyclePlaybackMode);
   const toggleOnionSkin = useTimelineStore((s) => s.toggleOnionSkin);
   const setOnionSkinShowPrev = useTimelineStore((s) => s.setOnionSkinShowPrev);
   const setOnionSkinShowNext = useTimelineStore((s) => s.setOnionSkinShowNext);
@@ -90,7 +92,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     clearSelection();
   }, [setFrames, setFrame, clearSelection]);
 
-  // --- Playback loop (requestAnimationFrame, elapsed-time based) ---
+  // --- Playback loop (mode-aware: loop, ping-pong, seam-focus) ---
   useEffect(() => {
     if (!playing || frames.length <= 1) {
       if (playbackRef.current) {
@@ -103,6 +105,19 @@ export function BottomDock({ activeMode }: BottomDockProps) {
 
     lastTickRef.current = 0;
 
+    const switchTo = (frameId: string) => {
+      switchingRef.current = true;
+      invoke<TimelineResult>('select_frame', { frameId })
+        .then((result) => {
+          const s = useTimelineStore.getState();
+          s.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+          useCanvasFrameStore.getState().setFrame(result.frame);
+          syncLayersFromFrame(result.frame);
+        })
+        .catch(() => {})
+        .finally(() => { switchingRef.current = false; });
+    };
+
     const tick = (time: number) => {
       if (!lastTickRef.current) {
         lastTickRef.current = time;
@@ -110,40 +125,49 @@ export function BottomDock({ activeMode }: BottomDockProps) {
         return;
       }
 
-      const frameDuration = 1000 / useTimelineStore.getState().fps;
+      const state = useTimelineStore.getState();
+      // Use per-frame duration if set, otherwise base FPS duration
+      const currentFrame = state.frames[state.activeFrameIndex];
+      const frameDuration = currentFrame?.durationMs ?? (1000 / state.fps);
       const elapsed = time - lastTickRef.current;
 
       if (elapsed >= frameDuration && !switchingRef.current) {
         lastTickRef.current = time - (elapsed % frameDuration);
+        const mode = state.playbackMode;
+        const idx = state.activeFrameIndex;
+        const len = state.frames.length;
 
-        const state = useTimelineStore.getState();
-        const nextIdx = state.activeFrameIndex + 1;
-
-        if (nextIdx >= state.frames.length) {
-          if (state.loop) {
-            switchingRef.current = true;
-            invoke<TimelineResult>('select_frame', { frameId: state.frames[0].id })
-              .then((result) => {
-                state.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
-                useCanvasFrameStore.getState().setFrame(result.frame);
-                syncLayersFromFrame(result.frame);
-              })
-              .catch(() => {})
-              .finally(() => { switchingRef.current = false; });
+        if (mode === 'ping-pong') {
+          const dir = state.pingPongDirection;
+          const nextIdx = idx + dir;
+          if (nextIdx >= len) {
+            state.setPingPongDirection(-1);
+            if (idx - 1 >= 0) switchTo(state.frames[idx - 1].id);
+          } else if (nextIdx < 0) {
+            state.setPingPongDirection(1);
+            if (idx + 1 < len) switchTo(state.frames[idx + 1].id);
           } else {
-            setPlaying(false);
-            return;
+            switchTo(state.frames[nextIdx].id);
+          }
+        } else if (mode === 'seam-focus') {
+          // Play normally but pause briefly at first and last frames
+          // by doubling their effective duration (handled by using frameDuration above)
+          const nextIdx = idx + 1;
+          if (nextIdx >= len) {
+            if (state.loop) switchTo(state.frames[0].id);
+            else { setPlaying(false); return; }
+          } else {
+            switchTo(state.frames[nextIdx].id);
           }
         } else {
-          switchingRef.current = true;
-          invoke<TimelineResult>('select_frame', { frameId: state.frames[nextIdx].id })
-            .then((result) => {
-              state.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
-              useCanvasFrameStore.getState().setFrame(result.frame);
-              syncLayersFromFrame(result.frame);
-            })
-            .catch(() => {})
-            .finally(() => { switchingRef.current = false; });
+          // Standard loop
+          const nextIdx = idx + 1;
+          if (nextIdx >= len) {
+            if (state.loop) switchTo(state.frames[0].id);
+            else { setPlaying(false); return; }
+          } else {
+            switchTo(state.frames[nextIdx].id);
+          }
         }
       }
 
@@ -469,6 +493,13 @@ export function BottomDock({ activeMode }: BottomDockProps) {
             onClick={toggleLoop}
           >
             {'\u21BB'}
+          </button>
+          <button
+            className="timeline-btn"
+            title={`Playback: ${playbackMode} (click to cycle)`}
+            onClick={cyclePlaybackMode}
+          >
+            {playbackMode === 'loop' ? '\u27F3' : playbackMode === 'ping-pong' ? '\u21C4' : '\u29BF'}
           </button>
           <span className="timeline-fps-group">
             <input
