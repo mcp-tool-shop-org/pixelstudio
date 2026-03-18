@@ -388,6 +388,17 @@ export {
 } from './templateLibrary';
 export type { SavedTemplate, TemplateLibrary } from './templateLibrary';
 export {
+  createEmptyPackLibrary,
+  addPackToLibrary,
+  deletePackFromLibrary,
+  renamePackInLibrary,
+  findPackById,
+  getPackCount,
+  generatePackId,
+  PACK_LIBRARY_VERSION,
+} from './packLibrary';
+export type { SavedPack, PackLibrary } from './packLibrary';
+export {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,
