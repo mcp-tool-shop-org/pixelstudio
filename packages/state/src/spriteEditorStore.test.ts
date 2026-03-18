@@ -1896,5 +1896,90 @@ describe('spriteEditorStore', () => {
       // No change
       expect(store().pixelBuffers[lid]).toBe(bufBefore);
     });
+
+    it('applyPaletteSetToAll remaps all frames', () => {
+      openTestDoc(4, 4);
+      // Add a second frame
+      useSpriteEditorStore.getState().addFrame();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.frames).toHaveLength(2);
+
+      // Paint black on both frames
+      const lid0 = doc.frames[0].layers[0].id;
+      const lid1 = doc.frames[1].layers[0].id;
+      const buf0 = createBlankPixelBuffer(4, 4);
+      const buf1 = createBlankPixelBuffer(4, 4);
+      setPixel(buf0, 0, 0, [0, 0, 0, 255] as Rgba);
+      setPixel(buf1, 0, 0, [0, 0, 0, 255] as Rgba);
+
+      useSpriteEditorStore.setState({
+        pixelBuffers: {
+          ...useSpriteEditorStore.getState().pixelBuffers,
+          [lid0]: buf0,
+          [lid1]: buf1,
+        },
+      });
+
+      // Create variant: Black → Red
+      const psId = useSpriteEditorStore.getState().createPaletteSet('AllFrames')!;
+      const latestDoc = useSpriteEditorStore.getState().document!;
+      const variantColors = latestDoc.paletteSets![0].colors.map((c) => ({ ...c }));
+      variantColors[1] = { ...variantColors[1], rgba: [255, 0, 0, 255] as [number, number, number, number] };
+      useSpriteEditorStore.setState({
+        document: {
+          ...useSpriteEditorStore.getState().document!,
+          paletteSets: latestDoc.paletteSets!.map((p) =>
+            p.id === psId ? { ...p, colors: variantColors } : p,
+          ),
+        },
+      });
+
+      useSpriteEditorStore.getState().applyPaletteSetToAll(psId);
+
+      // Both frames remapped
+      expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lid0], 0, 0)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lid1], 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('applyPaletteSetToRange remaps only specified frames', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().addFrame();
+      useSpriteEditorStore.getState().addFrame();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.frames).toHaveLength(3);
+
+      // Paint black on all frames
+      const lids = doc.frames.map((f) => f.layers[0].id);
+      const newBuffers = { ...useSpriteEditorStore.getState().pixelBuffers };
+      for (const lid of lids) {
+        const buf = createBlankPixelBuffer(4, 4);
+        setPixel(buf, 0, 0, [0, 0, 0, 255] as Rgba);
+        newBuffers[lid] = buf;
+      }
+      useSpriteEditorStore.setState({ pixelBuffers: newBuffers });
+
+      // Create variant: Black → Blue
+      const psId = useSpriteEditorStore.getState().createPaletteSet('Range')!;
+      const latestDoc = useSpriteEditorStore.getState().document!;
+      const variantColors = latestDoc.paletteSets![0].colors.map((c) => ({ ...c }));
+      variantColors[1] = { ...variantColors[1], rgba: [0, 0, 255, 255] as [number, number, number, number] };
+      useSpriteEditorStore.setState({
+        document: {
+          ...useSpriteEditorStore.getState().document!,
+          paletteSets: latestDoc.paletteSets!.map((p) =>
+            p.id === psId ? { ...p, colors: variantColors } : p,
+          ),
+        },
+      });
+
+      // Apply to frames 1–2 only
+      useSpriteEditorStore.getState().applyPaletteSetToRange(psId, 1, 2);
+
+      // Frame 0 unchanged
+      expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lids[0]], 0, 0)).toEqual([0, 0, 0, 255]);
+      // Frames 1–2 remapped
+      expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lids[1]], 0, 0)).toEqual([0, 0, 255, 255]);
+      expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lids[2]], 0, 0)).toEqual([0, 0, 255, 255]);
+    });
   });
 });

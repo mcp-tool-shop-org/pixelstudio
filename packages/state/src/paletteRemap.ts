@@ -5,7 +5,7 @@
  * Unmatched pixels pass through unchanged. Transparency preserved.
  */
 
-import type { SpritePixelBuffer, SpriteColor } from '@glyphstudio/domain';
+import type { SpritePixelBuffer, SpriteColor, SpriteFrame } from '@glyphstudio/domain';
 import { clonePixelBuffer, type Rgba } from './spriteRaster';
 
 /** Serialize an RGBA tuple to a string key for map lookups. */
@@ -69,6 +69,38 @@ export function remapPixelBuffer(
       data[i + 1] = target[1];
       data[i + 2] = target[2];
       data[i + 3] = target[3];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Remap pixel buffers for all layers across a range of frames.
+ *
+ * Returns a new pixelBuffers record with only the remapped entries replaced.
+ * Does not mutate the input.
+ */
+export function remapFrameBuffers(
+  frames: SpriteFrame[],
+  pixelBuffers: Record<string, SpritePixelBuffer>,
+  colorMap: Map<string, Rgba>,
+  startFrame: number,
+  endFrame: number,
+): Record<string, SpritePixelBuffer> {
+  if (colorMap.size === 0) return pixelBuffers;
+
+  const result = { ...pixelBuffers };
+  const start = Math.max(0, startFrame);
+  const end = Math.min(frames.length - 1, endFrame);
+
+  for (let i = start; i <= end; i++) {
+    const frame = frames[i];
+    for (const layer of frame.layers) {
+      const buf = pixelBuffers[layer.id];
+      if (buf) {
+        result[layer.id] = remapPixelBuffer(buf, colorMap);
+      }
     }
   }
 

@@ -24,7 +24,7 @@ import {
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
 import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
-import { buildColorMap, remapPixelBuffer } from './paletteRemap';
+import { buildColorMap, remapPixelBuffer, remapFrameBuffers } from './paletteRemap';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
 import { serializeSpriteFile, deserializeSpriteFile } from './spritePersistence';
@@ -136,6 +136,10 @@ export interface SpriteEditorStoreState {
   previewPaletteSet: (id: string | null) => void;
   /** Apply the previewed palette set to the active frame, recording history. */
   applyPaletteSetToFrame: (id: string) => void;
+  /** Apply the palette set to a range of frames (inclusive). */
+  applyPaletteSetToRange: (id: string, startFrame: number, endFrame: number) => void;
+  /** Apply the palette set to all frames. */
+  applyPaletteSetToAll: (id: string) => void;
   /** Cancel palette set preview without applying. */
   cancelPalettePreview: () => void;
 
@@ -764,8 +768,6 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!doc) return;
     const paletteSet = (doc.paletteSets ?? []).find((ps) => ps.id === id);
     if (!paletteSet) return;
-    const frame = doc.frames[activeFrameIndex];
-    if (!frame) return;
 
     const colorMap = buildColorMap(doc.palette.colors, paletteSet.colors);
     if (colorMap.size === 0) {
@@ -773,14 +775,49 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       return;
     }
 
-    const newBuffers = { ...pixelBuffers };
-    for (const layer of frame.layers) {
-      const buf = pixelBuffers[layer.id];
-      if (buf) {
-        newBuffers[layer.id] = remapPixelBuffer(buf, colorMap);
-      }
+    const newBuffers = remapFrameBuffers(doc.frames, pixelBuffers, colorMap, activeFrameIndex, activeFrameIndex);
+    set({
+      pixelBuffers: newBuffers,
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+      previewPaletteSetId: null,
+    });
+  },
+
+  applyPaletteSetToRange: (id, startFrame, endFrame) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return;
+    const paletteSet = (doc.paletteSets ?? []).find((ps) => ps.id === id);
+    if (!paletteSet) return;
+
+    const colorMap = buildColorMap(doc.palette.colors, paletteSet.colors);
+    if (colorMap.size === 0) {
+      set({ previewPaletteSetId: null });
+      return;
     }
 
+    const newBuffers = remapFrameBuffers(doc.frames, pixelBuffers, colorMap, startFrame, endFrame);
+    set({
+      pixelBuffers: newBuffers,
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+      previewPaletteSetId: null,
+    });
+  },
+
+  applyPaletteSetToAll: (id) => {
+    const { document: doc, pixelBuffers } = get();
+    if (!doc) return;
+    const paletteSet = (doc.paletteSets ?? []).find((ps) => ps.id === id);
+    if (!paletteSet) return;
+
+    const colorMap = buildColorMap(doc.palette.colors, paletteSet.colors);
+    if (colorMap.size === 0) {
+      set({ previewPaletteSetId: null });
+      return;
+    }
+
+    const newBuffers = remapFrameBuffers(doc.frames, pixelBuffers, colorMap, 0, doc.frames.length - 1);
     set({
       pixelBuffers: newBuffers,
       document: { ...doc, updatedAt: new Date().toISOString() },

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { createBlankPixelBuffer } from '@glyphstudio/domain';
-import type { SpriteColor } from '@glyphstudio/domain';
+import { createBlankPixelBuffer, createSpriteFrame } from '@glyphstudio/domain';
+import type { SpriteColor, SpriteFrame } from '@glyphstudio/domain';
 import { setPixel, samplePixel, type Rgba } from './spriteRaster';
-import { buildColorMap, remapPixelBuffer, rgbaKey } from './paletteRemap';
+import { buildColorMap, remapPixelBuffer, remapFrameBuffers, rgbaKey } from './paletteRemap';
 
 const RED: Rgba = [255, 0, 0, 255];
 const GREEN: Rgba = [0, 255, 0, 255];
@@ -168,6 +168,80 @@ describe('paletteRemap', () => {
 
       const result = remapPixelBuffer(buf, map);
       expect(samplePixel(result, 0, 0)).toEqual(unusual);
+    });
+  });
+
+  // ── remapFrameBuffers ──
+
+  describe('remapFrameBuffers', () => {
+    function makeFrames(count: number): { frames: SpriteFrame[]; buffers: Record<string, import('@glyphstudio/domain').SpritePixelBuffer> } {
+      const frames: SpriteFrame[] = [];
+      const buffers: Record<string, import('@glyphstudio/domain').SpritePixelBuffer> = {};
+      for (let i = 0; i < count; i++) {
+        const frame = createSpriteFrame(i);
+        frames.push(frame);
+        const buf = createBlankPixelBuffer(4, 4);
+        setPixel(buf, 0, 0, RED);
+        buffers[frame.layers[0].id] = buf;
+      }
+      return { frames, buffers };
+    }
+
+    it('remaps only the specified frame range', () => {
+      const { frames, buffers } = makeFrames(3);
+      const map = new Map<string, Rgba>();
+      map.set(rgbaKey(RED), GREEN);
+
+      // Remap only frame 1
+      const result = remapFrameBuffers(frames, buffers, map, 1, 1);
+
+      // Frame 0 unchanged
+      expect(samplePixel(result[frames[0].layers[0].id], 0, 0)).toEqual(RED);
+      // Frame 1 remapped
+      expect(samplePixel(result[frames[1].layers[0].id], 0, 0)).toEqual(GREEN);
+      // Frame 2 unchanged
+      expect(samplePixel(result[frames[2].layers[0].id], 0, 0)).toEqual(RED);
+    });
+
+    it('remaps all frames when range covers entire sequence', () => {
+      const { frames, buffers } = makeFrames(3);
+      const map = new Map<string, Rgba>();
+      map.set(rgbaKey(RED), BLUE);
+
+      const result = remapFrameBuffers(frames, buffers, map, 0, 2);
+
+      for (const frame of frames) {
+        expect(samplePixel(result[frame.layers[0].id], 0, 0)).toEqual(BLUE);
+      }
+    });
+
+    it('clamps out-of-bounds range to valid indices', () => {
+      const { frames, buffers } = makeFrames(2);
+      const map = new Map<string, Rgba>();
+      map.set(rgbaKey(RED), WHITE);
+
+      // Range extends beyond frames
+      const result = remapFrameBuffers(frames, buffers, map, -1, 10);
+
+      expect(samplePixel(result[frames[0].layers[0].id], 0, 0)).toEqual(WHITE);
+      expect(samplePixel(result[frames[1].layers[0].id], 0, 0)).toEqual(WHITE);
+    });
+
+    it('returns original buffers when color map is empty', () => {
+      const { frames, buffers } = makeFrames(2);
+      const result = remapFrameBuffers(frames, buffers, new Map(), 0, 1);
+      expect(result).toBe(buffers);
+    });
+
+    it('does not mutate source buffers', () => {
+      const { frames, buffers } = makeFrames(1);
+      const map = new Map<string, Rgba>();
+      map.set(rgbaKey(RED), GREEN);
+
+      remapFrameBuffers(frames, buffers, map, 0, 0);
+
+      // Source unchanged
+      expect(samplePixel(buffers[frames[0].layers[0].id], 0, 0)).toEqual(RED);
     });
   });
 });
