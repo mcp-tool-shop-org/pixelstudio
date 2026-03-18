@@ -401,6 +401,8 @@ export type { SavedPack, PackLibrary } from './packLibrary';
 export { STARTER_RECIPES, findRecipe } from './starterRecipes';
 export type { StarterRecipe, RecipeHint, RecipeStartKind } from './starterRecipes';
 export { useHintStore } from './hintStore';
+export { WORKFLOW_HINTS, evaluateHintTriggers } from './workflowHints';
+export type { WorkflowHint, WorkflowHintTrigger, HintEditorState } from './workflowHints';
 export {
   exportPaletteSets,
   exportParts,
