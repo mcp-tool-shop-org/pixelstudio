@@ -338,6 +338,29 @@ pub fn nudge_frame_range(
     Ok(build_timeline_state(canvas))
 }
 
+/// Nudge a rectangular region within specified frames.
+#[command]
+pub fn nudge_region_in_frame_range(
+    frame_indices: Vec<usize>,
+    rx: u32,
+    ry: u32,
+    rw: u32,
+    rh: u32,
+    dx: i32,
+    dy: i32,
+    canvas_state: State<'_, ManagedCanvasState>,
+    selection_state: State<'_, ManagedSelectionState>,
+) -> Result<TimelineState, AppError> {
+    clear_transient_state(&selection_state);
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    canvas.nudge_region_in_frames(&frame_indices, rx, ry, rw, rh, dx, dy)
+        .map_err(AppError::Internal)?;
+    Ok(build_timeline_state(canvas))
+}
+
 /// Set per-frame duration on a range of frames by index.
 #[command]
 pub fn set_frame_duration_range(

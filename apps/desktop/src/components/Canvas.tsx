@@ -1132,7 +1132,7 @@ export function Canvas() {
         return;
       }
 
-      // Alt+Arrow — nudge all content in selected frames (or active frame)
+      // Alt+Arrow — nudge content across frames. With pixel selection: region nudge; without: whole-frame nudge.
       if (e.altKey && !e.ctrlKey && !e.metaKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
         const tl = useTimelineStore.getState();
@@ -1146,17 +1146,30 @@ export function Canvas() {
         const indices = tl.selectedFrameIndices.length > 0
           ? tl.selectedFrameIndices
           : [tl.activeFrameIndex];
+        // If there's an active pixel selection, use region nudge across frames
+        const selBounds = useSelectionStore.getState().selectionBounds;
         try {
-          const result = await invoke<TimelineResult>('nudge_frame_range', {
-            frameIndices: indices,
-            dx, dy,
-          });
-          tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
-          setFrame(result.frame);
-          syncLayersFromFrame(result.frame);
+          if (selBounds && tl.selectedFrameIndices.length > 0) {
+            const result = await invoke<TimelineResult>('nudge_region_in_frame_range', {
+              frameIndices: indices,
+              rx: selBounds.x, ry: selBounds.y, rw: selBounds.width, rh: selBounds.height,
+              dx, dy,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+          } else {
+            const result = await invoke<TimelineResult>('nudge_frame_range', {
+              frameIndices: indices,
+              dx, dy,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+          }
           markDirty();
           invoke('mark_dirty').catch(() => {});
-        } catch (err) { console.error('nudge_frame_range failed:', err); }
+        } catch (err) { console.error('nudge failed:', err); }
         return;
       }
 

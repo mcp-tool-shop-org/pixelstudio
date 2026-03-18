@@ -606,6 +606,41 @@ impl CanvasState {
         Ok(())
     }
 
+    /// Nudge a rectangular region within specified frames by (dx, dy).
+    /// With undo support via BufferSnapshot.
+    pub fn nudge_region_in_frames(
+        &mut self,
+        frame_indices: &[usize],
+        rx: u32, ry: u32, rw: u32, rh: u32,
+        dx: i32, dy: i32,
+    ) -> Result<(), String> {
+        if dx == 0 && dy == 0 { return Ok(()); }
+        self.stash_active_frame();
+
+        for &idx in frame_indices {
+            if idx >= self.frames.len() {
+                self.restore_frame(self.active_frame_index);
+                return Err(format!("Frame index {} out of range", idx));
+            }
+            let snapshots: Vec<(String, Vec<u8>)> = self.frames[idx].layers.iter()
+                .map(|l| (l.id.clone(), l.buffer.to_bytes()))
+                .collect();
+
+            for layer in &mut self.frames[idx].layers {
+                layer.buffer.translate_region(rx, ry, rw, rh, dx, dy);
+            }
+
+            self.frames[idx].undo_stack.push(UndoAction::BufferSnapshot {
+                label: format!("region_nudge({},{},{},{},{},{})", rx, ry, rw, rh, dx, dy),
+                snapshots,
+            });
+            self.frames[idx].redo_stack.clear();
+        }
+
+        self.restore_frame(self.active_frame_index);
+        Ok(())
+    }
+
     /// Apply a whole-buffer transform to a range of frames.
     /// `transform` is one of: "flip_horizontal", "flip_vertical",
     /// "rotate_90_cw", "rotate_90_ccw".

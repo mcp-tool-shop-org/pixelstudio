@@ -105,6 +105,55 @@ impl PixelBuffer {
         self.data = out;
     }
 
+    /// Translate pixels within a rectangular region only. Pixels that move out
+    /// of the region bounds are clipped; vacated region area becomes transparent.
+    pub fn translate_region(&mut self, rx: u32, ry: u32, rw: u32, rh: u32, dx: i32, dy: i32) {
+        if dx == 0 && dy == 0 { return; }
+        let w = self.width as usize;
+        // Extract region pixels
+        let rw_s = rw as usize;
+        let rh_s = rh as usize;
+        let mut region = vec![0u8; rw_s * rh_s * 4];
+        for ly in 0..rh_s {
+            let sy = ry as usize + ly;
+            if sy >= self.height as usize { continue; }
+            for lx in 0..rw_s {
+                let sx = rx as usize + lx;
+                if sx >= self.width as usize { continue; }
+                let src = (sy * w + sx) * 4;
+                let dst = (ly * rw_s + lx) * 4;
+                region[dst..dst + 4].copy_from_slice(&self.data[src..src + 4]);
+            }
+        }
+        // Clear the region in the buffer
+        for ly in 0..rh_s {
+            let sy = ry as usize + ly;
+            if sy >= self.height as usize { continue; }
+            for lx in 0..rw_s {
+                let sx = rx as usize + lx;
+                if sx >= self.width as usize { continue; }
+                let idx = (sy * w + sx) * 4;
+                self.data[idx..idx + 4].copy_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+        // Write translated pixels back
+        for ly in 0..rh_s {
+            let dst_ly = ly as i32 + dy;
+            if dst_ly < 0 || dst_ly >= rh_s as i32 { continue; }
+            let sy = ry as usize + dst_ly as usize;
+            if sy >= self.height as usize { continue; }
+            for lx in 0..rw_s {
+                let dst_lx = lx as i32 + dx;
+                if dst_lx < 0 || dst_lx >= rw_s as i32 { continue; }
+                let sx = rx as usize + dst_lx as usize;
+                if sx >= self.width as usize { continue; }
+                let src = (ly * rw_s + lx) * 4;
+                let dst = (sy * w + sx) * 4;
+                self.data[dst..dst + 4].copy_from_slice(&region[src..src + 4]);
+            }
+        }
+    }
+
     /// Flip all pixels horizontally (mirror left↔right).
     pub fn flip_horizontal(&mut self) {
         let w = self.width as usize;

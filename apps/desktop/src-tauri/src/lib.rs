@@ -92,6 +92,7 @@ pub fn run() {
             timeline::set_frame_duration,
             timeline::set_frame_duration_range,
             timeline::nudge_frame_range,
+            timeline::nudge_region_in_frame_range,
             timeline::transform_frame_range,
             timeline::duplicate_frame_range,
             timeline::snapshot_frame_range,
