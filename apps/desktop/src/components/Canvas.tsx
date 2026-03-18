@@ -632,6 +632,19 @@ export function Canvas() {
 
   useEffect(() => { render(); }, [render]);
 
+  // Schedule a render via rAF, coalescing multiple calls within the same frame.
+  // renderRequestRef was previously allocated but never wired up.
+  // Pointer handler callbacks (shape drag, lasso, slice preview) call
+  // renderRef.current(), which points here. Multiple pointer events arriving
+  // before the next frame collapse into a single render call.
+  const scheduleRender = useCallback(() => {
+    if (renderRequestRef.current !== null) return;
+    renderRequestRef.current = requestAnimationFrame(() => {
+      renderRequestRef.current = null;
+      render();
+    });
+  }, [render]);
+
   // Marching ants animation loop
   useEffect(() => {
     const sel = dragSelection || selectionBounds;
@@ -666,9 +679,11 @@ export function Canvas() {
     return () => observer.disconnect();
   }, [render]);
 
-  // Keep renderRef pointing at the latest render callback so the pointer
-  // handler hook can call render() without a stale-closure dep.
-  useEffect(() => { renderRef.current = render; }, [render]);
+  // Keep renderRef pointing at the rAF-coalesced scheduler so the pointer
+  // handler hook triggers renders without duplicating frames.
+  // State-driven renders (useEffect on [render] above) still fire immediately
+  // since they're already rate-limited by React's scheduler.
+  useEffect(() => { renderRef.current = scheduleRender; }, [scheduleRender]);
 
 
   const handleWheel = useCallback(
