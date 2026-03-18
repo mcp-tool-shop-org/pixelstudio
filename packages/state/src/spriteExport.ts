@@ -1,4 +1,7 @@
-import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, SpriteSheetFrameMeta } from '@glyphstudio/domain';
+import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, SpriteSheetFrameMeta, PaletteSet } from '@glyphstudio/domain';
+import { buildColorMap, remapFrameBuffers } from './paletteRemap';
+import { flattenLayers } from './spriteRaster';
+import { assembleSpriteSheet } from './spriteImportExport';
 
 // gifenc has no type declarations — minimal typed imports
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -143,4 +146,83 @@ export function encodeAnimatedGif(
 
   gif.finish();
   return gif.bytes();
+}
+
+// ── Multi-variant export ──
+
+/** Sanitize a name for use in filenames. */
+export function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase()
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Result for a single variant export. */
+export interface VariantExportEntry {
+  paletteSetId: string;
+  paletteSetName: string;
+  suffix: string;
+  sheet: SpritePixelBuffer;
+  meta: SpriteSheetMeta;
+}
+
+/**
+ * Generate sprite sheet exports for one or more palette set variants.
+ *
+ * For each palette set, remaps all frame buffers using the color map
+ * from the document's base palette to the set's colors, then assembles
+ * a sprite sheet with metadata.
+ *
+ * Returns an array of VariantExportEntry or an error string.
+ */
+export function generateVariantExports(
+  doc: SpriteDocument,
+  pixelBuffers: Record<string, SpritePixelBuffer>,
+  paletteSetIds: string[],
+): VariantExportEntry[] | { error: string } {
+  if (doc.frames.length === 0) {
+    return { error: 'No frames to export' };
+  }
+  if (paletteSetIds.length === 0) {
+    return { error: 'No palette sets selected' };
+  }
+
+  const paletteSets = doc.paletteSets ?? [];
+  const results: VariantExportEntry[] = [];
+
+  for (const psId of paletteSetIds) {
+    const ps = paletteSets.find((p) => p.id === psId);
+    if (!ps) {
+      return { error: `Palette set "${psId}" not found` };
+    }
+
+    const colorMap = buildColorMap(doc.palette.colors, ps.colors);
+    const remappedBuffers = colorMap.size > 0
+      ? remapFrameBuffers(doc.frames, pixelBuffers, colorMap, 0, doc.frames.length - 1)
+      : pixelBuffers;
+
+    // Flatten layers for each frame
+    const frameBuffers = doc.frames.map((f) =>
+      flattenLayers(f.layers, remappedBuffers, doc.width, doc.height),
+    );
+
+    const sheet = assembleSpriteSheet(frameBuffers);
+    if ('error' in sheet) return sheet;
+
+    const meta = generateSpriteSheetMeta(doc);
+    if ('error' in meta) return meta;
+
+    const suffix = sanitizeFilename(ps.name);
+    results.push({
+      paletteSetId: ps.id,
+      paletteSetName: ps.name,
+      suffix,
+      sheet,
+      meta: { ...meta, name: `${doc.name}-${suffix}` },
+    });
+  }
+
+  return results;
 }

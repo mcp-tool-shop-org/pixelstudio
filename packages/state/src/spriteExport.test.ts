@@ -4,9 +4,11 @@ import {
   createSpriteFrame,
   createBlankPixelBuffer,
 } from '@glyphstudio/domain';
-import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta } from '@glyphstudio/domain';
-import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
+import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, PaletteSet } from '@glyphstudio/domain';
+import { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, sanitizeFilename } from './spriteExport';
+import type { VariantExportEntry } from './spriteExport';
 import { isImportExportError } from './spriteImportExport';
+import { setPixel, samplePixel } from './spriteRaster';
 
 /** Helper: create a document with N frames at given durations. */
 function makeDoc(
@@ -215,6 +217,122 @@ describe('spriteExport', () => {
       // Should still produce valid GIF
       const bytes = result as Uint8Array;
       expect(bytes[0]).toBe(0x47);
+    });
+  });
+
+  // ── sanitizeFilename ──
+
+  describe('sanitizeFilename', () => {
+    it('removes special characters', () => {
+      expect(sanitizeFilename('My Variant!')).toBe('my-variant!');
+    });
+
+    it('replaces spaces with hyphens', () => {
+      expect(sanitizeFilename('Warm Colors')).toBe('warm-colors');
+    });
+
+    it('removes filesystem-unsafe characters', () => {
+      expect(sanitizeFilename('test<>:"/\\|?*file')).toBe('testfile');
+    });
+
+    it('lowercases the result', () => {
+      expect(sanitizeFilename('CamelCase')).toBe('camelcase');
+    });
+  });
+
+  // ── generateVariantExports ──
+
+  describe('generateVariantExports', () => {
+    function makeExportDoc(): { doc: SpriteDocument; pixelBuffers: Record<string, SpritePixelBuffer> } {
+      const doc = createSpriteDocument('sprite', 4, 4);
+      const layerId = doc.frames[0].layers[0].id;
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [0, 0, 0, 255]); // Black
+      const pixelBuffers = { [layerId]: buf };
+
+      // Add a palette set that remaps Black → Red
+      const ps: PaletteSet = {
+        id: 'ps-warm',
+        name: 'Warm',
+        colors: doc.palette.colors.map((c, i) =>
+          i === 1 ? { ...c, rgba: [255, 0, 0, 255] as [number, number, number, number] } : { ...c },
+        ),
+      };
+      doc.paletteSets = [ps];
+      return { doc, pixelBuffers };
+    }
+
+    it('exports a single variant with remapped pixels', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      const result = generateVariantExports(doc, pixelBuffers, ['ps-warm']);
+
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as VariantExportEntry[];
+      expect(entries).toHaveLength(1);
+      expect(entries[0].paletteSetId).toBe('ps-warm');
+      expect(entries[0].suffix).toBe('warm');
+      expect(entries[0].meta.name).toBe('sprite-warm');
+      // Sheet should have the remapped pixel
+      expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('exports multiple variants', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      // Add a second palette set
+      const ps2: PaletteSet = {
+        id: 'ps-cool',
+        name: 'Cool',
+        colors: doc.palette.colors.map((c, i) =>
+          i === 1 ? { ...c, rgba: [0, 0, 255, 255] as [number, number, number, number] } : { ...c },
+        ),
+      };
+      doc.paletteSets!.push(ps2);
+
+      const result = generateVariantExports(doc, pixelBuffers, ['ps-warm', 'ps-cool']);
+
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as VariantExportEntry[];
+      expect(entries).toHaveLength(2);
+      expect(entries[0].suffix).toBe('warm');
+      expect(entries[1].suffix).toBe('cool');
+      expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(entries[1].sheet, 0, 0)).toEqual([0, 0, 255, 255]);
+    });
+
+    it('returns error for empty palette set selection', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      const result = generateVariantExports(doc, pixelBuffers, []);
+      expect('error' in result).toBe(true);
+    });
+
+    it('returns error for unknown palette set id', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      const result = generateVariantExports(doc, pixelBuffers, ['bogus']);
+      expect('error' in result).toBe(true);
+    });
+
+    it('returns error for doc with no frames', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      doc.frames = [];
+      const result = generateVariantExports(doc, pixelBuffers, ['ps-warm']);
+      expect('error' in result).toBe(true);
+    });
+
+    it('handles identity palette set (no remapping needed)', () => {
+      const { doc, pixelBuffers } = makeExportDoc();
+      // Add palette set identical to base
+      const identityPs: PaletteSet = {
+        id: 'ps-same',
+        name: 'Same',
+        colors: doc.palette.colors.map((c) => ({ ...c })),
+      };
+      doc.paletteSets!.push(identityPs);
+
+      const result = generateVariantExports(doc, pixelBuffers, ['ps-same']);
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as VariantExportEntry[];
+      // Pixel unchanged
+      expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([0, 0, 0, 255]);
     });
   });
 });

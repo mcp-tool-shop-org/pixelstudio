@@ -360,7 +360,8 @@ export {
   isImportExportError,
 } from './spriteImportExport';
 export type { SheetValidationResult } from './spriteImportExport';
-export { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
+export { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, sanitizeFilename } from './spriteExport';
+export type { VariantExportEntry } from './spriteExport';
 export {
   serializeSpriteFile,
   deserializeSpriteFile,
