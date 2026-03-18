@@ -3,7 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useWorkflowStore, useSpriteEditorStore } from '@glyphstudio/state';
 import { parsePack, addPartToLibrary, deriveImportName } from '@glyphstudio/state';
-import type { SavedTemplate, SavedPack } from '@glyphstudio/state';
+import { STARTER_RECIPES, useHintStore } from '@glyphstudio/state';
+import type { SavedTemplate, SavedPack, StarterRecipe } from '@glyphstudio/state';
 import type { Part } from '@glyphstudio/domain';
 import { generatePartId } from '@glyphstudio/domain';
 import type { WorkflowDef, WorkspaceMode } from '@glyphstudio/domain';
@@ -265,6 +266,34 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
     onEnterWorkspace('edit');
   }, [onEnterWorkspace]);
 
+  const handleRecipeStart = useCallback((recipe: StarterRecipe) => {
+    const store = useSpriteEditorStore.getState();
+
+    // Create document with recipe dimensions
+    const w = recipe.canvasWidth ?? 32;
+    const h = recipe.canvasHeight ?? 32;
+    store.newDocument(recipe.title, w, h);
+
+    // Add animation frames if specified
+    if (recipe.frameCount && recipe.frameCount > 1) {
+      for (let i = 1; i < recipe.frameCount; i++) {
+        useSpriteEditorStore.getState().addFrame();
+      }
+      if (recipe.frameDurationMs) {
+        const doc = useSpriteEditorStore.getState().document!;
+        const frames = doc.frames.map((f) => ({ ...f, durationMs: recipe.frameDurationMs! }));
+        useSpriteEditorStore.setState({ document: { ...doc, frames } });
+      }
+    }
+
+    useSpriteEditorStore.setState({ dirty: false });
+
+    // Set contextual hints
+    useHintStore.getState().setActiveHints(recipe.hints);
+
+    onEnterWorkspace(recipe.frameCount && recipe.frameCount > 1 ? 'animate' : 'edit');
+  }, [onEnterWorkspace]);
+
   const isRunning = activeRun?.status === 'running';
   const toolWorkflows = workflows.filter((w) => w.category !== 'create');
   const pinnedSet = new Set(pinnedIds);
@@ -299,6 +328,24 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
               <button className="btn-secondary ph-open-btn" onClick={handleOpen} data-testid="open-project-btn">
                 Open Project...
               </button>
+            </div>
+
+            {/* Starter recipes */}
+            <div className="ph-recipes" data-testid="recipe-section">
+              <h3>Quick Start</h3>
+              <div className="ph-recipe-grid">
+                {STARTER_RECIPES.map((recipe) => (
+                  <button
+                    key={recipe.id}
+                    className="ph-recipe-card"
+                    onClick={() => handleRecipeStart(recipe)}
+                    data-testid={`recipe-${recipe.id}`}
+                  >
+                    <span className="ph-recipe-title">{recipe.title}</span>
+                    <span className="ph-recipe-intent">{recipe.intent}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Start mode tabs */}
