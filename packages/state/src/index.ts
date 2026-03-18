@@ -374,6 +374,8 @@ export {
 export type { SheetValidationResult } from './spriteImportExport';
 export { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, generateDocumentVariantExports, sanitizeFilename } from './spriteExport';
 export type { VariantExportEntry, DocumentVariantExportEntry } from './spriteExport';
+export { generateBundlePlan, executeBundleExport } from './bundleExport';
+export type { BundleScope, BundlePlan, BundlePlanEntry, BundleExportEntry } from './bundleExport';
 export {
   serializeSpriteFile,
   deserializeSpriteFile,
