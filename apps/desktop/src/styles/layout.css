@@ -8223,6 +8223,68 @@
   cursor: pointer;
 }
 
+/* Library apply panel */
+.lib-apply-panel {
+  position: absolute;
+  bottom: 36px;
+  left: 0;
+  right: 0;
+  background: var(--bg-panel-raised);
+  border-top: 2px solid var(--accent-primary);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.lib-apply-header {
+  display: flex;
+  align-items: center;
+}
+.lib-apply-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.lib-apply-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lib-apply-section-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 0;
+}
+.lib-apply-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+.lib-apply-item:hover {
+  border-color: var(--accent-primary);
+}
+.lib-apply-item-name {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.lib-apply-item-meta {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
 /* ── Bundle Panel ── */
 .bundle-panel {
   display: flex;

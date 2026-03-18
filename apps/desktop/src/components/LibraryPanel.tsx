@@ -396,6 +396,39 @@ export function LibraryPanel() {
   }, [doc, partLibrary]);
 
   // Import from file
+  // Apply a saved pack to the current project (triggers review overlay)
+  const handleApplyPack = useCallback((interchangeJson: string) => {
+    if (!doc) return;
+    const existingPsNames = (doc.paletteSets ?? []).map((ps) => ps.name);
+    const existingPartNames = partLibrary.parts.map((p) => p.name);
+    const result = parsePack(interchangeJson, existingPsNames, existingPartNames);
+    if ('error' in result) return;
+    // Map PackParseResult to ImportParseResult for the review overlay
+    setImportReview({
+      contentType: result.paletteSets.length > 0 && result.parts.length > 0 ? 'mixed' :
+        result.paletteSets.length > 0 ? 'palette-sets' : 'parts',
+      paletteSets: result.paletteSets,
+      parts: result.parts,
+      conflicts: result.conflicts,
+    });
+  }, [doc, partLibrary]);
+
+  // Apply template assets (palette sets + parts only, no document reset)
+  const handleApplyTemplateAssets = useCallback((interchangeJson: string) => {
+    if (!doc) return;
+    const existingPsNames = (doc.paletteSets ?? []).map((ps) => ps.name);
+    const existingPartNames = partLibrary.parts.map((p) => p.name);
+    // Parse as generic interchange to extract palette sets + parts
+    const result = parseInterchangeFile(interchangeJson, existingPsNames, existingPartNames);
+    if ('error' in result) return;
+    setImportReview(result);
+  }, [doc, partLibrary]);
+
+  // State for showing apply panel
+  const [showApplyPanel, setShowApplyPanel] = useState(false);
+  const [savedPacks] = useState(() => loadPackLibrary().packs);
+  const [savedTemplates] = useState(() => loadTemplateLibrary().templates);
+
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -674,7 +707,60 @@ export function LibraryPanel() {
             data-testid="lib-import-input"
           />
         </label>
+        {(savedPacks.length > 0 || savedTemplates.length > 0) && (
+          <button
+            className="lib-io-btn"
+            onClick={() => setShowApplyPanel(!showApplyPanel)}
+            data-testid="lib-apply-toggle"
+          >
+            Apply
+          </button>
+        )}
       </div>
+
+      {/* Apply pack/template panel */}
+      {showApplyPanel && (
+        <div className="lib-apply-panel" data-testid="lib-apply-panel">
+          <div className="lib-apply-header">
+            <span className="lib-apply-title">Apply to Project</span>
+            <button className="lib-import-close" onClick={() => setShowApplyPanel(false)}>&#x2715;</button>
+          </div>
+          {savedPacks.length > 0 && (
+            <div className="lib-apply-section">
+              <span className="lib-apply-section-title">Packs</span>
+              {savedPacks.map((p) => (
+                <button
+                  key={p.id}
+                  className="lib-apply-item"
+                  onClick={() => { handleApplyPack(p.interchangeJson); setShowApplyPanel(false); }}
+                  data-testid={`lib-apply-pack-${p.id}`}
+                >
+                  <span className="lib-apply-item-name">{p.name}</span>
+                  <span className="lib-apply-item-meta">
+                    {p.paletteSetCount} palette{p.paletteSetCount !== 1 ? 's' : ''}, {p.partCount} part{p.partCount !== 1 ? 's' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {savedTemplates.length > 0 && (
+            <div className="lib-apply-section">
+              <span className="lib-apply-section-title">Template Assets</span>
+              {savedTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  className="lib-apply-item"
+                  onClick={() => { handleApplyTemplateAssets(t.interchangeJson); setShowApplyPanel(false); }}
+                  data-testid={`lib-apply-tmpl-${t.id}`}
+                >
+                  <span className="lib-apply-item-name">{t.name}</span>
+                  <span className="lib-apply-item-meta">{t.canvasWidth}x{t.canvasHeight}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Import review overlay */}
       {importReview && (
