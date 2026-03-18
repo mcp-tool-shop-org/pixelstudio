@@ -26,6 +26,7 @@ const SliceManagerPanel = React.lazy(() => import('./SliceManagerPanel').then((m
 const OutputPresetsPanel = React.lazy(() => import('./OutputPresetsPanel').then((m) => ({ default: m.OutputPresetsPanel })));
 const PaletteSetsPanel = React.lazy(() => import('./PaletteSetsPanel').then((m) => ({ default: m.PaletteSetsPanel })));
 const PartsPanel = React.lazy(() => import('./PartsPanel').then((m) => ({ default: m.PartsPanel })));
+const BundlePanel = React.lazy(() => import('./BundlePanel').then((m) => ({ default: m.BundlePanel })));
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -62,6 +63,7 @@ export const PANEL_REGISTRY: Record<string, React.LazyExoticComponent<React.Comp
   'Presets': OutputPresetsPanel,
   'Palette Sets': PaletteSetsPanel,
   'Parts': PartsPanel,
+  'Bundle': BundlePanel,
 };
 
 /**
@@ -76,7 +78,7 @@ export const MODE_TABS: Record<WorkspaceMode, string[]> = {
   ai: ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance'],
   locomotion: ['Locomotion', 'Layers', 'Validation'],
   validate: ['Validation', 'Sprite Props', 'Provenance'],
-  export: ['Export Settings'],
+  export: ['Export Settings', 'Bundle'],
   scene: ['Instances', 'Camera', 'Assets', 'Activity'],
   vector: ['Shapes', 'Shape Props', 'Reduction', 'Vec Copilot', 'AI Create'],
 };
