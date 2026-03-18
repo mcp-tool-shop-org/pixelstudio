@@ -1233,8 +1233,8 @@ export function Canvas() {
           </span>
         )}
         {selectedFrameCount > 0 && (
-          <span className="status-frame-range" title="Alt+H/V/R to transform range · Esc to clear">
-            {selectedFrameCount} frames selected
+          <span className="status-frame-range" title="Alt+H flip-H · Alt+V flip-V · Alt+R rotate · Ctrl+D duplicate · Esc clear">
+            {selectedFrameCount} frames · Alt+H/V/R · Ctrl+D · undoable
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}

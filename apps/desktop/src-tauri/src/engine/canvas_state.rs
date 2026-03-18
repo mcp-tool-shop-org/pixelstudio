@@ -43,6 +43,12 @@ pub enum UndoAction {
     Stroke(StrokeRecord),
     SliceCreate(super::slice::SliceRegion),
     SliceDelete(super::slice::SliceRegion),
+    /// Whole-buffer snapshot for batch transforms (flip/rotate).
+    /// Stores layer_id → before-bytes so undo can restore the full buffer.
+    BufferSnapshot {
+        label: String,
+        snapshots: Vec<(String, Vec<u8>)>,
+    },
 }
 
 /// In-flight stroke being built up before commit.
@@ -462,26 +468,40 @@ impl CanvasState {
             None => return Ok(false),
         };
 
-        match &action {
-            UndoAction::Stroke(record) => {
+        let redo_action = match action {
+            UndoAction::Stroke(ref record) => {
                 let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
                     .ok_or_else(|| "Layer from undo record not found".to_string())?;
                 for patch in record.patches.iter().rev() {
                     let color = Color::rgba(patch.before[0], patch.before[1], patch.before[2], patch.before[3]);
                     layer.buffer.set_pixel(patch.x, patch.y, &color);
                 }
+                action
             }
-            UndoAction::SliceCreate(region) => {
+            UndoAction::SliceCreate(ref region) => {
                 let frame = &mut self.frames[self.active_frame_index];
                 frame.slice_regions.retain(|r| r.id != region.id);
+                action
             }
-            UndoAction::SliceDelete(region) => {
+            UndoAction::SliceDelete(ref region) => {
                 let frame = &mut self.frames[self.active_frame_index];
                 frame.slice_regions.push(region.clone());
+                action
             }
-        }
+            UndoAction::BufferSnapshot { label, mut snapshots } => {
+                // Swap current buffers with snapshot (makes redo work symmetrically)
+                for (layer_id, before_data) in &mut snapshots {
+                    if let Some(layer) = self.layers.iter_mut().find(|l| l.id == *layer_id) {
+                        let current = layer.buffer.to_bytes();
+                        layer.buffer = PixelBuffer::from_bytes(layer.buffer.width, layer.buffer.height, std::mem::take(before_data));
+                        *before_data = current;
+                    }
+                }
+                UndoAction::BufferSnapshot { label, snapshots }
+            }
+        };
 
-        self.redo_stack.push(action);
+        self.redo_stack.push(redo_action);
         Ok(true)
     }
 
@@ -491,26 +511,40 @@ impl CanvasState {
             None => return Ok(false),
         };
 
-        match &action {
-            UndoAction::Stroke(record) => {
+        let undo_action = match action {
+            UndoAction::Stroke(ref record) => {
                 let layer = self.layers.iter_mut().find(|l| l.id == record.layer_id)
                     .ok_or_else(|| "Layer from redo record not found".to_string())?;
                 for patch in &record.patches {
                     let color = Color::rgba(patch.after[0], patch.after[1], patch.after[2], patch.after[3]);
                     layer.buffer.set_pixel(patch.x, patch.y, &color);
                 }
+                action
             }
-            UndoAction::SliceCreate(region) => {
+            UndoAction::SliceCreate(ref region) => {
                 let frame = &mut self.frames[self.active_frame_index];
                 frame.slice_regions.push(region.clone());
+                action
             }
-            UndoAction::SliceDelete(region) => {
+            UndoAction::SliceDelete(ref region) => {
                 let frame = &mut self.frames[self.active_frame_index];
                 frame.slice_regions.retain(|r| r.id != region.id);
+                action
             }
-        }
+            UndoAction::BufferSnapshot { label, mut snapshots } => {
+                // Same swap logic as undo — swap current with stored
+                for (layer_id, stored_data) in &mut snapshots {
+                    if let Some(layer) = self.layers.iter_mut().find(|l| l.id == *layer_id) {
+                        let current = layer.buffer.to_bytes();
+                        layer.buffer = PixelBuffer::from_bytes(layer.buffer.width, layer.buffer.height, std::mem::take(stored_data));
+                        *stored_data = current;
+                    }
+                }
+                UndoAction::BufferSnapshot { label, snapshots }
+            }
+        };
 
-        self.undo_stack.push(action);
+        self.undo_stack.push(undo_action);
         Ok(true)
     }
 
@@ -554,6 +588,12 @@ impl CanvasState {
                 self.restore_frame(self.active_frame_index);
                 return Err(format!("Frame index {} out of range", idx));
             }
+
+            // Snapshot before-state for undo
+            let snapshots: Vec<(String, Vec<u8>)> = self.frames[idx].layers.iter()
+                .map(|l| (l.id.clone(), l.buffer.to_bytes()))
+                .collect();
+
             for layer in &mut self.frames[idx].layers {
                 match transform {
                     "flip_horizontal" => layer.buffer.flip_horizontal(),
@@ -566,6 +606,13 @@ impl CanvasState {
                     }
                 }
             }
+
+            // Push undo action for this frame
+            self.frames[idx].undo_stack.push(UndoAction::BufferSnapshot {
+                label: transform.to_string(),
+                snapshots,
+            });
+            self.frames[idx].redo_stack.clear();
         }
 
         // Restore the active frame so top-level state is up to date
