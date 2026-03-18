@@ -169,6 +169,7 @@ export function Canvas() {
   const selectedFrameCount = useTimelineStore((s) => s.selectedFrameIndices.length);
   const timelineFps = useTimelineStore((s) => s.fps);
   const activeFrameDurationMs = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.durationMs ?? null);
+  const loopSeamMode = useTimelineStore((s) => s.loopSeamMode);
 
   // Compute total sequence duration from authored timing
   const totalDurationMs = useTimelineStore((s) => {
@@ -231,6 +232,27 @@ export function Canvas() {
       .then((result) => setMotionTrailData(result.centroids))
       .catch(() => setMotionTrailData(null));
   }, [showMotionTrail, canvasReady, frameCount, frameVersion, setMotionTrailData]);
+
+  // Loop seam overlay — composited data for the "other end" frame
+  const [loopSeamData, setLoopSeamData] = useState<{ width: number; height: number; data: number[] } | null>(null);
+  useEffect(() => {
+    if (!loopSeamMode || !canvasReady || frameCount <= 1) {
+      setLoopSeamData(null);
+      return;
+    }
+    // When on first frame, fetch last; when on last, fetch first; otherwise show first
+    const targetIdx = activeFrameIndex === 0 ? frameCount - 1
+      : activeFrameIndex === frameCount - 1 ? 0
+      : 0; // Default: show first frame as seam reference
+    invoke<{ centroids: never; canvasWidth: number; canvasHeight: number } | Array<{ frameIndex: number; data: number[]; width: number; height: number }>>('snapshot_frame_range', {
+      frameIndices: [targetIdx],
+    })
+      .then((result) => {
+        const arr = result as Array<{ frameIndex: number; data: number[]; width: number; height: number }>;
+        if (arr.length > 0) setLoopSeamData({ width: arr[0].width, height: arr[0].height, data: arr[0].data });
+      })
+      .catch(() => setLoopSeamData(null));
+  }, [loopSeamMode, canvasReady, frameCount, activeFrameIndex, frameVersion]);
 
   // Render
   const render = useCallback(() => {
@@ -336,6 +358,27 @@ export function Canvas() {
         ctx.drawImage(onionNextOffscreenRef.current, originX, originY, osW * zoom, osH * zoom);
         ctx.globalAlpha = 1;
       }
+    }
+
+    // --- Loop seam overlay (magenta tint, shows first↔last frame) ---
+    if (loopSeamMode && loopSeamData && loopSeamData.data.length > 0) {
+      const seamW = loopSeamData.width;
+      const seamH = loopSeamData.height;
+      const seamOff = new OffscreenCanvas(seamW, seamH);
+      const seamCtx2 = seamOff.getContext('2d')!;
+      const seamImg = seamCtx2.createImageData(seamW, seamH);
+      for (let i = 0; i < loopSeamData.data.length; i += 4) {
+        const a = loopSeamData.data[i + 3];
+        if (a > 0) {
+          // Magenta tint
+          seamImg.data[i] = 200;
+          seamImg.data[i + 1] = 80;
+          seamImg.data[i + 2] = 200;
+          seamImg.data[i + 3] = Math.round(a * 0.35);
+        }
+      }
+      seamCtx2.putImageData(seamImg, 0, 0);
+      ctx.drawImage(seamOff, originX, originY, spriteW, spriteH);
     }
 
     // --- Active frame pixels ---
@@ -792,7 +835,7 @@ export function Canvas() {
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
   // zoom/panX/panY intentionally omitted — read imperatively inside render.
   // Pan/zoom changes trigger a direct scheduleRender subscription below.
-  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode, showMotionTrail, motionTrailData]);
+  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode, showMotionTrail, motionTrailData, loopSeamMode, loopSeamData]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -1446,6 +1489,13 @@ export function Canvas() {
         return;
       }
 
+      // Toggle loop seam mode with L
+      if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        useTimelineStore.getState().toggleLoopSeamMode();
+        return;
+      }
+
       // Toggle motion trail with M
       if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         e.preventDefault();
@@ -1563,6 +1613,9 @@ export function Canvas() {
         )}
         {showMotionTrail && frameCount > 1 && (
           <span className="status-onion" title="M to toggle motion trail">trail</span>
+        )}
+        {loopSeamMode && frameCount > 1 && (
+          <span className="status-loop-seam" title="L to toggle loop seam · magenta = seam reference">seam</span>
         )}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}

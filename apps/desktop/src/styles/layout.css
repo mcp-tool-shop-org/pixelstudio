@@ -304,6 +304,11 @@
   color: #e8a838;
 }
 
+.status-loop-seam {
+  color: #c850c8;
+  font-weight: 600;
+}
+
 .status-frame-range {
   color: #e8a838;
   font-weight: 600;

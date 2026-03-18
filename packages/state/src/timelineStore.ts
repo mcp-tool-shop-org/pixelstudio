@@ -32,6 +32,8 @@ interface TimelineState {
   selectedFrameIndices: number[];
   /** Last batch transform applied (for repeat). */
   lastBatchTransform: string | null;
+  /** Loop seam inspection mode — shows first↔last frame overlay. */
+  loopSeamMode: boolean;
 
   setFrames: (frames: FrameInfo[], activeId: string, activeIndex: number) => void;
   setActiveFrame: (id: string | null) => void;
@@ -47,6 +49,7 @@ interface TimelineState {
   setOnionSkinData: (data: OnionSkinData | null) => void;
 
   setLastBatchTransform: (cmd: string) => void;
+  toggleLoopSeamMode: () => void;
   /** Select a contiguous range from anchor to target (Shift+click). */
   selectFrameRange: (anchorIndex: number, targetIndex: number) => void;
   /** Toggle a single frame in/out of the selection (Ctrl+click). */
@@ -72,6 +75,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   onionSkinData: null,
   selectedFrameIndices: [],
   lastBatchTransform: null,
+  loopSeamMode: false,
 
   setFrames: (frames, activeId, activeIndex) => set({ frames, activeFrameId: activeId, activeFrameIndex: activeIndex, onionSkinData: null }),
   setActiveFrame: (id) => set({ activeFrameId: id }),
@@ -86,6 +90,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setOnionSkinNextOpacity: (opacity) => set({ onionSkinNextOpacity: Math.max(0, Math.min(1, opacity)) }),
   setOnionSkinData: (data) => set({ onionSkinData: data }),
   setLastBatchTransform: (cmd) => set({ lastBatchTransform: cmd }),
+  toggleLoopSeamMode: () => set((s) => ({ loopSeamMode: !s.loopSeamMode })),
 
   selectFrameRange: (anchorIndex, targetIndex) => {
     const lo = Math.min(anchorIndex, targetIndex);
