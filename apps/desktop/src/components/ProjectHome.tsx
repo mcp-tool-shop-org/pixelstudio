@@ -2,17 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useWorkflowStore, useSpriteEditorStore } from '@glyphstudio/state';
-import type { SavedTemplate } from '@glyphstudio/state';
+import { parsePack, addPartToLibrary, deriveImportName } from '@glyphstudio/state';
+import type { SavedTemplate, SavedPack } from '@glyphstudio/state';
+import type { Part } from '@glyphstudio/domain';
+import { generatePartId } from '@glyphstudio/domain';
 import type { WorkflowDef, WorkspaceMode } from '@glyphstudio/domain';
 import { ALL_WORKFLOWS } from '../workflows/definitions';
 import { executeWorkflow, type WorkflowInputs } from '../workflows/executor';
 import { WorkflowRunner } from './WorkflowRunner';
 import { toast } from '../lib/toast';
 import { loadTemplateLibrary } from '../lib/templateLibraryStorage';
+import { loadPackLibrary } from '../lib/packLibraryStorage';
+import { loadPartLibrary, savePartLibrary } from '../lib/partLibraryStorage';
 
 interface ProjectHomeProps {
   onEnterWorkspace: (mode?: WorkspaceMode) => void;
 }
+
+type StartMode = 'blank' | 'template' | 'pack';
 
 const SIZE_PRESETS: Array<{ label: string; w: number; h: number }> = [
   { label: '16', w: 16, h: 16 },
@@ -20,8 +27,21 @@ const SIZE_PRESETS: Array<{ label: string; w: number; h: number }> = [
   { label: '48', w: 48, h: 48 },
   { label: '64', w: 64, h: 64 },
   { label: '128', w: 128, h: 128 },
-  { label: '32×48', w: 32, h: 48 },
+  { label: '32\u00D748', w: 32, h: 48 },
 ];
+
+const PINNED_STARTS_KEY = 'glyphstudio_pinned_starts';
+
+function loadPinnedStarts(): string[] {
+  try {
+    const raw = localStorage.getItem(PINNED_STARTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function savePinnedStarts(ids: string[]): void {
+  try { localStorage.setItem(PINNED_STARTS_KEY, JSON.stringify(ids)); } catch {}
+}
 
 function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) => void }) {
   const [name, setName] = useState('Untitled');
@@ -33,7 +53,6 @@ function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) =
 
   return (
     <div className="ph-create-form" data-testid="create-form">
-      <h3>New Sprite</h3>
       <label className="ph-field">
         Name
         <input value={name} onChange={(e) => setName(e.target.value)} data-testid="create-name" />
@@ -55,7 +74,7 @@ function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) =
             className={`ph-preset-btn${width === p.w && height === p.h ? ' active' : ''}`}
             onClick={() => { setWidth(p.w); setHeight(p.h); }}
             data-testid={`preset-${p.label}`}
-            title={`${p.w}×${p.h}`}
+            title={`${p.w}\u00D7${p.h}`}
           >
             {p.label}
           </button>
@@ -91,28 +110,40 @@ function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) =
   );
 }
 
-function TemplatePicker({ onApply }: { onApply: (templateJson: string) => void }) {
-  const [templates] = useState(() => loadTemplateLibrary().templates);
-
-  if (templates.length === 0) return null;
-
+function StartCard({
+  id,
+  name,
+  meta,
+  description,
+  isPinned,
+  onStart,
+  onTogglePin,
+  testId,
+}: {
+  id: string;
+  name: string;
+  meta: string;
+  description?: string;
+  isPinned: boolean;
+  onStart: () => void;
+  onTogglePin: () => void;
+  testId: string;
+}) {
   return (
-    <div className="ph-template-section" data-testid="template-picker">
-      <h3>From Template</h3>
-      <div className="ph-template-list">
-        {templates.map((tmpl) => (
-          <button
-            key={tmpl.id}
-            className="ph-template-card"
-            onClick={() => onApply(tmpl.interchangeJson)}
-            data-testid={`template-${tmpl.id}`}
-          >
-            <span className="ph-template-name">{tmpl.name}</span>
-            <span className="ph-template-size">{tmpl.canvasWidth}x{tmpl.canvasHeight}</span>
-            {tmpl.description && <span className="ph-template-desc">{tmpl.description}</span>}
-          </button>
-        ))}
-      </div>
+    <div className="ph-start-card" data-testid={testId}>
+      <button className="ph-start-card-main" onClick={onStart}>
+        <span className="ph-start-card-name">{name}</span>
+        <span className="ph-start-card-meta">{meta}</span>
+        {description && <span className="ph-start-card-desc">{description}</span>}
+      </button>
+      <button
+        className={`ph-start-pin${isPinned ? ' pinned' : ''}`}
+        onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+        title={isPinned ? 'Unpin' : 'Pin to top'}
+        data-testid={`${testId}-pin`}
+      >
+        {isPinned ? '\u2759' : '\u25CB'}
+      </button>
     </div>
   );
 }
@@ -132,9 +163,25 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
   const activeRun = useWorkflowStore((s) => s.activeRun);
   const workflows = useWorkflowStore((s) => s.workflows);
 
+  const [startMode, setStartMode] = useState<StartMode>('blank');
+  const [templates] = useState(() => loadTemplateLibrary().templates);
+  const [packs] = useState(() => loadPackLibrary().packs);
+  const [pinnedIds, setPinnedIds] = useState(() => loadPinnedStarts());
+
+  const hasTemplates = templates.length > 0;
+  const hasPacks = packs.length > 0;
+
   useEffect(() => {
     registerWorkflows(ALL_WORKFLOWS);
   }, [registerWorkflows]);
+
+  const togglePin = useCallback((id: string) => {
+    setPinnedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
+      savePinnedStarts(next);
+      return next;
+    });
+  }, []);
 
   const handleOpen = async () => {
     try {
@@ -161,10 +208,79 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
     executeWorkflow(def, fullInputs);
   };
 
-  const isRunning = activeRun?.status === 'running';
+  const handleTemplateStart = useCallback((json: string) => {
+    const err = useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+    if (err) {
+      toast.error(`Template error: ${err}`);
+    } else {
+      onEnterWorkspace('edit');
+    }
+  }, [onEnterWorkspace]);
 
-  // Separate creation workflows from tool workflows
+  const handlePackStart = useCallback((pack: SavedPack) => {
+    // Create blank document with default size, then apply pack assets
+    useSpriteEditorStore.getState().newDocument('Untitled', 64, 64);
+
+    // Parse and apply pack contents
+    const doc = useSpriteEditorStore.getState().document;
+    if (!doc) return;
+
+    const result = parsePack(pack.interchangeJson, [], []);
+    if ('error' in result) {
+      toast.error(`Pack error: ${result.error}`);
+      return;
+    }
+
+    // Import palette sets
+    for (const ps of result.paletteSets) {
+      const newId = useSpriteEditorStore.getState().createPaletteSet(ps.name);
+      if (newId) {
+        const currentDoc = useSpriteEditorStore.getState().document!;
+        const updatedSets = currentDoc.paletteSets!.map((s) =>
+          s.id === newId ? { ...s, colors: ps.colors.map((c) => ({ rgba: c.rgba, name: c.name })) } : s,
+        );
+        useSpriteEditorStore.setState({ document: { ...currentDoc, paletteSets: updatedSets } });
+      }
+    }
+
+    // Import parts
+    let partLib = loadPartLibrary();
+    for (const p of result.parts) {
+      const now = new Date().toISOString();
+      const part: Part = {
+        id: generatePartId(),
+        name: p.name,
+        width: p.width,
+        height: p.height,
+        pixelData: [...p.pixelData],
+        tags: p.tags ? [...p.tags] : undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+      partLib = addPartToLibrary(partLib, part);
+    }
+    savePartLibrary(partLib);
+
+    useSpriteEditorStore.setState({ dirty: false });
+    onEnterWorkspace('edit');
+  }, [onEnterWorkspace]);
+
+  const isRunning = activeRun?.status === 'running';
   const toolWorkflows = workflows.filter((w) => w.category !== 'create');
+  const pinnedSet = new Set(pinnedIds);
+
+  // Sort pinned to top
+  const sortedTemplates = [...templates].sort((a, b) => {
+    const ap = pinnedSet.has(a.id) ? 0 : 1;
+    const bp = pinnedSet.has(b.id) ? 0 : 1;
+    return ap - bp;
+  });
+
+  const sortedPacks = [...packs].sort((a, b) => {
+    const ap = pinnedSet.has(a.id) ? 0 : 1;
+    const bp = pinnedSet.has(b.id) ? 0 : 1;
+    return ap - bp;
+  });
 
   return (
     <div className="project-home" data-testid="project-home">
@@ -181,19 +297,81 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
             </p>
             <div className="ph-open-row">
               <button className="btn-secondary ph-open-btn" onClick={handleOpen} data-testid="open-project-btn">
-                Open Project…
+                Open Project...
               </button>
             </div>
-            <CreateForm onRun={handleRunWorkflow} />
-            <TemplatePicker onApply={(json) => {
-              const err = useSpriteEditorStore.getState().newDocumentFromTemplate(json);
-              if (err) {
-                toast.error(`Template error: ${err}`);
-              } else {
-                onEnterWorkspace('edit');
-              }
-            }} />
+
+            {/* Start mode tabs */}
+            <div className="ph-start-tabs" data-testid="start-tabs">
+              <button
+                className={`ph-start-tab${startMode === 'blank' ? ' active' : ''}`}
+                onClick={() => setStartMode('blank')}
+                data-testid="start-tab-blank"
+              >
+                Blank
+              </button>
+              {hasTemplates && (
+                <button
+                  className={`ph-start-tab${startMode === 'template' ? ' active' : ''}`}
+                  onClick={() => setStartMode('template')}
+                  data-testid="start-tab-template"
+                >
+                  Templates ({templates.length})
+                </button>
+              )}
+              {hasPacks && (
+                <button
+                  className={`ph-start-tab${startMode === 'pack' ? ' active' : ''}`}
+                  onClick={() => setStartMode('pack')}
+                  data-testid="start-tab-pack"
+                >
+                  Packs ({packs.length})
+                </button>
+              )}
+            </div>
+
+            {/* Start content */}
+            {startMode === 'blank' && (
+              <CreateForm onRun={handleRunWorkflow} />
+            )}
+
+            {startMode === 'template' && (
+              <div className="ph-start-list" data-testid="template-list">
+                {sortedTemplates.map((tmpl) => (
+                  <StartCard
+                    key={tmpl.id}
+                    id={tmpl.id}
+                    name={tmpl.name}
+                    meta={`${tmpl.canvasWidth}\u00D7${tmpl.canvasHeight}`}
+                    description={tmpl.description}
+                    isPinned={pinnedSet.has(tmpl.id)}
+                    onStart={() => handleTemplateStart(tmpl.interchangeJson)}
+                    onTogglePin={() => togglePin(tmpl.id)}
+                    testId={`template-${tmpl.id}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {startMode === 'pack' && (
+              <div className="ph-start-list" data-testid="pack-list">
+                {sortedPacks.map((pack) => (
+                  <StartCard
+                    key={pack.id}
+                    id={pack.id}
+                    name={pack.name}
+                    meta={`${pack.paletteSetCount} palette${pack.paletteSetCount !== 1 ? 's' : ''}, ${pack.partCount} part${pack.partCount !== 1 ? 's' : ''}`}
+                    description={pack.description}
+                    isPinned={pinnedSet.has(pack.id)}
+                    onStart={() => handlePackStart(pack)}
+                    onTogglePin={() => togglePin(pack.id)}
+                    testId={`pack-${pack.id}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
+
           <div className="project-home-right">
             <h3>Workflows</h3>
             <div className="ph-workflow-list" data-testid="workflow-list">
