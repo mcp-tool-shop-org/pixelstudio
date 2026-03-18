@@ -1068,6 +1068,45 @@ export function Canvas() {
         }
       }
 
+      // Alt+[ / Alt+] — compress/expand timing on selected range
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+        e.preventDefault();
+        const tl = useTimelineStore.getState();
+        if (tl.playing) tl.setPlaying(false);
+        const indices = tl.selectedFrameIndices.length > 0
+          ? tl.selectedFrameIndices
+          : [tl.activeFrameIndex];
+        const baseDuration = Math.round(1000 / tl.fps);
+        const compress = e.code === 'BracketLeft';
+
+        // Compute new durations per frame
+        for (const idx of indices) {
+          const frame = tl.frames[idx];
+          if (!frame) continue;
+          const currentMs = frame.durationMs ?? baseDuration;
+          let newMs: number;
+          if (compress) {
+            newMs = Math.max(baseDuration, Math.round(currentMs / 2));
+          } else {
+            newMs = Math.round(currentMs * 2);
+          }
+          // If newMs equals base duration, clear override
+          const durationMs = Math.abs(newMs - baseDuration) < 1 ? null : newMs;
+          // Fire individual set_frame_duration to keep it simple
+          invoke('set_frame_duration', { frameId: frame.id, durationMs }).catch(() => {});
+        }
+        // Refresh timeline state after all updates
+        try {
+          const result = await invoke<TimelineResult>('get_timeline');
+          tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+          markDirty();
+          invoke('mark_dirty').catch(() => {});
+          const scope = indices.length > 1 ? `${indices.length} frames` : `Frame ${tl.activeFrameIndex + 1}`;
+          toast.info(`${compress ? 'Compress' : 'Expand'} timing → ${scope}`);
+        } catch (err) { console.error('retime failed:', err); }
+        return;
+      }
+
       // Flip/rotate shortcuts during transform
       if (useSelectionStore.getState().isTransforming && !e.ctrlKey && !e.metaKey) {
         const transformCmd =
