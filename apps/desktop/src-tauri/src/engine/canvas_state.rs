@@ -675,6 +675,80 @@ impl CanvasState {
         frame_id
     }
 
+    /// Duplicate a range of frames, inserting copies right after the range.
+    /// Returns the index of the first new frame.
+    pub fn duplicate_frame_range(&mut self, frame_indices: &[usize]) -> Result<usize, String> {
+        if frame_indices.is_empty() {
+            return Err("No frames to duplicate".to_string());
+        }
+        for &idx in frame_indices {
+            if idx >= self.frames.len() {
+                return Err(format!("Frame index {} out of range", idx));
+            }
+        }
+
+        // Stash current working state into its frame slot
+        self.stash_active_frame();
+
+        // Determine insertion point: right after the last selected frame
+        let max_idx = *frame_indices.iter().max().unwrap();
+        let insert_at = max_idx + 1;
+
+        // Deep-copy each selected frame (in index order)
+        let mut sorted = frame_indices.to_vec();
+        sorted.sort();
+
+        let mut new_frames = Vec::new();
+        for &idx in &sorted {
+            self.frame_counter += 1;
+            let src = &self.frames[idx];
+            let frame_id = uuid::Uuid::new_v4().to_string();
+
+            let dup_layers: Vec<Layer> = src.layers.iter().map(|l| {
+                Layer {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    name: l.name.clone(),
+                    visible: l.visible,
+                    locked: l.locked,
+                    opacity: l.opacity,
+                    buffer: PixelBuffer::from_bytes(self.width, self.height, l.buffer.to_bytes()),
+                }
+            }).collect();
+
+            let active_layer = if let Some(ref aid) = src.active_layer_id {
+                // Map old active layer to new by position
+                src.layers.iter().position(|l| l.id == *aid)
+                    .and_then(|pos| dup_layers.get(pos))
+                    .map(|l| l.id.clone())
+            } else {
+                dup_layers.first().map(|l| l.id.clone())
+            };
+
+            new_frames.push(AnimationFrame {
+                id: frame_id,
+                name: format!("Frame {}", self.frame_counter),
+                layers: dup_layers,
+                active_layer_id: active_layer,
+                undo_stack: Vec::new(),
+                redo_stack: Vec::new(),
+                layer_counter: src.layers.len() as u32,
+                duration_ms: src.duration_ms,
+                anchors: Vec::new(),
+                slice_regions: Vec::new(),
+            });
+        }
+
+        // Insert all new frames at the insertion point
+        let first_new_index = insert_at;
+        for (i, frame) in new_frames.into_iter().enumerate() {
+            self.frames.insert(insert_at + i, frame);
+        }
+
+        // Restore the first new frame as the active frame
+        self.restore_frame(first_new_index);
+        Ok(first_new_index)
+    }
+
     /// Delete a frame by index. Cannot delete the last frame.
     pub fn delete_frame(&mut self, frame_id: &str) -> Result<(), String> {
         if self.frames.len() <= 1 {

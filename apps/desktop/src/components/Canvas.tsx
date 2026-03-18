@@ -1015,19 +1015,33 @@ export function Canvas() {
           return;
         }
 
-        // Ctrl+D — duplicate current frame (fastest path to next pose)
+        // Ctrl+D — duplicate frame(s): range if selected, otherwise active
         if (e.code === 'KeyD' && !e.shiftKey) {
           e.preventDefault();
           const tl = useTimelineStore.getState();
           if (tl.playing) tl.setPlaying(false);
+          const hasRange = tl.selectedFrameIndices.length > 0;
           try {
-            const result = await invoke<TimelineResult>('duplicate_frame');
-            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
-            setFrame(result.frame);
-            syncLayersFromFrame(result.frame);
-            markDirty();
-            invoke('mark_dirty').catch(() => {});
-            toast.info(`Duplicated → Frame ${result.activeFrameIndex + 1}`);
+            if (hasRange) {
+              const result = await invoke<TimelineResult>('duplicate_frame_range', {
+                frameIndices: tl.selectedFrameIndices,
+              });
+              tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+              setFrame(result.frame);
+              syncLayersFromFrame(result.frame);
+              markDirty();
+              invoke('mark_dirty').catch(() => {});
+              tl.clearFrameSelection();
+              toast.info(`Duplicated ${tl.selectedFrameIndices.length} frames → Frame ${result.activeFrameIndex + 1}`);
+            } else {
+              const result = await invoke<TimelineResult>('duplicate_frame');
+              tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+              setFrame(result.frame);
+              syncLayersFromFrame(result.frame);
+              markDirty();
+              invoke('mark_dirty').catch(() => {});
+              toast.info(`Duplicated → Frame ${result.activeFrameIndex + 1}`);
+            }
           } catch (err) { console.error('duplicate_frame failed:', err); }
           return;
         }
