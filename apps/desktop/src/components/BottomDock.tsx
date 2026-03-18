@@ -491,7 +491,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
             <button
               key={f.id}
               className={`timeline-frame${isActive ? ' active' : ''}${isSelected ? ' selected' : ''}`}
-              title={`${f.name}${f.durationMs ? ` (${f.durationMs}ms)` : ''} · Shift+click range · Ctrl+click toggle`}
+              title={`${f.name}${f.durationMs ? ` · hold ×${Math.round(f.durationMs / (1000 / fps))} (${f.durationMs}ms)` : ''} · Shift+click range · Ctrl+click toggle`}
               onClick={(e) => {
                 if (e.shiftKey) {
                   selectFrameRange(activeFrameIndex, f.index);
@@ -519,7 +519,14 @@ export function BottomDock({ activeMode }: BottomDockProps) {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className="frame-number">{f.index + 1}</span>
+                <>
+                  <span className="frame-number">{f.index + 1}</span>
+                  {f.durationMs != null && (
+                    <span className="frame-hold-badge" title={`Hold: ${f.durationMs}ms`}>
+                      ×{Math.round(f.durationMs / (1000 / fps))}
+                    </span>
+                  )}
+                </>
               )}
             </button>
             );
