@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useWorkflowStore } from '@glyphstudio/state';
+import { useWorkflowStore, useSpriteEditorStore } from '@glyphstudio/state';
+import type { SavedTemplate } from '@glyphstudio/state';
 import type { WorkflowDef, WorkspaceMode } from '@glyphstudio/domain';
 import { ALL_WORKFLOWS } from '../workflows/definitions';
 import { executeWorkflow, type WorkflowInputs } from '../workflows/executor';
 import { WorkflowRunner } from './WorkflowRunner';
 import { toast } from '../lib/toast';
+import { loadTemplateLibrary } from '../lib/templateLibraryStorage';
 
 interface ProjectHomeProps {
   onEnterWorkspace: (mode?: WorkspaceMode) => void;
@@ -89,6 +91,32 @@ function CreateForm({ onRun }: { onRun: (wfId: string, inputs: WorkflowInputs) =
   );
 }
 
+function TemplatePicker({ onApply }: { onApply: (templateJson: string) => void }) {
+  const [templates] = useState(() => loadTemplateLibrary().templates);
+
+  if (templates.length === 0) return null;
+
+  return (
+    <div className="ph-template-section" data-testid="template-picker">
+      <h3>From Template</h3>
+      <div className="ph-template-list">
+        {templates.map((tmpl) => (
+          <button
+            key={tmpl.id}
+            className="ph-template-card"
+            onClick={() => onApply(tmpl.interchangeJson)}
+            data-testid={`template-${tmpl.id}`}
+          >
+            <span className="ph-template-name">{tmpl.name}</span>
+            <span className="ph-template-size">{tmpl.canvasWidth}x{tmpl.canvasHeight}</span>
+            {tmpl.description && <span className="ph-template-desc">{tmpl.description}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WorkflowCard({ def, onRun, disabled }: { def: WorkflowDef; onRun: () => void; disabled: boolean }) {
   return (
     <button className="ph-workflow-card" onClick={onRun} disabled={disabled} data-testid={`wf-card-${def.id}`}>
@@ -157,6 +185,14 @@ export function ProjectHome({ onEnterWorkspace }: ProjectHomeProps) {
               </button>
             </div>
             <CreateForm onRun={handleRunWorkflow} />
+            <TemplatePicker onApply={(json) => {
+              const err = useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+              if (err) {
+                toast.error(`Template error: ${err}`);
+              } else {
+                onEnterWorkspace('edit');
+              }
+            }} />
           </div>
           <div className="project-home-right">
             <h3>Workflows</h3>

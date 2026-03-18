@@ -8909,6 +8909,48 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.ph-template-section {
+  margin-top: 12px;
+  max-width: 320px;
+}
+.ph-template-section h3 {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+.ph-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ph-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.ph-template-card:hover {
+  border-color: var(--accent-primary);
+}
+.ph-template-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.ph-template-size {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.ph-template-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
 .ph-runner-container {
   display: flex;
   justify-content: center;

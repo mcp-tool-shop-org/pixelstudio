@@ -5,17 +5,21 @@ import { useLibraryStore } from '@glyphstudio/state';
 import {
   exportPaletteSets,
   exportParts,
+  exportProjectTemplate,
   parseInterchangeFile,
   deriveImportName,
+  addTemplateToLibrary,
+  generateTemplateId,
 } from '@glyphstudio/state';
 import {
   addPartToLibrary,
   generateDefaultPartName,
 } from '@glyphstudio/state';
 import type { LibraryItem, LibraryItemKind, LibraryViewMode, LibrarySortMode, ImportParseResult, CollisionStrategy } from '@glyphstudio/state';
-import type { PartLibrary, Part } from '@glyphstudio/domain';
+import type { PartLibrary, Part, SavedTemplate } from '@glyphstudio/domain';
 import { generatePartId, generatePaletteSetId } from '@glyphstudio/domain';
 import { loadPartLibrary, savePartLibrary } from '../lib/partLibraryStorage';
+import { loadTemplateLibrary, saveTemplateLibrary } from '../lib/templateLibraryStorage';
 
 function rgbaToHex(rgba: [number, number, number, number]): string {
   return `#${rgba.slice(0, 3).map((c) => c.toString(16).padStart(2, '0')).join('')}`;
@@ -307,6 +311,22 @@ export function LibraryPanel() {
   }, [setActiveStampPart, previewPaletteSet, switchToVariant, activeStampPartId, activeVariantId, pushRecent]);
 
   // Export all authored assets
+  // Save current project as a reusable template
+  const handleSaveAsTemplate = useCallback(() => {
+    if (!doc) return;
+    const json = exportProjectTemplate(doc, partLibrary);
+    const tmpl: SavedTemplate = {
+      id: generateTemplateId(),
+      name: `${doc.name} Template`,
+      canvasWidth: doc.width,
+      canvasHeight: doc.height,
+      interchangeJson: json,
+      createdAt: new Date().toISOString(),
+    };
+    const lib = loadTemplateLibrary();
+    saveTemplateLibrary(addTemplateToLibrary(lib, tmpl));
+  }, [doc, partLibrary]);
+
   const handleExport = useCallback(() => {
     if (!doc) return;
     const palSets = doc.paletteSets ?? [];
@@ -588,6 +608,14 @@ export function LibraryPanel() {
 
       {/* Import/Export actions */}
       <div className="lib-io-bar">
+        <button
+          className="lib-io-btn"
+          onClick={handleSaveAsTemplate}
+          title="Save current project as a reusable template"
+          data-testid="lib-save-template"
+        >
+          Save Template
+        </button>
         <button
           className="lib-io-btn"
           onClick={handleExport}
