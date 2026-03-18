@@ -114,6 +114,7 @@ export type { RangeCheckpoint, FrameSnapshot } from './rangeSnapshotStore';
 export { useSliceStore } from './sliceStore';
 export type { SliceRegion } from './sliceStore';
 export { usePaletteStore } from './paletteStore';
+export { buildColorMap, remapPixelBuffer, rgbaKey } from './paletteRemap';
 export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';
 export { useAIStore } from './aiStore';

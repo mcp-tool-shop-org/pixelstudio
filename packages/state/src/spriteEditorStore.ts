@@ -24,6 +24,7 @@ import {
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
 import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
+import { buildColorMap, remapPixelBuffer } from './paletteRemap';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
 import { serializeSpriteFile, deserializeSpriteFile } from './spritePersistence';
@@ -65,6 +66,8 @@ export interface SpriteEditorStoreState {
   isPlaying: boolean;
   isLooping: boolean;
   previewFrameIndex: number;
+  /** ID of palette set being previewed (null = no preview active). */
+  previewPaletteSetId: string | null;
 
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
@@ -129,6 +132,12 @@ export interface SpriteEditorStoreState {
   deletePaletteSet: (id: string) => void;
   /** Set the active palette set (or null for base palette). */
   setActivePaletteSet: (id: string | null) => void;
+  /** Enter preview mode for a palette set (display only, no pixel mutation). */
+  previewPaletteSet: (id: string | null) => void;
+  /** Apply the previewed palette set to the active frame, recording history. */
+  applyPaletteSetToFrame: (id: string) => void;
+  /** Cancel palette set preview without applying. */
+  cancelPalettePreview: () => void;
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -213,6 +222,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   isPlaying: false,
   isLooping: true,
   previewFrameIndex: 0,
+  previewPaletteSetId: null,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -235,6 +245,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       isPlaying: false,
       isLooping: true,
       previewFrameIndex: 0,
+      previewPaletteSetId: null,
       zoom: 8,
       panX: 0,
       panY: 0,
@@ -254,6 +265,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       isPlaying: false,
       isLooping: true,
       previewFrameIndex: 0,
+      previewPaletteSetId: null,
       ...createDefaultSpriteEditorState(),
     });
   },
@@ -738,6 +750,47 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
     if (!doc) return;
     if (id !== null && !(doc.paletteSets ?? []).some((ps) => ps.id === id)) return;
     set({ document: { ...doc, activePaletteSetId: id, updatedAt: new Date().toISOString() } });
+  },
+
+  previewPaletteSet: (id) => {
+    const { document: doc } = get();
+    if (!doc) return;
+    if (id !== null && !(doc.paletteSets ?? []).some((ps) => ps.id === id)) return;
+    set({ previewPaletteSetId: id });
+  },
+
+  applyPaletteSetToFrame: (id) => {
+    const { document: doc, pixelBuffers, activeFrameIndex } = get();
+    if (!doc) return;
+    const paletteSet = (doc.paletteSets ?? []).find((ps) => ps.id === id);
+    if (!paletteSet) return;
+    const frame = doc.frames[activeFrameIndex];
+    if (!frame) return;
+
+    const colorMap = buildColorMap(doc.palette.colors, paletteSet.colors);
+    if (colorMap.size === 0) {
+      set({ previewPaletteSetId: null });
+      return;
+    }
+
+    const newBuffers = { ...pixelBuffers };
+    for (const layer of frame.layers) {
+      const buf = pixelBuffers[layer.id];
+      if (buf) {
+        newBuffers[layer.id] = remapPixelBuffer(buf, colorMap);
+      }
+    }
+
+    set({
+      pixelBuffers: newBuffers,
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+      previewPaletteSetId: null,
+    });
+  },
+
+  cancelPalettePreview: () => {
+    set({ previewPaletteSetId: null });
   },
 
   // -- Selection --

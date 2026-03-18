@@ -30,6 +30,7 @@ export const SPRITE_HISTORY_OPERATION_KINDS = [
   'set-palette-color',
   'swap-palette-colors',
   'import-sheet',
+  'apply-palette-set',
 ] as const;
 
 export type SpriteHistoryOperationKind = typeof SPRITE_HISTORY_OPERATION_KINDS[number];
@@ -54,6 +55,7 @@ const OPERATION_LABELS: Record<SpriteHistoryOperationKind, string> = {
   'set-palette-color': 'Set palette color',
   'swap-palette-colors': 'Swap colors',
   'import-sheet': 'Import sheet',
+  'apply-palette-set': 'Apply palette set',
 };
 
 export function describeSpriteHistoryOperation(kind: SpriteHistoryOperationKind): string {

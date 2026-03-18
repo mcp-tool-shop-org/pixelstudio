@@ -1694,10 +1694,11 @@ describe('spriteEditorStore', () => {
       openTestDoc();
       useSpriteEditorStore.getState().createPaletteSet('Copy');
       const doc = useSpriteEditorStore.getState().document!;
-      // Mutate original palette — set should not change
-      doc.palette.colors[1].rgba = [99, 99, 99, 255];
-      const setColor = doc.paletteSets![0].colors[1].rgba;
-      expect(setColor).not.toEqual([99, 99, 99, 255]);
+      // Check that palette set colors are separate objects from palette colors
+      const paletteColor = doc.palette.colors[1];
+      const setColor = doc.paletteSets![0].colors[1];
+      expect(paletteColor).not.toBe(setColor);
+      expect(setColor.rgba).toEqual(paletteColor.rgba);
     });
 
     it('createPaletteSet returns null without a document', () => {
@@ -1783,6 +1784,117 @@ describe('spriteEditorStore', () => {
       const doc = useSpriteEditorStore.getState().document!;
       expect(doc.paletteSets).toHaveLength(3);
       expect(doc.paletteSets!.map((ps) => ps.name)).toEqual(['A', 'B', 'C']);
+    });
+  });
+
+  // ── Palette set preview + apply ──
+
+  describe('palette set preview and apply', () => {
+    beforeEach(() => resetStore());
+
+    it('previewPaletteSet sets previewPaletteSetId', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Preview')!;
+      useSpriteEditorStore.getState().previewPaletteSet(id);
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBe(id);
+    });
+
+    it('previewPaletteSet rejects unknown id', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().previewPaletteSet('bogus');
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBeNull();
+    });
+
+    it('previewPaletteSet accepts null to clear', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Preview')!;
+      useSpriteEditorStore.getState().previewPaletteSet(id);
+      useSpriteEditorStore.getState().previewPaletteSet(null);
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBeNull();
+    });
+
+    it('cancelPalettePreview clears previewPaletteSetId', () => {
+      openTestDoc();
+      const id = useSpriteEditorStore.getState().createPaletteSet('Cancel')!;
+      useSpriteEditorStore.getState().previewPaletteSet(id);
+      useSpriteEditorStore.getState().cancelPalettePreview();
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBeNull();
+    });
+
+    it('applyPaletteSetToFrame remaps pixels and clears preview', () => {
+      openTestDoc(4, 4);
+      const lid = layerId(0);
+
+      // Paint a pixel with palette color index 1 (Black [0,0,0,255])
+      const buf = createBlankPixelBuffer(4, 4);
+      setPixel(buf, 0, 0, [0, 0, 0, 255] as Rgba); // Black
+      useSpriteEditorStore.getState().commitPixels(buf);
+
+      // Add a unique color to the palette, then create a palette set that remaps it
+      useSpriteEditorStore.getState().addPaletteColor({ rgba: [42, 42, 42, 255], name: 'Custom' });
+
+      // Create a palette set from current palette
+      const psId = useSpriteEditorStore.getState().createPaletteSet('Variant')!;
+
+      // Now modify the palette set's Black color to Red via setState
+      const currentDoc = useSpriteEditorStore.getState().document!;
+      const ps = currentDoc.paletteSets!.find((p) => p.id === psId)!;
+      const newColors = ps.colors.map((c, i) =>
+        i === 1 ? { ...c, rgba: [255, 0, 0, 255] as [number, number, number, number] } : c,
+      );
+      useSpriteEditorStore.setState({
+        document: {
+          ...useSpriteEditorStore.getState().document!,
+          paletteSets: currentDoc.paletteSets!.map((p) =>
+            p.id === psId ? { ...p, colors: newColors } : p,
+          ),
+        },
+      });
+
+      // Preview then apply
+      useSpriteEditorStore.getState().previewPaletteSet(psId);
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBe(psId);
+
+      useSpriteEditorStore.getState().applyPaletteSetToFrame(psId);
+
+      // Pixel should be remapped: Black → Red
+      const result = samplePixel(useSpriteEditorStore.getState().pixelBuffers[lid], 0, 0);
+      expect(result).toEqual([255, 0, 0, 255]);
+
+      // Preview cleared
+      expect(useSpriteEditorStore.getState().previewPaletteSetId).toBeNull();
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('applyPaletteSetToFrame no-ops when color map is empty', () => {
+      openTestDoc(4, 4);
+      const store = useSpriteEditorStore.getState;
+
+      // Create palette set identical to current palette (identity mapping)
+      const psId = store().createPaletteSet('Same')!;
+
+      const lid = layerId(0);
+      const buf = store().pixelBuffers[lid];
+      setPixel(buf, 0, 0, [0, 0, 0, 255]);
+      store().commitPixels(buf);
+
+      store().previewPaletteSet(psId);
+      store().applyPaletteSetToFrame(psId);
+
+      // Pixel unchanged
+      expect(samplePixel(store().pixelBuffers[lid], 0, 0)).toEqual([0, 0, 0, 255]);
+      expect(store().previewPaletteSetId).toBeNull();
+    });
+
+    it('applyPaletteSetToFrame rejects unknown id', () => {
+      openTestDoc(4, 4);
+      const store = useSpriteEditorStore.getState;
+      const lid = layerId(0);
+      const bufBefore = store().pixelBuffers[lid];
+
+      store().applyPaletteSetToFrame('bogus');
+      // No change
+      expect(store().pixelBuffers[lid]).toBe(bufBefore);
     });
   });
 });
