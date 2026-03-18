@@ -398,6 +398,9 @@ export {
   PACK_LIBRARY_VERSION,
 } from './packLibrary';
 export type { SavedPack, PackLibrary } from './packLibrary';
+export { STARTER_RECIPES, findRecipe } from './starterRecipes';
+export type { StarterRecipe, RecipeHint, RecipeStartKind } from './starterRecipes';
+export { useHintStore } from './hintStore';
 export {
   exportPaletteSets,
   exportParts,
