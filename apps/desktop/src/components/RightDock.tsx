@@ -1,28 +1,29 @@
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import type { WorkspaceMode } from '@glyphstudio/domain';
-import { useEffect, useRef, useState } from 'react';
-import type { ComponentType } from 'react';
-import { LayerPanel } from './LayerPanel';
-import { AssetBrowserPanel } from './AssetBrowserPanel';
-import { SceneInstancesPanel } from './SceneInstancesPanel';
-import { CameraKeyframePanel } from './CameraKeyframePanel';
-import { CharacterBuilderPanel } from './CharacterBuilderPanel';
-import { SceneProvenancePanel } from './SceneProvenancePanel';
-import { AnalysisPanel } from './AnalysisPanel';
-import { PalettePropsPanel } from './PalettePropsPanel';
-import { ValidationPanel } from './ValidationPanel';
-import { ReferencePanel } from './ReferencePanel';
-import { SnapshotPanel } from './SnapshotPanel';
-import { VectorShapesPanel } from './VectorShapesPanel';
-import { VectorPropertiesPanel } from './VectorPropertiesPanel';
-import { VectorReductionPanel } from './VectorReductionPanel';
-import { VectorCopilotPanel } from './VectorCopilotPanel';
-import { VectorAICreationPanel } from './VectorAICreationPanel';
-import { AISettingsPanel } from './AISettingsPanel';
-import { ComfyUIGeneratePanel } from './ComfyUIGeneratePanel';
-import { CopilotPanel } from './CopilotPanel';
-import { TemplateBrowserPanel } from './TemplateBrowserPanel';
-import { SliceManagerPanel } from './SliceManagerPanel';
-import { OutputPresetsPanel } from './OutputPresetsPanel';
+
+// Lazy-load all panels: deferred until first activation, not evaluated at startup.
+const LayerPanel = React.lazy(() => import('./LayerPanel').then((m) => ({ default: m.LayerPanel })));
+const AssetBrowserPanel = React.lazy(() => import('./AssetBrowserPanel').then((m) => ({ default: m.AssetBrowserPanel })));
+const SceneInstancesPanel = React.lazy(() => import('./SceneInstancesPanel').then((m) => ({ default: m.SceneInstancesPanel })));
+const CameraKeyframePanel = React.lazy(() => import('./CameraKeyframePanel').then((m) => ({ default: m.CameraKeyframePanel })));
+const CharacterBuilderPanel = React.lazy(() => import('./CharacterBuilderPanel').then((m) => ({ default: m.CharacterBuilderPanel })));
+const SceneProvenancePanel = React.lazy(() => import('./SceneProvenancePanel').then((m) => ({ default: m.SceneProvenancePanel })));
+const AnalysisPanel = React.lazy(() => import('./AnalysisPanel').then((m) => ({ default: m.AnalysisPanel })));
+const PalettePropsPanel = React.lazy(() => import('./PalettePropsPanel').then((m) => ({ default: m.PalettePropsPanel })));
+const ValidationPanel = React.lazy(() => import('./ValidationPanel').then((m) => ({ default: m.ValidationPanel })));
+const ReferencePanel = React.lazy(() => import('./ReferencePanel').then((m) => ({ default: m.ReferencePanel })));
+const SnapshotPanel = React.lazy(() => import('./SnapshotPanel').then((m) => ({ default: m.SnapshotPanel })));
+const VectorShapesPanel = React.lazy(() => import('./VectorShapesPanel').then((m) => ({ default: m.VectorShapesPanel })));
+const VectorPropertiesPanel = React.lazy(() => import('./VectorPropertiesPanel').then((m) => ({ default: m.VectorPropertiesPanel })));
+const VectorReductionPanel = React.lazy(() => import('./VectorReductionPanel').then((m) => ({ default: m.VectorReductionPanel })));
+const VectorCopilotPanel = React.lazy(() => import('./VectorCopilotPanel').then((m) => ({ default: m.VectorCopilotPanel })));
+const VectorAICreationPanel = React.lazy(() => import('./VectorAICreationPanel').then((m) => ({ default: m.VectorAICreationPanel })));
+const AISettingsPanel = React.lazy(() => import('./AISettingsPanel').then((m) => ({ default: m.AISettingsPanel })));
+const ComfyUIGeneratePanel = React.lazy(() => import('./ComfyUIGeneratePanel').then((m) => ({ default: m.ComfyUIGeneratePanel })));
+const CopilotPanel = React.lazy(() => import('./CopilotPanel').then((m) => ({ default: m.CopilotPanel })));
+const TemplateBrowserPanel = React.lazy(() => import('./TemplateBrowserPanel').then((m) => ({ default: m.TemplateBrowserPanel })));
+const SliceManagerPanel = React.lazy(() => import('./SliceManagerPanel').then((m) => ({ default: m.SliceManagerPanel })));
+const OutputPresetsPanel = React.lazy(() => import('./OutputPresetsPanel').then((m) => ({ default: m.OutputPresetsPanel })));
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -34,7 +35,7 @@ interface RightDockProps {
  * To wire a new panel: add its tab label as a key and the component as the value.
  * Tabs present in MODE_TABS but absent from this registry render a placeholder.
  */
-export const PANEL_REGISTRY: Record<string, ComponentType> = {
+export const PANEL_REGISTRY: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
   'Layers': LayerPanel,
   'Assets': AssetBrowserPanel,
   'Instances': SceneInstancesPanel,
@@ -78,9 +79,21 @@ export const MODE_TABS: Record<WorkspaceMode, string[]> = {
 
 const TAB_OVERFLOW_THRESHOLD = 6;
 
+const PANEL_FALLBACK = (
+  <div className="dock-panel-placeholder">
+    <span className="placeholder-label">Loading…</span>
+  </div>
+);
+
 function PanelContent({ tabName }: { tabName: string }) {
   const Component = PANEL_REGISTRY[tabName];
-  if (Component) return <Component />;
+  if (Component) {
+    return (
+      <Suspense fallback={PANEL_FALLBACK}>
+        <Component />
+      </Suspense>
+    );
+  }
   return (
     <div className="dock-panel-placeholder">
       <span className="placeholder-label">{tabName}</span>
