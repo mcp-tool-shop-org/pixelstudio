@@ -319,6 +319,25 @@ pub fn transform_frame_range(
     Ok(build_timeline_state(canvas))
 }
 
+/// Nudge (translate) all layers in specified frames by (dx, dy).
+#[command]
+pub fn nudge_frame_range(
+    frame_indices: Vec<usize>,
+    dx: i32,
+    dy: i32,
+    canvas_state: State<'_, ManagedCanvasState>,
+    selection_state: State<'_, ManagedSelectionState>,
+) -> Result<TimelineState, AppError> {
+    clear_transient_state(&selection_state);
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    canvas.nudge_frames(&frame_indices, dx, dy)
+        .map_err(AppError::Internal)?;
+    Ok(build_timeline_state(canvas))
+}
+
 /// Set per-frame duration on a range of frames by index.
 #[command]
 pub fn set_frame_duration_range(

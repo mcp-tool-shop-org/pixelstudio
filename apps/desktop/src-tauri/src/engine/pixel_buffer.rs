@@ -84,6 +84,27 @@ impl PixelBuffer {
 
     // --- Whole-buffer transforms (used by batch frame operations) ---
 
+    /// Translate (shift) all pixels by (dx, dy). Pixels that move out of bounds
+    /// are clipped; vacated areas become transparent.
+    pub fn translate(&mut self, dx: i32, dy: i32) {
+        if dx == 0 && dy == 0 { return; }
+        let w = self.width as usize;
+        let h = self.height as usize;
+        let mut out = vec![0u8; self.data.len()];
+        for y in 0..h {
+            let dst_y = y as i32 + dy;
+            if dst_y < 0 || dst_y >= h as i32 { continue; }
+            for x in 0..w {
+                let dst_x = x as i32 + dx;
+                if dst_x < 0 || dst_x >= w as i32 { continue; }
+                let src = (y * w + x) * 4;
+                let dst = (dst_y as usize * w + dst_x as usize) * 4;
+                out[dst..dst + 4].copy_from_slice(&self.data[src..src + 4]);
+            }
+        }
+        self.data = out;
+    }
+
     /// Flip all pixels horizontally (mirror left↔right).
     pub fn flip_horizontal(&mut self) {
         let w = self.width as usize;

@@ -1104,6 +1104,34 @@ export function Canvas() {
         }
       }
 
+      // Alt+Arrow — nudge all content in selected frames (or active frame)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+        const tl = useTimelineStore.getState();
+        if (tl.playing) tl.setPlaying(false);
+        const step = e.shiftKey ? 4 : 1;
+        let dx = 0, dy = 0;
+        if (e.code === 'ArrowLeft') dx = -step;
+        if (e.code === 'ArrowRight') dx = step;
+        if (e.code === 'ArrowUp') dy = -step;
+        if (e.code === 'ArrowDown') dy = step;
+        const indices = tl.selectedFrameIndices.length > 0
+          ? tl.selectedFrameIndices
+          : [tl.activeFrameIndex];
+        try {
+          const result = await invoke<TimelineResult>('nudge_frame_range', {
+            frameIndices: indices,
+            dx, dy,
+          });
+          tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+          setFrame(result.frame);
+          syncLayersFromFrame(result.frame);
+          markDirty();
+          invoke('mark_dirty').catch(() => {});
+        } catch (err) { console.error('nudge_frame_range failed:', err); }
+        return;
+      }
+
       // Alt+1/2/3/4 — set hold ×1/2/3/4 on current frame or selected range
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         const holdMap: Record<string, number> = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4 };

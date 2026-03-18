@@ -571,6 +571,41 @@ impl CanvasState {
         self.active_frame_index = index;
     }
 
+    /// Nudge (translate) all layers in specified frames by (dx, dy).
+    /// With undo support via BufferSnapshot.
+    pub fn nudge_frames(
+        &mut self,
+        frame_indices: &[usize],
+        dx: i32,
+        dy: i32,
+    ) -> Result<(), String> {
+        if dx == 0 && dy == 0 { return Ok(()); }
+        self.stash_active_frame();
+
+        for &idx in frame_indices {
+            if idx >= self.frames.len() {
+                self.restore_frame(self.active_frame_index);
+                return Err(format!("Frame index {} out of range", idx));
+            }
+            let snapshots: Vec<(String, Vec<u8>)> = self.frames[idx].layers.iter()
+                .map(|l| (l.id.clone(), l.buffer.to_bytes()))
+                .collect();
+
+            for layer in &mut self.frames[idx].layers {
+                layer.buffer.translate(dx, dy);
+            }
+
+            self.frames[idx].undo_stack.push(UndoAction::BufferSnapshot {
+                label: format!("nudge({},{})", dx, dy),
+                snapshots,
+            });
+            self.frames[idx].redo_stack.clear();
+        }
+
+        self.restore_frame(self.active_frame_index);
+        Ok(())
+    }
+
     /// Apply a whole-buffer transform to a range of frames.
     /// `transform` is one of: "flip_horizontal", "flip_vertical",
     /// "rotate_90_cw", "rotate_90_ccw".
