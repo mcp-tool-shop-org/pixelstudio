@@ -291,6 +291,39 @@
   font-weight: 600;
 }
 
+.status-frame-indicator {
+  color: var(--accent-primary, #64a0ff);
+  font-weight: 600;
+}
+
+.canvas-init-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-canvas, #111114);
+  z-index: 5;
+}
+
+.canvas-init-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.timeline-frame-counter {
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.timeline-frame-name {
+  color: var(--text-muted);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Right Dock */
 .right-dock {
   display: flex;
@@ -1019,8 +1052,19 @@
   cursor: pointer;
 }
 
+.timeline-frame:hover {
+  border-color: var(--border-hover, #555);
+}
+
 .timeline-frame.active {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary), 0 0 6px rgba(100, 160, 255, 0.35);
+  background: var(--bg-surface-active, #1e2a3a);
+}
+
+.timeline-frame.active .frame-number {
+  color: var(--accent-primary);
+  font-weight: 600;
 }
 
 .frame-number {

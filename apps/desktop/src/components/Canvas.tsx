@@ -136,6 +136,7 @@ export function Canvas() {
   const mirrorMode = useToolStore((s) => s.mirrorMode);
 
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
+  const activeFrameName = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.name ?? '');
   const frameCount = useTimelineStore((s) => s.frames.length);
   const playing = useTimelineStore((s) => s.playing);
   const onionSkinEnabled = useTimelineStore((s) => s.onionSkinEnabled);
@@ -1038,15 +1039,17 @@ export function Canvas() {
         return;
       }
 
-      // Prev/next frame with , and . (pauses playback)
+      // Prev/next frame with , and . (pauses playback, wraps when loop on)
       if (e.code === 'Comma' || e.code === 'Period') {
         e.preventDefault();
         const tl = useTimelineStore.getState();
         if (tl.playing) tl.setPlaying(false);
         if (tl.frames.length <= 1) return;
         const idx = tl.frames.findIndex((f) => f.id === tl.activeFrameId);
-        const targetIdx = e.code === 'Comma' ? idx - 1 : idx + 1;
-        if (targetIdx < 0 || targetIdx >= tl.frames.length) return;
+        let targetIdx = e.code === 'Comma' ? idx - 1 : idx + 1;
+        if (targetIdx < 0) targetIdx = tl.loop ? tl.frames.length - 1 : -1;
+        else if (targetIdx >= tl.frames.length) targetIdx = tl.loop ? 0 : -1;
+        if (targetIdx < 0) return;
         const targetId = tl.frames[targetIdx].id;
         invoke<{ frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>; activeFrameIndex: number; activeFrameId: string; frame: CanvasFrameData }>('select_frame', { frameId: targetId })
           .then((result) => {
@@ -1123,7 +1126,11 @@ export function Canvas() {
         {isSketchTool(activeTool) && <span className="status-sketch" title="Rough drawing mode">rough</span>}
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
-        {frameCount > 1 && <span title=", / . to switch">F{activeFrameIndex + 1}/{frameCount}</span>}
+        {frameCount > 1 && (
+          <span className="status-frame-indicator" title=", / . to step · O for onion skin">
+            {activeFrameIndex + 1}/{frameCount} {activeFrameName}
+          </span>
+        )}
         {playing && <span title="Space to pause">playing</span>}
         {onionSkinEnabled && frameCount > 1 && <span title="O to toggle">onion</span>}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}

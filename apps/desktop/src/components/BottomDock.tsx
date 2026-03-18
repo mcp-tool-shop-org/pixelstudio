@@ -208,13 +208,21 @@ export function BottomDock({ activeMode }: BottomDockProps) {
 
   const handlePrevFrame = useCallback(async () => {
     const idx = frames.findIndex((f) => f.id === activeFrameId);
-    if (idx > 0) handleSelectFrame(frames[idx - 1].id);
-  }, [frames, activeFrameId, handleSelectFrame]);
+    if (idx > 0) {
+      handleSelectFrame(frames[idx - 1].id);
+    } else if (idx === 0 && loopEnabled && frames.length > 1) {
+      handleSelectFrame(frames[frames.length - 1].id);
+    }
+  }, [frames, activeFrameId, loopEnabled, handleSelectFrame]);
 
   const handleNextFrame = useCallback(async () => {
     const idx = frames.findIndex((f) => f.id === activeFrameId);
-    if (idx < frames.length - 1) handleSelectFrame(frames[idx + 1].id);
-  }, [frames, activeFrameId, handleSelectFrame]);
+    if (idx < frames.length - 1) {
+      handleSelectFrame(frames[idx + 1].id);
+    } else if (idx === frames.length - 1 && loopEnabled && frames.length > 1) {
+      handleSelectFrame(frames[0].id);
+    }
+  }, [frames, activeFrameId, loopEnabled, handleSelectFrame]);
 
   // --- Frame reorder ---
   const handleMoveFrameLeft = useCallback(async () => {
@@ -461,7 +469,12 @@ export function BottomDock({ activeMode }: BottomDockProps) {
           </button>
         </div>
         <div className="timeline-info">
-          <span>{frames.length} frame{frames.length !== 1 ? 's' : ''}</span>
+          <span className="timeline-frame-counter">{activeFrameIndex + 1}/{frames.length}</span>
+          {frames.length > 1 && (
+            <span className="timeline-frame-name" title={frames[activeFrameIndex]?.name}>
+              {frames[activeFrameIndex]?.name}
+            </span>
+          )}
           {playing && <span className="playback-indicator">playing</span>}
         </div>
       </div>
