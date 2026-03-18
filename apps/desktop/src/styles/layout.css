@@ -7854,6 +7854,181 @@
   color: var(--text-primary);
 }
 
+/* ── Library Panel ── */
+.lib-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: 11px;
+  height: 100%;
+}
+.lib-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 12px 8px;
+}
+.lib-search-bar {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.lib-search-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: var(--bg-input, var(--bg-surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-primary);
+  outline: none;
+}
+.lib-search-input:focus {
+  border-color: var(--accent-primary);
+}
+.lib-filters {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.lib-filter-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.lib-filter-btn.active {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+.lib-filter-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+.lib-sections {
+  flex: 1;
+  overflow-y: auto;
+}
+.lib-section {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.lib-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 10px;
+  text-align: left;
+}
+.lib-section-header:hover {
+  background: var(--bg-surface);
+}
+.lib-section-arrow {
+  font-size: 8px;
+  width: 10px;
+  color: var(--text-muted);
+}
+.lib-section-title {
+  flex: 1;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.lib-section-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 0 4px;
+  border-radius: 8px;
+}
+.lib-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 0 4px;
+}
+.lib-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 20px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.lib-item:hover {
+  background: var(--bg-surface);
+}
+.lib-item.active {
+  background: rgba(74, 158, 255, 0.08);
+}
+.lib-part-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+.lib-swatch-strip {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.lib-swatch {
+  width: 8px;
+  height: 16px;
+  border-radius: 1px;
+  border: 1px solid var(--border-subtle);
+}
+.lib-swatch-more {
+  font-size: 8px;
+  color: var(--text-muted);
+  line-height: 16px;
+  padding-left: 2px;
+}
+.lib-variant-icon {
+  font-size: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+.lib-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.lib-item-name {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-item-meta {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.lib-active-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--accent-primary);
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
 /* ── Bundle Panel ── */
 .bundle-panel {
   display: flex;

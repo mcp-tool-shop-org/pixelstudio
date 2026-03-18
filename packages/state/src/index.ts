@@ -375,6 +375,8 @@ export type { SheetValidationResult } from './spriteImportExport';
 export { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, generateDocumentVariantExports, sanitizeFilename } from './spriteExport';
 export type { VariantExportEntry, DocumentVariantExportEntry } from './spriteExport';
 export { generateBundlePlan, executeBundleExport } from './bundleExport';
+export { buildLibraryIndex, filterLibraryItems, groupByKind } from './libraryIndex';
+export type { LibraryItemKind, LibraryItem } from './libraryIndex';
 export type { BundleScope, BundlePlan, BundlePlanEntry, BundleExportEntry } from './bundleExport';
 export {
   serializeSpriteFile,
