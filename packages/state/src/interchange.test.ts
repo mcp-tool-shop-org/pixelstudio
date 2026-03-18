@@ -3,11 +3,17 @@ import type { PaletteSet, Part } from '@glyphstudio/domain';
 import {
   exportPaletteSets,
   exportParts,
+  exportProjectTemplate,
   parseInterchangeFile,
+  parseProjectTemplate,
   deriveImportName,
   INTERCHANGE_FORMAT,
   INTERCHANGE_VERSION,
 } from './interchange';
+import type { ProjectTemplateParseResult } from './interchange';
+import { createSpriteDocument } from '@glyphstudio/domain';
+import type { SpriteDocument } from '@glyphstudio/domain';
+import { createEmptyPartLibrary, addPartToLibrary } from './partLibrary';
 
 function makePaletteSet(name: string): PaletteSet {
   return {
@@ -187,6 +193,110 @@ describe('interchange', () => {
     it('finds next available number', () => {
       const existing = new Set(['Warm (Imported)', 'Warm (Imported 2)', 'Warm (Imported 3)']);
       expect(deriveImportName('Warm', existing)).toBe('Warm (Imported 4)');
+    });
+  });
+
+  // ── Project templates ──
+
+  describe('exportProjectTemplate', () => {
+    it('produces valid template interchange JSON', () => {
+      const doc = createSpriteDocument('hero', 32, 32);
+      doc.paletteSets = [makePaletteSet('Warm')];
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart('Helmet'));
+
+      const json = exportProjectTemplate(doc, lib);
+      const parsed = JSON.parse(json);
+
+      expect(parsed.format).toBe(INTERCHANGE_FORMAT);
+      expect(parsed.contentType).toBe('template');
+      expect(parsed.template.name).toBe('hero');
+      expect(parsed.template.canvasWidth).toBe(32);
+      expect(parsed.template.canvasHeight).toBe(32);
+      expect(parsed.template.palette.length).toBeGreaterThan(0);
+      expect(parsed.paletteSets).toHaveLength(1);
+      expect(parsed.parts).toHaveLength(1);
+    });
+
+    it('omits palette sets when option is false', () => {
+      const doc = createSpriteDocument('test', 16, 16);
+      doc.paletteSets = [makePaletteSet('Cool')];
+      const json = exportProjectTemplate(doc, createEmptyPartLibrary(), { includePaletteSets: false });
+      const parsed = JSON.parse(json);
+      expect(parsed.paletteSets).toBeUndefined();
+    });
+
+    it('omits parts when option is false', () => {
+      const doc = createSpriteDocument('test', 16, 16);
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart('Sword'));
+      const json = exportProjectTemplate(doc, lib, { includeParts: false });
+      const parsed = JSON.parse(json);
+      expect(parsed.parts).toBeUndefined();
+    });
+
+    it('includes frameCount for multi-frame documents', () => {
+      const doc = createSpriteDocument('anim', 16, 16);
+      // Simulate multi-frame by adding frames
+      doc.frames.push({ ...doc.frames[0], id: 'f2', index: 1 });
+      doc.frames.push({ ...doc.frames[0], id: 'f3', index: 2 });
+      const json = exportProjectTemplate(doc, createEmptyPartLibrary());
+      const parsed = JSON.parse(json);
+      expect(parsed.template.frameCount).toBe(3);
+    });
+  });
+
+  describe('parseProjectTemplate', () => {
+    it('roundtrips a project template', () => {
+      const doc = createSpriteDocument('hero', 64, 64);
+      doc.paletteSets = [makePaletteSet('Warm')];
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart('Shield'));
+
+      const json = exportProjectTemplate(doc, lib);
+      const result = parseProjectTemplate(json);
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.template.name).toBe('hero');
+      expect(result.template.canvasWidth).toBe(64);
+      expect(result.template.canvasHeight).toBe(64);
+      expect(result.template.palette.length).toBeGreaterThan(0);
+      expect(result.paletteSets).toHaveLength(1);
+      expect(result.parts).toHaveLength(1);
+    });
+
+    it('returns error for missing template data', () => {
+      const json = JSON.stringify({
+        format: INTERCHANGE_FORMAT,
+        version: 1,
+      });
+      const result = parseProjectTemplate(json);
+      expect('error' in result).toBe(true);
+    });
+
+    it('returns error for invalid template fields', () => {
+      const json = JSON.stringify({
+        format: INTERCHANGE_FORMAT,
+        version: 1,
+        template: { name: '', canvasWidth: 0, canvasHeight: 16, palette: [] },
+      });
+      const result = parseProjectTemplate(json);
+      expect('error' in result).toBe(true);
+    });
+
+    it('returns error for invalid JSON', () => {
+      expect('error' in parseProjectTemplate('nope')).toBe(true);
+    });
+
+    it('parses template without optional palette sets and parts', () => {
+      const doc = createSpriteDocument('minimal', 16, 16);
+      const json = exportProjectTemplate(doc, createEmptyPartLibrary(), {
+        includePaletteSets: false,
+        includeParts: false,
+      });
+      const result = parseProjectTemplate(json);
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.paletteSets).toHaveLength(0);
+      expect(result.parts).toHaveLength(0);
     });
   });
 });

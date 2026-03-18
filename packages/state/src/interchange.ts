@@ -5,7 +5,7 @@
  * Covers palette sets and parts for cross-project transfer.
  */
 
-import type { PaletteSet, SpriteColor } from '@glyphstudio/domain';
+import type { PaletteSet, SpriteColor, SpriteDocument } from '@glyphstudio/domain';
 import type { Part, PartLibrary } from '@glyphstudio/domain';
 
 // ── Format ──
@@ -18,13 +18,15 @@ export interface InterchangeFile {
   format: typeof INTERCHANGE_FORMAT;
   version: number;
   /** What kind of data this file contains. */
-  contentType: 'palette-sets' | 'parts' | 'mixed';
+  contentType: 'palette-sets' | 'parts' | 'mixed' | 'template';
   /** ISO timestamp of export. */
   exportedAt: string;
   /** Optional palette sets payload. */
   paletteSets?: InterchangePaletteSet[];
   /** Optional parts payload. */
   parts?: InterchangePart[];
+  /** Optional project template data. */
+  template?: ProjectTemplateData;
 }
 
 /** Palette set in interchange format (mirrors PaletteSet). */
@@ -42,6 +44,26 @@ export interface InterchangePart {
   height: number;
   pixelData: number[];
   tags?: string[];
+}
+
+/** Project template data — document settings for bootstrapping a new project. */
+export interface ProjectTemplateData {
+  name: string;
+  canvasWidth: number;
+  canvasHeight: number;
+  /** Base palette colors for the new document. */
+  palette: { rgba: [number, number, number, number]; name?: string }[];
+  /** Frame count for animation templates. Omit or 1 for static. */
+  frameCount?: number;
+  /** Frame duration in ms for animation templates. */
+  frameDurationMs?: number;
+}
+
+/** Parsed result of a project template file. */
+export interface ProjectTemplateParseResult {
+  template: ProjectTemplateData;
+  paletteSets: InterchangePaletteSet[];
+  parts: InterchangePart[];
 }
 
 // ── Export ──
@@ -237,4 +259,153 @@ function coercePart(raw: unknown): InterchangePart | null {
   }
 
   return part;
+}
+
+// ── Project template export/import ──
+
+/** Options for what to include in a project template export. */
+export interface ExportTemplateOptions {
+  includePaletteSets?: boolean;
+  includeParts?: boolean;
+}
+
+/**
+ * Export a project template from the current document + part library.
+ *
+ * Captures document settings (name, canvas size, palette) and optionally
+ * includes palette sets and parts. Returns interchange JSON string.
+ */
+export function exportProjectTemplate(
+  doc: SpriteDocument,
+  partLibrary: PartLibrary,
+  options: ExportTemplateOptions = {},
+): string {
+  const { includePaletteSets = true, includeParts = true } = options;
+
+  const template: ProjectTemplateData = {
+    name: doc.name,
+    canvasWidth: doc.width,
+    canvasHeight: doc.height,
+    palette: doc.palette.colors.map((c) => ({
+      rgba: [...c.rgba] as [number, number, number, number],
+      ...(c.name ? { name: c.name } : {}),
+    })),
+    ...(doc.frames.length > 1 ? {
+      frameCount: doc.frames.length,
+      frameDurationMs: doc.frames[0]?.durationMs ?? 100,
+    } : {}),
+  };
+
+  const file: InterchangeFile = {
+    format: INTERCHANGE_FORMAT,
+    version: INTERCHANGE_VERSION,
+    contentType: 'template',
+    exportedAt: new Date().toISOString(),
+    template,
+  };
+
+  if (includePaletteSets && (doc.paletteSets ?? []).length > 0) {
+    file.paletteSets = (doc.paletteSets ?? []).map((ps) => ({
+      id: ps.id,
+      name: ps.name,
+      colors: ps.colors.map((c) => ({
+        rgba: [...c.rgba] as [number, number, number, number],
+        ...(c.name ? { name: c.name } : {}),
+      })),
+    }));
+  }
+
+  if (includeParts && partLibrary.parts.length > 0) {
+    file.parts = partLibrary.parts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      width: p.width,
+      height: p.height,
+      pixelData: [...p.pixelData],
+      ...(p.tags?.length ? { tags: [...p.tags] } : {}),
+    }));
+  }
+
+  return JSON.stringify(file, null, 2);
+}
+
+/**
+ * Parse a project template from interchange JSON.
+ *
+ * Returns template data + optional palette sets + parts, or error string.
+ */
+export function parseProjectTemplate(
+  json: string,
+): ProjectTemplateParseResult | { error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { error: 'Invalid JSON' };
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return { error: 'File is not a valid object' };
+  }
+
+  const file = parsed as Record<string, unknown>;
+
+  if (file.format !== INTERCHANGE_FORMAT) {
+    return { error: `Unknown format: ${String(file.format)}` };
+  }
+
+  if (typeof file.version !== 'number' || file.version > INTERCHANGE_VERSION) {
+    return { error: `Unsupported version: ${String(file.version)}` };
+  }
+
+  // Validate template data
+  const rawTemplate = file.template;
+  if (!rawTemplate || typeof rawTemplate !== 'object') {
+    return { error: 'Missing template data' };
+  }
+
+  const t = rawTemplate as Record<string, unknown>;
+  if (typeof t.name !== 'string' || !t.name) return { error: 'Template missing name' };
+  if (typeof t.canvasWidth !== 'number' || t.canvasWidth <= 0) return { error: 'Template missing valid canvasWidth' };
+  if (typeof t.canvasHeight !== 'number' || t.canvasHeight <= 0) return { error: 'Template missing valid canvasHeight' };
+  if (!Array.isArray(t.palette)) return { error: 'Template missing palette' };
+
+  const palette: ProjectTemplateData['palette'] = [];
+  for (const c of t.palette) {
+    if (!c || typeof c !== 'object') continue;
+    const cc = c as Record<string, unknown>;
+    if (!Array.isArray(cc.rgba) || cc.rgba.length !== 4) continue;
+    palette.push({
+      rgba: cc.rgba as [number, number, number, number],
+      ...(typeof cc.name === 'string' ? { name: cc.name } : {}),
+    });
+  }
+
+  const template: ProjectTemplateData = {
+    name: t.name,
+    canvasWidth: t.canvasWidth,
+    canvasHeight: t.canvasHeight,
+    palette,
+    ...(typeof t.frameCount === 'number' && t.frameCount > 1 ? { frameCount: t.frameCount } : {}),
+    ...(typeof t.frameDurationMs === 'number' ? { frameDurationMs: t.frameDurationMs } : {}),
+  };
+
+  // Parse optional palette sets and parts
+  const paletteSets: InterchangePaletteSet[] = [];
+  if (Array.isArray(file.paletteSets)) {
+    for (const raw of file.paletteSets) {
+      const ps = coercePaletteSet(raw);
+      if (ps) paletteSets.push(ps);
+    }
+  }
+
+  const parts: InterchangePart[] = [];
+  if (Array.isArray(file.parts)) {
+    for (const raw of file.parts) {
+      const part = coercePart(raw);
+      if (part) parts.push(part);
+    }
+  }
+
+  return { template, paletteSets, parts };
 }

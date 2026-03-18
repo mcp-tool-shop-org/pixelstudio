@@ -379,7 +379,9 @@ export { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, s
 export {
   exportPaletteSets,
   exportParts,
+  exportProjectTemplate,
   parseInterchangeFile,
+  parseProjectTemplate,
   deriveImportName,
   INTERCHANGE_FORMAT,
   INTERCHANGE_VERSION,
@@ -391,6 +393,9 @@ export type {
   ImportConflict,
   ImportParseResult,
   CollisionStrategy,
+  ProjectTemplateData,
+  ProjectTemplateParseResult,
+  ExportTemplateOptions,
 } from './interchange';
 export type { LibraryItemKind, LibraryItem, LibraryFilterOptions, LibrarySortMode } from './libraryIndex';
 export { useLibraryStore } from './libraryStore';
