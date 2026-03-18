@@ -7911,6 +7911,30 @@
   border-color: var(--accent-primary);
   color: #fff;
 }
+.lib-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lib-sort-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.lib-sort-btn {
+  padding: 1px 6px;
+  font-size: 9px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.lib-sort-btn.active {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
 .lib-filters {
   display: flex;
   gap: 4px;
@@ -7992,6 +8016,10 @@
 }
 .lib-item.active {
   background: rgba(74, 158, 255, 0.08);
+}
+.lib-item.focused {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: -1px;
 }
 .lib-part-thumb {
   width: 24px;

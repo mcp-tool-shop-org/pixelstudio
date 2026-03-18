@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
-import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority } from '@glyphstudio/state';
+import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, sortLibraryItems } from '@glyphstudio/state';
 import { useLibraryStore } from '@glyphstudio/state';
-import type { LibraryItem, LibraryItemKind, LibraryViewMode } from '@glyphstudio/state';
+import type { LibraryItem, LibraryItemKind, LibraryViewMode, LibrarySortMode } from '@glyphstudio/state';
 import type { PartLibrary } from '@glyphstudio/domain';
 import { loadPartLibrary } from '../lib/partLibraryStorage';
 
@@ -68,14 +68,25 @@ function LibraryItemRow({
   item,
   onClick,
   onTogglePin,
+  isFocused,
 }: {
   item: LibraryItem;
   onClick: () => void;
   onTogglePin: () => void;
+  isFocused?: boolean;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isFocused && rowRef.current) {
+      rowRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isFocused]);
+
   return (
     <div
-      className={`lib-item${item.isActive ? ' active' : ''}${item.isPinned ? ' pinned' : ''}`}
+      ref={rowRef}
+      className={`lib-item${item.isActive ? ' active' : ''}${item.isPinned ? ' pinned' : ''}${isFocused ? ' focused' : ''}`}
       onClick={onClick}
       data-testid={`lib-item-${item.id}`}
     >
@@ -114,6 +125,7 @@ function LibrarySection({
   onTogglePin,
   collapsed,
   onToggle,
+  focusedId,
 }: {
   title: string;
   items: LibraryItem[];
@@ -121,6 +133,7 @@ function LibrarySection({
   onTogglePin: (id: string) => void;
   collapsed: boolean;
   onToggle: () => void;
+  focusedId: string | null;
 }) {
   if (items.length === 0) return null;
 
@@ -139,6 +152,7 @@ function LibrarySection({
               item={item}
               onClick={() => onItemClick(item)}
               onTogglePin={() => onTogglePin(item.id)}
+              isFocused={focusedId === item.id}
             />
           ))}
         </div>
@@ -152,10 +166,12 @@ function FlatList({
   items,
   onItemClick,
   onTogglePin,
+  focusedId,
 }: {
   items: LibraryItem[];
   onItemClick: (item: LibraryItem) => void;
   onTogglePin: (id: string) => void;
+  focusedId: string | null;
 }) {
   if (items.length === 0) {
     return <div className="lib-empty">Nothing here yet.</div>;
@@ -169,6 +185,7 @@ function FlatList({
           item={item}
           onClick={() => onItemClick(item)}
           onTogglePin={() => onTogglePin(item.id)}
+          isFocused={focusedId === item.id}
         />
       ))}
     </div>
@@ -198,6 +215,10 @@ export function LibraryPanel() {
     new Set(['part', 'palette-set', 'variant']),
   );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [sortMode, setSortMode] = useState<LibrarySortMode>('priority');
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const allItems = useMemo(
     () => buildLibraryIndex(doc, partLibrary, activeStampPartId, activePaletteSetId, activeVariantId, pinnedIds, recentIds),
@@ -209,11 +230,11 @@ export function LibraryPanel() {
     [allItems, query, activeKinds],
   );
 
-  const sortedFiltered = useMemo(() => sortWithPriority(filtered), [filtered]);
+  const sortedFiltered = useMemo(() => sortLibraryItems(filtered, sortMode), [filtered, sortMode]);
 
   const groups = useMemo(() => groupByKind(sortedFiltered), [sortedFiltered]);
 
-  // View-mode filtered lists
+  // View-mode filtered lists (must be before flatVisibleItems)
   const recentItems = useMemo(
     () => {
       // Maintain recent order from recentIds
@@ -227,6 +248,13 @@ export function LibraryPanel() {
     () => allItems.filter((i) => i.isPinned),
     [allItems],
   );
+
+  // Flat list of all visible items for keyboard navigation
+  const flatVisibleItems = useMemo((): LibraryItem[] => {
+    if (viewMode === 'recent') return recentItems;
+    if (viewMode === 'pinned') return pinnedItems;
+    return [...groups['part'], ...groups['palette-set'], ...groups['variant']];
+  }, [viewMode, recentItems, pinnedItems, groups]);
 
   const toggleKind = useCallback((kind: LibraryItemKind) => {
     setActiveKinds((prev) => {
@@ -263,6 +291,39 @@ export function LibraryPanel() {
     }
   }, [setActiveStampPart, previewPaletteSet, switchToVariant, activeStampPartId, activeVariantId, pushRecent]);
 
+  // Reset focused index when results change
+  useEffect(() => { setFocusedIndex(-1); }, [sortedFiltered.length, query, viewMode]);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex((prev) => Math.min(prev + 1, flatVisibleItems.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex((prev) => Math.max(prev - 1, -1));
+      if (focusedIndex <= 0) searchRef.current?.focus();
+    } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < flatVisibleItems.length) {
+      e.preventDefault();
+      handleItemClick(flatVisibleItems[focusedIndex]);
+    }
+  }, [flatVisibleItems, focusedIndex, handleItemClick]);
+
+  // Focus search on panel mount or Ctrl+F
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        const panel = panelRef.current;
+        if (panel && panel.offsetParent !== null) {
+          e.preventDefault();
+          searchRef.current?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleGlobalKey);
+    return () => document.removeEventListener('keydown', handleGlobalKey);
+  }, []);
+
   if (!doc) {
     return (
       <div className="lib-panel">
@@ -274,15 +335,22 @@ export function LibraryPanel() {
   const totalCount = allItems.length;
 
   return (
-    <div className="lib-panel" data-testid="library-panel">
+    <div className="lib-panel" data-testid="library-panel" ref={panelRef} onKeyDown={handleKeyDown}>
       {/* Search */}
       <div className="lib-search-bar">
         <input
+          ref={searchRef}
           className="lib-search-input"
           type="text"
           placeholder="Search assets..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setFocusedIndex(0);
+            }
+          }}
           data-testid="lib-search"
         />
       </div>
@@ -315,45 +383,70 @@ export function LibraryPanel() {
             ))}
           </div>
         )}
+        <div className="lib-sort-row">
+          <span className="lib-sort-label">Sort:</span>
+          {(['priority', 'name', 'recent'] as LibrarySortMode[]).map((mode) => (
+            <button
+              key={mode}
+              className={`lib-sort-btn${sortMode === mode ? ' active' : ''}`}
+              onClick={() => setSortMode(mode)}
+              data-testid={`lib-sort-${mode}`}
+            >
+              {mode === 'priority' ? 'Default' : mode === 'name' ? 'A-Z' : 'Latest'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}
-      {totalCount === 0 ? (
-        <div className="lib-empty">No authored assets yet.</div>
-      ) : viewMode === 'recent' ? (
-        <FlatList items={recentItems} onItemClick={handleItemClick} onTogglePin={togglePin} />
-      ) : viewMode === 'pinned' ? (
-        <FlatList items={pinnedItems} onItemClick={handleItemClick} onTogglePin={togglePin} />
-      ) : filtered.length === 0 ? (
-        <div className="lib-empty">No matches.</div>
-      ) : (
-        <div className="lib-sections">
-          <LibrarySection
-            title="Parts"
-            items={groups['part']}
-            onItemClick={handleItemClick}
-            onTogglePin={togglePin}
-            collapsed={collapsedSections.has('Parts')}
-            onToggle={() => toggleSection('Parts')}
-          />
-          <LibrarySection
-            title="Palette Sets"
-            items={groups['palette-set']}
-            onItemClick={handleItemClick}
-            onTogglePin={togglePin}
-            collapsed={collapsedSections.has('Palette Sets')}
-            onToggle={() => toggleSection('Palette Sets')}
-          />
-          <LibrarySection
-            title="Variants"
-            items={groups['variant']}
-            onItemClick={handleItemClick}
-            onTogglePin={togglePin}
-            collapsed={collapsedSections.has('Variants')}
-            onToggle={() => toggleSection('Variants')}
-          />
-        </div>
-      )}
+      {(() => {
+        const focusedId = focusedIndex >= 0 && focusedIndex < flatVisibleItems.length
+          ? flatVisibleItems[focusedIndex].id : null;
+
+        if (totalCount === 0) {
+          return <div className="lib-empty">No authored assets yet.</div>;
+        }
+        if (viewMode === 'recent') {
+          return <FlatList items={recentItems} onItemClick={handleItemClick} onTogglePin={togglePin} focusedId={focusedId} />;
+        }
+        if (viewMode === 'pinned') {
+          return <FlatList items={pinnedItems} onItemClick={handleItemClick} onTogglePin={togglePin} focusedId={focusedId} />;
+        }
+        if (filtered.length === 0) {
+          return <div className="lib-empty">No matches.</div>;
+        }
+        return (
+          <div className="lib-sections">
+            <LibrarySection
+              title="Parts"
+              items={groups['part']}
+              onItemClick={handleItemClick}
+              onTogglePin={togglePin}
+              collapsed={collapsedSections.has('Parts')}
+              onToggle={() => toggleSection('Parts')}
+              focusedId={focusedId}
+            />
+            <LibrarySection
+              title="Palette Sets"
+              items={groups['palette-set']}
+              onItemClick={handleItemClick}
+              onTogglePin={togglePin}
+              collapsed={collapsedSections.has('Palette Sets')}
+              onToggle={() => toggleSection('Palette Sets')}
+              focusedId={focusedId}
+            />
+            <LibrarySection
+              title="Variants"
+              items={groups['variant']}
+              onItemClick={handleItemClick}
+              onTogglePin={togglePin}
+              collapsed={collapsedSections.has('Variants')}
+              onToggle={() => toggleSection('Variants')}
+              focusedId={focusedId}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }

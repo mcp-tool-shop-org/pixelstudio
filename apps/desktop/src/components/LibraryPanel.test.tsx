@@ -133,4 +133,43 @@ describe('LibraryPanel', () => {
     render(<LibraryPanel />);
     expect(screen.getByTestId('lib-search')).toBeTruthy();
   });
+
+  it('shows sort mode buttons', () => {
+    openTestDoc();
+    render(<LibraryPanel />);
+    expect(screen.getByTestId('lib-sort-priority')).toBeTruthy();
+    expect(screen.getByTestId('lib-sort-name')).toBeTruthy();
+    expect(screen.getByTestId('lib-sort-recent')).toBeTruthy();
+  });
+
+  it('sort by name reorders items alphabetically', () => {
+    openTestDoc();
+    savePartLibrary({
+      schemaVersion: 1,
+      parts: [
+        makePart({ id: 'z', name: 'Zebra' }),
+        makePart({ id: 'a', name: 'Alpha' }),
+      ],
+    });
+    render(<LibraryPanel />);
+    fireEvent.click(screen.getByTestId('lib-sort-name'));
+
+    const items = screen.getAllByTestId(/^lib-item-/);
+    // Alpha should come before Zebra
+    const names = items.map((el) => el.querySelector('.lib-item-name')?.textContent);
+    expect(names).toEqual(['Alpha', 'Zebra']);
+  });
+
+  it('arrow down from search focuses first item', () => {
+    openTestDoc();
+    savePartLibrary({ schemaVersion: 1, parts: [makePart({ id: 'nav-1', name: 'Nav' })] });
+    render(<LibraryPanel />);
+
+    const search = screen.getByTestId('lib-search');
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+
+    // First item should get focused class
+    const item = screen.getByTestId('lib-item-nav-1');
+    expect(item.className).toContain('focused');
+  });
 });
