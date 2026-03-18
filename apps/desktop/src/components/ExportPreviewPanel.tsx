@@ -298,13 +298,20 @@ export function ExportPreviewPanel() {
         filters: [{ name: 'GIF', extensions: ['gif'] }],
       });
       if (!filePath) { setExporting(false); return; }
-      await invoke<string>('export_animated_gif', { filePath, fps: 12 });
+      // Pass frame indices when scope is selected_span so GIF respects range
+      const gifArgs: Record<string, unknown> = { filePath, fps: 12 };
+      if (scopeChoice === 'selected_span') {
+        const indices: number[] = [];
+        for (let i = spanStart - 1; i <= spanEnd - 1; i++) indices.push(i);
+        gifArgs.frameIndices = indices;
+      }
+      await invoke<string>('export_animated_gif', gifArgs);
       setLastOutputDir(filePath.replace(/[\\/][^\\/]*$/, ''));
     } catch (err) {
       setErrorMsg(String(err));
     }
     setExporting(false);
-  }, [projectName, lastOutputDir]);
+  }, [projectName, lastOutputDir, scopeChoice, spanStart, spanEnd]);
 
   const handleExportFramePng = useCallback(async () => {
     setExporting(true);

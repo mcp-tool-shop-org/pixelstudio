@@ -304,6 +304,26 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     } catch (err) { console.error('export_sprite_strip failed:', err); }
   }, [projectName, pauseFirst]);
 
+  const handleExportGif = useCallback(async () => {
+    pauseFirst();
+    try {
+      const suffix = selectedFrameIndices.length > 0
+        ? `_f${Math.min(...selectedFrameIndices) + 1}-${Math.max(...selectedFrameIndices) + 1}`
+        : '';
+      const filePath = await save({
+        title: selectedFrameIndices.length > 0 ? 'Export Selected Range as GIF' : 'Export All Frames as GIF',
+        defaultPath: `${projectName || 'animation'}${suffix}.gif`,
+        filters: [{ name: 'GIF', extensions: ['gif'] }],
+      });
+      if (!filePath) return;
+      const args: Record<string, unknown> = { filePath, fps: useTimelineStore.getState().fps };
+      if (selectedFrameIndices.length > 0) {
+        args.frameIndices = selectedFrameIndices;
+      }
+      await invoke<string>('export_animated_gif', args);
+    } catch (err) { console.error('export_animated_gif failed:', err); }
+  }, [projectName, pauseFirst, selectedFrameIndices]);
+
   // --- Inline rename ---
   const [renamingFrameId, setRenamingFrameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -511,6 +531,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
               <span className="timeline-sep">|</span>
               <button className="timeline-btn" title="Export PNG sequence" onClick={handleExportSequence}>Seq</button>
               <button className="timeline-btn" title="Export sprite strip" onClick={handleExportSpriteStrip}>Strip</button>
+              <button className="timeline-btn" title={selectedFrameIndices.length > 0 ? `Export frames ${Math.min(...selectedFrameIndices) + 1}–${Math.max(...selectedFrameIndices) + 1} as GIF` : 'Export all frames as GIF'} onClick={handleExportGif}>GIF</button>
             </>
           )}
         </div>

@@ -491,6 +491,7 @@ pub fn export_sprite_strip(
 pub fn export_animated_gif(
     file_path: String,
     fps: Option<u32>,
+    frame_indices: Option<Vec<usize>>,
     canvas_state: State<'_, ManagedCanvasState>,
 ) -> Result<String, AppError> {
     let guard = canvas_state.0.lock().unwrap();
@@ -499,6 +500,12 @@ pub fn export_animated_gif(
 
     let frame_count = canvas.frames.len();
     if frame_count == 0 {
+        return Err(AppError::Internal("No frames to export".to_string()));
+    }
+
+    // Use specified indices or default to all frames
+    let indices: Vec<usize> = frame_indices.unwrap_or_else(|| (0..frame_count).collect());
+    if indices.is_empty() {
         return Err(AppError::Internal("No frames to export".to_string()));
     }
 
@@ -518,7 +525,7 @@ pub fn export_animated_gif(
     encoder.set_repeat(gif::Repeat::Infinite)
         .map_err(|e| AppError::Internal(format!("GIF repeat error: {}", e)))?;
 
-    for i in 0..frame_count {
+    for &i in &indices {
         let rgba = canvas.composite_frame_at(i)
             .ok_or_else(|| AppError::Internal(format!("Failed to composite frame {}", i)))?;
 
