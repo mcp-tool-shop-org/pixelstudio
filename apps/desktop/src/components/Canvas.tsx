@@ -93,9 +93,10 @@ export function Canvas() {
   const frameVersion = useCanvasFrameStore((s) => s.version);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
 
-  const zoom = useCanvasViewStore((s) => s.zoom);
-  const panX = useCanvasViewStore((s) => s.panX);
-  const panY = useCanvasViewStore((s) => s.panY);
+  // zoom/panX/panY are read imperatively inside the render callback so that
+  // panning/zooming do not cause React re-renders. The reactive `zoomForUI`
+  // subscription exists only to update the status-bar zoom label in JSX.
+  const zoomForUI = useCanvasViewStore((s) => s.zoom);
   const showPixelGrid = useCanvasViewStore((s) => s.showPixelGrid);
   const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
   const silhouetteColor = useCanvasViewStore((s) => s.silhouetteColor);
@@ -197,6 +198,10 @@ export function Canvas() {
 
     const w = canvas.width;
     const h = canvas.height;
+
+    // Read pan/zoom imperatively — these are not reactive subscriptions so
+    // changing them does not cause a React re-render of this component.
+    const { zoom, panX, panY } = useCanvasViewStore.getState();
 
     ctx.fillStyle = CANVAS_BG;
     ctx.fillRect(0, 0, w, h);
@@ -663,7 +668,9 @@ export function Canvas() {
     ctx.strokeStyle = '#3a3a40';
     ctx.lineWidth = 1;
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
-  }, [zoom, panX, panY, showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode]);
+  // zoom/panX/panY intentionally omitted — read imperatively inside render.
+  // Pan/zoom changes trigger a direct scheduleRender subscription below.
+  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -719,6 +726,26 @@ export function Canvas() {
   // State-driven renders (useEffect on [render] above) still fire immediately
   // since they're already rate-limited by React's scheduler.
   useEffect(() => { renderRef.current = scheduleRender; }, [scheduleRender]);
+
+  // Subscribe to pan/zoom changes directly — bypasses React re-renders.
+  // When panX, panY, or zoom change, we schedule a render via rAF without
+  // re-creating the render callback or triggering useEffect cascades.
+  // All other view state changes (showPixelGrid, silhouette, etc.) still
+  // travel through React's reactive path since they're infrequent.
+  useEffect(() => {
+    let prevZoom  = useCanvasViewStore.getState().zoom;
+    let prevPanX  = useCanvasViewStore.getState().panX;
+    let prevPanY  = useCanvasViewStore.getState().panY;
+    const unsub = useCanvasViewStore.subscribe((state) => {
+      if (state.zoom !== prevZoom || state.panX !== prevPanX || state.panY !== prevPanY) {
+        prevZoom = state.zoom;
+        prevPanX = state.panX;
+        prevPanY = state.panY;
+        scheduleRender();
+      }
+    });
+    return unsub;
+  }, [scheduleRender]);
 
 
   const handleWheel = useCallback(
@@ -1044,7 +1071,7 @@ export function Canvas() {
     };
   }, [setFrame, markDirty, clearSelection, clearTransform, setTransform, loadSliceRegions]);
 
-  const zoomPercent = `${zoom * 100}%`;
+  const zoomPercent = `${zoomForUI * 100}%`;
   const pixelCoord = hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '\u2014';
   const colorHex = `#${primaryColor.r.toString(16).padStart(2, '0')}${primaryColor.g.toString(16).padStart(2, '0')}${primaryColor.b.toString(16).padStart(2, '0')}`;
   const selectionInfo = hasSelection && selectionBounds
