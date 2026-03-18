@@ -19,6 +19,20 @@
  *   buildTintedPixelBuffer 64×64   blue       < 0.3ms
  *   buildTintedPixelBuffer 64×64   red        < 0.3ms
  *   buildTintedPixelBuffer 128×128 blue       < 0.6ms
+ *
+ * Architectural truths locked by FRP-2 / FRP-3 (2026-03-17):
+ *   - Pan/zoom removed from React reconciliation path (FRP-3-C4).
+ *     Path: Zustand subscribe → scheduleRender → rAF → render reads state
+ *     imperatively. Zero React re-renders per gesture tick.
+ *     Regression: any re-introduction of zoom/panX/panY into the render
+ *     useCallback dep array restores the old React cascade.
+ *   - Full-frame render is composition-only when pixels are unchanged (FRP-2-C3).
+ *     Path: offscreen canvas keyed by frameVersion — drawImage per render,
+ *     putImageData only on stroke commit.
+ *     Regression: any per-pixel fillRect loop in the render hot path.
+ *   - Onion skin and transform preview follow the same offscreen pattern (FRP-2-C4, FRP-3-C2).
+ *   - rAF coalescing gates all pointer-event-driven renders (FRP-2-C2).
+ *     Regression: direct render() calls in pointer move handlers.
  */
 
 import { describe, it, expect } from 'vitest';
