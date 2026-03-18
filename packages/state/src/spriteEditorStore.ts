@@ -23,7 +23,7 @@ import {
   DEFAULT_SPRITE_TOOL_CONFIG,
   DEFAULT_SPRITE_ONION_SKIN,
 } from '@glyphstudio/domain';
-import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers } from './spriteRaster';
+import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers, blitSelection } from './spriteRaster';
 import { buildColorMap, remapPixelBuffer, remapFrameBuffers } from './paletteRemap';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
@@ -68,6 +68,8 @@ export interface SpriteEditorStoreState {
   previewFrameIndex: number;
   /** ID of palette set being previewed (null = no preview active). */
   previewPaletteSetId: string | null;
+  /** ID of the part being stamped (null = not in stamp mode). */
+  activeStampPartId: string | null;
 
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
@@ -142,6 +144,12 @@ export interface SpriteEditorStoreState {
   applyPaletteSetToAll: (id: string) => void;
   /** Cancel palette set preview without applying. */
   cancelPalettePreview: () => void;
+
+  // -- Actions: Stamp --
+  /** Enter/exit stamp mode for a part. */
+  setActiveStampPart: (partId: string | null) => void;
+  /** Stamp part pixels onto the active layer at (destX, destY). */
+  stampPart: (pixelData: number[], partWidth: number, partHeight: number, destX: number, destY: number) => void;
 
   // -- Actions: Selection --
   /** Set the selection rectangle and extracted pixel buffer. */
@@ -227,6 +235,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   isLooping: true,
   previewFrameIndex: 0,
   previewPaletteSetId: null,
+  activeStampPartId: null,
   ...createDefaultSpriteEditorState(),
 
   // -- Document lifecycle --
@@ -250,6 +259,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       isLooping: true,
       previewFrameIndex: 0,
       previewPaletteSetId: null,
+      activeStampPartId: null,
       zoom: 8,
       panX: 0,
       panY: 0,
@@ -270,6 +280,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       isLooping: true,
       previewFrameIndex: 0,
       previewPaletteSetId: null,
+      activeStampPartId: null,
       ...createDefaultSpriteEditorState(),
     });
   },
@@ -584,7 +595,7 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
   },
 
   // -- Tool --
-  setTool: (activeTool) => set((s) => ({ tool: { ...s.tool, activeTool } })),
+  setTool: (activeTool) => set((s) => ({ tool: { ...s.tool, activeTool }, activeStampPartId: null })),
   setBrushSize: (brushSize) => {
     if (brushSize < 1) return;
     set((s) => ({ tool: { ...s.tool, brushSize } }));
@@ -828,6 +839,32 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
 
   cancelPalettePreview: () => {
     set({ previewPaletteSetId: null });
+  },
+
+  // -- Stamp --
+  setActiveStampPart: (partId) => {
+    set({ activeStampPartId: partId });
+  },
+
+  stampPart: (pixelData, partWidth, partHeight, destX, destY) => {
+    const { document: doc, pixelBuffers, activeLayerId } = get();
+    if (!doc || !activeLayerId) return;
+    const currentBuf = pixelBuffers[activeLayerId];
+    if (!currentBuf) return;
+
+    const cloned = clonePixelBuffer(currentBuf);
+    const partBuf: SpritePixelBuffer = {
+      width: partWidth,
+      height: partHeight,
+      data: new Uint8ClampedArray(pixelData),
+    };
+    blitSelection(cloned, partBuf, destX, destY);
+
+    set({
+      pixelBuffers: { ...pixelBuffers, [activeLayerId]: cloned },
+      document: { ...doc, updatedAt: new Date().toISOString() },
+      dirty: true,
+    });
   },
 
   // -- Selection --

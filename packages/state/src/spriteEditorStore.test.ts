@@ -1982,4 +1982,112 @@ describe('spriteEditorStore', () => {
       expect(samplePixel(useSpriteEditorStore.getState().pixelBuffers[lids[2]], 0, 0)).toEqual([0, 0, 255, 255]);
     });
   });
+
+  // ── Stamp placement ──
+
+  describe('stamp placement', () => {
+    beforeEach(() => resetStore());
+
+    it('setActiveStampPart sets and clears stamp mode', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().setActiveStampPart('part-1');
+      expect(useSpriteEditorStore.getState().activeStampPartId).toBe('part-1');
+      useSpriteEditorStore.getState().setActiveStampPart(null);
+      expect(useSpriteEditorStore.getState().activeStampPartId).toBeNull();
+    });
+
+    it('setTool clears activeStampPartId', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().setActiveStampPart('part-1');
+      useSpriteEditorStore.getState().setTool('pencil');
+      expect(useSpriteEditorStore.getState().activeStampPartId).toBeNull();
+    });
+
+    it('stampPart blits pixels onto active layer', () => {
+      openTestDoc(8, 8);
+      const lid = layerId(0);
+
+      // Part is a 2x2 red square
+      const partPixels = [
+        255, 0, 0, 255,  255, 0, 0, 255,
+        255, 0, 0, 255,  255, 0, 0, 255,
+      ];
+      useSpriteEditorStore.getState().stampPart(partPixels, 2, 2, 3, 3);
+
+      const buf = useSpriteEditorStore.getState().pixelBuffers[lid];
+      // Stamped pixels at (3,3), (4,3), (3,4), (4,4) should be red
+      expect(samplePixel(buf, 3, 3)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(buf, 4, 3)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(buf, 3, 4)).toEqual([255, 0, 0, 255]);
+      expect(samplePixel(buf, 4, 4)).toEqual([255, 0, 0, 255]);
+      // Neighboring pixel should be transparent
+      expect(samplePixel(buf, 2, 3)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('stampPart skips transparent pixels', () => {
+      openTestDoc(4, 4);
+      const lid = layerId(0);
+
+      // Pre-paint a green pixel at (0,0)
+      const preBuf = createBlankPixelBuffer(4, 4);
+      setPixel(preBuf, 0, 0, [0, 255, 0, 255] as Rgba);
+      useSpriteEditorStore.getState().commitPixels(preBuf);
+
+      // Part: first pixel transparent, second red
+      const partPixels = [
+        0, 0, 0, 0,      255, 0, 0, 255,
+      ];
+      useSpriteEditorStore.getState().stampPart(partPixels, 2, 1, 0, 0);
+
+      const buf = useSpriteEditorStore.getState().pixelBuffers[lid];
+      // (0,0) should still be green (transparent pixel in part was skipped)
+      expect(samplePixel(buf, 0, 0)).toEqual([0, 255, 0, 255]);
+      // (1,0) should be red
+      expect(samplePixel(buf, 1, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('stampPart clips to canvas bounds', () => {
+      openTestDoc(4, 4);
+      const lid = layerId(0);
+
+      // 2x2 red part placed at (3,3) — only (3,3) should be within bounds
+      const partPixels = [
+        255, 0, 0, 255,  255, 0, 0, 255,
+        255, 0, 0, 255,  255, 0, 0, 255,
+      ];
+      useSpriteEditorStore.getState().stampPart(partPixels, 2, 2, 3, 3);
+
+      const buf = useSpriteEditorStore.getState().pixelBuffers[lid];
+      expect(samplePixel(buf, 3, 3)).toEqual([255, 0, 0, 255]);
+      // Out-of-bounds pixels are just not written
+    });
+
+    it('stampPart marks document dirty', () => {
+      openTestDoc(4, 4);
+      const partPixels = [255, 0, 0, 255];
+      useSpriteEditorStore.getState().stampPart(partPixels, 1, 1, 0, 0);
+      expect(useSpriteEditorStore.getState().dirty).toBe(true);
+    });
+
+    it('stampPart no-ops without document', () => {
+      const partPixels = [255, 0, 0, 255];
+      useSpriteEditorStore.getState().stampPart(partPixels, 1, 1, 0, 0);
+      // No crash
+    });
+
+    it('stampPart does not clear activeStampPartId (allows repeated stamping)', () => {
+      openTestDoc(4, 4);
+      useSpriteEditorStore.getState().setActiveStampPart('part-1');
+      const partPixels = [255, 0, 0, 255];
+      useSpriteEditorStore.getState().stampPart(partPixels, 1, 1, 0, 0);
+      expect(useSpriteEditorStore.getState().activeStampPartId).toBe('part-1');
+    });
+
+    it('newDocument clears activeStampPartId', () => {
+      openTestDoc();
+      useSpriteEditorStore.getState().setActiveStampPart('part-1');
+      openTestDoc();
+      expect(useSpriteEditorStore.getState().activeStampPartId).toBeNull();
+    });
+  });
 });
