@@ -5,7 +5,7 @@ export { useProjectStore } from './projectStore';
 export { useWorkspaceStore } from './workspaceStore';
 export { useWorkflowStore } from './workflowStore';
 export { useCanvasViewStore, ZOOM_STEPS } from './canvasViewStore';
-export type { SilhouetteColor } from './canvasViewStore';
+export type { SilhouetteColor, MotionTrailPoint } from './canvasViewStore';
 export { useToolStore } from './toolStore';
 export type { MirrorMode } from './toolStore';
 export type { RgbaColor } from './toolStore';

@@ -13,10 +13,19 @@ type OverlayKey =
   | 'showPivot'
   | 'showPaletteIndices'
   | 'showOnionSkin'
-  | 'showSilhouette';
+  | 'showSilhouette'
+  | 'showMotionTrail';
 
 /** RGBA silhouette color — each channel 0–255. */
 export type SilhouetteColor = [number, number, number, number];
+
+/** A single centroid point in the motion trail. */
+export interface MotionTrailPoint {
+  frameIndex: number;
+  cx: number;
+  cy: number;
+  empty: boolean;
+}
 
 interface CanvasViewState {
   zoom: number;
@@ -33,9 +42,13 @@ interface CanvasViewState {
   showPaletteIndices: boolean;
   showOnionSkin: boolean;
   showSilhouette: boolean;
+  showMotionTrail: boolean;
   silhouetteColor: SilhouetteColor;
   compareSnapshotId: string | null;
   previewBackground: 'dark' | 'light' | 'checker';
+
+  /** Motion trail centroid data (set by compute_motion_trail). */
+  motionTrailData: MotionTrailPoint[] | null;
 
   setCursorPixel: (x: number | null, y: number | null) => void;
   setZoom: (zoom: number) => void;
@@ -48,6 +61,7 @@ interface CanvasViewState {
   setSilhouetteColor: (color: SilhouetteColor) => void;
   setCompareSnapshot: (id: string | null) => void;
   setPreviewBackground: (bg: 'dark' | 'light' | 'checker') => void;
+  setMotionTrailData: (data: MotionTrailPoint[] | null) => void;
 }
 
 function nextZoomStep(current: number): number {
@@ -79,9 +93,11 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   showPaletteIndices: false,
   showOnionSkin: false,
   showSilhouette: false,
+  showMotionTrail: false,
   silhouetteColor: [30, 30, 40, 255] as SilhouetteColor,
   compareSnapshotId: null,
   previewBackground: 'checker',
+  motionTrailData: null,
 
   setCursorPixel: (x, y) => set({ cursorPixelX: x, cursorPixelY: y }),
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
@@ -104,6 +120,7 @@ export const useCanvasViewStore = create<CanvasViewState>((set) => ({
   setSilhouetteColor: (color) => set({ silhouetteColor: color }),
   setCompareSnapshot: (id) => set({ compareSnapshotId: id }),
   setPreviewBackground: (bg) => set({ previewBackground: bg }),
+  setMotionTrailData: (data) => set({ motionTrailData: data }),
 }));
 
 export { ZOOM_STEPS };

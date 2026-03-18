@@ -236,3 +236,76 @@ pub fn compare_frames(
         changed_percent,
     })
 }
+
+// --- Motion trail data ---
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameCentroid {
+    pub frame_index: usize,
+    pub cx: f32,
+    pub cy: f32,
+    pub empty: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MotionTrailData {
+    pub centroids: Vec<FrameCentroid>,
+    pub canvas_width: u32,
+    pub canvas_height: u32,
+}
+
+/// Compute content centroids for all frames (center-of-mass of opaque pixels).
+/// Used for motion trail / arc visibility overlays.
+#[command]
+pub fn compute_motion_trail(
+    state: State<'_, ManagedCanvasState>,
+) -> Result<MotionTrailData, AppError> {
+    let guard = state.0.lock().unwrap();
+    let canvas = guard.as_ref()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    let w = canvas.width as usize;
+    let h = canvas.height as usize;
+    let mut centroids = Vec::with_capacity(canvas.frames.len());
+
+    for idx in 0..canvas.frames.len() {
+        let data = canvas.composite_frame_at(idx)
+            .ok_or_else(|| AppError::Internal(format!("Failed to composite frame {}", idx)))?;
+
+        let mut sum_x: f64 = 0.0;
+        let mut sum_y: f64 = 0.0;
+        let mut count: u64 = 0;
+
+        for y in 0..h {
+            for x in 0..w {
+                let a = data[(y * w + x) * 4 + 3];
+                if a > 0 {
+                    // Weight by alpha for smoother centroid
+                    let weight = a as f64;
+                    sum_x += x as f64 * weight;
+                    sum_y += y as f64 * weight;
+                    count += a as u64;
+                }
+            }
+        }
+
+        if count == 0 {
+            centroids.push(FrameCentroid { frame_index: idx, cx: 0.0, cy: 0.0, empty: true });
+        } else {
+            centroids.push(FrameCentroid {
+                frame_index: idx,
+                cx: (sum_x / count as f64) as f32,
+                cy: (sum_y / count as f64) as f32,
+                empty: false,
+            });
+        }
+    }
+
+    Ok(MotionTrailData {
+        centroids,
+        canvas_width: canvas.width,
+        canvas_height: canvas.height,
+    })
+}

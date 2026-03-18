@@ -100,6 +100,7 @@ pub fn run() {
             analysis::analyze_bounds,
             analysis::analyze_colors,
             analysis::compare_frames,
+            analysis::compute_motion_trail,
             motion::begin_motion_session,
             motion::generate_motion_proposals,
             motion::get_motion_session,
