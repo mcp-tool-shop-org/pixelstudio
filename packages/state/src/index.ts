@@ -376,6 +376,22 @@ export { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, gen
 export type { VariantExportEntry, DocumentVariantExportEntry } from './spriteExport';
 export { generateBundlePlan, executeBundleExport } from './bundleExport';
 export { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, sortLibraryItems } from './libraryIndex';
+export {
+  exportPaletteSets,
+  exportParts,
+  parseInterchangeFile,
+  deriveImportName,
+  INTERCHANGE_FORMAT,
+  INTERCHANGE_VERSION,
+} from './interchange';
+export type {
+  InterchangeFile,
+  InterchangePaletteSet,
+  InterchangePart,
+  ImportConflict,
+  ImportParseResult,
+  CollisionStrategy,
+} from './interchange';
 export type { LibraryItemKind, LibraryItem, LibraryFilterOptions, LibrarySortMode } from './libraryIndex';
 export { useLibraryStore } from './libraryStore';
 export type { LibraryViewMode } from './libraryStore';
