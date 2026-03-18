@@ -377,6 +377,17 @@ export type { VariantExportEntry, DocumentVariantExportEntry } from './spriteExp
 export { generateBundlePlan, executeBundleExport } from './bundleExport';
 export { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, sortLibraryItems } from './libraryIndex';
 export {
+  createEmptyTemplateLibrary,
+  addTemplateToLibrary,
+  deleteTemplateFromLibrary,
+  renameTemplateInLibrary,
+  findTemplateById,
+  getTemplateCount,
+  generateTemplateId,
+  TEMPLATE_LIBRARY_VERSION,
+} from './templateLibrary';
+export type { SavedTemplate, TemplateLibrary } from './templateLibrary';
+export {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,
