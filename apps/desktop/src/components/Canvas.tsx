@@ -6,6 +6,7 @@ import { useProjectStore } from '@glyphstudio/state';
 import { useSelectionStore } from '@glyphstudio/state';
 import { useTimelineStore } from '@glyphstudio/state';
 import { useSnapshotStore } from '@glyphstudio/state';
+import { useRangeSnapshotStore } from '@glyphstudio/state';
 import { useAnchorStore } from '@glyphstudio/state';
 import { useSliceStore } from '@glyphstudio/state';
 import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
@@ -114,12 +115,27 @@ export function Canvas() {
   const compareSnapshot = useSnapshotStore((s) =>
     compareSnapshotId ? s.snapshots.find((snap) => snap.id === compareSnapshotId) ?? null : null,
   );
+
+  // Range checkpoint compare — shows checkpoint frame data for the active frame
+  const rangeCompareId = useRangeSnapshotStore((s) => s.compareCheckpointId);
+  const rangeCompareFrame = useRangeSnapshotStore((s) => {
+    if (!s.compareCheckpointId) return null;
+    const cp = s.checkpoints.find((c) => c.id === s.compareCheckpointId);
+    if (!cp) return null;
+    const activeIdx = useTimelineStore.getState().activeFrameIndex;
+    return cp.frameSnapshots.find((f) => f.frameIndex === activeIdx) ?? null;
+  });
+
   const frame = useMemo(() => {
+    // Range checkpoint compare takes priority over single-frame compare
+    if (rangeCompareFrame && liveFrame) {
+      return { ...liveFrame, data: rangeCompareFrame.data };
+    }
     if (compareSnapshot && liveFrame) {
       return { ...liveFrame, data: compareSnapshot.data };
     }
     return liveFrame;
-  }, [liveFrame, compareSnapshot]);
+  }, [liveFrame, compareSnapshot, rangeCompareFrame]);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
   const panBy = useCanvasViewStore((s) => s.panBy);
   const setCursorPixel = useCanvasViewStore((s) => s.setCursorPixel);
@@ -1177,16 +1193,29 @@ export function Canvas() {
         }
       }
 
-      // Blink compare: ` (Backquote) toggles compare to most recent snapshot
-      if (e.code === 'Backquote' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat) {
+      // Blink compare: ` (Backquote) toggles compare
+      // Shift+` toggles range checkpoint compare; plain ` toggles single-frame compare
+      if (e.code === 'Backquote' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
         e.preventDefault();
-        const snaps = useSnapshotStore.getState().snapshots;
-        if (snaps.length === 0) return;
-        const viewState = useCanvasViewStore.getState();
-        if (viewState.compareSnapshotId) {
-          viewState.setCompareSnapshot(null);
+        if (e.shiftKey) {
+          // Range checkpoint compare
+          const rs = useRangeSnapshotStore.getState();
+          if (rs.checkpoints.length === 0) return;
+          if (rs.compareCheckpointId) {
+            rs.setCompareCheckpoint(null);
+          } else {
+            rs.setCompareCheckpoint(rs.checkpoints[rs.checkpoints.length - 1].id);
+          }
         } else {
-          viewState.setCompareSnapshot(snaps[snaps.length - 1].id);
+          // Single-frame compare
+          const snaps = useSnapshotStore.getState().snapshots;
+          if (snaps.length === 0) return;
+          const viewState = useCanvasViewStore.getState();
+          if (viewState.compareSnapshotId) {
+            viewState.setCompareSnapshot(null);
+          } else {
+            viewState.setCompareSnapshot(snaps[snaps.length - 1].id);
+          }
         }
         return;
       }
@@ -1308,10 +1337,20 @@ export function Canvas() {
             comparing
           </span>
         )}
+        {rangeCompareId && (
+          <span className="status-compare" title="Shift+` to exit range compare">
+            {rangeCompareFrame ? 'range compare' : 'range (no data for this frame)'}
+          </span>
+        )}
       </div>
       {compareSnapshotId && (
         <div className="canvas-compare-banner" data-testid="canvas-compare-banner">
           Comparing: {compareSnapshot?.name ?? 'snapshot'} — press ` to return to live
+        </div>
+      )}
+      {rangeCompareId && (
+        <div className="canvas-compare-banner">
+          Range compare — step through frames to see checkpoint data · Shift+` to exit
         </div>
       )}
     </main>
