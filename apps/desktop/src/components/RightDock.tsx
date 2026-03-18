@@ -25,6 +25,7 @@ const TemplateBrowserPanel = React.lazy(() => import('./TemplateBrowserPanel').t
 const SliceManagerPanel = React.lazy(() => import('./SliceManagerPanel').then((m) => ({ default: m.SliceManagerPanel })));
 const OutputPresetsPanel = React.lazy(() => import('./OutputPresetsPanel').then((m) => ({ default: m.OutputPresetsPanel })));
 const PaletteSetsPanel = React.lazy(() => import('./PaletteSetsPanel').then((m) => ({ default: m.PaletteSetsPanel })));
+const PartsPanel = React.lazy(() => import('./PartsPanel').then((m) => ({ default: m.PartsPanel })));
 
 interface RightDockProps {
   activeMode: WorkspaceMode;
@@ -60,6 +61,7 @@ export const PANEL_REGISTRY: Record<string, React.LazyExoticComponent<React.Comp
   'Slices': SliceManagerPanel,
   'Presets': OutputPresetsPanel,
   'Palette Sets': PaletteSetsPanel,
+  'Parts': PartsPanel,
 };
 
 /**
@@ -68,7 +70,7 @@ export const PANEL_REGISTRY: Record<string, React.LazyExoticComponent<React.Comp
  */
 export const MODE_TABS: Record<WorkspaceMode, string[]> = {
   'project-home': [],
-  edit: ['Layers', 'Slices', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Palette Sets', 'Copilot', 'Templates', 'Assets', 'Presets'],
+  edit: ['Layers', 'Slices', 'Reference', 'Snapshots', 'Parts', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Palette Sets', 'Copilot', 'Templates', 'Assets', 'Presets'],
   animate: ['Layers', 'Reference', 'Snapshots', 'Analysis', 'Character', 'Canvas Props', 'Palette', 'Palette Sets', 'Locomotion'],
   palette: ['Palette Props', 'Palette Sets', 'Validation'],
   ai: ['Copilot', 'Generate', 'Templates', 'AI Settings', 'Layers', 'Provenance'],
