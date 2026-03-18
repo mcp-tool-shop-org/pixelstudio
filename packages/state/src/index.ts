@@ -126,6 +126,7 @@ export {
   hasPartInLibrary,
   getPartCount,
 } from './partLibrary';
+export { createPartFromSelection } from './partPromotion';
 export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';
 export { useAIStore } from './aiStore';
