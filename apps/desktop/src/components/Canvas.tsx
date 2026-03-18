@@ -12,6 +12,7 @@ import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/dom
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd, applyMirrorPoints } from '../lib/canvasPixelMath';
+import { buildFramePixelBuffer } from '../lib/canvasRenderHelpers';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
@@ -32,6 +33,11 @@ export function Canvas() {
   // Marching ants animation
   const antOffsetRef = useRef(0);
   const antAnimRef = useRef<number | null>(null);
+
+  // Offscreen canvas cache for frame pixels — rebuilt only when frame data changes.
+  // Avoids O(W×H) fillRect + string-allocation loop every render.
+  const frameOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const frameOffscreenKeyRef = useRef('');
 
   const [canvasReady, setCanvasReady] = useState(false);
 
@@ -261,28 +267,36 @@ export function Canvas() {
     }
 
     // --- Active frame pixels ---
-    const frameData = frame.data;
-    const silR = silhouetteColor[0];
-    const silG = silhouetteColor[1];
-    const silB = silhouetteColor[2];
-    for (let py = 0; py < frame.height; py++) {
-      for (let px = 0; px < frame.width; px++) {
-        const i = (py * frame.width + px) * 4;
-        const a = frameData[i + 3];
-        if (a === 0) continue;
-        const sx = originX + px * zoom;
-        const sy = originY + py * zoom;
-        if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
-        const r = showSilhouette ? silR : frameData[i];
-        const g = showSilhouette ? silG : frameData[i + 1];
-        const b = showSilhouette ? silB : frameData[i + 2];
-        if (a === 255) {
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-        } else {
-          ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`;
-        }
-        ctx.fillRect(sx, sy, zoom, zoom);
+    // Use an offscreen canvas + drawImage instead of per-pixel fillRect.
+    // The offscreen is rebuilt only when the frame data or silhouette state
+    // changes (keyed by frameVersion + compareSnapshotId + silhouette).
+    {
+      const silhouetteKey = `${showSilhouette}:${silhouetteColor.join(',')}`;
+      const cacheKey = `${frameVersion}:${compareSnapshotId ?? ''}:${silhouetteKey}`;
+
+      if (!frameOffscreenRef.current) {
+        frameOffscreenRef.current = document.createElement('canvas');
       }
+      const offscreen = frameOffscreenRef.current;
+
+      if (frameOffscreenKeyRef.current !== cacheKey
+          || offscreen.width !== frame.width
+          || offscreen.height !== frame.height) {
+        offscreen.width = frame.width;
+        offscreen.height = frame.height;
+        const offCtx = offscreen.getContext('2d')!;
+        const buf = buildFramePixelBuffer(
+          frame.data, frame.width, frame.height,
+          showSilhouette, silhouetteColor[0], silhouetteColor[1], silhouetteColor[2],
+        );
+        const id = offCtx.createImageData(frame.width, frame.height);
+        id.data.set(buf);
+        offCtx.putImageData(id, 0, 0);
+        frameOffscreenKeyRef.current = cacheKey;
+      }
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(offscreen, originX, originY, frame.width * zoom, frame.height * zoom);
     }
 
     if (showPixelGrid && zoom >= 4) {
