@@ -537,6 +537,42 @@ impl CanvasState {
         self.active_frame_index = index;
     }
 
+    /// Apply a whole-buffer transform to a range of frames.
+    /// `transform` is one of: "flip_horizontal", "flip_vertical",
+    /// "rotate_90_cw", "rotate_90_ccw".
+    /// Stashes/restores the active frame so all data is coherent.
+    pub fn transform_frames(
+        &mut self,
+        frame_indices: &[usize],
+        transform: &str,
+    ) -> Result<(), String> {
+        // Stash current working state into its frame slot
+        self.stash_active_frame();
+
+        for &idx in frame_indices {
+            if idx >= self.frames.len() {
+                self.restore_frame(self.active_frame_index);
+                return Err(format!("Frame index {} out of range", idx));
+            }
+            for layer in &mut self.frames[idx].layers {
+                match transform {
+                    "flip_horizontal" => layer.buffer.flip_horizontal(),
+                    "flip_vertical" => layer.buffer.flip_vertical(),
+                    "rotate_90_cw" => layer.buffer.rotate_90_cw()?,
+                    "rotate_90_ccw" => layer.buffer.rotate_90_ccw()?,
+                    other => {
+                        self.restore_frame(self.active_frame_index);
+                        return Err(format!("Unknown transform: {other}"));
+                    }
+                }
+            }
+        }
+
+        // Restore the active frame so top-level state is up to date
+        self.restore_frame(self.active_frame_index);
+        Ok(())
+    }
+
     /// Create a new blank frame with one transparent layer.
     pub fn create_frame(&mut self, name: Option<String>) -> String {
         // Stash current frame first

@@ -90,6 +90,7 @@ pub fn run() {
             timeline::insert_frame_at,
             timeline::duplicate_frame_at,
             timeline::set_frame_duration,
+            timeline::transform_frame_range,
             project::export_frame_sequence,
             project::export_sprite_strip,
             project::export_animated_gif,

@@ -28,6 +28,9 @@ interface TimelineState {
   onionSkinNextOpacity: number;
   onionSkinData: OnionSkinData | null;
 
+  /** Frame range selection for batch operations (sorted indices). */
+  selectedFrameIndices: number[];
+
   setFrames: (frames: FrameInfo[], activeId: string, activeIndex: number) => void;
   setActiveFrame: (id: string | null) => void;
   setPlaying: (playing: boolean) => void;
@@ -40,9 +43,18 @@ interface TimelineState {
   setOnionSkinPrevOpacity: (opacity: number) => void;
   setOnionSkinNextOpacity: (opacity: number) => void;
   setOnionSkinData: (data: OnionSkinData | null) => void;
+
+  /** Select a contiguous range from anchor to target (Shift+click). */
+  selectFrameRange: (anchorIndex: number, targetIndex: number) => void;
+  /** Toggle a single frame in/out of the selection (Ctrl+click). */
+  toggleFrameSelected: (index: number) => void;
+  /** Clear frame range selection. */
+  clearFrameSelection: () => void;
+  /** Select all frames. */
+  selectAllFrames: () => void;
 }
 
-export const useTimelineStore = create<TimelineState>((set) => ({
+export const useTimelineStore = create<TimelineState>((set, get) => ({
   frames: [],
   activeFrameId: null,
   activeFrameIndex: 0,
@@ -55,6 +67,7 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   onionSkinPrevOpacity: 0.3,
   onionSkinNextOpacity: 0.2,
   onionSkinData: null,
+  selectedFrameIndices: [],
 
   setFrames: (frames, activeId, activeIndex) => set({ frames, activeFrameId: activeId, activeFrameIndex: activeIndex, onionSkinData: null }),
   setActiveFrame: (id) => set({ activeFrameId: id }),
@@ -68,4 +81,28 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   setOnionSkinPrevOpacity: (opacity) => set({ onionSkinPrevOpacity: Math.max(0, Math.min(1, opacity)) }),
   setOnionSkinNextOpacity: (opacity) => set({ onionSkinNextOpacity: Math.max(0, Math.min(1, opacity)) }),
   setOnionSkinData: (data) => set({ onionSkinData: data }),
+
+  selectFrameRange: (anchorIndex, targetIndex) => {
+    const lo = Math.min(anchorIndex, targetIndex);
+    const hi = Math.max(anchorIndex, targetIndex);
+    const indices: number[] = [];
+    for (let i = lo; i <= hi; i++) indices.push(i);
+    set({ selectedFrameIndices: indices });
+  },
+
+  toggleFrameSelected: (index) => {
+    const current = get().selectedFrameIndices;
+    if (current.includes(index)) {
+      set({ selectedFrameIndices: current.filter((i) => i !== index) });
+    } else {
+      set({ selectedFrameIndices: [...current, index].sort((a, b) => a - b) });
+    }
+  },
+
+  clearFrameSelection: () => set({ selectedFrameIndices: [] }),
+
+  selectAllFrames: () => {
+    const { frames } = get();
+    set({ selectedFrameIndices: frames.map((_, i) => i) });
+  },
 }));

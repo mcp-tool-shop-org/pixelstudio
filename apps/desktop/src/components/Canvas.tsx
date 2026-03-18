@@ -147,6 +147,7 @@ export function Canvas() {
   const activeFrameIndex = useTimelineStore((s) => s.activeFrameIndex);
   const activeFrameName = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.name ?? '');
   const frameCount = useTimelineStore((s) => s.frames.length);
+  const selectedFrameCount = useTimelineStore((s) => s.selectedFrameIndices.length);
   const playing = useTimelineStore((s) => s.playing);
   const onionSkinEnabled = useTimelineStore((s) => s.onionSkinEnabled);
   const onionSkinShowPrev = useTimelineStore((s) => s.onionSkinShowPrev);
@@ -861,6 +862,15 @@ export function Canvas() {
         return;
       }
 
+      // Esc clears frame range selection first, then transform/selection
+      if (e.code === 'Escape') {
+        const tl = useTimelineStore.getState();
+        if (tl.selectedFrameIndices.length > 0) {
+          tl.clearFrameSelection();
+          return;
+        }
+      }
+
       // Esc cancels transform or clears selection
       if (e.code === 'Escape') {
         if (useSelectionStore.getState().isTransforming) {
@@ -891,6 +901,39 @@ export function Canvas() {
           setTransform({ sourceX: result.sourceX, sourceY: result.sourceY, payloadWidth: result.payloadWidth, payloadHeight: result.payloadHeight, offsetX: result.offsetX, offsetY: result.offsetY, payloadData: result.payloadData });
         } catch (err) { console.error('nudge_selection failed:', err); }
         return;
+      }
+
+      // Alt+H/V/R — batch transform selected frames (whole-canvas flip/rotate)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const batchCmd =
+          e.code === 'KeyH' ? 'flip_horizontal' :
+          e.code === 'KeyV' ? 'flip_vertical' :
+          e.code === 'KeyR' ? 'rotate_90_cw' :
+          null;
+        if (batchCmd) {
+          const tl = useTimelineStore.getState();
+          const indices = tl.selectedFrameIndices.length > 0
+            ? tl.selectedFrameIndices
+            : [tl.activeFrameIndex];
+          if (tl.playing) tl.setPlaying(false);
+          e.preventDefault();
+          try {
+            const result = await invoke<TimelineResult>('transform_frame_range', {
+              frameIndices: indices,
+              transform: batchCmd,
+            });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            const scope = tl.selectedFrameIndices.length > 0
+              ? `${indices.length} frames`
+              : `Frame ${tl.activeFrameIndex + 1}`;
+            toast.info(`${batchCmd.replace('_', ' ')} → ${scope}`);
+          } catch (err) { console.error('transform_frame_range failed:', err); }
+          return;
+        }
       }
 
       // Flip/rotate shortcuts during transform
@@ -1173,6 +1216,11 @@ export function Canvas() {
         {frameCount > 0 && (
           <span className="status-frame-indicator" title={frameCount > 1 ? ', / . to step · Ctrl+D to duplicate · O for onion skin' : 'Ctrl+D to duplicate frame'}>
             {frameCount > 1 ? `${activeFrameIndex + 1}/${frameCount} ${activeFrameName}` : '1 frame'}
+          </span>
+        )}
+        {selectedFrameCount > 0 && (
+          <span className="status-frame-range" title="Alt+H/V/R to transform range · Esc to clear">
+            {selectedFrameCount} frames selected
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}

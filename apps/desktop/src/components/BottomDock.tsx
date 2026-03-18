@@ -52,6 +52,10 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const onionSkinNextOpacity = useTimelineStore((s) => s.onionSkinNextOpacity);
   const setOnionSkinPrevOpacity = useTimelineStore((s) => s.setOnionSkinPrevOpacity);
   const setOnionSkinNextOpacity = useTimelineStore((s) => s.setOnionSkinNextOpacity);
+  const selectedFrameIndices = useTimelineStore((s) => s.selectedFrameIndices);
+  const selectFrameRange = useTimelineStore((s) => s.selectFrameRange);
+  const toggleFrameSelected = useTimelineStore((s) => s.toggleFrameSelected);
+  const clearFrameSelection = useTimelineStore((s) => s.clearFrameSelection);
 
   const showSilhouette = useCanvasViewStore((s) => s.showSilhouette);
   const toggleSilhouette = useCanvasViewStore((s) => s.toggleOverlay);
@@ -442,12 +446,24 @@ export function BottomDock({ activeMode }: BottomDockProps) {
           </span>
         </div>
         <div className="timeline-frames" ref={frameStripRef}>
-          {frames.map((f) => (
+          {frames.map((f) => {
+            const isActive = f.id === activeFrameId;
+            const isSelected = selectedFrameIndices.includes(f.index);
+            return (
             <button
               key={f.id}
-              className={`timeline-frame ${f.id === activeFrameId ? 'active' : ''}`}
-              title={`${f.name}${f.durationMs ? ` (${f.durationMs}ms)` : ''} · double-click to rename`}
-              onClick={() => handleSelectFrame(f.id)}
+              className={`timeline-frame${isActive ? ' active' : ''}${isSelected ? ' selected' : ''}`}
+              title={`${f.name}${f.durationMs ? ` (${f.durationMs}ms)` : ''} · Shift+click range · Ctrl+click toggle`}
+              onClick={(e) => {
+                if (e.shiftKey) {
+                  selectFrameRange(activeFrameIndex, f.index);
+                } else if (e.ctrlKey || e.metaKey) {
+                  toggleFrameSelected(f.index);
+                } else {
+                  clearFrameSelection();
+                  handleSelectFrame(f.id);
+                }
+              }}
               onDoubleClick={() => startRename(f.id, f.name)}
             >
               {renamingFrameId === f.id ? (
@@ -468,7 +484,8 @@ export function BottomDock({ activeMode }: BottomDockProps) {
                 <span className="frame-number">{f.index + 1}</span>
               )}
             </button>
-          ))}
+            );
+          })}
           {!playing && (
             <>
               <button className="timeline-add-frame" title="New frame" onClick={handleCreateFrame}>+</button>
@@ -554,6 +571,11 @@ export function BottomDock({ activeMode }: BottomDockProps) {
           {frames.length > 1 && (
             <span className="timeline-frame-name" title={frames[activeFrameIndex]?.name}>
               {frames[activeFrameIndex]?.name}
+            </span>
+          )}
+          {selectedFrameIndices.length > 0 && (
+            <span className="timeline-range-indicator" title="Esc to clear selection">
+              {selectedFrameIndices.length} selected
             </span>
           )}
           {playing && <span className="playback-indicator">playing</span>}

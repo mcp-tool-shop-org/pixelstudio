@@ -81,6 +81,74 @@ impl PixelBuffer {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.data.clone()
     }
+
+    // --- Whole-buffer transforms (used by batch frame operations) ---
+
+    /// Flip all pixels horizontally (mirror left↔right).
+    pub fn flip_horizontal(&mut self) {
+        let w = self.width as usize;
+        let h = self.height as usize;
+        for y in 0..h {
+            for x in 0..w / 2 {
+                let left = (y * w + x) * 4;
+                let right = (y * w + (w - 1 - x)) * 4;
+                for c in 0..4 {
+                    self.data.swap(left + c, right + c);
+                }
+            }
+        }
+    }
+
+    /// Flip all pixels vertically (mirror top↔bottom).
+    pub fn flip_vertical(&mut self) {
+        let w = self.width as usize;
+        let h = self.height as usize;
+        let row_bytes = w * 4;
+        for y in 0..h / 2 {
+            let top = y * row_bytes;
+            let bot = (h - 1 - y) * row_bytes;
+            for i in 0..row_bytes {
+                self.data.swap(top + i, bot + i);
+            }
+        }
+    }
+
+    /// Rotate 90° clockwise. Only valid when width == height (square canvas).
+    /// Returns Err if the buffer is non-square.
+    pub fn rotate_90_cw(&mut self) -> Result<(), String> {
+        if self.width != self.height {
+            return Err("rotate_90_cw requires square canvas".to_string());
+        }
+        let n = self.width as usize;
+        let mut out = vec![0u8; self.data.len()];
+        for y in 0..n {
+            for x in 0..n {
+                let src = (y * n + x) * 4;
+                let dst = (x * n + (n - 1 - y)) * 4;
+                out[dst..dst + 4].copy_from_slice(&self.data[src..src + 4]);
+            }
+        }
+        self.data = out;
+        Ok(())
+    }
+
+    /// Rotate 90° counter-clockwise. Only valid when width == height.
+    pub fn rotate_90_ccw(&mut self) -> Result<(), String> {
+        if self.width != self.height {
+            return Err("rotate_90_ccw requires square canvas".to_string());
+        }
+        let n = self.width as usize;
+        let mut out = vec![0u8; self.data.len()];
+        for y in 0..n {
+            for x in 0..n {
+                let src = (y * n + x) * 4;
+                let dst = ((n - 1 - x) * n + y) * 4;
+                out[dst..dst + 4].copy_from_slice(&self.data[src..src + 4]);
+            }
+        }
+        self.data = out;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

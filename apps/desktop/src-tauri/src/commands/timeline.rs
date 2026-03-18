@@ -224,6 +224,27 @@ pub fn duplicate_frame_at(
     Ok(build_timeline_state(canvas))
 }
 
+/// Apply a whole-canvas transform to multiple frames at once.
+/// `transform` is one of: "flip_horizontal", "flip_vertical",
+/// "rotate_90_cw", "rotate_90_ccw".
+/// `frame_indices` lists which frame indices to transform.
+#[command]
+pub fn transform_frame_range(
+    frame_indices: Vec<usize>,
+    transform: String,
+    canvas_state: State<'_, ManagedCanvasState>,
+    selection_state: State<'_, ManagedSelectionState>,
+) -> Result<TimelineState, AppError> {
+    clear_transient_state(&selection_state);
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    canvas.transform_frames(&frame_indices, &transform)
+        .map_err(AppError::Internal)?;
+    Ok(build_timeline_state(canvas))
+}
+
 /// Set per-frame duration override. Pass null/None to clear.
 #[command]
 pub fn set_frame_duration(
