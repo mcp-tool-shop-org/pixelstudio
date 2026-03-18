@@ -150,10 +150,13 @@ export function Canvas() {
   useEffect(() => {
     async function init() {
       try {
+        performance.mark('canvas_init:start');
         const f = await invoke<CanvasFrameData>('init_canvas', {
           width: canvasSize.width,
           height: canvasSize.height,
         });
+        performance.mark('canvas_init:end');
+        performance.measure('canvas_init', 'canvas_init:start', 'canvas_init:end');
         setFrame(f);
         syncLayersFromFrame(f);
         setCanvasReady(true);
@@ -1096,6 +1099,11 @@ export function Canvas() {
 
   return (
     <main className="canvas-container" ref={containerRef}>
+      {!canvasReady && (
+        <div className="canvas-init-overlay" aria-label="Initializing canvas…">
+          <span className="canvas-init-label">Loading…</span>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className="pixel-canvas"
