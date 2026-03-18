@@ -4,9 +4,9 @@ import {
   createSpriteFrame,
   createBlankPixelBuffer,
 } from '@glyphstudio/domain';
-import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, PaletteSet } from '@glyphstudio/domain';
-import { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, sanitizeFilename } from './spriteExport';
-import type { VariantExportEntry } from './spriteExport';
+import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, PaletteSet, DocumentVariant } from '@glyphstudio/domain';
+import { generateSpriteSheetMeta, encodeAnimatedGif, generateVariantExports, generateDocumentVariantExports, sanitizeFilename } from './spriteExport';
+import type { VariantExportEntry, DocumentVariantExportEntry } from './spriteExport';
 import { isImportExportError } from './spriteImportExport';
 import { setPixel, samplePixel } from './spriteRaster';
 
@@ -333,6 +333,91 @@ describe('spriteExport', () => {
       const entries = result as VariantExportEntry[];
       // Pixel unchanged
       expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([0, 0, 0, 255]);
+    });
+  });
+
+  // ── generateDocumentVariantExports ──
+
+  describe('generateDocumentVariantExports', () => {
+    function makeVariantDoc(): { doc: SpriteDocument; pixelBuffers: Record<string, SpritePixelBuffer> } {
+      const doc = createSpriteDocument('sprite', 4, 4);
+      const baseLayerId = doc.frames[0].layers[0].id;
+      const baseBuf = createBlankPixelBuffer(4, 4);
+      setPixel(baseBuf, 0, 0, [0, 0, 0, 255]); // Black
+      const pixelBuffers: Record<string, SpritePixelBuffer> = { [baseLayerId]: baseBuf };
+
+      // Add a variant with red pixel
+      const varLayerId = 'var-layer-1';
+      const varBuf = createBlankPixelBuffer(4, 4);
+      setPixel(varBuf, 0, 0, [255, 0, 0, 255]); // Red
+      pixelBuffers[varLayerId] = varBuf;
+
+      const variant: DocumentVariant = {
+        id: 'var-left',
+        name: 'Walk Left',
+        frames: [{
+          id: 'vf1',
+          index: 0,
+          durationMs: 100,
+          layers: [{ id: varLayerId, name: 'Layer 1', visible: true, index: 0 }],
+        }],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      };
+      doc.variants = [variant];
+
+      return { doc, pixelBuffers };
+    }
+
+    it('exports base sequence', () => {
+      const { doc, pixelBuffers } = makeVariantDoc();
+      const result = generateDocumentVariantExports(doc, pixelBuffers, [null]);
+
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as DocumentVariantExportEntry[];
+      expect(entries).toHaveLength(1);
+      expect(entries[0].variantId).toBeNull();
+      expect(entries[0].variantName).toBe('base');
+      expect(entries[0].suffix).toBe('base');
+      expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([0, 0, 0, 255]);
+    });
+
+    it('exports a document variant', () => {
+      const { doc, pixelBuffers } = makeVariantDoc();
+      const result = generateDocumentVariantExports(doc, pixelBuffers, ['var-left']);
+
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as DocumentVariantExportEntry[];
+      expect(entries).toHaveLength(1);
+      expect(entries[0].variantId).toBe('var-left');
+      expect(entries[0].suffix).toBe('walk-left');
+      expect(entries[0].meta.name).toBe('sprite-walk-left');
+      expect(samplePixel(entries[0].sheet, 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('exports base + variants together', () => {
+      const { doc, pixelBuffers } = makeVariantDoc();
+      const result = generateDocumentVariantExports(doc, pixelBuffers, [null, 'var-left']);
+
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as DocumentVariantExportEntry[];
+      expect(entries).toHaveLength(2);
+      expect(entries[0].variantName).toBe('base');
+      expect(entries[1].variantName).toBe('Walk Left');
+    });
+
+    it('returns error for unknown variant id', () => {
+      const { doc, pixelBuffers } = makeVariantDoc();
+      const result = generateDocumentVariantExports(doc, pixelBuffers, ['bogus']);
+      expect('error' in result).toBe(true);
+    });
+
+    it('contextual filenames use variant name', () => {
+      const { doc, pixelBuffers } = makeVariantDoc();
+      const result = generateDocumentVariantExports(doc, pixelBuffers, ['var-left']);
+      expect(Array.isArray(result)).toBe(true);
+      const entries = result as DocumentVariantExportEntry[];
+      expect(entries[0].meta.name).toBe('sprite-walk-left');
     });
   });
 });

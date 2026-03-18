@@ -1,4 +1,4 @@
-import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, SpriteSheetFrameMeta, PaletteSet } from '@glyphstudio/domain';
+import type { SpriteDocument, SpritePixelBuffer, SpriteSheetMeta, SpriteSheetFrameMeta, PaletteSet, DocumentVariant } from '@glyphstudio/domain';
 import { buildColorMap, remapFrameBuffers } from './paletteRemap';
 import { flattenLayers } from './spriteRaster';
 import { assembleSpriteSheet } from './spriteImportExport';
@@ -218,6 +218,69 @@ export function generateVariantExports(
     results.push({
       paletteSetId: ps.id,
       paletteSetName: ps.name,
+      suffix,
+      sheet,
+      meta: { ...meta, name: `${doc.name}-${suffix}` },
+    });
+  }
+
+  return results;
+}
+
+// ── Document variant export ──
+
+/** Result for a single document variant export. */
+export interface DocumentVariantExportEntry {
+  variantId: string | null;  // null = base sequence
+  variantName: string;
+  suffix: string;
+  sheet: SpritePixelBuffer;
+  meta: SpriteSheetMeta;
+}
+
+/**
+ * Generate sprite sheet exports for base + selected document variants.
+ *
+ * Each variant's frame sequence is flattened and assembled independently.
+ * Returns an array of entries with contextual filenames.
+ */
+export function generateDocumentVariantExports(
+  doc: SpriteDocument,
+  pixelBuffers: Record<string, SpritePixelBuffer>,
+  variantIds: (string | null)[],  // null = include base sequence
+): DocumentVariantExportEntry[] | { error: string } {
+  const results: DocumentVariantExportEntry[] = [];
+
+  for (const id of variantIds) {
+    let frames: typeof doc.frames;
+    let variantName: string;
+
+    if (id === null) {
+      frames = doc.frames;
+      variantName = 'base';
+    } else {
+      const variant = (doc.variants ?? []).find((v) => v.id === id);
+      if (!variant) return { error: `Variant "${id}" not found` };
+      frames = variant.frames;
+      variantName = variant.name;
+    }
+
+    if (frames.length === 0) return { error: `No frames in variant "${variantName}"` };
+
+    const frameBuffers = frames.map((f) =>
+      flattenLayers(f.layers, pixelBuffers, doc.width, doc.height),
+    );
+
+    const sheet = assembleSpriteSheet(frameBuffers);
+    if ('error' in sheet) return sheet;
+
+    const meta = generateSpriteSheetMeta({ ...doc, frames });
+    if ('error' in meta) return meta;
+
+    const suffix = sanitizeFilename(variantName);
+    results.push({
+      variantId: id,
+      variantName,
       suffix,
       sheet,
       meta: { ...meta, name: `${doc.name}-${suffix}` },
