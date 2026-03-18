@@ -45,3 +45,4 @@ It is designed around a simple thesis: **creative authority comes from determini
 - [Getting Started](getting-started/) — set up your development environment
 - [Workspace Guide](workspace/) — understand the eight workspace modes
 - [Architecture](architecture/) — how the frontend and backend fit together
+- [Production Workflows](production/) — variants, reusable parts, templates, packs, and bundle export
