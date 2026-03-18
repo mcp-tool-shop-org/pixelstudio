@@ -11,7 +11,7 @@ import { useSliceStore } from '@glyphstudio/state';
 import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/domain';
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
-import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd } from '../lib/canvasPixelMath';
+import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd, applyMirrorPoints } from '../lib/canvasPixelMath';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
@@ -517,9 +517,12 @@ export function Canvas() {
       ctx.save();
       const pc = primaryColor;
 
-      // 1. Preview pixels — same rasterization as commit, slightly more opaque
+      // 1. Preview pixels — expand with mirror so preview matches commit exactly
+      const allPreviewPoints = frame && mirrorMode !== 'none'
+        ? applyMirrorPoints(previewPoints, frame.width, frame.height, mirrorMode)
+        : previewPoints;
       ctx.fillStyle = `rgba(${pc.r},${pc.g},${pc.b},0.85)`;
-      for (const [px, py] of previewPoints) {
+      for (const [px, py] of allPreviewPoints) {
         ctx.fillRect(originX + px * zoom, originY + py * zoom, zoom, zoom);
       }
 

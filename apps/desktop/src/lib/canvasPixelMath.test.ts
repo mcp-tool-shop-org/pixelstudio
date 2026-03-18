@@ -297,6 +297,47 @@ describe('applyMirrorPoints', () => {
     const result = applyMirrorPoints(pts, W, H, 'h');
     expect(result).toHaveLength(2);
   });
+
+  // --- Odd vs even canvas width center-column behavior ---
+
+  it('odd width (W=15): center column x=7 mirrors to itself → 1 point', () => {
+    // W-1-7 = 7 → same pixel, deduped to length 1
+    const result = applyMirrorPoints([[7, 0]], 15, 8, 'h');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual([7, 0]);
+  });
+
+  it('even width (W=16): no true center pixel — x=7 mirrors to x=8 → 2 points', () => {
+    // W-1-7 = 8 → distinct pixel, both kept
+    const result = applyMirrorPoints([[7, 0]], 16, 8, 'h');
+    expect(result).toHaveLength(2);
+    expect(result).toContainEqual([7, 0]);
+    expect(result).toContainEqual([8, 0]);
+  });
+
+  it('even width (W=16): x=8 mirrors to x=7 → 2 points (symmetric pair)', () => {
+    const result = applyMirrorPoints([[8, 0]], 16, 8, 'h');
+    expect(result).toHaveLength(2);
+    expect(result).toContainEqual([8, 0]);
+    expect(result).toContainEqual([7, 0]);
+  });
+
+  it('odd height (H=15): center row y=7 mirrors to itself → 1 point', () => {
+    const result = applyMirrorPoints([[0, 7]], 8, 15, 'v');
+    expect(result).toHaveLength(1);
+  });
+
+  it('even height (H=16): y=7 mirrors to y=8 → 2 distinct points', () => {
+    const result = applyMirrorPoints([[0, 7]], 8, 16, 'v');
+    expect(result).toHaveLength(2);
+  });
+
+  it('both mode on odd×odd (W=15, H=15): center pixel (7,7) mirrors to itself only → 1 point', () => {
+    const result = applyMirrorPoints([[7, 7]], 15, 15, 'both');
+    // (7,7) → hmir=(7,7), vmir=(7,7), hvmir=(7,7) — all same, deduped to 1
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual([7, 7]);
+  });
 });
 
 // getDitherCellActive + applyDitherFilter
