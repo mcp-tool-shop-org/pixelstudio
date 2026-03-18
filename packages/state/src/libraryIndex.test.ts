@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createSpriteDocument } from '@glyphstudio/domain';
 import type { SpriteDocument, PaletteSet, DocumentVariant, Part, PartLibrary } from '@glyphstudio/domain';
 import { createEmptyPartLibrary, addPartToLibrary } from './partLibrary';
-import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority } from './libraryIndex';
-import type { LibraryItemKind, LibraryItem } from './libraryIndex';
+import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, sortLibraryItems } from './libraryIndex';
+import type { LibraryItemKind, LibraryItem, LibraryFilterOptions } from './libraryIndex';
 
 function makePart(overrides: Partial<Part> = {}): Part {
   return {
@@ -124,6 +124,85 @@ describe('libraryIndex', () => {
       const allKinds = new Set<LibraryItemKind>(['part', 'palette-set', 'variant']);
 
       expect(filterLibraryItems(items, '', allKinds)).toHaveLength(items.length);
+    });
+
+    it('tokenized multi-word search matches all tokens', () => {
+      const lib = addPartToLibrary(
+        addPartToLibrary(createEmptyPartLibrary(), makePart({ name: 'Walk Left Idle' })),
+        makePart({ name: 'Walk Right Run' }),
+      );
+      const items = buildLibraryIndex(null, lib, null, null, null);
+      const allKinds = new Set<LibraryItemKind>(['part', 'palette-set', 'variant']);
+
+      // Both tokens must match
+      expect(filterLibraryItems(items, 'walk left', allKinds)).toHaveLength(1);
+      expect(filterLibraryItems(items, 'walk', allKinds)).toHaveLength(2);
+      expect(filterLibraryItems(items, 'idle left', allKinds)).toHaveLength(1);
+    });
+
+    it('compound filter with pinnedOnly', () => {
+      const lib = addPartToLibrary(
+        addPartToLibrary(createEmptyPartLibrary(), makePart({ id: 'a', name: 'Pinned' })),
+        makePart({ id: 'b', name: 'NotPinned' }),
+      );
+      const items = buildLibraryIndex(null, lib, null, null, null, ['a'], []);
+      const opts: LibraryFilterOptions = {
+        query: '',
+        kinds: new Set<LibraryItemKind>(['part']),
+        pinnedOnly: true,
+      };
+      const result = filterLibraryItems(items, opts);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('a');
+    });
+
+    it('compound filter with activeOnly', () => {
+      const lib = addPartToLibrary(
+        addPartToLibrary(createEmptyPartLibrary(), makePart({ id: 'a', name: 'Active' })),
+        makePart({ id: 'b', name: 'Inactive' }),
+      );
+      const items = buildLibraryIndex(null, lib, 'a', null, null);
+      const opts: LibraryFilterOptions = {
+        query: '',
+        kinds: new Set<LibraryItemKind>(['part']),
+        activeOnly: true,
+      };
+      const result = filterLibraryItems(items, opts);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('a');
+    });
+  });
+
+  describe('sortLibraryItems', () => {
+    function makeItem(id: string, name: string, updatedAt: string, overrides: Partial<LibraryItem> = {}): LibraryItem {
+      return {
+        id, kind: 'part', name, updatedAt,
+        isActive: false, isPinned: false, isRecent: false,
+        ...overrides,
+      };
+    }
+
+    it('name sort orders alphabetically', () => {
+      const items = [makeItem('c', 'Zebra', '2026-01-01'), makeItem('a', 'Alpha', '2026-01-03'), makeItem('b', 'Middle', '2026-01-02')];
+      const sorted = sortLibraryItems(items, 'name');
+      expect(sorted.map((i) => i.name)).toEqual(['Alpha', 'Middle', 'Zebra']);
+    });
+
+    it('recent sort orders by updatedAt descending', () => {
+      const items = [makeItem('a', 'Old', '2026-01-01'), makeItem('b', 'New', '2026-01-03'), makeItem('c', 'Mid', '2026-01-02')];
+      const sorted = sortLibraryItems(items, 'recent');
+      expect(sorted.map((i) => i.name)).toEqual(['New', 'Mid', 'Old']);
+    });
+
+    it('priority sort uses pinned > active > recent > rest', () => {
+      const items = [
+        makeItem('a', 'Rest', '2026-01-01'),
+        makeItem('b', 'Recent', '2026-01-01', { isRecent: true }),
+        makeItem('c', 'Pinned', '2026-01-01', { isPinned: true }),
+        makeItem('d', 'Active', '2026-01-01', { isActive: true }),
+      ];
+      const sorted = sortLibraryItems(items, 'priority');
+      expect(sorted.map((i) => i.name)).toEqual(['Pinned', 'Active', 'Recent', 'Rest']);
     });
   });
 

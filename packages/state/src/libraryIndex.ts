@@ -104,23 +104,75 @@ export function buildLibraryIndex(
   return items;
 }
 
+/** Compound filter options for library items. */
+export interface LibraryFilterOptions {
+  /** Text query — tokenized, all tokens must match (AND). */
+  query: string;
+  /** Which item kinds to include. */
+  kinds: Set<LibraryItemKind>;
+  /** If true, only show pinned items. */
+  pinnedOnly?: boolean;
+  /** If true, only show active items. */
+  activeOnly?: boolean;
+}
+
 /**
- * Filter library items by name query and kind set.
+ * Filter library items with compound criteria.
  *
- * Case-insensitive substring match on name.
- * Returns only items whose kind is in the filter set.
+ * Query is tokenized by whitespace. All tokens must match the name
+ * (case-insensitive, substring). This allows "walk left" to match
+ * "Walk Left Idle" without requiring exact phrase order.
  */
 export function filterLibraryItems(
   items: LibraryItem[],
-  query: string,
-  kinds: Set<LibraryItemKind>,
+  queryOrOptions: string | LibraryFilterOptions,
+  kinds?: Set<LibraryItemKind>,
 ): LibraryItem[] {
-  const q = query.toLowerCase().trim();
+  // Support both old (query, kinds) and new (options) signatures
+  let opts: LibraryFilterOptions;
+  if (typeof queryOrOptions === 'string') {
+    opts = { query: queryOrOptions, kinds: kinds ?? new Set(['part', 'palette-set', 'variant']) };
+  } else {
+    opts = queryOrOptions;
+  }
+
+  const tokens = opts.query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
   return items.filter((item) => {
-    if (!kinds.has(item.kind)) return false;
-    if (q && !item.name.toLowerCase().includes(q)) return false;
+    if (!opts.kinds.has(item.kind)) return false;
+    if (opts.pinnedOnly && !item.isPinned) return false;
+    if (opts.activeOnly && !item.isActive) return false;
+    if (tokens.length > 0) {
+      const name = item.name.toLowerCase();
+      for (const token of tokens) {
+        if (!name.includes(token)) return false;
+      }
+    }
     return true;
   });
+}
+
+/** Sort mode for library display. */
+export type LibrarySortMode = 'priority' | 'name' | 'recent';
+
+/**
+ * Sort library items by the given mode.
+ *
+ * - priority: pinned > active > recent > rest (default workflow sort)
+ * - name: alphabetical A-Z
+ * - recent: most recently updated first
+ */
+export function sortLibraryItems(items: LibraryItem[], mode: LibrarySortMode): LibraryItem[] {
+  switch (mode) {
+    case 'priority':
+      return sortWithPriority(items);
+    case 'name':
+      return [...items].sort((a, b) => a.name.localeCompare(b.name));
+    case 'recent':
+      return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    default:
+      return items;
+  }
 }
 
 /**
