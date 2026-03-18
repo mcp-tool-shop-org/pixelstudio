@@ -93,6 +93,7 @@ pub fn run() {
             timeline::transform_frame_range,
             timeline::duplicate_frame_range,
             timeline::snapshot_frame_range,
+            timeline::delete_frame_range,
             project::export_frame_sequence,
             project::export_sprite_strip,
             project::export_animated_gif,

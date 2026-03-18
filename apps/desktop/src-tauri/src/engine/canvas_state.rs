@@ -834,6 +834,51 @@ impl CanvasState {
         Ok(())
     }
 
+    /// Delete multiple frames by index. Cannot delete all frames — at least one must remain.
+    /// Indices are processed in descending order to avoid shifting issues.
+    pub fn delete_frame_range(&mut self, frame_indices: &[usize]) -> Result<(), String> {
+        if frame_indices.is_empty() {
+            return Ok(());
+        }
+        if self.frames.len() <= frame_indices.len() {
+            return Err("Cannot delete all frames".to_string());
+        }
+        for &idx in frame_indices {
+            if idx >= self.frames.len() {
+                return Err(format!("Frame index {} out of range", idx));
+            }
+        }
+
+        // Stash active frame so data is in its slot
+        self.stash_active_frame();
+
+        // Sort descending to remove from back to front (avoids index shifting)
+        let mut sorted = frame_indices.to_vec();
+        sorted.sort();
+        sorted.dedup();
+        sorted.reverse();
+
+        let active_idx = self.active_frame_index;
+        let active_deleted = sorted.contains(&active_idx);
+
+        for &idx in &sorted {
+            self.frames.remove(idx);
+        }
+
+        // Pick a new active frame
+        if active_deleted {
+            let new_idx = active_idx.min(self.frames.len() - 1);
+            self.restore_frame(new_idx);
+        } else {
+            // Recompute active_frame_index (frames before it may have been removed)
+            let removed_before = sorted.iter().filter(|&&i| i < active_idx).count();
+            let new_idx = active_idx - removed_before;
+            self.restore_frame(new_idx);
+        }
+
+        Ok(())
+    }
+
     /// Switch to a different frame by id.
     pub fn select_frame(&mut self, frame_id: &str) -> Result<(), String> {
         let target_idx = self.frames.iter().position(|f| f.id == frame_id)

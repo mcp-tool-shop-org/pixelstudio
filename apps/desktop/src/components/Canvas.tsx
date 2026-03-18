@@ -1099,20 +1099,41 @@ export function Canvas() {
           return;
         }
 
-        // Ctrl+Delete / Ctrl+Backspace — delete active frame
+        // Ctrl+Delete / Ctrl+Backspace — delete frame(s): range if selected, else active
         if ((e.code === 'Delete' || e.code === 'Backspace') && !e.shiftKey) {
           const tl = useTimelineStore.getState();
           if (tl.frames.length <= 1) return;
           if (tl.playing) tl.setPlaying(false);
           e.preventDefault();
+          const hasRange = tl.selectedFrameIndices.length > 0;
           try {
-            const result = await invoke<TimelineResult>('delete_frame', { frameId: tl.activeFrameId });
-            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
-            setFrame(result.frame);
-            syncLayersFromFrame(result.frame);
-            markDirty();
-            invoke('mark_dirty').catch(() => {});
-            toast.info(`Deleted → now Frame ${result.activeFrameIndex + 1}`);
+            if (hasRange) {
+              if (tl.selectedFrameIndices.length >= tl.frames.length) {
+                toast.info('Cannot delete all frames');
+                return;
+              }
+              const result = await invoke<TimelineResult>('delete_frame_range', {
+                frameIndices: tl.selectedFrameIndices,
+              });
+              tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+              setFrame(result.frame);
+              syncLayersFromFrame(result.frame);
+              markDirty();
+              invoke('mark_dirty').catch(() => {});
+              // Exit range compare if active
+              const rs = useRangeSnapshotStore.getState();
+              if (rs.compareCheckpointId) rs.setCompareCheckpoint(null);
+              tl.clearFrameSelection();
+              toast.info(`Deleted ${tl.selectedFrameIndices.length} frames → now Frame ${result.activeFrameIndex + 1}`);
+            } else {
+              const result = await invoke<TimelineResult>('delete_frame', { frameId: tl.activeFrameId });
+              tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+              setFrame(result.frame);
+              syncLayersFromFrame(result.frame);
+              markDirty();
+              invoke('mark_dirty').catch(() => {});
+              toast.info(`Deleted → now Frame ${result.activeFrameIndex + 1}`);
+            }
           } catch (err) { console.error('delete_frame failed:', err); }
           return;
         }
@@ -1356,8 +1377,8 @@ export function Canvas() {
           </span>
         )}
         {selectedFrameCount > 0 && (
-          <span className="status-frame-range" title="Alt+H flip-H · Alt+V flip-V · Alt+R rotate · Ctrl+D duplicate · Esc clear">
-            {selectedFrameCount} frames · Alt+H/V/R · Ctrl+D · undoable
+          <span className="status-frame-range" title="Alt+H/V/R transform · Ctrl+D duplicate · Ctrl+Alt+D experiment · Ctrl+Del discard · Esc clear">
+            {selectedFrameCount} frames · Alt+H/V/R · Ctrl+D · Ctrl+Del
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}

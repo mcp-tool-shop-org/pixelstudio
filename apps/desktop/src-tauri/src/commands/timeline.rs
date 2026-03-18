@@ -281,6 +281,23 @@ pub fn duplicate_frame_range(
     Ok(build_timeline_state(canvas))
 }
 
+/// Delete multiple frames by index.
+#[command]
+pub fn delete_frame_range(
+    frame_indices: Vec<usize>,
+    canvas_state: State<'_, ManagedCanvasState>,
+    selection_state: State<'_, ManagedSelectionState>,
+) -> Result<TimelineState, AppError> {
+    clear_transient_state(&selection_state);
+    let mut guard = canvas_state.0.lock().unwrap();
+    let canvas = guard.as_mut()
+        .ok_or_else(|| AppError::Internal("No canvas initialized".to_string()))?;
+
+    canvas.delete_frame_range(&frame_indices)
+        .map_err(AppError::Internal)?;
+    Ok(build_timeline_state(canvas))
+}
+
 /// Apply a whole-canvas transform to multiple frames at once.
 /// `transform` is one of: "flip_horizontal", "flip_vertical",
 /// "rotate_90_cw", "rotate_90_ccw".
