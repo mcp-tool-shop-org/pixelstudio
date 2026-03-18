@@ -309,6 +309,11 @@
   font-weight: 600;
 }
 
+.status-loop-risk {
+  color: #e05040;
+  font-weight: 600;
+}
+
 .status-frame-range {
   color: #e8a838;
   font-weight: 600;

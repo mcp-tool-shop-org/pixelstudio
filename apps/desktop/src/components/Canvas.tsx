@@ -1635,6 +1635,27 @@ export function Canvas() {
             seam{seamDelta ? (seamDelta.identical ? ' ✓' : ` ${seamDelta.changedPercent.toFixed(1)}%`) : ''}
           </span>
         )}
+        {loopSeamMode && seamDelta && !seamDelta.identical && seamDelta.changedPercent > 5 && (
+          <span className="status-loop-risk" title={`Seam jump: ${seamDelta.changedPercent.toFixed(1)}% of pixels differ between first and last frame — visible pop likely`}>
+            ⚠ seam jump
+          </span>
+        )}
+        {loopSeamMode && frameCount > 1 && (() => {
+          const tl = useTimelineStore.getState();
+          const firstDur = tl.frames[0]?.durationMs ?? null;
+          const lastDur = tl.frames[tl.frames.length - 1]?.durationMs ?? null;
+          if (firstDur !== lastDur) {
+            const baseDur = Math.round(1000 / tl.fps);
+            const firstHold = firstDur ? Math.round(firstDur / baseDur) : 1;
+            const lastHold = lastDur ? Math.round(lastDur / baseDur) : 1;
+            return (
+              <span className="status-loop-risk" title={`Timing mismatch: first frame ×${firstHold}, last frame ×${lastHold} — loop pacing will feel uneven`}>
+                ⚠ timing {'\u2260'}
+              </span>
+            );
+          }
+          return null;
+        })()}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
         {compareSnapshotId && (
