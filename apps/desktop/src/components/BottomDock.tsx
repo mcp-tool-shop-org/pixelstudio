@@ -61,6 +61,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
   const playbackRef = useRef<number | null>(null);
   const lastTickRef = useRef(0);
   const switchingRef = useRef(false);
+  const frameStripRef = useRef<HTMLDivElement>(null);
 
   // Load initial timeline state
   useEffect(() => {
@@ -300,6 +301,13 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     if (!isNaN(val)) setFps(val);
   }, [setFps]);
 
+  // Auto-scroll the frame strip to keep the active frame visible
+  useEffect(() => {
+    if (!frameStripRef.current) return;
+    const active = frameStripRef.current.querySelector('.timeline-frame.active');
+    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeFrameId]);
+
   // Pause sprite timeline playback when entering scene mode
   useEffect(() => {
     if (activeMode === 'scene') {
@@ -399,7 +407,7 @@ export function BottomDock({ activeMode }: BottomDockProps) {
             <span className="timeline-fps-label">fps</span>
           </span>
         </div>
-        <div className="timeline-frames">
+        <div className="timeline-frames" ref={frameStripRef}>
           {frames.map((f) => (
             <button
               key={f.id}

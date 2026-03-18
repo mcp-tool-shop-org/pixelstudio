@@ -14,6 +14,15 @@ import { syncLayersFromFrame } from '../lib/syncLayers';
 import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd, applyMirrorPoints } from '../lib/canvasPixelMath';
 import { buildFramePixelBuffer, buildTintedPixelBuffer, buildCheckerBuffer } from '../lib/canvasRenderHelpers';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
+import { toast } from '../lib/toast';
+
+/** Shared shape returned by all timeline Tauri commands. */
+interface TimelineResult {
+  frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>;
+  activeFrameIndex: number;
+  activeFrameId: string;
+  frame: CanvasFrameData;
+}
 
 const CHECK_LIGHT = '#2a2a2e';
 const CHECK_DARK = '#222226';
@@ -963,6 +972,23 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+D — duplicate current frame (fastest path to next pose)
+        if (e.code === 'KeyD' && !e.shiftKey) {
+          e.preventDefault();
+          const tl = useTimelineStore.getState();
+          if (tl.playing) tl.setPlaying(false);
+          try {
+            const result = await invoke<TimelineResult>('duplicate_frame');
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            toast.info(`Duplicated → Frame ${result.activeFrameIndex + 1}`);
+          } catch (err) { console.error('duplicate_frame failed:', err); }
+          return;
+        }
+
         // Ctrl+Shift+D — duplicate active layer (experiment on a copy)
         if (e.code === 'KeyD' && e.shiftKey) {
           e.preventDefault();
@@ -1051,7 +1077,7 @@ export function Canvas() {
         else if (targetIdx >= tl.frames.length) targetIdx = tl.loop ? 0 : -1;
         if (targetIdx < 0) return;
         const targetId = tl.frames[targetIdx].id;
-        invoke<{ frames: Array<{ id: string; name: string; index: number; durationMs: number | null }>; activeFrameIndex: number; activeFrameId: string; frame: CanvasFrameData }>('select_frame', { frameId: targetId })
+        invoke<TimelineResult>('select_frame', { frameId: targetId })
           .then((result) => {
             tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
             setFrame(result.frame);
