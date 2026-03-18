@@ -101,3 +101,42 @@ export function buildTintedPixelBuffer(
 
   return dst;
 }
+
+// ---------------------------------------------------------------------------
+// Checker background buffer
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an RGBA pixel buffer for a per-sprite-pixel transparency checker.
+ *
+ * Each sprite pixel alternates between the two checker colors based on
+ * (px + py) % 2. The buffer is rendered at 1× sprite resolution and should
+ * be uploaded to an offscreen canvas then drawn scaled-up by zoom.
+ *
+ * Cache key: frame width × height only — does not depend on zoom since the
+ * scaled draw handles that.
+ *
+ * @param width      Frame width in sprite pixels
+ * @param height     Frame height in sprite pixels
+ * @param lightColor RGBA tuple for the lighter checker square  [R, G, B, A]
+ * @param darkColor  RGBA tuple for the darker checker square   [R, G, B, A]
+ */
+export function buildCheckerBuffer(
+  width: number,
+  height: number,
+  lightColor: [number, number, number, number],
+  darkColor:  [number, number, number, number],
+): Uint8ClampedArray {
+  const dst = new Uint8ClampedArray(width * height * 4);
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const i = (py * width + px) * 4;
+      const [r, g, b, a] = (px + py) % 2 === 0 ? lightColor : darkColor;
+      dst[i]     = r;
+      dst[i + 1] = g;
+      dst[i + 2] = b;
+      dst[i + 3] = a;
+    }
+  }
+  return dst;
+}

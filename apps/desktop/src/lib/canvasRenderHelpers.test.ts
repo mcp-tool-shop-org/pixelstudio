@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFramePixelBuffer, buildTintedPixelBuffer } from './canvasRenderHelpers';
+import { buildFramePixelBuffer, buildTintedPixelBuffer, buildCheckerBuffer } from './canvasRenderHelpers';
 
 // ---------------------------------------------------------------------------
 // buildFramePixelBuffer
@@ -164,6 +164,79 @@ describe('buildTintedPixelBuffer — multi-pixel correctness', () => {
     expect(buf[4]).toBe(0);
     expect(buf[7]).toBe(0);
     // First pixel is tinted
+    expect(buf[3]).toBe(255);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildCheckerBuffer
+// ---------------------------------------------------------------------------
+
+const LIGHT: [number, number, number, number] = [42, 42, 46, 255];
+const DARK:  [number, number, number, number] = [34, 34, 38, 255];
+
+describe('buildCheckerBuffer', () => {
+  it('returns buffer of correct length', () => {
+    const buf = buildCheckerBuffer(4, 4, LIGHT, DARK);
+    expect(buf.length).toBe(4 * 4 * 4);
+  });
+
+  it('pixel (0,0) uses light color — (0+0)%2 === 0', () => {
+    const buf = buildCheckerBuffer(2, 2, LIGHT, DARK);
+    expect(buf[0]).toBe(LIGHT[0]);
+    expect(buf[1]).toBe(LIGHT[1]);
+    expect(buf[2]).toBe(LIGHT[2]);
+    expect(buf[3]).toBe(255);
+  });
+
+  it('pixel (1,0) uses dark color — (1+0)%2 === 1', () => {
+    const buf = buildCheckerBuffer(2, 2, LIGHT, DARK);
+    expect(buf[4]).toBe(DARK[0]);
+    expect(buf[5]).toBe(DARK[1]);
+    expect(buf[6]).toBe(DARK[2]);
+  });
+
+  it('pixel (0,1) uses dark color — (0+1)%2 === 1', () => {
+    const buf = buildCheckerBuffer(2, 2, LIGHT, DARK);
+    // Row 1, Col 0 → index 8
+    expect(buf[8]).toBe(DARK[0]);
+  });
+
+  it('pixel (1,1) uses light color — (1+1)%2 === 0', () => {
+    const buf = buildCheckerBuffer(2, 2, LIGHT, DARK);
+    // Row 1, Col 1 → index 12
+    expect(buf[12]).toBe(LIGHT[0]);
+  });
+
+  it('alternates correctly across a 4×1 row', () => {
+    const buf = buildCheckerBuffer(4, 1, LIGHT, DARK);
+    // px: 0=light, 1=dark, 2=light, 3=dark
+    expect(buf[0]).toBe(LIGHT[0]);
+    expect(buf[4]).toBe(DARK[0]);
+    expect(buf[8]).toBe(LIGHT[0]);
+    expect(buf[12]).toBe(DARK[0]);
+  });
+
+  it('alternates correctly down a 1×4 column', () => {
+    const buf = buildCheckerBuffer(1, 4, LIGHT, DARK);
+    // py: 0=light, 1=dark, 2=light, 3=dark
+    expect(buf[0]).toBe(LIGHT[0]);
+    expect(buf[4]).toBe(DARK[0]);
+    expect(buf[8]).toBe(LIGHT[0]);
+    expect(buf[12]).toBe(DARK[0]);
+  });
+
+  it('all pixels are fully opaque (alpha=255)', () => {
+    const buf = buildCheckerBuffer(3, 3, LIGHT, DARK);
+    for (let i = 3; i < buf.length; i += 4) {
+      expect(buf[i]).toBe(255);
+    }
+  });
+
+  it('1×1 frame gives a single light pixel', () => {
+    const buf = buildCheckerBuffer(1, 1, LIGHT, DARK);
+    expect(buf.length).toBe(4);
+    expect(buf[0]).toBe(LIGHT[0]);
     expect(buf[3]).toBe(255);
   });
 });

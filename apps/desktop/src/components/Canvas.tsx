@@ -12,11 +12,14 @@ import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/dom
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd, applyMirrorPoints } from '../lib/canvasPixelMath';
-import { buildFramePixelBuffer, buildTintedPixelBuffer } from '../lib/canvasRenderHelpers';
+import { buildFramePixelBuffer, buildTintedPixelBuffer, buildCheckerBuffer } from '../lib/canvasRenderHelpers';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
 const CHECK_DARK = '#222226';
+// Pre-parsed RGBA tuples for buildCheckerBuffer (avoids hex parsing in hot path)
+const CHECK_LIGHT_RGBA: [number, number, number, number] = [0x2a, 0x2a, 0x2e, 255];
+const CHECK_DARK_RGBA:  [number, number, number, number] = [0x22, 0x22, 0x26, 255];
 const CHECK_SIZE = 8;
 const CANVAS_BG = '#111114';
 const GRID_COLOR = 'rgba(255,255,255,0.08)';
@@ -33,6 +36,11 @@ export function Canvas() {
   // Marching ants animation
   const antOffsetRef = useRef(0);
   const antAnimRef = useRef<number | null>(null);
+
+  // Offscreen canvas cache for the checker background.
+  // Rebuilt only when frame dimensions change — does not depend on zoom.
+  const checkerOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const checkerOffscreenKeyRef = useRef('');
 
   // Offscreen canvas cache for frame pixels — rebuilt only when frame data changes.
   // Avoids O(W×H) fillRect + string-allocation loop every render.
@@ -199,24 +207,24 @@ export function Canvas() {
     const originY = Math.floor(h / 2 - spriteH / 2 + panY);
 
     if (previewBackground === 'checker') {
-      const checkScreenSize = Math.max(1, Math.floor(CHECK_SIZE * (zoom / 8)));
-      for (let py = 0; py < frame.height; py++) {
-        for (let px = 0; px < frame.width; px++) {
-          const sx = originX + px * zoom;
-          const sy = originY + py * zoom;
-          if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
-          const cellsX = Math.ceil(zoom / checkScreenSize);
-          const cellsY = Math.ceil(zoom / checkScreenSize);
-          for (let cy = 0; cy < cellsY; cy++) {
-            for (let cx = 0; cx < cellsX; cx++) {
-              ctx.fillStyle = (cx + cy) % 2 === 0 ? CHECK_LIGHT : CHECK_DARK;
-              const csX = sx + cx * checkScreenSize;
-              const csY = sy + cy * checkScreenSize;
-              ctx.fillRect(csX, csY, Math.min(checkScreenSize, sx + zoom - csX), Math.min(checkScreenSize, sy + zoom - csY));
-            }
-          }
-        }
+      // Offscreen checker: alternates CHECK_LIGHT/CHECK_DARK per sprite pixel
+      // based on (px+py)%2. Rebuilt only when frame dimensions change.
+      // drawImage scales to current zoom — no per-pixel fillRect needed.
+      const checkerKey = `${frame.width}:${frame.height}`;
+      if (checkerOffscreenKeyRef.current !== checkerKey) {
+        if (!checkerOffscreenRef.current) checkerOffscreenRef.current = document.createElement('canvas');
+        const coc = checkerOffscreenRef.current;
+        coc.width = frame.width;
+        coc.height = frame.height;
+        const cocCtx = coc.getContext('2d')!;
+        const buf = buildCheckerBuffer(frame.width, frame.height, CHECK_LIGHT_RGBA, CHECK_DARK_RGBA);
+        const id = cocCtx.createImageData(frame.width, frame.height);
+        id.data.set(buf);
+        cocCtx.putImageData(id, 0, 0);
+        checkerOffscreenKeyRef.current = checkerKey;
       }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(checkerOffscreenRef.current!, originX, originY, spriteW, spriteH);
     } else {
       ctx.fillStyle = previewBackground === 'dark' ? '#111114' : '#e0e0e0';
       ctx.fillRect(originX, originY, spriteW, spriteH);
