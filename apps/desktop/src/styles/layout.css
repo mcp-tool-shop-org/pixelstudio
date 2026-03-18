@@ -9048,6 +9048,55 @@
   color: var(--text-primary);
 }
 
+/* Shortcut strip */
+.shortcut-strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+.shortcut-strip.collapsed {
+  padding: 1px 8px;
+}
+.shortcut-strip-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 8px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.shortcut-strip-items {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+.shortcut-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.shortcut-keys {
+  padding: 1px 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--text-primary);
+}
+.shortcut-action {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
 /* Start mode tabs */
 .ph-start-tabs {
   display: flex;

@@ -16,6 +16,7 @@ import { VectorWorkspace } from '../components/VectorWorkspace';
 import { VectorSourceBanner } from '../components/VectorSourceBanner';
 import { VariantBar } from '../components/VariantBar';
 import { HintBar } from '../components/HintBar';
+import { ShortcutStrip } from '../components/ShortcutStrip';
 import { EditorStatusBar } from '../components/EditorStatusBar';
 import { ToastStack } from '../components/ToastStack';
 import { ShortcutHelpOverlay } from '../components/ShortcutHelpOverlay';
@@ -167,6 +168,7 @@ export function AppShell() {
       <TransformBar />
       <VariantBar />
       <HintBar />
+      <ShortcutStrip />
       <div className="workspace-body">
         {mode === 'vector' ? (
           <VectorWorkspace />

@@ -403,6 +403,8 @@ export type { StarterRecipe, RecipeHint, RecipeStartKind } from './starterRecipe
 export { useHintStore } from './hintStore';
 export { WORKFLOW_HINTS, evaluateHintTriggers } from './workflowHints';
 export type { WorkflowHint, WorkflowHintTrigger, HintEditorState } from './workflowHints';
+export { getContextualShortcuts } from './contextualShortcuts';
+export type { ContextualShortcut, ShortcutContext, ShortcutEditorState } from './contextualShortcuts';
 export {
   exportPaletteSets,
   exportParts,
