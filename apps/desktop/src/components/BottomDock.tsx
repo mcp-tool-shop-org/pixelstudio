@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import type { WorkspaceMode } from '@glyphstudio/domain';
@@ -300,6 +300,36 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     } catch (err) { console.error('export_sprite_strip failed:', err); }
   }, [projectName, pauseFirst]);
 
+  // --- Inline rename ---
+  const [renamingFrameId, setRenamingFrameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const startRename = useCallback((frameId: string, currentName: string) => {
+    setRenamingFrameId(frameId);
+    setRenameValue(currentName);
+  }, []);
+
+  const commitRename = useCallback(async () => {
+    if (!renamingFrameId || !renameValue.trim()) {
+      setRenamingFrameId(null);
+      return;
+    }
+    try {
+      const result = await invoke<TimelineResult>('rename_frame', { frameId: renamingFrameId, name: renameValue.trim() });
+      applyResult(result);
+    } catch (err) { console.error('rename_frame failed:', err); }
+    setRenamingFrameId(null);
+  }, [renamingFrameId, renameValue, applyResult]);
+
+  // Auto-focus rename input
+  useEffect(() => {
+    if (renamingFrameId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingFrameId]);
+
   const handleFpsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     if (!isNaN(val)) setFps(val);
@@ -416,10 +446,27 @@ export function BottomDock({ activeMode }: BottomDockProps) {
             <button
               key={f.id}
               className={`timeline-frame ${f.id === activeFrameId ? 'active' : ''}`}
-              title={f.name + (f.durationMs ? ` (${f.durationMs}ms)` : '')}
+              title={`${f.name}${f.durationMs ? ` (${f.durationMs}ms)` : ''} · double-click to rename`}
               onClick={() => handleSelectFrame(f.id)}
+              onDoubleClick={() => startRename(f.id, f.name)}
             >
-              <span className="frame-number">{f.index + 1}</span>
+              {renamingFrameId === f.id ? (
+                <input
+                  ref={renameInputRef}
+                  className="frame-rename-input"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') setRenamingFrameId(null);
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="frame-number">{f.index + 1}</span>
+              )}
             </button>
           ))}
           {!playing && (

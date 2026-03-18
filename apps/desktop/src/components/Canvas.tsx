@@ -989,6 +989,24 @@ export function Canvas() {
           return;
         }
 
+        // Ctrl+Delete / Ctrl+Backspace — delete active frame
+        if ((e.code === 'Delete' || e.code === 'Backspace') && !e.shiftKey) {
+          const tl = useTimelineStore.getState();
+          if (tl.frames.length <= 1) return;
+          if (tl.playing) tl.setPlaying(false);
+          e.preventDefault();
+          try {
+            const result = await invoke<TimelineResult>('delete_frame', { frameId: tl.activeFrameId });
+            tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+            setFrame(result.frame);
+            syncLayersFromFrame(result.frame);
+            markDirty();
+            invoke('mark_dirty').catch(() => {});
+            toast.info(`Deleted → now Frame ${result.activeFrameIndex + 1}`);
+          } catch (err) { console.error('delete_frame failed:', err); }
+          return;
+        }
+
         // Ctrl+Shift+D — duplicate active layer (experiment on a copy)
         if (e.code === 'KeyD' && e.shiftKey) {
           e.preventDefault();
@@ -1152,9 +1170,9 @@ export function Canvas() {
         {isSketchTool(activeTool) && <span className="status-sketch" title="Rough drawing mode">rough</span>}
         {selectionInfo && <span title="Selection">{selectionInfo}</span>}
         {isTransforming && <span title="Enter to commit, Esc to cancel">transform</span>}
-        {frameCount > 1 && (
-          <span className="status-frame-indicator" title=", / . to step · O for onion skin">
-            {activeFrameIndex + 1}/{frameCount} {activeFrameName}
+        {frameCount > 0 && (
+          <span className="status-frame-indicator" title={frameCount > 1 ? ', / . to step · Ctrl+D to duplicate · O for onion skin' : 'Ctrl+D to duplicate frame'}>
+            {frameCount > 1 ? `${activeFrameIndex + 1}/${frameCount} ${activeFrameName}` : '1 frame'}
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}
