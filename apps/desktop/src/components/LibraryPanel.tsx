@@ -6,10 +6,14 @@ import {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,
+  exportPack,
+  parsePack,
   parseInterchangeFile,
   deriveImportName,
   addTemplateToLibrary,
   generateTemplateId,
+  addPackToLibrary,
+  generatePackId,
 } from '@glyphstudio/state';
 import {
   addPartToLibrary,
@@ -20,6 +24,7 @@ import type { PartLibrary, Part, SavedTemplate } from '@glyphstudio/domain';
 import { generatePartId, generatePaletteSetId } from '@glyphstudio/domain';
 import { loadPartLibrary, savePartLibrary } from '../lib/partLibraryStorage';
 import { loadTemplateLibrary, saveTemplateLibrary } from '../lib/templateLibraryStorage';
+import { loadPackLibrary, savePackLibrary } from '../lib/packLibraryStorage';
 
 function rgbaToHex(rgba: [number, number, number, number]): string {
   return `#${rgba.slice(0, 3).map((c) => c.toString(16).padStart(2, '0')).join('')}`;
@@ -327,6 +332,31 @@ export function LibraryPanel() {
     saveTemplateLibrary(addTemplateToLibrary(lib, tmpl));
   }, [doc, partLibrary]);
 
+  // Save all authored structures as a curated pack
+  const handleSaveAsPack = useCallback(() => {
+    if (!doc) return;
+    const palSets = doc.paletteSets ?? [];
+    const parts = partLibrary.parts;
+    if (palSets.length === 0 && parts.length === 0) return;
+
+    const json = exportPack(doc, partLibrary, {
+      name: `${doc.name} Pack`,
+      paletteSetIds: palSets.map((ps) => ps.id),
+      partIds: parts.map((p) => p.id),
+    });
+
+    const savedPack = {
+      id: generatePackId(),
+      name: `${doc.name} Pack`,
+      paletteSetCount: palSets.length,
+      partCount: parts.length,
+      interchangeJson: json,
+      createdAt: new Date().toISOString(),
+    };
+    const lib = loadPackLibrary();
+    savePackLibrary(addPackToLibrary(lib, savedPack));
+  }, [doc, partLibrary]);
+
   const handleExport = useCallback(() => {
     if (!doc) return;
     const palSets = doc.paletteSets ?? [];
@@ -614,7 +644,16 @@ export function LibraryPanel() {
           title="Save current project as a reusable template"
           data-testid="lib-save-template"
         >
-          Save Template
+          Template
+        </button>
+        <button
+          className="lib-io-btn"
+          onClick={handleSaveAsPack}
+          disabled={allItems.length === 0}
+          title="Save authored assets as a reusable pack"
+          data-testid="lib-save-pack"
+        >
+          Pack
         </button>
         <button
           className="lib-io-btn"
