@@ -562,17 +562,33 @@ export function Canvas() {
       const nonEmpty = motionTrailData.filter((p) => !p.empty);
       if (nonEmpty.length > 1) {
         ctx.save();
-        // Draw connecting lines
-        ctx.strokeStyle = 'rgba(100, 200, 255, 0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        const first = nonEmpty[0];
-        ctx.moveTo(ox + first.cx * z, oy + first.cy * z);
+
+        // Compute segment distances for spacing analysis
+        const dists: number[] = [];
         for (let i = 1; i < nonEmpty.length; i++) {
-          ctx.lineTo(ox + nonEmpty[i].cx * z, oy + nonEmpty[i].cy * z);
+          const dx = nonEmpty[i].cx - nonEmpty[i - 1].cx;
+          const dy = nonEmpty[i].cy - nonEmpty[i - 1].cy;
+          dists.push(Math.sqrt(dx * dx + dy * dy));
         }
-        ctx.stroke();
+        const meanDist = dists.reduce((a, b) => a + b, 0) / dists.length;
+        const stdDev = Math.sqrt(dists.reduce((a, d) => a + (d - meanDist) ** 2, 0) / dists.length);
+
+        // Draw spacing-aware colored segments
+        ctx.lineWidth = 1.5;
+        for (let i = 1; i < nonEmpty.length; i++) {
+          const d = dists[i - 1];
+          const deviation = stdDev > 0.01 ? Math.abs(d - meanDist) / stdDev : 0;
+          // Green = even, Yellow = mild, Red = significant deviation
+          const color = deviation < 0.8 ? 'rgba(80, 220, 120, 0.6)'
+            : deviation < 1.5 ? 'rgba(240, 200, 60, 0.6)'
+            : 'rgba(240, 80, 60, 0.6)';
+          ctx.strokeStyle = color;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(ox + nonEmpty[i - 1].cx * z, oy + nonEmpty[i - 1].cy * z);
+          ctx.lineTo(ox + nonEmpty[i].cx * z, oy + nonEmpty[i].cy * z);
+          ctx.stroke();
+        }
         ctx.setLineDash([]);
 
         // Draw dots at each centroid
