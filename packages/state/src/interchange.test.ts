@@ -4,12 +4,15 @@ import {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,
+  exportPack,
   parseInterchangeFile,
   parseProjectTemplate,
+  parsePack,
   deriveImportName,
   INTERCHANGE_FORMAT,
   INTERCHANGE_VERSION,
 } from './interchange';
+import type { PackParseResult } from './interchange';
 import type { ProjectTemplateParseResult } from './interchange';
 import { createSpriteDocument } from '@glyphstudio/domain';
 import type { SpriteDocument } from '@glyphstudio/domain';
@@ -297,6 +300,99 @@ describe('interchange', () => {
       if ('error' in result) return;
       expect(result.paletteSets).toHaveLength(0);
       expect(result.parts).toHaveLength(0);
+    });
+  });
+
+  // ── Asset packs ──
+
+  describe('exportPack', () => {
+    it('produces valid pack interchange JSON', () => {
+      const doc = createSpriteDocument('hero', 32, 32);
+      doc.paletteSets = [makePaletteSet('Warm'), makePaletteSet('Cool')];
+      const lib = addPartToLibrary(
+        addPartToLibrary(createEmptyPartLibrary(), makePart('Shield')),
+        makePart('Helmet'),
+      );
+
+      const json = exportPack(doc, lib, {
+        name: 'Player Kit',
+        description: 'Everything for the player character',
+        paletteSetIds: ['ps-warm'],
+        partIds: ['part-helmet'],
+      });
+      const parsed = JSON.parse(json);
+
+      expect(parsed.format).toBe(INTERCHANGE_FORMAT);
+      expect(parsed.contentType).toBe('pack');
+      expect(parsed.pack.name).toBe('Player Kit');
+      expect(parsed.pack.description).toBe('Everything for the player character');
+      expect(parsed.paletteSets).toHaveLength(1);
+      expect(parsed.paletteSets[0].name).toBe('Warm');
+      expect(parsed.parts).toHaveLength(1);
+      expect(parsed.parts[0].name).toBe('Helmet');
+    });
+
+    it('exports only selected items', () => {
+      const doc = createSpriteDocument('test', 16, 16);
+      doc.paletteSets = [makePaletteSet('A'), makePaletteSet('B')];
+      const json = exportPack(doc, createEmptyPartLibrary(), {
+        name: 'Selective',
+        paletteSetIds: ['ps-a'],
+      });
+      const parsed = JSON.parse(json);
+      expect(parsed.paletteSets).toHaveLength(1);
+      expect(parsed.paletteSets[0].name).toBe('A');
+    });
+  });
+
+  describe('parsePack', () => {
+    it('roundtrips a pack', () => {
+      const doc = createSpriteDocument('test', 16, 16);
+      doc.paletteSets = [makePaletteSet('Warm')];
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart('Sword'));
+
+      const json = exportPack(doc, lib, {
+        name: 'Combat Kit',
+        paletteSetIds: ['ps-warm'],
+        partIds: ['part-sword'],
+      });
+      const result = parsePack(json, [], []);
+
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.pack.name).toBe('Combat Kit');
+      expect(result.paletteSets).toHaveLength(1);
+      expect(result.parts).toHaveLength(1);
+      expect(result.conflicts).toHaveLength(0);
+    });
+
+    it('detects name conflicts', () => {
+      const doc = createSpriteDocument('test', 16, 16);
+      doc.paletteSets = [makePaletteSet('Warm')];
+      const json = exportPack(doc, createEmptyPartLibrary(), {
+        name: 'Kit',
+        paletteSetIds: ['ps-warm'],
+      });
+      const result = parsePack(json, ['Warm'], []);
+      expect('error' in result).toBe(false);
+      if ('error' in result) return;
+      expect(result.conflicts).toHaveLength(1);
+    });
+
+    it('returns error for missing pack metadata', () => {
+      const json = JSON.stringify({ format: INTERCHANGE_FORMAT, version: 1 });
+      expect('error' in parsePack(json, [], [])).toBe(true);
+    });
+
+    it('returns error for empty pack', () => {
+      const json = JSON.stringify({
+        format: INTERCHANGE_FORMAT,
+        version: 1,
+        pack: { name: 'Empty' },
+        paletteSets: [],
+        parts: [],
+      });
+      expect('error' in parsePack(json, [], [])).toBe(true);
     });
   });
 });

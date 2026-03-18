@@ -18,7 +18,7 @@ export interface InterchangeFile {
   format: typeof INTERCHANGE_FORMAT;
   version: number;
   /** What kind of data this file contains. */
-  contentType: 'palette-sets' | 'parts' | 'mixed' | 'template';
+  contentType: 'palette-sets' | 'parts' | 'mixed' | 'template' | 'pack';
   /** ISO timestamp of export. */
   exportedAt: string;
   /** Optional palette sets payload. */
@@ -27,6 +27,8 @@ export interface InterchangeFile {
   parts?: InterchangePart[];
   /** Optional project template data. */
   template?: ProjectTemplateData;
+  /** Optional pack metadata. */
+  pack?: PackMetadata;
 }
 
 /** Palette set in interchange format (mirrors PaletteSet). */
@@ -57,6 +59,20 @@ export interface ProjectTemplateData {
   frameCount?: number;
   /** Frame duration in ms for animation templates. */
   frameDurationMs?: number;
+}
+
+/** Pack metadata — a named curated subset of authored structures. */
+export interface PackMetadata {
+  name: string;
+  description?: string;
+}
+
+/** Parsed result of a pack file. */
+export interface PackParseResult {
+  pack: PackMetadata;
+  paletteSets: InterchangePaletteSet[];
+  parts: InterchangePart[];
+  conflicts: ImportConflict[];
 }
 
 /** Parsed result of a project template file. */
@@ -408,4 +424,152 @@ export function parseProjectTemplate(
   }
 
   return { template, paletteSets, parts };
+}
+
+// ── Asset pack export/import ──
+
+/** Options for selective pack export. */
+export interface ExportPackOptions {
+  name: string;
+  description?: string;
+  /** Palette set IDs to include. */
+  paletteSetIds?: string[];
+  /** Part IDs to include. */
+  partIds?: string[];
+}
+
+/**
+ * Export a curated asset pack from selected palette sets and parts.
+ *
+ * Returns interchange JSON string with contentType 'pack'.
+ */
+export function exportPack(
+  doc: SpriteDocument,
+  partLibrary: PartLibrary,
+  options: ExportPackOptions,
+): string {
+  const file: InterchangeFile = {
+    format: INTERCHANGE_FORMAT,
+    version: INTERCHANGE_VERSION,
+    contentType: 'pack',
+    exportedAt: new Date().toISOString(),
+    pack: {
+      name: options.name,
+      ...(options.description ? { description: options.description } : {}),
+    },
+  };
+
+  // Selective palette sets
+  if (options.paletteSetIds && options.paletteSetIds.length > 0) {
+    const selectedIds = new Set(options.paletteSetIds);
+    const palSets = (doc.paletteSets ?? []).filter((ps) => selectedIds.has(ps.id));
+    file.paletteSets = palSets.map((ps) => ({
+      id: ps.id,
+      name: ps.name,
+      colors: ps.colors.map((c) => ({
+        rgba: [...c.rgba] as [number, number, number, number],
+        ...(c.name ? { name: c.name } : {}),
+      })),
+    }));
+  }
+
+  // Selective parts
+  if (options.partIds && options.partIds.length > 0) {
+    const selectedIds = new Set(options.partIds);
+    const parts = partLibrary.parts.filter((p) => selectedIds.has(p.id));
+    file.parts = parts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      width: p.width,
+      height: p.height,
+      pixelData: [...p.pixelData],
+      ...(p.tags?.length ? { tags: [...p.tags] } : {}),
+    }));
+  }
+
+  return JSON.stringify(file, null, 2);
+}
+
+/**
+ * Parse an asset pack from interchange JSON.
+ *
+ * Returns pack metadata + contents with conflict detection, or error.
+ */
+export function parsePack(
+  json: string,
+  existingPaletteSetNames: string[],
+  existingPartNames: string[],
+): PackParseResult | { error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { error: 'Invalid JSON' };
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return { error: 'File is not a valid object' };
+  }
+
+  const file = parsed as Record<string, unknown>;
+
+  if (file.format !== INTERCHANGE_FORMAT) {
+    return { error: `Unknown format: ${String(file.format)}` };
+  }
+
+  if (typeof file.version !== 'number' || file.version > INTERCHANGE_VERSION) {
+    return { error: `Unsupported version: ${String(file.version)}` };
+  }
+
+  // Pack metadata
+  const rawPack = file.pack;
+  if (!rawPack || typeof rawPack !== 'object') {
+    return { error: 'Missing pack metadata' };
+  }
+  const pm = rawPack as Record<string, unknown>;
+  if (typeof pm.name !== 'string' || !pm.name) {
+    return { error: 'Pack missing name' };
+  }
+
+  const pack: PackMetadata = {
+    name: pm.name,
+    ...(typeof pm.description === 'string' ? { description: pm.description } : {}),
+  };
+
+  const existingPsNames = new Set(existingPaletteSetNames);
+  const existingPartNameSet = new Set(existingPartNames);
+
+  const paletteSets: InterchangePaletteSet[] = [];
+  const parts: InterchangePart[] = [];
+  const conflicts: ImportConflict[] = [];
+
+  if (Array.isArray(file.paletteSets)) {
+    for (const raw of file.paletteSets) {
+      const ps = coercePaletteSet(raw);
+      if (ps) {
+        paletteSets.push(ps);
+        if (existingPsNames.has(ps.name)) {
+          conflicts.push({ id: ps.id, name: ps.name, hasNameConflict: true });
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(file.parts)) {
+    for (const raw of file.parts) {
+      const part = coercePart(raw);
+      if (part) {
+        parts.push(part);
+        if (existingPartNameSet.has(part.name)) {
+          conflicts.push({ id: part.id, name: part.name, hasNameConflict: true });
+        }
+      }
+    }
+  }
+
+  if (paletteSets.length === 0 && parts.length === 0) {
+    return { error: 'Pack contains no valid data' };
+  }
+
+  return { pack, paletteSets, parts, conflicts };
 }

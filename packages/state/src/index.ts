@@ -391,8 +391,10 @@ export {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,
+  exportPack,
   parseInterchangeFile,
   parseProjectTemplate,
+  parsePack,
   deriveImportName,
   INTERCHANGE_FORMAT,
   INTERCHANGE_VERSION,
@@ -407,6 +409,9 @@ export type {
   ProjectTemplateData,
   ProjectTemplateParseResult,
   ExportTemplateOptions,
+  PackMetadata,
+  PackParseResult,
+  ExportPackOptions,
 } from './interchange';
 export type { LibraryItemKind, LibraryItem, LibraryFilterOptions, LibrarySortMode } from './libraryIndex';
 export { useLibraryStore } from './libraryStore';
