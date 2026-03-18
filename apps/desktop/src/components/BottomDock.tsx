@@ -277,32 +277,48 @@ export function BottomDock({ activeMode }: BottomDockProps) {
     } catch (err) { console.error('insert_frame_at failed:', err); }
   }, [activeFrameIndex, applyResult, markDirty, pauseFirst]);
 
+  // --- Export helpers ---
+  const rangeSuffix = useCallback(() => {
+    if (selectedFrameIndices.length === 0) return '';
+    const lo = Math.min(...selectedFrameIndices) + 1;
+    const hi = Math.max(...selectedFrameIndices) + 1;
+    return `_f${lo}-${hi}`;
+  }, [selectedFrameIndices]);
+
+  const rangeLabel = useCallback(() => {
+    if (selectedFrameIndices.length === 0) return 'all frames';
+    const lo = Math.min(...selectedFrameIndices) + 1;
+    const hi = Math.max(...selectedFrameIndices) + 1;
+    return `frames ${lo}–${hi}`;
+  }, [selectedFrameIndices]);
+
   // --- Export ---
   const handleExportSequence = useCallback(async () => {
     pauseFirst();
     try {
+      const name = projectName || 'frames';
       const dirPath = await save({
-        title: 'Export PNG Sequence — Choose folder name',
-        defaultPath: `${projectName || 'frames'}_sequence`,
+        title: `Export PNG Sequence (${rangeLabel()})`,
+        defaultPath: `${name}${rangeSuffix()}_sequence`,
       });
       if (!dirPath) return;
-      const baseName = projectName || 'frame';
-      await invoke<string[]>('export_frame_sequence', { dirPath, baseName });
+      await invoke<string[]>('export_frame_sequence', { dirPath, baseName: name });
     } catch (err) { console.error('export_frame_sequence failed:', err); }
-  }, [projectName, pauseFirst]);
+  }, [projectName, pauseFirst, rangeSuffix, rangeLabel]);
 
   const handleExportSpriteStrip = useCallback(async () => {
     pauseFirst();
     try {
+      const name = projectName || 'sprite';
       const filePath = await save({
-        title: 'Export Sprite Strip',
-        defaultPath: `${projectName || 'sprite'}_strip.png`,
+        title: `Export Sprite Strip (${rangeLabel()})`,
+        defaultPath: `${name}${rangeSuffix()}_strip.png`,
         filters: [{ name: 'PNG', extensions: ['png'] }],
       });
       if (!filePath) return;
       await invoke<string>('export_sprite_strip', { filePath, horizontal: true });
     } catch (err) { console.error('export_sprite_strip failed:', err); }
-  }, [projectName, pauseFirst]);
+  }, [projectName, pauseFirst, rangeSuffix, rangeLabel]);
 
   const handleExportGif = useCallback(async () => {
     pauseFirst();

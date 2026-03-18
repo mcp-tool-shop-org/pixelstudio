@@ -684,16 +684,16 @@ export function ExportPreviewPanel() {
 
         <div className="export-scope-truth">
           {scopeChoice === 'current_frame' && (
-            <span>Will export: Frame {activeFrameIndex + 1} of {frames.length}</span>
+            <span>{projectName || 'Project'} → Frame {activeFrameIndex + 1} of {frames.length}</span>
           )}
           {scopeChoice === 'selected_span' && (
-            <span>Will export: Frames {spanStart}–{spanEnd} ({spanEnd - spanStart + 1} frame{spanEnd - spanStart !== 0 ? 's' : ''}){selectedFrameIndices.length > 0 ? ' (from timeline selection)' : ''}</span>
+            <span>{projectName || 'Project'} → Frames {spanStart}–{spanEnd} ({spanEnd - spanStart + 1} frame{spanEnd - spanStart !== 0 ? 's' : ''}){selectedFrameIndices.length > 0 ? ' · from timeline' : ''}</span>
           )}
           {scopeChoice === 'current_clip' && selectedClipId && (
-            <span>Will export: {clips.find((c) => c.id === selectedClipId)?.name ?? 'clip'}</span>
+            <span>{projectName || 'Project'} → {clips.find((c) => c.id === selectedClipId)?.name ?? 'clip'}</span>
           )}
           {scopeChoice === 'all_clips' && (
-            <span>Will export: All {clips.length} clip{clips.length !== 1 ? 's' : ''} ({frames.length} total frames)</span>
+            <span>{projectName || 'Project'} → All {clips.length} clip{clips.length !== 1 ? 's' : ''} ({frames.length} frames)</span>
           )}
         </div>
 
