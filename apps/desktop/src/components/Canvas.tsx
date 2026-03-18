@@ -136,6 +136,9 @@ export function Canvas() {
     }
     return liveFrame;
   }, [liveFrame, compareSnapshot, rangeCompareFrame]);
+  const showMotionTrail = useCanvasViewStore((s) => s.showMotionTrail);
+  const motionTrailData = useCanvasViewStore((s) => s.motionTrailData);
+  const setMotionTrailData = useCanvasViewStore((s) => s.setMotionTrailData);
   const previewBackground = useCanvasViewStore((s) => s.previewBackground);
   const panBy = useCanvasViewStore((s) => s.panBy);
   const setCursorPixel = useCanvasViewStore((s) => s.setCursorPixel);
@@ -209,6 +212,17 @@ export function Canvas() {
   useEffect(() => {
     if (canvasReady) loadSliceRegions();
   }, [frameVersion, canvasReady, loadSliceRegions]);
+
+  // Fetch motion trail data when enabled or frame changes
+  useEffect(() => {
+    if (!showMotionTrail || !canvasReady || frameCount <= 1) {
+      if (!showMotionTrail) setMotionTrailData(null);
+      return;
+    }
+    invoke<{ centroids: Array<{ frameIndex: number; cx: number; cy: number; empty: boolean }>; canvasWidth: number; canvasHeight: number }>('compute_motion_trail')
+      .then((result) => setMotionTrailData(result.centroids))
+      .catch(() => setMotionTrailData(null));
+  }, [showMotionTrail, canvasReady, frameCount, frameVersion, setMotionTrailData]);
 
   // Render
   const render = useCallback(() => {
@@ -533,6 +547,60 @@ export function Canvas() {
       ctx.restore();
     }
 
+    // Motion trail overlay — centroid path across frames
+    if (showMotionTrail && motionTrailData && motionTrailData.length > 1) {
+      const viewState = useCanvasViewStore.getState();
+      const z = viewState.zoom;
+      const px = viewState.panX;
+      const py = viewState.panY;
+      const spriteW = canvasSize.width * z;
+      const spriteH = canvasSize.height * z;
+      const ox = Math.floor(w / 2 - spriteW / 2 + px);
+      const oy = Math.floor(h / 2 - spriteH / 2 + py);
+      const activeIdx = useTimelineStore.getState().activeFrameIndex;
+
+      const nonEmpty = motionTrailData.filter((p) => !p.empty);
+      if (nonEmpty.length > 1) {
+        ctx.save();
+        // Draw connecting lines
+        ctx.strokeStyle = 'rgba(100, 200, 255, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        const first = nonEmpty[0];
+        ctx.moveTo(ox + first.cx * z, oy + first.cy * z);
+        for (let i = 1; i < nonEmpty.length; i++) {
+          ctx.lineTo(ox + nonEmpty[i].cx * z, oy + nonEmpty[i].cy * z);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw dots at each centroid
+        for (const pt of nonEmpty) {
+          const sx = ox + pt.cx * z;
+          const sy = oy + pt.cy * z;
+          const isActive = pt.frameIndex === activeIdx;
+          const radius = isActive ? Math.max(4, z * 0.5) : Math.max(2.5, z * 0.3);
+
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+          ctx.fillStyle = isActive ? '#ff6040' : 'rgba(100, 200, 255, 0.7)';
+          ctx.fill();
+          ctx.strokeStyle = isActive ? '#fff' : 'rgba(255, 255, 255, 0.4)';
+          ctx.lineWidth = isActive ? 1.5 : 0.8;
+          ctx.stroke();
+
+          // Frame index label at higher zoom
+          if (z >= 4) {
+            ctx.fillStyle = isActive ? '#fff' : 'rgba(200, 230, 255, 0.8)';
+            ctx.font = `${isActive ? 'bold ' : ''}9px sans-serif`;
+            ctx.fillText(`${pt.frameIndex + 1}`, sx + radius + 2, sy + 3);
+          }
+        }
+        ctx.restore();
+      }
+    }
+
     // Anchor overlay (socket tool or when anchors exist)
     {
       const anchorState = useAnchorStore.getState();
@@ -700,7 +768,7 @@ export function Canvas() {
     ctx.strokeRect(originX - 0.5, originY - 0.5, spriteW + 1, spriteH + 1);
   // zoom/panX/panY intentionally omitted — read imperatively inside render.
   // Pan/zoom changes trigger a direct scheduleRender subscription below.
-  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode]);
+  }, [showPixelGrid, showSilhouette, silhouetteColor, compareSnapshotId, previewBackground, frame, frameVersion, selectionBounds, dragSelection, transformPreview, onionSkinEnabled, onionSkinData, onionSkinShowPrev, onionSkinShowNext, onionSkinPrevOpacity, onionSkinNextOpacity, activeTool, primaryColor, sliceRegions, selectedSliceId, hoveredSliceId, mirrorMode, showMotionTrail, motionTrailData]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -1284,6 +1352,13 @@ export function Canvas() {
         return;
       }
 
+      // Toggle motion trail with M
+      if (e.code === 'KeyM' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        useCanvasViewStore.getState().toggleOverlay('showMotionTrail');
+        return;
+      }
+
       // Prev/next frame with , and . (pauses playback, wraps when loop on)
       if (e.code === 'Comma' || e.code === 'Period') {
         e.preventDefault();
@@ -1386,6 +1461,9 @@ export function Canvas() {
           <span className="status-onion" title="O to toggle onion skin">
             onion{onionSkinShowPrev && onionSkinShowNext ? ': prev+next' : onionSkinShowPrev ? ': prev' : onionSkinShowNext ? ': next' : ''}
           </span>
+        )}
+        {showMotionTrail && frameCount > 1 && (
+          <span className="status-onion" title="M to toggle motion trail">trail</span>
         )}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
