@@ -1104,6 +1104,34 @@ export function Canvas() {
         }
       }
 
+      // Ctrl+Alt+Arrow — nudge all content from current frame onward
+      if (e.altKey && (e.ctrlKey || e.metaKey) && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+        const tl = useTimelineStore.getState();
+        if (tl.playing) tl.setPlaying(false);
+        const step = e.shiftKey ? 4 : 1;
+        let dx = 0, dy = 0;
+        if (e.code === 'ArrowLeft') dx = -step;
+        if (e.code === 'ArrowRight') dx = step;
+        if (e.code === 'ArrowUp') dy = -step;
+        if (e.code === 'ArrowDown') dy = step;
+        const indices: number[] = [];
+        for (let i = tl.activeFrameIndex; i < tl.frames.length; i++) indices.push(i);
+        try {
+          const result = await invoke<TimelineResult>('nudge_frame_range', {
+            frameIndices: indices,
+            dx, dy,
+          });
+          tl.setFrames(result.frames, result.activeFrameId, result.activeFrameIndex);
+          setFrame(result.frame);
+          syncLayersFromFrame(result.frame);
+          markDirty();
+          invoke('mark_dirty').catch(() => {});
+          toast.info(`Nudge (${dx},${dy}) → frames ${tl.activeFrameIndex + 1}→${tl.frames.length}`);
+        } catch (err) { console.error('nudge_frame_range failed:', err); }
+        return;
+      }
+
       // Alt+Arrow — nudge all content in selected frames (or active frame)
       if (e.altKey && !e.ctrlKey && !e.metaKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
@@ -1645,8 +1673,8 @@ export function Canvas() {
           </span>
         )}
         {selectedFrameCount > 0 && (
-          <span className="status-frame-range" title="Alt+H/V/R transform · Ctrl+D duplicate · Ctrl+Alt+D experiment · Ctrl+Del discard · Esc clear">
-            {selectedFrameCount} frames · Alt+H/V/R · Ctrl+D · Ctrl+Del
+          <span className="status-frame-range" title="Alt+Arrow nudge · Alt+H/V/R transform · Ctrl+D duplicate · Ctrl+Del discard · Esc clear">
+            {selectedFrameCount} frames · Alt+↑↓←→ · H/V/R · Ctrl+D
           </span>
         )}
         {playing && <span title="Space to pause">playing</span>}
