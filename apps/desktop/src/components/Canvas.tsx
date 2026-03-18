@@ -45,6 +45,12 @@ export function Canvas() {
   const onionNextOffscreenRef = useRef<HTMLCanvasElement | null>(null);
   const onionSkinDataCacheRef = useRef<typeof onionSkinData>(null);
 
+  // Offscreen canvas cache for transform preview payload.
+  // Rebuilt only when the transformPreview object reference changes
+  // (i.e., on each move_selection_preview response from Rust).
+  const transformOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const transformPreviewCacheRef = useRef<typeof transformPreview>(null);
+
   const [canvasReady, setCanvasReady] = useState(false);
 
   // renderRef is kept current each render cycle so the pointer handler hook
@@ -323,22 +329,28 @@ export function Canvas() {
       const tpX = originX + (tp.sourceX + tp.offsetX) * zoom;
       const tpY = originY + (tp.sourceY + tp.offsetY) * zoom;
 
-      // Draw each pixel of the payload
-      for (let py = 0; py < tp.payloadHeight; py++) {
-        for (let px = 0; px < tp.payloadWidth; px++) {
-          const i = (py * tp.payloadWidth + px) * 4;
-          const a = tp.payloadData[i + 3];
-          if (a === 0) continue;
-          const sx = tpX + px * zoom;
-          const sy = tpY + py * zoom;
-          if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
-          if (a === 255) {
-            ctx.fillStyle = `rgb(${tp.payloadData[i]},${tp.payloadData[i + 1]},${tp.payloadData[i + 2]})`;
-          } else {
-            ctx.fillStyle = `rgba(${tp.payloadData[i]},${tp.payloadData[i + 1]},${tp.payloadData[i + 2]},${a / 255})`;
-          }
-          ctx.fillRect(sx, sy, zoom, zoom);
+      // Draw payload via offscreen canvas — same pattern as active frame pixels.
+      // Rebuild only when transformPreview reference changes (each Rust response).
+      if (transformPreview !== transformPreviewCacheRef.current) {
+        transformPreviewCacheRef.current = transformPreview;
+        if (!transformOffscreenRef.current) {
+          transformOffscreenRef.current = document.createElement('canvas');
         }
+        const toc = transformOffscreenRef.current;
+        toc.width  = tp.payloadWidth;
+        toc.height = tp.payloadHeight;
+        const tocCtx = toc.getContext('2d')!;
+        const buf = buildFramePixelBuffer(
+          tp.payloadData, tp.payloadWidth, tp.payloadHeight,
+          false, 0, 0, 0,
+        );
+        const id = tocCtx.createImageData(tp.payloadWidth, tp.payloadHeight);
+        id.data.set(buf);
+        tocCtx.putImageData(id, 0, 0);
+      }
+      if (transformOffscreenRef.current) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(transformOffscreenRef.current, tpX, tpY, tp.payloadWidth * zoom, tp.payloadHeight * zoom);
       }
 
       // Marching ants around transform payload
