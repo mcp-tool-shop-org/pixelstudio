@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createSpriteDocument } from '@glyphstudio/domain';
 import type { SpriteDocument, PaletteSet, DocumentVariant, Part, PartLibrary } from '@glyphstudio/domain';
 import { createEmptyPartLibrary, addPartToLibrary } from './partLibrary';
-import { buildLibraryIndex, filterLibraryItems, groupByKind } from './libraryIndex';
-import type { LibraryItemKind } from './libraryIndex';
+import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority } from './libraryIndex';
+import type { LibraryItemKind, LibraryItem } from './libraryIndex';
 
 function makePart(overrides: Partial<Part> = {}): Part {
   return {
@@ -144,6 +144,83 @@ describe('libraryIndex', () => {
       expect(groups['part']).toEqual([]);
       expect(groups['palette-set']).toEqual([]);
       expect(groups['variant']).toEqual([]);
+    });
+  });
+
+  describe('pinned and recent flags', () => {
+    it('marks pinned items', () => {
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart({ id: 'p1' }));
+      const items = buildLibraryIndex(null, lib, null, null, null, ['p1'], []);
+      expect(items[0].isPinned).toBe(true);
+      expect(items[0].isRecent).toBe(false);
+    });
+
+    it('marks recent items', () => {
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart({ id: 'p1' }));
+      const items = buildLibraryIndex(null, lib, null, null, null, [], ['p1']);
+      expect(items[0].isPinned).toBe(false);
+      expect(items[0].isRecent).toBe(true);
+    });
+
+    it('defaults to false when no pinned/recent provided', () => {
+      const lib = addPartToLibrary(createEmptyPartLibrary(), makePart({ id: 'p1' }));
+      const items = buildLibraryIndex(null, lib, null, null, null);
+      expect(items[0].isPinned).toBe(false);
+      expect(items[0].isRecent).toBe(false);
+    });
+  });
+
+  describe('sortWithPriority', () => {
+    function makeItem(id: string, overrides: Partial<LibraryItem> = {}): LibraryItem {
+      return {
+        id, kind: 'part', name: id, updatedAt: '2026-01-01T00:00:00Z',
+        isActive: false, isPinned: false, isRecent: false,
+        ...overrides,
+      };
+    }
+
+    it('puts pinned items first', () => {
+      const items = [
+        makeItem('a'),
+        makeItem('b', { isPinned: true }),
+        makeItem('c'),
+      ];
+      const sorted = sortWithPriority(items);
+      expect(sorted[0].id).toBe('b');
+    });
+
+    it('puts active after pinned', () => {
+      const items = [
+        makeItem('a', { isActive: true }),
+        makeItem('b', { isPinned: true }),
+        makeItem('c'),
+      ];
+      const sorted = sortWithPriority(items);
+      expect(sorted[0].id).toBe('b');
+      expect(sorted[1].id).toBe('a');
+    });
+
+    it('puts recent after active', () => {
+      const items = [
+        makeItem('a', { isRecent: true }),
+        makeItem('b', { isActive: true }),
+        makeItem('c'),
+      ];
+      const sorted = sortWithPriority(items);
+      expect(sorted[0].id).toBe('b');
+      expect(sorted[1].id).toBe('a');
+      expect(sorted[2].id).toBe('c');
+    });
+
+    it('preserves order within priority groups', () => {
+      const items = [
+        makeItem('a', { isPinned: true }),
+        makeItem('b', { isPinned: true }),
+        makeItem('c'),
+        makeItem('d'),
+      ];
+      const sorted = sortWithPriority(items);
+      expect(sorted.map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
     });
   });
 });

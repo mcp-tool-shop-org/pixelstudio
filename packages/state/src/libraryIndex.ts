@@ -30,6 +30,10 @@ export interface LibraryItem {
   frameCount?: number;
   /** Whether this item is currently active/selected in the editor. */
   isActive: boolean;
+  /** Whether this item is pinned by the user. */
+  isPinned: boolean;
+  /** Whether this item was recently accessed. */
+  isRecent: boolean;
 }
 
 /**
@@ -43,7 +47,11 @@ export function buildLibraryIndex(
   activeStampPartId: string | null,
   activePaletteSetId: string | null,
   activeVariantId: string | null,
+  pinnedIds: string[] = [],
+  recentIds: string[] = [],
 ): LibraryItem[] {
+  const pinSet = new Set(pinnedIds);
+  const recSet = new Set(recentIds);
   const items: LibraryItem[] = [];
 
   // Parts (already ordered most-recent-first from addPartToLibrary)
@@ -57,6 +65,8 @@ export function buildLibraryIndex(
       height: part.height,
       pixelData: part.pixelData,
       isActive: activeStampPartId === part.id,
+      isPinned: pinSet.has(part.id),
+      isRecent: recSet.has(part.id),
     });
   }
 
@@ -67,10 +77,12 @@ export function buildLibraryIndex(
         id: ps.id,
         kind: 'palette-set',
         name: ps.name,
-        updatedAt: doc.updatedAt, // palette sets don't have individual timestamps
+        updatedAt: doc.updatedAt,
         swatchColors: ps.colors.slice(0, 8).map((c) => c.rgba),
         colorCount: ps.colors.length,
         isActive: activePaletteSetId === ps.id,
+        isPinned: pinSet.has(ps.id),
+        isRecent: recSet.has(ps.id),
       });
     }
 
@@ -83,6 +95,8 @@ export function buildLibraryIndex(
         updatedAt: v.updatedAt,
         frameCount: v.frames.length,
         isActive: activeVariantId === v.id,
+        isPinned: pinSet.has(v.id),
+        isRecent: recSet.has(v.id),
       });
     }
   }
@@ -107,6 +121,26 @@ export function filterLibraryItems(
     if (q && !item.name.toLowerCase().includes(q)) return false;
     return true;
   });
+}
+
+/**
+ * Sort items with priority: pinned first, then active, then recent, then rest.
+ * Within each priority group, original order is preserved.
+ */
+export function sortWithPriority(items: LibraryItem[]): LibraryItem[] {
+  const pinned: LibraryItem[] = [];
+  const active: LibraryItem[] = [];
+  const recent: LibraryItem[] = [];
+  const rest: LibraryItem[] = [];
+
+  for (const item of items) {
+    if (item.isPinned) pinned.push(item);
+    else if (item.isActive) active.push(item);
+    else if (item.isRecent) recent.push(item);
+    else rest.push(item);
+  }
+
+  return [...pinned, ...active, ...recent, ...rest];
 }
 
 /** Group library items by kind. */
