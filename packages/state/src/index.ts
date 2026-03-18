@@ -406,6 +406,15 @@ export type { WorkflowHint, WorkflowHintTrigger, HintEditorState } from './workf
 export { getContextualShortcuts } from './contextualShortcuts';
 export type { ContextualShortcut, ShortcutContext, ShortcutEditorState } from './contextualShortcuts';
 export {
+  SAMPLE_TEMPLATES,
+  SAMPLE_PACKS,
+  SAMPLE_IDS,
+  SAMPLE_TEMPLATE_LOOP,
+  SAMPLE_TEMPLATE_VARIANT,
+  SAMPLE_PACK_PALETTES,
+  SAMPLE_PACK_PARTS,
+} from './sampleContent';
+export {
   exportPaletteSets,
   exportParts,
   exportProjectTemplate,

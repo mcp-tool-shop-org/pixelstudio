@@ -17,6 +17,7 @@ import { VectorSourceBanner } from '../components/VectorSourceBanner';
 import { VariantBar } from '../components/VariantBar';
 import { HintBar } from '../components/HintBar';
 import { ShortcutStrip } from '../components/ShortcutStrip';
+import { seedSampleContentIfNeeded } from '../lib/seedSampleContent';
 import { EditorStatusBar } from '../components/EditorStatusBar';
 import { ToastStack } from '../components/ToastStack';
 import { ShortcutHelpOverlay } from '../components/ShortcutHelpOverlay';
@@ -25,6 +26,9 @@ import { toast } from '../lib/toast';
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
 
 export function AppShell() {
+  // Seed sample content on first launch
+  useState(() => { seedSampleContentIfNeeded(); });
+
   const [mode, setMode] = useState<WorkspaceMode>('project-home');
   const [showHelp, setShowHelp] = useState(false);
   const [recoveryItems, setRecoveryItems] = useState<Array<{
