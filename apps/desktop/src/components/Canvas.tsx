@@ -12,7 +12,7 @@ import { isSketchTool, TOOL_KEY_MAP, TOOL_SHIFT_KEY_MAP } from '@glyphstudio/dom
 import { useCanvasFrameStore, type CanvasFrameData } from '../lib/canvasFrameStore';
 import { syncLayersFromFrame } from '../lib/syncLayers';
 import { bresenhamLine, rectangleOutline, ellipseOutline, constrainShapeEnd, applyMirrorPoints } from '../lib/canvasPixelMath';
-import { buildFramePixelBuffer } from '../lib/canvasRenderHelpers';
+import { buildFramePixelBuffer, buildTintedPixelBuffer } from '../lib/canvasRenderHelpers';
 import { useCanvasPointerHandlers } from '../lib/useCanvasPointerHandlers';
 
 const CHECK_LIGHT = '#2a2a2e';
@@ -38,6 +38,12 @@ export function Canvas() {
   // Avoids O(W×H) fillRect + string-allocation loop every render.
   const frameOffscreenRef = useRef<HTMLCanvasElement | null>(null);
   const frameOffscreenKeyRef = useRef('');
+
+  // Offscreen canvas caches for onion skin (prev = blue, next = red).
+  // Rebuilt only when onionSkinData reference changes (infrequent backend fetch).
+  const onionPrevOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const onionNextOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const onionSkinDataCacheRef = useRef<typeof onionSkinData>(null);
 
   const [canvasReady, setCanvasReady] = useState(false);
 
@@ -211,57 +217,52 @@ export function Canvas() {
     }
 
     // --- Onion skin overlays (before active frame) ---
+    // Use offscreen canvases + drawImage for the same reason as the active
+    // frame: avoid O(W×H) per-pixel fillRect + string-allocation loops.
+    // Both offscreens are rebuilt only when onionSkinData itself changes
+    // (i.e., when the backend returns new data — infrequent).
     if (onionSkinData && onionSkinEnabled) {
       const osW = onionSkinData.width;
       const osH = onionSkinData.height;
 
-      // Previous frame ghost (blue tint)
-      if (onionSkinShowPrev && onionSkinData.prevData) {
-        const prevData = onionSkinData.prevData;
+      // Rebuild both offscreens when the data reference changes.
+      if (onionSkinData !== onionSkinDataCacheRef.current) {
+        onionSkinDataCacheRef.current = onionSkinData;
+
+        const uploadOnion = (
+          canvasRef2: React.MutableRefObject<HTMLCanvasElement | null>,
+          src: number[] | null,
+          tint: 'blue' | 'red',
+        ) => {
+          if (!src) { canvasRef2.current = null; return; }
+          if (!canvasRef2.current) canvasRef2.current = document.createElement('canvas');
+          const oc = canvasRef2.current;
+          oc.width = osW;
+          oc.height = osH;
+          const oc2 = oc.getContext('2d')!;
+          const buf = buildTintedPixelBuffer(src, osW, osH, tint);
+          const id = oc2.createImageData(osW, osH);
+          id.data.set(buf);
+          oc2.putImageData(id, 0, 0);
+        };
+
+        uploadOnion(onionPrevOffscreenRef, onionSkinData.prevData, 'blue');
+        uploadOnion(onionNextOffscreenRef, onionSkinData.nextData, 'red');
+      }
+
+      // Draw previous frame ghost (blue tint)
+      if (onionSkinShowPrev && onionPrevOffscreenRef.current) {
         ctx.globalAlpha = onionSkinPrevOpacity;
-        for (let py = 0; py < osH; py++) {
-          for (let px = 0; px < osW; px++) {
-            const i = (py * osW + px) * 4;
-            const a = prevData[i + 3];
-            if (a === 0) continue;
-            const sx = originX + px * zoom;
-            const sy = originY + py * zoom;
-            if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
-            // Tint toward blue
-            const r = Math.round(prevData[i] * 0.3);
-            const g = Math.round(prevData[i + 1] * 0.3);
-            const b = Math.min(255, Math.round(prevData[i + 2] * 0.5 + 128));
-            ctx.fillStyle = a === 255
-              ? `rgb(${r},${g},${b})`
-              : `rgba(${r},${g},${b},${a / 255})`;
-            ctx.fillRect(sx, sy, zoom, zoom);
-          }
-        }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(onionPrevOffscreenRef.current, originX, originY, osW * zoom, osH * zoom);
         ctx.globalAlpha = 1;
       }
 
-      // Next frame ghost (red tint)
-      if (onionSkinShowNext && onionSkinData.nextData) {
-        const nextData = onionSkinData.nextData;
+      // Draw next frame ghost (red tint)
+      if (onionSkinShowNext && onionNextOffscreenRef.current) {
         ctx.globalAlpha = onionSkinNextOpacity;
-        for (let py = 0; py < osH; py++) {
-          for (let px = 0; px < osW; px++) {
-            const i = (py * osW + px) * 4;
-            const a = nextData[i + 3];
-            if (a === 0) continue;
-            const sx = originX + px * zoom;
-            const sy = originY + py * zoom;
-            if (sx + zoom < 0 || sy + zoom < 0 || sx > w || sy > h) continue;
-            // Tint toward red
-            const r = Math.min(255, Math.round(nextData[i] * 0.5 + 128));
-            const g = Math.round(nextData[i + 1] * 0.3);
-            const b = Math.round(nextData[i + 2] * 0.3);
-            ctx.fillStyle = a === 255
-              ? `rgb(${r},${g},${b})`
-              : `rgba(${r},${g},${b},${a / 255})`;
-            ctx.fillRect(sx, sy, zoom, zoom);
-          }
-        }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(onionNextOffscreenRef.current, originX, originY, osW * zoom, osH * zoom);
         ctx.globalAlpha = 1;
       }
     }
