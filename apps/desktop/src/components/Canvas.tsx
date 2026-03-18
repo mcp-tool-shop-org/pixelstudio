@@ -170,6 +170,7 @@ export function Canvas() {
   const timelineFps = useTimelineStore((s) => s.fps);
   const activeFrameDurationMs = useTimelineStore((s) => s.frames[s.activeFrameIndex]?.durationMs ?? null);
   const loopSeamMode = useTimelineStore((s) => s.loopSeamMode);
+  const playbackMode = useTimelineStore((s) => s.playbackMode);
 
   // Compute total sequence duration from authored timing
   const totalDurationMs = useTimelineStore((s) => {
@@ -232,6 +233,21 @@ export function Canvas() {
       .then((result) => setMotionTrailData(result.centroids))
       .catch(() => setMotionTrailData(null));
   }, [showMotionTrail, canvasReady, frameCount, frameVersion, setMotionTrailData]);
+
+  // Loop seam delta — compare first vs last frame
+  const [seamDelta, setSeamDelta] = useState<{ changedPercent: number; changedPixelCount: number; identical: boolean } | null>(null);
+  useEffect(() => {
+    if (!loopSeamMode || !canvasReady || frameCount <= 1) {
+      setSeamDelta(null);
+      return;
+    }
+    invoke<{ changedPixelCount: number; totalPixels: number; changedBounds: unknown; identical: boolean; changedPercent: number }>('compare_frames', {
+      frameA: 0,
+      frameB: frameCount - 1,
+    })
+      .then((result) => setSeamDelta({ changedPercent: result.changedPercent, changedPixelCount: result.changedPixelCount, identical: result.identical }))
+      .catch(() => setSeamDelta(null));
+  }, [loopSeamMode, canvasReady, frameCount, frameVersion]);
 
   // Loop seam overlay — composited data for the "other end" frame
   const [loopSeamData, setLoopSeamData] = useState<{ width: number; height: number; data: number[] } | null>(null);
@@ -1615,7 +1631,9 @@ export function Canvas() {
           <span className="status-onion" title="M to toggle motion trail">trail</span>
         )}
         {loopSeamMode && frameCount > 1 && (
-          <span className="status-loop-seam" title="L to toggle loop seam · magenta = seam reference">seam</span>
+          <span className="status-loop-seam" title={seamDelta ? `${seamDelta.changedPixelCount} pixels differ (${seamDelta.changedPercent.toFixed(1)}%) · L to toggle` : 'L to toggle loop seam'}>
+            seam{seamDelta ? (seamDelta.identical ? ' ✓' : ` ${seamDelta.changedPercent.toFixed(1)}%`) : ''}
+          </span>
         )}
         {frame?.canUndo && <span title="Ctrl+Z">undo</span>}
         {frame?.canRedo && <span title="Ctrl+Shift+Z">redo</span>}
