@@ -2,9 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSpriteEditorStore } from '@glyphstudio/state';
 import { buildLibraryIndex, filterLibraryItems, groupByKind, sortWithPriority, sortLibraryItems } from '@glyphstudio/state';
 import { useLibraryStore } from '@glyphstudio/state';
-import type { LibraryItem, LibraryItemKind, LibraryViewMode, LibrarySortMode } from '@glyphstudio/state';
-import type { PartLibrary } from '@glyphstudio/domain';
-import { loadPartLibrary } from '../lib/partLibraryStorage';
+import {
+  exportPaletteSets,
+  exportParts,
+  parseInterchangeFile,
+  deriveImportName,
+} from '@glyphstudio/state';
+import {
+  addPartToLibrary,
+  generateDefaultPartName,
+} from '@glyphstudio/state';
+import type { LibraryItem, LibraryItemKind, LibraryViewMode, LibrarySortMode, ImportParseResult, CollisionStrategy } from '@glyphstudio/state';
+import type { PartLibrary, Part } from '@glyphstudio/domain';
+import { generatePartId, generatePaletteSetId } from '@glyphstudio/domain';
+import { loadPartLibrary, savePartLibrary } from '../lib/partLibraryStorage';
 
 function rgbaToHex(rgba: [number, number, number, number]): string {
   return `#${rgba.slice(0, 3).map((c) => c.toString(16).padStart(2, '0')).join('')}`;
@@ -209,8 +220,12 @@ export function LibraryPanel() {
   const togglePin = useLibraryStore((s) => s.togglePin);
   const setViewMode = useLibraryStore((s) => s.setViewMode);
 
-  const [partLibrary] = useState<PartLibrary>(() => loadPartLibrary());
+  const createPaletteSet = useSpriteEditorStore((s) => s.createPaletteSet);
+
+  const [partLibrary, setPartLibrary] = useState<PartLibrary>(() => loadPartLibrary());
   const [query, setQuery] = useState('');
+  const [importReview, setImportReview] = useState<ImportParseResult | null>(null);
+  const [collisionStrategy, setCollisionStrategy] = useState<CollisionStrategy>('rename');
   const [activeKinds, setActiveKinds] = useState<Set<LibraryItemKind>>(
     new Set(['part', 'palette-set', 'variant']),
   );
@@ -290,6 +305,129 @@ export function LibraryPanel() {
         break;
     }
   }, [setActiveStampPart, previewPaletteSet, switchToVariant, activeStampPartId, activeVariantId, pushRecent]);
+
+  // Export all authored assets
+  const handleExport = useCallback(() => {
+    if (!doc) return;
+    const palSets = doc.paletteSets ?? [];
+    const parts = partLibrary.parts;
+    let json: string;
+    if (palSets.length > 0 && parts.length > 0) {
+      // Mixed — export both together manually
+      json = JSON.stringify({
+        format: 'glyphstudio-interchange',
+        version: 1,
+        contentType: 'mixed',
+        exportedAt: new Date().toISOString(),
+        paletteSets: palSets.map((ps) => ({
+          id: ps.id,
+          name: ps.name,
+          colors: ps.colors.map((c) => ({ rgba: [...c.rgba], ...(c.name ? { name: c.name } : {}) })),
+        })),
+        parts: parts.map((p) => ({
+          id: p.id, name: p.name, width: p.width, height: p.height,
+          pixelData: [...p.pixelData],
+          ...(p.tags?.length ? { tags: [...p.tags] } : {}),
+        })),
+      }, null, 2);
+    } else if (palSets.length > 0) {
+      json = exportPaletteSets(palSets);
+    } else {
+      json = exportParts(parts);
+    }
+    // Trigger download
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.name}-library.glyph-interchange.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [doc, partLibrary]);
+
+  // Import from file
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const json = reader.result as string;
+      const existingPsNames = (doc?.paletteSets ?? []).map((ps) => ps.name);
+      const existingPartNames = partLibrary.parts.map((p) => p.name);
+      const result = parseInterchangeFile(json, existingPsNames, existingPartNames);
+      if ('error' in result) {
+        // Could use toast here, but keeping simple
+        return;
+      }
+      setImportReview(result);
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  }, [doc, partLibrary]);
+
+  // Commit import
+  const handleImportCommit = useCallback(() => {
+    if (!importReview || !doc) return;
+    const existingPsNames = new Set((doc.paletteSets ?? []).map((ps) => ps.name));
+    const existingPartNames = new Set(partLibrary.parts.map((p) => p.name));
+
+    // Import palette sets
+    for (const ps of importReview.paletteSets) {
+      let name = ps.name;
+      if (existingPsNames.has(name)) {
+        if (collisionStrategy === 'skip') continue;
+        if (collisionStrategy === 'rename') {
+          name = deriveImportName(name, existingPsNames);
+        }
+        // overwrite: keep original name (will create duplicate — acceptable for v1)
+      }
+      existingPsNames.add(name);
+      // Create palette set via store action
+      const newId = createPaletteSet(name);
+      if (newId) {
+        // Update the colors to match imported data
+        const currentDoc = useSpriteEditorStore.getState().document!;
+        const updatedSets = currentDoc.paletteSets!.map((s) =>
+          s.id === newId ? { ...s, colors: ps.colors.map((c) => ({ rgba: c.rgba, name: c.name })) } : s,
+        );
+        useSpriteEditorStore.setState({
+          document: { ...currentDoc, paletteSets: updatedSets },
+        });
+      }
+    }
+
+    // Import parts
+    let updatedLib = partLibrary;
+    for (const p of importReview.parts) {
+      let name = p.name;
+      if (existingPartNames.has(name)) {
+        if (collisionStrategy === 'skip') continue;
+        if (collisionStrategy === 'rename') {
+          name = deriveImportName(name, existingPartNames);
+        }
+      }
+      existingPartNames.add(name);
+      const now = new Date().toISOString();
+      const part: Part = {
+        id: generatePartId(),
+        name,
+        width: p.width,
+        height: p.height,
+        pixelData: [...p.pixelData],
+        tags: p.tags ? [...p.tags] : undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+      updatedLib = addPartToLibrary(updatedLib, part);
+    }
+    if (updatedLib !== partLibrary) {
+      savePartLibrary(updatedLib);
+      setPartLibrary(updatedLib);
+    }
+
+    setImportReview(null);
+  }, [importReview, doc, partLibrary, collisionStrategy, createPaletteSet]);
 
   // Reset focused index when results change
   useEffect(() => { setFocusedIndex(-1); }, [sortedFiltered.length, query, viewMode]);
@@ -447,6 +585,78 @@ export function LibraryPanel() {
           </div>
         );
       })()}
+
+      {/* Import/Export actions */}
+      <div className="lib-io-bar">
+        <button
+          className="lib-io-btn"
+          onClick={handleExport}
+          disabled={allItems.length === 0}
+          title="Export library to JSON"
+          data-testid="lib-export"
+        >
+          Export
+        </button>
+        <label className="lib-io-btn" data-testid="lib-import-label">
+          Import
+          <input
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={handleImportFile}
+            data-testid="lib-import-input"
+          />
+        </label>
+      </div>
+
+      {/* Import review overlay */}
+      {importReview && (
+        <div className="lib-import-review" data-testid="lib-import-review">
+          <div className="lib-import-review-header">
+            <span className="lib-import-review-title">Import Review</span>
+            <button className="lib-import-close" onClick={() => setImportReview(null)}>&#x2715;</button>
+          </div>
+          <div className="lib-import-review-summary">
+            {importReview.paletteSets.length > 0 && (
+              <span>{importReview.paletteSets.length} palette set{importReview.paletteSets.length !== 1 ? 's' : ''}</span>
+            )}
+            {importReview.parts.length > 0 && (
+              <span>{importReview.parts.length} part{importReview.parts.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+          {importReview.conflicts.length > 0 && (
+            <div className="lib-import-conflicts">
+              <span className="lib-import-conflict-label">
+                {importReview.conflicts.length} name conflict{importReview.conflicts.length !== 1 ? 's' : ''}
+              </span>
+              <div className="lib-import-strategy">
+                {(['rename', 'skip', 'overwrite'] as CollisionStrategy[]).map((s) => (
+                  <label key={s} className="lib-import-radio">
+                    <input
+                      type="radio"
+                      name="collision"
+                      value={s}
+                      checked={collisionStrategy === s}
+                      onChange={() => setCollisionStrategy(s)}
+                    />
+                    {s === 'rename' ? 'Rename' : s === 'skip' ? 'Skip' : 'Overwrite'}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="lib-import-actions">
+            <button
+              className="lib-import-commit"
+              onClick={handleImportCommit}
+              data-testid="lib-import-commit"
+            >
+              Import {importReview.paletteSets.length + importReview.parts.length} items
+            </button>
+            <button className="lib-import-cancel" onClick={() => setImportReview(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

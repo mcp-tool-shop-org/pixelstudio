@@ -8113,6 +8113,116 @@
   flex-shrink: 0;
 }
 
+/* Library import/export */
+.lib-io-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+.lib-io-btn {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+}
+.lib-io-btn:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+.lib-io-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.lib-import-review {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-panel-raised);
+  border-top: 2px solid var(--accent-primary);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+.lib-import-review-header {
+  display: flex;
+  align-items: center;
+}
+.lib-import-review-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.lib-import-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.lib-import-review-summary {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.lib-import-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lib-import-conflict-label {
+  font-size: 10px;
+  color: var(--accent-warning, #f0a030);
+  font-weight: 600;
+}
+.lib-import-strategy {
+  display: flex;
+  gap: 10px;
+}
+.lib-import-radio {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.lib-import-radio input { margin: 0; }
+.lib-import-actions {
+  display: flex;
+  gap: 6px;
+}
+.lib-import-commit {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  cursor: pointer;
+}
+.lib-import-cancel {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 /* ── Bundle Panel ── */
 .bundle-panel {
   display: flex;

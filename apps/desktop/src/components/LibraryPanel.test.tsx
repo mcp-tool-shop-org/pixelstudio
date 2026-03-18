@@ -172,4 +172,23 @@ describe('LibraryPanel', () => {
     const item = screen.getByTestId('lib-item-nav-1');
     expect(item.className).toContain('focused');
   });
+
+  it('shows export button', () => {
+    openTestDoc();
+    render(<LibraryPanel />);
+    expect(screen.getByTestId('lib-export')).toBeTruthy();
+  });
+
+  it('export button disabled when no assets', () => {
+    openTestDoc();
+    render(<LibraryPanel />);
+    const btn = screen.getByTestId('lib-export') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('shows import label', () => {
+    openTestDoc();
+    render(<LibraryPanel />);
+    expect(screen.getByTestId('lib-import-label')).toBeTruthy();
+  });
 });
