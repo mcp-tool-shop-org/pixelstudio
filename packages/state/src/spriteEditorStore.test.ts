@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createBlankPixelBuffer } from '@glyphstudio/domain';
+import { createBlankPixelBuffer, createSpriteDocument } from '@glyphstudio/domain';
 import { useSpriteEditorStore } from './spriteEditorStore';
 import { setPixel, samplePixel } from './spriteRaster';
 import type { Rgba } from './spriteRaster';
+import { exportProjectTemplate } from './interchange';
+import { createEmptyPartLibrary } from './partLibrary';
 
 function resetStore() {
   useSpriteEditorStore.getState().closeDocument();
@@ -2273,6 +2275,71 @@ describe('spriteEditorStore', () => {
     it('getCompareFrames returns empty when no comparison active', () => {
       openTestDoc();
       expect(useSpriteEditorStore.getState().getCompareFrames()).toEqual([]);
+    });
+  });
+
+  // ── New from Template ──
+
+  describe('newDocumentFromTemplate', () => {
+    beforeEach(() => resetStore());
+
+    it('creates document with template dimensions', () => {
+      const srcDoc = createSpriteDocument('template', 48, 48);
+      const json = exportProjectTemplate(srcDoc, createEmptyPartLibrary());
+      const err = useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+      expect(err).toBeNull();
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.name).toBe('template');
+      expect(doc.width).toBe(48);
+      expect(doc.height).toBe(48);
+    });
+
+    it('applies template palette', () => {
+      const srcDoc = createSpriteDocument('pal', 16, 16);
+      srcDoc.palette.colors = [
+        { rgba: [0, 0, 0, 0], name: 'Transparent' },
+        { rgba: [42, 84, 126, 255], name: 'Custom Blue' },
+      ];
+      const json = exportProjectTemplate(srcDoc, createEmptyPartLibrary());
+      useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.palette.colors[1].rgba).toEqual([42, 84, 126, 255]);
+      expect(doc.palette.colors[1].name).toBe('Custom Blue');
+    });
+
+    it('imports palette sets from template', () => {
+      const srcDoc = createSpriteDocument('sets', 16, 16);
+      srcDoc.paletteSets = [
+        { id: 'ps1', name: 'Warm', colors: [{ rgba: [255, 128, 0, 255], name: 'Orange' }] },
+      ];
+      const json = exportProjectTemplate(srcDoc, createEmptyPartLibrary());
+      useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.paletteSets).toHaveLength(1);
+      // Name preserved, ID is new
+      expect(doc.paletteSets![0].name).toBe('Warm');
+    });
+
+    it('creates multi-frame document from animation template', () => {
+      const srcDoc = createSpriteDocument('anim', 16, 16);
+      srcDoc.frames.push({ ...srcDoc.frames[0], id: 'f2', index: 1 });
+      srcDoc.frames.push({ ...srcDoc.frames[0], id: 'f3', index: 2 });
+      const json = exportProjectTemplate(srcDoc, createEmptyPartLibrary());
+      useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+      const doc = useSpriteEditorStore.getState().document!;
+      expect(doc.frames.length).toBe(3);
+    });
+
+    it('returns error for invalid JSON', () => {
+      const err = useSpriteEditorStore.getState().newDocumentFromTemplate('nope');
+      expect(err).toBeTruthy();
+    });
+
+    it('document is not dirty after template creation', () => {
+      const srcDoc = createSpriteDocument('clean', 16, 16);
+      const json = exportProjectTemplate(srcDoc, createEmptyPartLibrary());
+      useSpriteEditorStore.getState().newDocumentFromTemplate(json);
+      expect(useSpriteEditorStore.getState().dirty).toBe(false);
     });
   });
 });

@@ -27,6 +27,7 @@ import {
 } from '@glyphstudio/domain';
 import { clonePixelBuffer, clearSelectionArea, flipBufferHorizontal, flipBufferVertical, flattenLayers, blitSelection } from './spriteRaster';
 import { buildColorMap, remapPixelBuffer, remapFrameBuffers } from './paletteRemap';
+import { parseProjectTemplate } from './interchange';
 import { sliceSpriteSheet, assembleSpriteSheet, isImportExportError } from './spriteImportExport';
 import { generateSpriteSheetMeta, encodeAnimatedGif } from './spriteExport';
 import { serializeSpriteFile, deserializeSpriteFile } from './spritePersistence';
@@ -77,6 +78,8 @@ export interface SpriteEditorStoreState {
 
   // -- Actions: Document lifecycle --
   newDocument: (name: string, width: number, height: number) => void;
+  /** Create a new document from a project template interchange JSON string. Returns error or null. */
+  newDocumentFromTemplate: (templateJson: string) => string | null;
   closeDocument: () => void;
 
   // -- Actions: Persistence --
@@ -289,6 +292,71 @@ export const useSpriteEditorStore = create<SpriteEditorStoreState>((set, get) =>
       panY: 0,
       dirty: false,
     });
+  },
+
+  newDocumentFromTemplate: (templateJson) => {
+    const parsed = parseProjectTemplate(templateJson);
+    if ('error' in parsed) return parsed.error;
+
+    const { template, paletteSets, parts: templateParts } = parsed;
+
+    // Create base document with template dimensions
+    get().newDocument(template.name, template.canvasWidth, template.canvasHeight);
+
+    const doc = get().document;
+    if (!doc) return 'Failed to create document';
+
+    // Replace default palette with template palette
+    if (template.palette.length > 0) {
+      const paletteColors = template.palette.map((c) => ({
+        rgba: c.rgba,
+        name: c.name,
+      }));
+      const updatedDoc = {
+        ...doc,
+        palette: {
+          ...doc.palette,
+          colors: paletteColors,
+          foregroundIndex: Math.min(1, paletteColors.length - 1),
+          backgroundIndex: 0,
+        },
+      };
+      set({ document: updatedDoc });
+    }
+
+    // Add additional frames if template specifies multi-frame
+    if (template.frameCount && template.frameCount > 1) {
+      for (let i = 1; i < template.frameCount; i++) {
+        get().addFrame();
+      }
+      // Set frame durations if specified
+      if (template.frameDurationMs) {
+        const currentDoc = get().document!;
+        const frames = currentDoc.frames.map((f) => ({
+          ...f,
+          durationMs: template.frameDurationMs!,
+        }));
+        set({ document: { ...currentDoc, frames } });
+      }
+    }
+
+    // Import palette sets
+    for (const ps of paletteSets) {
+      const newId = get().createPaletteSet(ps.name);
+      if (newId) {
+        const currentDoc = get().document!;
+        const updatedSets = currentDoc.paletteSets!.map((s) =>
+          s.id === newId ? { ...s, colors: ps.colors.map((c) => ({ rgba: c.rgba, name: c.name })) } : s,
+        );
+        set({ document: { ...currentDoc, paletteSets: updatedSets } });
+      }
+    }
+
+    // Parts are handled externally (caller imports into part library)
+    // This action only handles document-level state
+
+    set({ dirty: false });
+    return null;
   },
 
   closeDocument: () => {
