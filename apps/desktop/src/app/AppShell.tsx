@@ -36,15 +36,26 @@ export function AppShell() {
   const markSaved = useProjectStore((s) => s.markSaved);
   const filePath = useProjectStore((s) => s.filePath);
 
-  // Check for recoverable projects on startup
+  // Check for recoverable projects — deferred until the browser is idle so it
+  // does not block the initial paint or project-home mount.
   useEffect(() => {
-    invoke<Array<{ projectId: string; name: string; recoveryPath: string; updatedAt: string }>>('check_recovery')
-      .then((items) => {
-        if (items.length > 0) {
-          setRecoveryItems(items);
-        }
-      })
-      .catch(() => {});
+    const run = () => {
+      invoke<Array<{ projectId: string; name: string; recoveryPath: string; updatedAt: string }>>('check_recovery')
+        .then((items) => {
+          if (items.length > 0) setRecoveryItems(items);
+        })
+        .catch(() => {});
+    };
+
+    // requestIdleCallback is not available in all WebViews; fall back to a
+    // short timeout which still yields to the renderer before the IPC call.
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(run, { timeout: 2000 });
+      return () => cancelIdleCallback(id);
+    } else {
+      const id = setTimeout(run, 200);
+      return () => clearTimeout(id);
+    }
   }, []);
 
   // Save handler
