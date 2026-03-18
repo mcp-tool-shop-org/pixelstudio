@@ -11,181 +11,118 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-3445%2B%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-2550%2B%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
 # GlyphStudio
 
-Craft-first sprite studio for deterministic pixel editing, frame-by-frame animation, and programmable sprite pipelines.
+A governed pixel asset studio for stills, motion, variants, reusable parts, and structured output.
 
 GlyphStudio is a desktop app built with **Tauri v2**, **React**, and **Rust**. It ships alongside an **MCP server** that exposes the full sprite editing surface to LLMs — same domain logic, same pixel buffers, same undo/redo.
 
+## What You Can Do
+
+**Create** — Draw pixel art with deterministic tools, layers, and palette control.
+
+**Animate** — Build frame-by-frame motion with onion skin, timing holds, and seam-quality tools.
+
+**Variant** — Fork assets into named document variants (directional, pose) and palette variants (recolor families). Preview before commit.
+
+**Reuse** — Promote selections to reusable parts. Save curated packs. Stamp parts across projects.
+
+**Bundle** — Export asset families in one pass: base + document variants + palette variants, with contextual filenames.
+
+**Start fast** — Begin from templates, packs, or starter recipes. The front door reflects the workflows the studio supports.
+
+## Best Workflows
+
+### Still Sprite
+Blank project (32x32) &rarr; draw with pencil/fill/eraser &rarr; palette workspace &rarr; export PNG.
+
+### Animated Loop
+Blank project (32x32, 4 frames) &rarr; draw frame 1 &rarr; duplicate + edit &rarr; onion skin for alignment &rarr; timing holds &rarr; GIF or strip export.
+
+### Variant Family
+Draw base asset &rarr; fork document variants (e.g. walk-left, walk-right) &rarr; create palette sets (e.g. Fire, Ice) &rarr; preview palette remap &rarr; bundle export with `{name}-{variant}-{palette}.png` filenames.
+
+### Reusable Parts
+Draw a recurring form &rarr; select &rarr; promote to part &rarr; save to library &rarr; stamp into other frames/projects. Save curated parts + palettes as a pack for cross-project reuse.
+
+### Template/Pack Start
+ProjectHome &rarr; choose template (animation-ready or variant-ready) or pack (UI kit, palette collection) &rarr; working project with structure already loaded.
+
+## Showcase
+
+Four canonical projects demonstrate the strongest workflows. Each is a valid interchange file you can import:
+
+| Showcase | File | What it proves |
+|----------|------|----------------|
+| Crystal Gem | [`showcase/still-sprite.interchange.json`](showcase/) | Still-image creation, palette use |
+| Flickering Flame | [`showcase/loop-animation.interchange.json`](showcase/) | 4-frame animation, timing |
+| Shield Variants | [`showcase/variant-family.interchange.json`](showcase/) | Base + Fire/Ice palette variants |
+| Game UI Kit | [`showcase/pack-project.interchange.json`](showcase/) | Reusable parts (star, heart, coin) |
+
+See [`showcase/SHOWCASE.md`](showcase/SHOWCASE.md) for details.
+
+## Key Concepts
+
+| Concept | What it is | Where it lives |
+|---------|-----------|----------------|
+| **Palette Set** | A named set of colors for recoloring | Document-level, switchable |
+| **Document Variant** | A fork of the frame sequence (pose, direction) | Document-level, independent frames |
+| **Part** | A reusable pixel stamp promoted from a selection | Library, cross-project |
+| **Pack** | A curated bundle of palette sets + parts | Library, importable/exportable |
+| **Template** | A project-start blueprint (canvas, palette, frames) | Library, used from ProjectHome |
+| **Bundle** | A one-pass export of base + variants + palettes | Export flow |
+| **Interchange** | JSON format for moving authored structures between projects | `.interchange.json` files |
+
+## Contextual Shortcuts
+
+GlyphStudio shows relevant shortcuts based on what you are doing. The strip updates as context changes.
+
+| Context | Key shortcuts |
+|---------|--------------|
+| **Drawing** | `B` Pencil, `E` Eraser, `G` Fill, `M` Marquee, `X` Swap FG/BG, `Ctrl+Z` Undo |
+| **Selection active** | `Ctrl+C` Copy, `Ctrl+X` Cut, `Ctrl+V` Paste, `Del` Clear, `Esc` Deselect |
+| **Stamp mode** | `Click` Place stamp, `Esc` Exit |
+| **Animation** | `Ctrl+D` Duplicate frame, `Space` Play/Stop, `Left/Right` Step frames |
+| **Library focused** | `Ctrl+F` Search, `Up/Down` Navigate, `Enter` Activate |
+| **Variant workflow** | `+ Variant` Fork sequence, `Toggle` Compare overlay |
+| **Palette preview** | `Apply` Commit remap, `Cancel` Discard |
+
 ## Packages
 
-| Package | Description | |
-|---------|-------------|---|
-| `apps/desktop` | Tauri v2 desktop app (React + Rust) | The editor |
-| [`@glyphstudio/domain`](packages/domain/) | Types and contracts | Shared |
-| [`@glyphstudio/api-contract`](packages/api-contract/) | Tauri IPC contract types | Shared |
-| [`@glyphstudio/state`](packages/state/) | State management, raster ops, history | Shared |
-| [`@glyphstudio/mcp-sprite-server`](packages/mcp-sprite-server/) | MCP server — 76 tools, 6 resources | [README](packages/mcp-sprite-server/README.md) |
-
-## Current Status
-
-GlyphStudio is a working desktop editor with 43 shipped stages, an MCP server with 76 programmable tools, and 3,445+ tests across Rust and TypeScript.
-
-### Canvas Editor (Rust backend)
-- Deterministic pixel canvas with nearest-neighbor rendering
-- Layers with visibility, lock, opacity, rename, reorder
-- Stroke-based drawing with undo/redo
-- Canvas analysis: bounding box, color histogram, frame-to-frame comparison
-- Rectangular selection, clipboard actions, and transform workflow
-- Multi-frame timeline with per-frame undo/redo isolation
-- Onion skin overlays for adjacent-frame editing
-- Playback controls with FPS and loop support
-- Motion assistance with deterministic proposal generation
-- Anchor system with hierarchy, falloff, and secondary motion templates
-- Motion presets with batch apply across frames
-- Clip definitions with pivot, tags, and validation
-- Sprite sheet export with manifest (native + generic runtime formats)
-- Animated GIF export with per-frame delay support
-- Asset catalog with thumbnails, search, and bundle packaging
-- Project save/load, autosave recovery, and schema migration
-
-### Pre-Production Workflow (Stage 39)
-- **Reference images** — import, opacity/scale/pan, toggle visibility, lock
-- **Sketch layers** — first-class `sketch` layer type excluded from export compositing
-- **Silhouette toggle** — flatten visible layers to single-color form check
-- **Snapshots** — capture/restore/delete canvas state for iteration
-- **Before/after compare** — toggle between current canvas and any snapshot
-- **Rough drawing mode** — sketch-brush and sketch-eraser with configurable size, opacity, and scatter for fast form blocking (N / Shift+N shortcuts)
-
-Intended workflow: import reference → create sketch layer → rough block-in → silhouette check → snapshot → compare → refine on normal layer.
-
-### Concept-to-Sprite Translation (Stage 40)
-- **Translation workspace** — session tracking with concept→sprite relationships, cue survival categorization
-- **Comparison utilities** — nearest-neighbor downscale (reference), pixel-perfect upscale, side-by-side layout
-- **Silhouette survival analysis** — quantifies how much of the concept read survives at target resolution
-- **Tested translations** — ranger/scout (500→48), treasure chest (500→32 + 48)
-
-Translation discipline: rebuild at target resolution, don't downscale. Identify strongest read cues, accept detail loss, exaggerate where needed.
-
-### Vector Master Pipeline (Stage 41)
-- **Vector domain model** — rect, ellipse, line, polygon primitives with per-shape transforms (translate/scale/rotate/flip), fill, stroke, and reduction metadata
-- **Reduction-aware metadata** — cueTag, survivalHint (must-survive / prefer-survive / droppable), dropPriority per shape
-- **Groups** — one-level named grouping for body regions (head, torso, weapon, etc.)
-- **Size profiles** — 7 built-in sprite target sizes (16×16 through 64×64), custom profiles
-- **Vector rasterizer** — scanline polygon fill (even-odd rule), ellipse scanline, Bresenham lines, alpha compositing, pixel-grid-aware (no anti-aliasing, 1px minimum clamping)
-- **Multi-size comparison** — rasterize to all profiles, pixel-perfect upscaled comparison strip
-- **Reduction analysis** — per-profile survival/collapse report with silhouette bounds and fill coverage
-- **Separate format** — `.glyphvec` vector master documents, `.glyph` raster sprites, provenance link between them
-
-Pipeline: design vector master with reduction rules (exaggerate, space apart, value chunks) → rasterize to target sizes → inspect readability → pixel cleanup per size.
-
-### Translation UI and Pixel Cleanup Handoff (Stage 42)
-- **Vector workspace mode** — full workspace with tool rail (rect/ellipse/line/polygon/select), Canvas2D rendering, pan/zoom, keyboard shortcuts
-- **Shape management panels** — shapes list with visibility/lock/z-order/grouping, properties panel with transform inputs and reduction metadata
-- **Size profile selector** — toggle built-in profiles, add custom sizes, All/None bulk actions
-- **Multi-size preview** — live pixel-perfect upscaled preview strip for all active profiles with checkerboard transparency
-- **Reduction analysis** — per-profile survival report: survived/collapsed shapes, fill percentage, silhouette bounds, collapsed shape names with warning styling
-- **Pixel cleanup handoff** — "Rasterize & Edit as Sprite" rasterizes vector master at chosen size, creates SpriteDocument with extracted palette, loads into sprite editor
-- **Source provenance** — VectorSourceLink tracks which vector master and profile produced each sprite, displayed as provenance banner in edit mode
-- **Regeneration** — re-rasterize from source vector master with dirty-edit confirmation safety, preserves source link across regeneration cycles
-
-Workflow: design in vector workspace → select size profiles → preview readability → hand off to sprite editor → pixel cleanup → regenerate if vector changes.
-
-### Vector Workflow Dogfood and Curves Decision (Stage 43)
-- **Three assets tested** — Templar Knight (humanoid, 25 shapes), Iron Lantern (prop, 19 shapes), Dire Wolf (creature, 27 shapes)
-- **Size recommendations** — humanoids → 32×48, props → 32×32, creatures → 48×48
-- **Full pipeline validated** — each asset went through vector master → multi-size reduction → best size choice → sprite handoff → cleanup → export
-- **Polygon-only assessment** — geometric designs (armor, metal, glass) have zero friction; organic forms (tail arcs, body curves, muscle bulges) require ~2× more points than curves but produce identical pixel output
-- **Curves decision: quadratic curves next** — friction is in authoring comfort, not output quality. Organic creatures need ~180 polygon points vs ~90 with curves. Stage 44 scope: QuadCurveGeometry type, curve drawing tool, curve-to-polygon flattening for rasterizer. No cubic Béziers, no path operations.
-
-### Scene Compositor (frontend + Rust)
-- Scene composition with asset instances, z-ordering, visibility, opacity, parallax
-- Camera system with pan, zoom, keyframe animation, and shot derivation
-- Character build system with slots, presets, validation, and scene bridge
-- Scene undo/redo with full-snapshot history and rollback on sync failure
-- Persisted provenance with drilldown inspection across 20 operation kinds
-- Scene comparison and restore preview workflows
-
-### Sprite Editor (frontend-only)
-- Self-contained pixel editor with pencil, eraser, fill, eyedropper tools
-- Multi-layer editing with per-layer visibility, rename, reorder
-- Alpha compositing with real-time draft stroke preview across all layers
-- Frame management with onion skin, playback, scrubber, and per-frame duration
-- Rectangular selection with copy/cut/paste/delete
-- Sprite sheet import/export with multi-layer flattening
-- Palette workspace with slot editing, lock, semantic roles, and color groups/ramps
-- Client-side validation engine with palette, animation, and export rules
-- Pixel-perfect stroke mode (removes L-shaped corners from 1px lines)
-- Production workflows: create static/animated sprites, analyze, validate, export review packs
-- Undo/redo with deep-snapshot history (document + all pixel buffers)
-- `.glyph` file persistence with schema-versioned serialize/deserialize
-
-### MCP Server (`@glyphstudio/mcp-sprite-server`)
-
-Headless MCP server that exposes the sprite editor as 76 programmable tools. Calls the same `@glyphstudio/domain` and `@glyphstudio/state` code as the desktop app — no parallel raster, no shadow state.
-
-- **Session/Document** — create, open, save, close documents
-- **Drawing** — batch pixel draw, line, flood fill, erase, sample
-- **Frames & Layers** — add, remove, duplicate, move, rename, toggle visibility
-- **Selection** — rect, copy, cut, paste, flip, commit
-- **History** — undo, redo, batch apply (multiple ops as single undo step)
-- **Analysis** — bounding box, color histogram, frame-to-frame diff
-- **Transform** — flip, rotate (90/180/270), resize canvas
-- **Render** — frame PNG, sprite sheet, overview thumbnails
-- **Import/Export** — sheet import, PNG/GIF/metadata export
-- **Playback** — config, preview play/stop/scrub/step
-
-See the [MCP server README](packages/mcp-sprite-server/README.md) for the full tool inventory, quick start, and examples.
-
-This is not a browser toy or prompt-slot machine. It is a native desktop editor where Rust owns canvas pixel truth and the frontend owns sprite pixel truth.
-
-## Product Philosophy
-
-GlyphStudio is built around four principles:
-
-1. **Deterministic editing**
-   Every pixel mutation should be lawful, inspectable, and reversible.
-
-2. **Subordinate AI**
-   Automation should assist the workflow without replacing creative control.
-
-3. **Animation-first structure**
-   Frames, timeline operations, onion skin, and playback are core editor concepts, not afterthoughts.
-
-4. **Trustworthy state**
-   Save/load, autosave, recovery, undo/redo, and migration are treated as product features, not cleanup chores.
+| Package | Description |
+|---------|-------------|
+| `apps/desktop` | Tauri v2 desktop app (React + Rust) |
+| [`@glyphstudio/domain`](packages/domain/) | Types and contracts |
+| [`@glyphstudio/api-contract`](packages/api-contract/) | Tauri IPC contract types |
+| [`@glyphstudio/state`](packages/state/) | State management, raster ops, history |
+| [`@glyphstudio/mcp-sprite-server`](packages/mcp-sprite-server/) | MCP server — 76 tools, 6 resources |
 
 ## Architecture
 
 ### Frontend (React + TypeScript)
-- 18+ Zustand stores organized by domain
-- HTML canvas renderer for both editors
-- Canvas editor UI: layers, timeline, selection, playback, character builder, scene compositor
-- Sprite editor: self-contained pixel editing with frontend-owned pixel buffers
-- Alpha compositing via `flattenLayers` for multi-layer sprite editing
+- Zustand stores organized by domain
+- HTML canvas renderer
+- Sprite editor with frontend-owned pixel buffers and alpha compositing
+- Library panel with unified index, search, pinning, and keyboard navigation
 
 ### Backend (Rust)
-- Authoritative pixel buffers and layer compositing for canvas editor
-- Stroke transactions with before/after patches
-- Selection/transform sessions
+- Authoritative pixel buffers and layer compositing
+- Stroke transactions with undo/redo
 - Project persistence, autosave, crash recovery
-- Export pipelines (PNG, sprite sheet, clip, bundle, animated GIF)
+- Export pipelines (PNG, sprite sheet, animated GIF, bundle)
 - Scene composition engine with camera and playback
-- Asset catalog with thumbnail generation
-- 170 implemented Tauri commands
 
 ### MCP Server (Node.js)
 - Headless Zustand store per session (no React, no browser)
-- Store adapter wraps real state/domain logic
 - 76 tools registered via `@modelcontextprotocol/sdk`
+- Same `@glyphstudio/domain` and `@glyphstudio/state` code as the desktop app
 - Runs over stdio — works with Claude Desktop, Claude Code, or any MCP client
 
-### Desktop Shell
-- Tauri v2
+See the [MCP server README](packages/mcp-sprite-server/README.md) for the full tool inventory.
 
 ## Monorepo Structure
 
@@ -193,20 +130,15 @@ GlyphStudio is built around four principles:
 glyphstudio/
   apps/desktop/           Desktop app (React + Tauri + Rust)
     src/                  Frontend
-    src-tauri/            Rust backend (170 commands, 298 tests)
+    src-tauri/            Rust backend
   packages/
-    domain/               Types and contracts (18 tests)
+    domain/               Types and contracts
     api-contract/         Tauri IPC types
-    state/                State management, raster, history (1,778 tests)
-    mcp-sprite-server/    MCP server — 76 tools (288 tests)
+    state/                State management, raster, history (2,550+ tests)
+    mcp-sprite-server/    MCP server — 76 tools
+  showcase/               Canonical showcase projects
   site/                   Landing page (Astro)
 ```
-
-### Stages 31–34 — Sprite Export, Persistence, Desktop Parity, and Workspace Authority
-Sprite sheet metadata JSON, animated GIF encoder, sheet+JSON combo export, `.glyph` file serialize/deserialize with schema versioning, save/open/save-as with Tauri file dialogs. Stage 32 adds selection transform UI (flip/rotate with keyboard shortcuts), layer opacity slider, and animated GIF export from the Rust backend. Stage 33 adds analysis panel (bounds, color histogram, frame compare with Copy JSON), brush shape picker, pixel-perfect toggle, and reset view button. Stage 34 adds palette workspace (slot editing, lock, semantic roles, color groups), validation workspace (rule engine with 8 rules across 3 categories, issue list with severity, category filters, detail pane), and real pixel-perfect stroke behavior (L-corner removal for 1px lines). Stage 35 adds production workflows: workflow engine with domain types and Zustand store, 5 workflows (New Static Sprite, New Animation Sprite, Analyze, Validate, Export Review Pack), step-by-step runner UI, and ProjectHome rewrite with real create form and workflow discovery. Stage 36 is a production dogfood: 5 benchmark sprites (crate, knight idle, walk cycle, spark hit, grass tiles) created through the real headless store paths, exercising palette groups, multi-frame animation, analysis, validation, and export. Friction log identifies repeated blockers for Stage 37.
-
-### MCP Server (MCP.1–MCP.6)
-Headless MCP server with 76 tools and 6 resources: session management, document CRUD, drawing/raster ops, frame/layer management, selection/clipboard, tool settings, playback, render/export, sprite history with undo/redo, batch operations, canvas analysis, canvas transforms, structured error model, and machine-readable tool catalog.
 
 ## Running the App
 
@@ -240,12 +172,10 @@ npx tsx packages/mcp-sprite-server/src/cli.ts
 pnpm typecheck
 ```
 
-### Test (TypeScript packages)
+### Test
 
 ```bash
-pnpm --filter @glyphstudio/domain test
-pnpm --filter @glyphstudio/state test
-pnpm --filter @glyphstudio/mcp-sprite-server test
+pnpm test
 ```
 
 ### Rust check
@@ -258,43 +188,24 @@ cargo test
 
 ## Export Support
 
-### Canvas Editor (Rust)
-- **Current Frame PNG** — single composited image
-- **PNG Sequence** — numbered files (name_0001.png, name_0002.png, ...)
-- **Sprite Strip** — horizontal or vertical single-image strip
-- **Clip Sheet** — sprite sheet from clip definitions with optional manifest
-- **All Clips Sheet** — combined sheet from all valid clips
-- **Asset Bundle** — folder or zip with images, manifests, and preview thumbnail
-- **Catalog Bundle** — multi-asset packaging with per-asset subfolders
+| Target | Formats |
+|--------|---------|
+| **Single frame** | PNG (composited visible layers) |
+| **Animation** | Animated GIF, PNG sequence, sprite strip |
+| **Sheet** | Sprite sheet with manifest (native + generic runtime) |
+| **Bundle** | Folder or zip with images, manifests, and preview |
+| **Variant family** | Base + document variants + palette variants with contextual filenames |
+| **MCP Server** | Base64-encoded PNG, sheet, GIF, and metadata JSON |
 
-### Sprite Editor (frontend)
-- **Sprite Strip** — horizontal strip with all visible layers flattened per frame
-- **Current Frame** — flattened composite of visible layers
+Exports use composited visible layers only. Editor overlays (onion skin, playback state) are never included in output.
 
-### MCP Server
-- **Frame PNG** — base64-encoded composited frame
-- **Sheet PNG** — base64-encoded horizontal sprite sheet
-- **Animated GIF** — base64-encoded animation
-- **Metadata JSON** — frame positions, timing, layout
+## Product Philosophy
 
-Exports use composited visible layers only. Onion skin, playback state, and transient editor overlays are not included in output.
-
-## Documentation
-
-See the [handbook](site/src/content/docs/handbook/) for deeper details:
-
-- [Getting Started](site/src/content/docs/handbook/getting-started.md)
-- [Architecture](site/src/content/docs/handbook/architecture.md)
-- [API Reference](site/src/content/docs/handbook/reference.md)
-
-## Roadmap
-
-Near-term priorities:
-
-- Indexed palette mode with contract rules and ramp editing
-- AI assist integration (local Ollama + ComfyUI for bounded generation tasks)
-- Locomotion analysis workspace with stride/contact/CoM overlays
-- Validation engine with repair actions
+1. **Deterministic editing** — Every pixel mutation is lawful, inspectable, and reversible.
+2. **Subordinate AI** — Automation assists the workflow without replacing creative control.
+3. **Animation-first structure** — Frames, timeline, onion skin, and playback are core concepts, not afterthoughts.
+4. **Trustworthy state** — Save/load, autosave, undo/redo, and migration are treated as product features.
+5. **Honest reuse** — Parts are stamped (committed pixels), not fake linked instances. Variants are forks, not hidden shared state. Preview before commit.
 
 ## Non-Goals
 
@@ -304,15 +215,15 @@ GlyphStudio is not aiming to be:
 - A browser-first toy app
 - An AI prompt wrapper that guesses at art
 - A mushy canvas where frontend state and backend truth drift apart
+- A fake rigging/symbol system pretending to be linkage
 
 ## Security
 
-GlyphStudio is a **desktop-only** application. It does not make network requests, collect telemetry, or handle secrets.
+GlyphStudio is a **desktop-only** application. No network requests, no telemetry, no secrets.
 
-- **Data touched:** local sprite files (.glyph, .pxs, .png), autosave/recovery files in the app data directory
+- **Data touched:** local sprite files (.glyph, .pxs, .png), autosave/recovery files
 - **Data NOT touched:** no network, no cloud, no remote APIs, no user accounts
 - **Permissions:** filesystem access scoped to user-selected directories via Tauri v2 native file dialogs
-- **No telemetry** is collected or sent
 
 The MCP server runs locally over stdio with no network egress. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
