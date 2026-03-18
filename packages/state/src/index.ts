@@ -115,6 +115,17 @@ export { useSliceStore } from './sliceStore';
 export type { SliceRegion } from './sliceStore';
 export { usePaletteStore } from './paletteStore';
 export { buildColorMap, remapPixelBuffer, remapFrameBuffers, rgbaKey } from './paletteRemap';
+export {
+  createEmptyPartLibrary,
+  generateDefaultPartName,
+  addPartToLibrary,
+  deletePartFromLibrary,
+  renamePartInLibrary,
+  duplicatePartInLibrary,
+  findPartById,
+  hasPartInLibrary,
+  getPartCount,
+} from './partLibrary';
 export { useTimelineStore } from './timelineStore';
 export type { FrameInfo } from './timelineStore';
 export { useAIStore } from './aiStore';

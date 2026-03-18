@@ -19,6 +19,7 @@ export * from './package';
 export * from './scene';
 export * from './character';
 export * from './sprite';
+export * from './part';
 export * from './vector';
 export * from './sizeProfile';
 export * from './workflow';
