@@ -1,0 +1,57 @@
+scenario_id: export-roundtrip-16x16
+scenario_name: "Export roundtrip: 16x16 sprite"
+scenario_version: "1.0.0"
+product_surface: desktop
+execution_mode: mixed
+description: >
+  Proves the core desktop workflow: create a 16x16 sprite, use at least one
+  tool, export to PNG, and verify the export visually. This is the minimum
+  "did you actually use the app?" bar for a desktop pixel art studio.
+
+preconditions:
+  - GlyphStudio desktop app launches successfully
+  - At least one drawing tool is functional
+
+steps:
+  - id: launch-app
+    action: Launch GlyphStudio desktop and confirm the canvas loads
+    verifiable: true
+    expected: Main window visible with empty or default canvas
+
+  - id: create-sprite
+    action: Create or open a 16x16 canvas
+    verifiable: true
+    expected: Canvas is 16x16 pixels
+
+  - id: draw-content
+    action: Use at least one drawing tool to place pixels on the canvas
+    verifiable: true
+    expected: Canvas contains non-empty pixel data
+
+  - id: export-png
+    action: Export the sprite as PNG
+    verifiable: true
+    expected: PNG file written to disk, non-zero size
+
+  - id: verify-export
+    action: Open the exported PNG and confirm it matches the canvas content
+    verifiable: true
+    expected: Exported image matches canvas dimensions and visible content
+
+success_criteria:
+  required_steps:
+    - create-sprite
+    - draw-content
+    - export-png
+    - verify-export
+  minimum_evidence:
+    - kind: screenshot
+      description: Screenshot showing the canvas with drawn content before export
+
+automation: null
+# Human-only scenario: operator runs GlyphStudio, captures evidence manually
+
+tags:
+  - core-workflow
+  - export
+  - pilot-2

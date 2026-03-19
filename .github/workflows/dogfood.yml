@@ -1,0 +1,207 @@
+name: Dogfood
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Scenario exercised"
+        required: true
+        type: choice
+        options:
+          - export-roundtrip-16x16
+      execution_mode:
+        description: "How was it exercised?"
+        required: true
+        type: choice
+        options:
+          - mixed
+          - human
+      verdict:
+        description: "Did the scenario pass?"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - blocked
+      attested_by:
+        description: "Your name (attestation)"
+        required: true
+        type: string
+      screenshot_url:
+        description: "Screenshot URL (paste GitHub issue/comment image URL)"
+        required: true
+        type: string
+      notes:
+        description: "Brief notes on what you did (optional)"
+        required: false
+        type: string
+      blocking_reason:
+        description: "If blocked, why? (required if verdict=blocked)"
+        required: false
+        type: string
+      # Step results — quick pass/fail per step
+      step_launch:
+        description: "Step: launch-app"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - skip
+      step_create:
+        description: "Step: create-sprite"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - skip
+      step_draw:
+        description: "Step: draw-content"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - skip
+      step_export:
+        description: "Step: export-png"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - skip
+      step_verify:
+        description: "Step: verify-export"
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+          - skip
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build submission
+        id: build
+        run: |
+          FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          RUN_ID="glyphstudio-${{ github.run_id }}-${{ github.run_attempt }}"
+
+          # Build step_results array
+          STEP_RESULTS=$(jq -n \
+            --arg launch "${{ inputs.step_launch }}" \
+            --arg create "${{ inputs.step_create }}" \
+            --arg draw "${{ inputs.step_draw }}" \
+            --arg export "${{ inputs.step_export }}" \
+            --arg verify "${{ inputs.step_verify }}" \
+            '[
+              { "step_id": "launch-app", "status": $launch },
+              { "step_id": "create-sprite", "status": $create },
+              { "step_id": "draw-content", "status": $draw },
+              { "step_id": "export-png", "status": $export },
+              { "step_id": "verify-export", "status": $verify }
+            ]')
+
+          # Build evidence array
+          EVIDENCE=$(jq -n \
+            --arg url "${{ inputs.screenshot_url }}" \
+            '[
+              {
+                "kind": "screenshot",
+                "url": $url,
+                "description": "Canvas screenshot from dogfood session"
+              }
+            ]')
+
+          # Build the full submission
+          SUBMISSION=$(jq -n \
+            --arg schema_version "1.0.0" \
+            --arg run_id "$RUN_ID" \
+            --arg repo "${{ github.repository }}" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg workflow "dogfood.yml" \
+            --arg provider_run_id "${{ github.run_id }}" \
+            --argjson attempt "${{ github.run_attempt }}" \
+            --arg run_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg finished_at "$FINISHED_AT" \
+            --arg scenario_id "${{ inputs.scenario }}" \
+            --arg execution_mode "${{ inputs.execution_mode }}" \
+            --arg verdict "${{ inputs.verdict }}" \
+            --arg attested_by "${{ inputs.attested_by }}" \
+            --arg notes "${{ inputs.notes }}" \
+            --arg blocking_reason "${{ inputs.blocking_reason }}" \
+            --argjson step_results "$STEP_RESULTS" \
+            --argjson evidence "$EVIDENCE" \
+            '{
+              "schema_version": $schema_version,
+              "run_id": $run_id,
+              "repo": $repo,
+              "ref": { "branch": $branch, "commit_sha": $sha },
+              "source": {
+                "provider": "github",
+                "workflow": $workflow,
+                "provider_run_id": $provider_run_id,
+                "attempt": $attempt,
+                "run_url": $run_url,
+                "actor": $actor
+              },
+              "timing": {
+                "started_at": $finished_at,
+                "finished_at": $finished_at,
+                "duration_ms": 0
+              },
+              "scenario_results": [
+                {
+                  "scenario_id": $scenario_id,
+                  "scenario_name": "Export roundtrip: 16x16 sprite",
+                  "scenario_version": "1.0.0",
+                  "product_surface": "desktop",
+                  "execution_mode": $execution_mode,
+                  "verdict": $verdict,
+                  "attested_by": $attested_by,
+                  "step_results": $step_results,
+                  "evidence": $evidence,
+                  "notes": $notes
+                }
+                + (if $blocking_reason != "" then { "blocking_reason": $blocking_reason } else {} end)
+              ],
+              "overall_verdict": $verdict,
+              "notes": ("Dogfood session by " + $attested_by + ". " + $notes)
+            }')
+
+          echo "$SUBMISSION" > /tmp/submission.json
+          jq empty /tmp/submission.json
+          echo "Submission built:"
+          jq '.run_id, .overall_verdict' /tmp/submission.json
+
+      - name: Dispatch to dogfood-labs
+        env:
+          GH_TOKEN: ${{ secrets.DOGFOOD_TOKEN }}
+        run: |
+          SUBMISSION=$(cat /tmp/submission.json)
+          RUN_ID=$(echo "$SUBMISSION" | jq -r '.run_id')
+
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::DOGFOOD_TOKEN not set — skipping dispatch"
+            exit 0
+          fi
+
+          jq -n --argjson sub "$SUBMISSION" \
+            '{"event_type":"dogfood_submission","client_payload":{"submission":$sub}}' \
+            | gh api repos/mcp-tool-shop-org/dogfood-labs/dispatches \
+              --input - --silent
+
+          echo "Dispatched $RUN_ID to dogfood-labs"
