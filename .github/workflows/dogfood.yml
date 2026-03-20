@@ -4,83 +4,43 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: "Scenario exercised"
+        description: "What did you test?"
         required: true
         type: choice
         options:
           - export-roundtrip-16x16
       execution_mode:
-        description: "How was it exercised?"
+        description: "How did you run it? (mixed = you + AI, human = just you)"
         required: true
         type: choice
         options:
           - mixed
           - human
       verdict:
-        description: "Did the scenario pass?"
+        description: "Overall result — did the whole scenario work?"
         required: true
         type: choice
         options:
           - pass
           - fail
           - blocked
-      attested_by:
-        description: "Your name (attestation)"
-        required: true
-        type: string
       screenshot_url:
-        description: "Screenshot URL (paste GitHub issue/comment image URL)"
+        description: "Screenshot URL (drag an image into any GitHub issue to get a link)"
         required: true
         type: string
       notes:
-        description: "Brief notes on what you did (optional)"
+        description: "What happened? (e.g. 'exported 16x16 knight, reimported clean')"
         required: false
         type: string
       blocking_reason:
-        description: "If blocked, why? (required if verdict=blocked)"
+        description: "If blocked — what stopped you?"
         required: false
         type: string
-      # Step results — quick pass/fail per step
-      step_launch:
-        description: "Step: launch-app"
-        required: true
-        type: choice
-        options:
-          - pass
-          - fail
-          - skip
-      step_create:
-        description: "Step: create-sprite"
-        required: true
-        type: choice
-        options:
-          - pass
-          - fail
-          - skip
-      step_draw:
-        description: "Step: draw-content"
-        required: true
-        type: choice
-        options:
-          - pass
-          - fail
-          - skip
-      step_export:
-        description: "Step: export-png"
-        required: true
-        type: choice
-        options:
-          - pass
-          - fail
-          - skip
-      step_verify:
-        description: "Step: verify-export"
-        required: true
-        type: choice
-        options:
-          - pass
-          - fail
-          - skip
+      failed_steps:
+        description: "Any steps that failed? (comma-separated, or leave blank if all passed)"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -97,21 +57,15 @@ jobs:
         run: |
           FINISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           RUN_ID="glyphstudio-${{ github.run_id }}-${{ github.run_attempt }}"
+          FAILED_STEPS="${{ inputs.failed_steps }}"
 
-          # Build step_results array
-          STEP_RESULTS=$(jq -n \
-            --arg launch "${{ inputs.step_launch }}" \
-            --arg create "${{ inputs.step_create }}" \
-            --arg draw "${{ inputs.step_draw }}" \
-            --arg export "${{ inputs.step_export }}" \
-            --arg verify "${{ inputs.step_verify }}" \
-            '[
-              { "step_id": "launch-app", "status": $launch },
-              { "step_id": "create-sprite", "status": $create },
-              { "step_id": "draw-content", "status": $draw },
-              { "step_id": "export-png", "status": $export },
-              { "step_id": "verify-export", "status": $verify }
-            ]')
+          # Build step_results: all pass unless listed in failed_steps
+          STEP_RESULTS=$(jq -n --arg failed "$FAILED_STEPS" '
+            ["launch-app","create-sprite","draw-content","export-png","verify-export"]
+            | map({
+                "step_id": .,
+                "status": (if ($failed | split(",") | map(gsub("^\\s+|\\s+$";"")) | index(.)) then "fail" else "pass" end)
+              })')
 
           # Build evidence array
           EVIDENCE=$(jq -n \
@@ -140,7 +94,7 @@ jobs:
             --arg scenario_id "${{ inputs.scenario }}" \
             --arg execution_mode "${{ inputs.execution_mode }}" \
             --arg verdict "${{ inputs.verdict }}" \
-            --arg attested_by "${{ inputs.attested_by }}" \
+            --arg attested_by "${{ github.actor }}" \
             --arg notes "${{ inputs.notes }}" \
             --arg blocking_reason "${{ inputs.blocking_reason }}" \
             --argjson step_results "$STEP_RESULTS" \
