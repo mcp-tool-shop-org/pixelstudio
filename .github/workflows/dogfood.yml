@@ -25,7 +25,7 @@ on:
           - fail
           - blocked
       screenshot_url:
-        description: "Screenshot URL (drag an image into any GitHub issue to get a link)"
+        description: "Screenshot URL"
         required: true
         type: string
       notes:
