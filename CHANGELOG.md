@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-03-25
+
+### Fixed
+- MCP sprite server no longer uses hardcoded version — reads dynamically from package.json
+
+### Added
+- `version.ts` module for MCP sprite server with dynamic version/name exports
+- 3 new version tests for MCP sprite server
+
 ## [1.0.0] - 2026-03-16
 
 ### Added
