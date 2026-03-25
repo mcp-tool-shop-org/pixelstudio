@@ -3,6 +3,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { VERSION } from './version.js';
 import { SessionManager } from './session/sessionManager.js';
 import { registerSessionTools } from './tools/sessionTools.js';
 import { registerDocumentTools } from './tools/documentTools.js';
@@ -42,7 +43,7 @@ export function createGlyphStudioServer(options?: GlyphStudioServerOptions): Gly
 
   const server = new McpServer({
     name: 'glyphstudio-sprite-server',
-    version: '1.0.0',
+    version: VERSION,
   });
 
   // Register all tool groups
