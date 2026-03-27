@@ -56,7 +56,7 @@ The frontend never holds pixel truth. Every pixel mutation goes through Rust and
 
 ## State model
 
-The frontend uses 17 Zustand stores organized by domain, plus a canvas frame store for rendering:
+The frontend uses 30 Zustand stores organized by domain, plus a canvas frame store for rendering:
 
 | Store | Responsibility |
 |-------|---------------|
@@ -77,6 +77,21 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 | character | Active build, selected slot, validation issues, dirty flag, equip/unequip/replace actions |
 | scenePlayback | Scene clock, camera resolver, keyframes, shot derivation, selected keyframe, camera timeline lane projection |
 | sceneEditor | Scene instances + camera keyframes (authoritative frontend state), scene undo/redo history stacks, rollback-aware undo/redo actions, persisted provenance log + drilldown captures |
+| spriteEditor | Sprite document model, pixel buffers, frame/layer CRUD, draft stroke compositing |
+| reference | Reference image overlays for tracing and comparison |
+| workflow | Workflow runner state for multi-step guided flows |
+| brushSettings | Brush size, opacity, dither pattern, sketch presets |
+| translation | Translation session state for pixel-art upscaling |
+| vectorMaster | Vector workspace state for SVG/vector editing mode |
+| sizeProfile | Canvas size presets and profile management |
+| snapshot | Canvas snapshot capture and comparison |
+| rangeSnapshot | Multi-frame range checkpoints for bulk operations |
+| slice | Slice region definitions for sprite sheet export |
+| motion | Motion session lifecycle, proposals, commit/undo |
+| anchor | Anchor CRUD, hierarchy, propagation, binding |
+| sandbox | Sandbox session for isolated motion preview and analysis |
+| hint | Contextual workflow hints with dismissal persistence |
+| library | Unified index over parts, palette sets, and variants |
 | canvasFrame | Shared frame data from Rust for Canvas and LayerPanel rendering |
 
 ## Reducer patterns
@@ -91,7 +106,7 @@ The frontend uses 17 Zustand stores organized by domain, plus a canvas frame sto
 
 ## Backend command surface
 
-166 implemented Tauri commands across:
+205 implemented Tauri commands across:
 - **Canvas** (13): init, get state, write/read pixel, stroke lifecycle, undo/redo, layer management
 - **Project** (13): new, open, save, info, dirty, recents, export PNG, autosave, check/restore/discard recovery, export frame sequence, export sprite strip
 - **Selection** (16): set/clear/get selection, copy/cut/paste/delete, begin/move/nudge/commit/cancel transform, flip H/V, rotate CW/CCW

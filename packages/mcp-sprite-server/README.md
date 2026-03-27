@@ -11,14 +11,14 @@
   <a href="https://github.com/mcp-tool-shop-org/glyphstudio/actions"><img src="https://img.shields.io/github/actions/workflow/status/mcp-tool-shop-org/glyphstudio/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/MCP-76%20tools-blueviolet?style=flat-square" alt="76 MCP Tools">
-  <img src="https://img.shields.io/badge/tests-239%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-292%20passing-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 # @glyphstudio/mcp-sprite-server
 
 MCP server that exposes the [GlyphStudio](../../README.md) sprite editor as a programmable surface for LLMs. Create documents, draw pixels, manage frames and layers, control playback — all through [Model Context Protocol](https://modelcontextprotocol.io/) tools that call the real domain and state logic. No reimplemented raster, no parallel universe.
 
-Part of the [GlyphStudio monorepo](../../README.md) — a Tauri v2 desktop sprite studio with 32 shipped stages, 166 Rust commands, and 2,216 tests.
+Part of the [GlyphStudio monorepo](../../README.md) — a Tauri v2 desktop sprite studio with 32 shipped stages, 205 Rust commands, and 4,550+ tests.
 
 ## Why
 

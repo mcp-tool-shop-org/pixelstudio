@@ -41,7 +41,7 @@ glyphstudio/
   packages/
     domain/               # Pure TypeScript types (layers, tools, palettes)
     api-contract/         # Tauri command/event payload types
-    state/                # Zustand store slices (14 stores)
+    state/                # Zustand store slices (30 stores)
   site/                   # Astro landing page + Starlight handbook
 ```
 
@@ -200,3 +200,5 @@ cargo check
 - Draft stroke compositing: override active layer buffer and re-flatten all visible layers
 - Multi-layer export: flatten visible layers per frame for sprite sheet output
 - 1,149 tests (951 desktop + 198 sprite package)
+
+**Beyond Stage 30** — the project continued through dozens of additional stages covering anchors, sandbox preview, secondary motion, motion presets, clips, asset catalogs, bundle packaging, scene composition, camera keyframes, character builder, vector workspace, copilot analysis, brush settings, reference images, translation upscaling, and the MCP sprite server. The current codebase has 205 Tauri commands, 76 MCP tools, 30 Zustand stores, and 4,550+ tests across all packages.

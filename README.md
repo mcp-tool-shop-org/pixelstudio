@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/tauri-v2-orange?style=flat-square" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/tests-2550%2B%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-4550%2B%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="https://mcp-tool-shop-org.github.io/glyphstudio/"><img src="https://img.shields.io/badge/Landing_Page-live-blue?style=flat-square" alt="Landing Page"></a>
 </p>
 
@@ -134,7 +134,7 @@ glyphstudio/
   packages/
     domain/               Types and contracts
     api-contract/         Tauri IPC types
-    state/                State management, raster, history (2,550+ tests)
+    state/                State management, raster, history (2,575+ tests)
     mcp-sprite-server/    MCP server — 76 tools
   showcase/               Canonical showcase projects
   site/                   Landing page (Astro)
